@@ -160,10 +160,10 @@ export default function ChatWindow({
     <div id="wsm-chat-window" className="flex-1 flex flex-col h-full bg-[#fcfbfa] relative overflow-hidden">
       
       {/* Top Header */}
-      <header className="px-4 py-2.5 bg-white/80 backdrop-blur-md border-b border-[#eae6e1] flex items-center justify-between relative z-20">
+      <header className="px-4 py-2.5 bg-white/80 backdrop-blur-md border-b border-[#eae6e1] flex items-center justify-between relative z-40">
         <div className="flex items-center gap-2.5">
           {/* AI Model Selector Pill */}
-          <div className="relative">
+          <div className="relative z-50">
             <button
               onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
               className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-[#eae6e1] hover:border-gray-300 rounded-full text-[13px] font-semibold text-gray-800 shadow-2xs cursor-pointer transition-all active:scale-95"

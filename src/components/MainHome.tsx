@@ -59,9 +59,9 @@ export default function MainHome({
       <div className="absolute top-[-10%] right-[-10%] w-[45%] h-[45%] glow-right pointer-events-none rounded-full" />
 
       {/* Top Header / Action Bar */}
-      <header className="relative z-20 px-5 py-3.5 flex items-center justify-between">
+      <header className="relative z-40 px-5 py-3.5 flex items-center justify-between">
         {/* Model Dropdown Pill */}
-        <div className="relative">
+        <div className="relative z-50">
           <button
             id="model-selector-pill"
             onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
