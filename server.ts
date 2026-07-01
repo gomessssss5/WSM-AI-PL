@@ -26,6 +26,14 @@ app.post("/api/chat", async (req: express.Request, res: express.Response) => {
   const { text, isSearchEnabled, model } = req.body;
 
   try {
+    if (!process.env.GEMINI_API_KEY) {
+      return res.json({
+        text: "⚠️ **Chave de API do Gemini (GEMINI_API_KEY) não configurada.**\n\nPor favor, configure sua chave `GEMINI_API_KEY` em **Settings > Secrets** no AI Studio (ou nas variáveis de ambiente da sua hospedagem, como a Vercel) para que os modelos do WSM AI possam processar suas mensagens.",
+        searchImages: [],
+        searchSources: []
+      });
+    }
+
     // 1. If web search mode is active, do search with Tavily
     if (isSearchEnabled) {
       if (!process.env.TAVILY_API_KEY) {
