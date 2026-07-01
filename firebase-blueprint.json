@@ -1,0 +1,38 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile document with public metadata",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email"]
+    },
+    "ChatSession": {
+      "title": "ChatSession",
+      "description": "A single chat thread session",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "messages": { "type": "array" }
+      },
+      "required": ["title", "timestamp", "messages"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile data"
+    },
+    "/users/{userId}/sessions/{sessionId}": {
+      "schema": "ChatSession",
+      "description": "Chat sessions for a specific user"
+    }
+  }
+}

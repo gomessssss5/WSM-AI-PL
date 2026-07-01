@@ -1,0 +1,850 @@
+import React, { useState, useEffect, useRef } from 'react';
+import Sidebar from './components/Sidebar';
+import MainHome from './components/MainHome';
+import ChatWindow from './components/ChatWindow';
+import ImagesGallery from './components/ImagesGallery';
+import Login from './components/Login';
+import { auth, onAuthStateChanged, signOut, User, getRedirectResult } from './lib/firebase';
+import { subscribeSessions, saveSession, deleteSessionFromDb } from './lib/chatService';
+import { ChatSession, Message } from './types';
+import { Sparkles } from 'lucide-react';
+
+export default function App() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [isImagesView, setIsImagesView] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>('WSM 1.6 Mercúrio');
+
+  // Keep references to activeSession and dirty state for event listeners
+  const isDirtyRef = useRef<boolean>(false);
+  const activeSessionRef = useRef<ChatSession | null>(null);
+  const autoSaveTimeoutRef = useRef<any>(null);
+  const currentUserRef = useRef<User | null>(null);
+
+  // Sync currentUser reference
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  // Sync activeSession reference
+  const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
+  useEffect(() => {
+    activeSessionRef.current = activeSession;
+  }, [activeSession]);
+
+  // Listen to Auth State Changes
+  useEffect(() => {
+    getRedirectResult(auth).catch((err) => {
+      console.warn("Redirect result handled/resolved with: ", err);
+    });
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Listen to User Sessions from Firestore
+  useEffect(() => {
+    if (!currentUser) {
+      setSessions([]);
+      return;
+    }
+
+    const unsubscribe = subscribeSessions(currentUser.uid, (loadedSessions) => {
+      setSessions((prevSessions) => {
+        const activeLocal = prevSessions.find((s) => s.id === activeSessionId);
+        const isActiveLocalDirty = activeLocal && isDirtyRef.current;
+        const isActiveInLoaded = loadedSessions.some((loaded) => loaded.id === activeSessionId);
+
+        // Map loaded sessions, preserving dirty state for active one if it's updated in loaded list
+        const updatedLoaded = loadedSessions.map((loaded) => {
+          if (loaded.id === activeSessionId && isDirtyRef.current && activeLocal) {
+            return {
+              ...loaded,
+              messages: activeLocal.messages,
+              title: activeLocal.title
+            };
+          }
+          return loaded;
+        });
+
+        // If active session is dirty but NOT yet in loadedSessions, keep it at the top!
+        if (isActiveLocalDirty && !isActiveInLoaded && activeLocal) {
+          return [activeLocal, ...updatedLoaded];
+        }
+
+        return updatedLoaded;
+      });
+    });
+
+    return () => unsubscribe();
+  }, [currentUser, activeSessionId]);
+
+  // Persists the specified session directly to Firestore and clears the active save timeout
+  const persistSession = async (session: ChatSession) => {
+    const user = currentUserRef.current;
+    if (!user || !isDirtyRef.current) return;
+
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+      autoSaveTimeoutRef.current = null;
+    }
+
+    try {
+      console.log('Persisting session to Firestore:', session.id);
+      await saveSession(user.uid, session);
+      isDirtyRef.current = false;
+    } catch (err) {
+      console.error('Erro ao persistir sessão no Firestore:', err);
+    }
+  };
+
+  // Triggers a debounced save 8 seconds after the user stops sending messages
+  const triggerDebouncedSave = (session: ChatSession) => {
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      persistSession(session);
+    }, 8000);
+  };
+
+  // Handle unload, hide, or tab closing
+  useEffect(() => {
+    const handleUnloadOrHide = () => {
+      if (activeSessionRef.current && isDirtyRef.current) {
+        persistSession(activeSessionRef.current);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleUnloadOrHide);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        handleUnloadOrHide();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleUnloadOrHide);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Handle switching to a specific session
+  const handleSelectSession = (id: string | null) => {
+    if (activeSessionRef.current && isDirtyRef.current) {
+      persistSession(activeSessionRef.current);
+    }
+    setIsImagesView(false);
+    setActiveSessionId(id);
+  };
+
+  // Create a brand new clean chat session
+  const handleNewChat = () => {
+    if (activeSessionRef.current && isDirtyRef.current) {
+      persistSession(activeSessionRef.current);
+    }
+    setIsImagesView(false);
+    setActiveSessionId(null);
+  };
+
+  // Toggle images gallery view
+  const handleToggleImagesView = () => {
+    setIsImagesView(!isImagesView);
+  };
+
+  // Delete an existing session from Firestore
+  const handleDeleteSession = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentUser) return;
+
+    try {
+      if (activeSessionId === id) {
+        isDirtyRef.current = false;
+        if (autoSaveTimeoutRef.current) {
+          clearTimeout(autoSaveTimeoutRef.current);
+          autoSaveTimeoutRef.current = null;
+        }
+      }
+      await deleteSessionFromDb(currentUser.uid, id);
+      if (activeSessionId === id) {
+        setActiveSessionId(null);
+      }
+    } catch (err) {
+      console.error('Erro ao excluir sessão do banco de dados:', err);
+    }
+  };
+
+  // Handle sign out
+  const handleSignOut = async () => {
+    if (activeSessionRef.current && isDirtyRef.current) {
+      await persistSession(activeSessionRef.current);
+    }
+    try {
+      await signOut(auth);
+      setActiveSessionId(null);
+      setIsImagesView(false);
+    } catch (err) {
+      console.error('Erro ao deslogar:', err);
+    }
+  };
+
+  // Generate high-quality simulated response based on user input
+  const getSimulatedResponse = (text: string, isSearchEnabled: boolean): Partial<Message> => {
+    const lower = text.toLowerCase();
+    
+    // 1. Math / Scientific Response
+    if (
+      lower.includes('matematica') ||
+      lower.includes('matemática') ||
+      lower.includes('calculo') ||
+      lower.includes('cálculo') ||
+      lower.includes('equacao') ||
+      lower.includes('equação') ||
+      lower.includes('formula') ||
+      lower.includes('fórmula') ||
+      lower.includes('math') ||
+      lower.includes('fisica') ||
+      lower.includes('física') ||
+      lower.includes('derivada') ||
+      lower.includes('integral')
+    ) {
+      return {
+        text: `## 📐 Resolução Matemática Completa (${selectedModel})
+
+Aqui está uma análise matemática detalhada de alta fidelidade baseada na sua consulta. Vamos deduzir e explicar as equações fundamentais passo a passo utilizando **LaTeX** de alta precisão.
+
+### 1. Definição e Formulação Teórica
+Dada uma função contínua real, a derivada no ponto nos dá a taxa de variação instantânea. De forma semelhante, o **Teorema Fundamental do Cálculo** conecta a derivação com a integração:
+
+Seja $f(x)$ contínua no intervalo $[a, b]$, então definimos a integral definida como:
+$$ \\int_{a}^{b} f(x) \\, dx = F(b) - F(a) $$
+
+Onde $F(x)$ é a antiderivada tal que:
+$$ \\frac{d}{dx}F(x) = f(x) $$
+
+---
+
+### 2. Exemplos de Equações Avançadas
+
+*   **Identidade de Euler**: Relaciona cinco das constantes matemáticas mais importantes de forma harmônica:
+    $$ e^{i \\pi} + 1 = 0 $$
+
+*   **Integral de Gauss**: Fundamental em probabilidade e estatística (distribuição normal):
+    $$ \\int_{-\\infty}^{\\infty} e^{-x^2} \\, dx = \\sqrt{\\pi} $$
+
+*   **Equação de Campo de Einstein**: Estrutura do espaço-tempo na Relatividade Geral:
+    $$ G_{\\mu\\nu} + \\Lambda g_{\\mu\\nu} = \\frac{8\\pi G}{c^4} T_{\\mu\\nu} $$
+
+---
+
+### 3. Tabela Comparativa de Domínios
+| Ramo da Matemática | Operação Principal | Elemento Neutro | Equação Típica |
+| :--- | :--- | :--- | :--- |
+| **Álgebra** | Multiplicação | $1$ | $x^2 - y^2 = (x-y)(x+y)$ |
+| **Cálculo** | Limite | Diferencial | $\\lim_{h \\to 0} \\frac{f(x+h)-f(x)}{h}$ |
+| **Física Teórica** | Hamiltoniana | Ação Mínima | $\\delta S = 0$ |
+
+> *Nota explicativa:* A velocidade de cálculo computacional com o motor **${selectedModel}** permitiu resolver esta formulação analítica em apenas **0.12 segundos** usando simulação simbólica.`
+      };
+    }
+
+    // 2. Image Generation Response
+    if (
+      lower.includes('imagem') || 
+      lower.includes('crie uma imagem') || 
+      lower.includes('gerar imagem') || 
+      lower.includes('desenhe') || 
+      lower.includes('paisagem') || 
+      lower.includes('cyberpunk')
+    ) {
+      return {
+        text: `## 🎨 Geração de Imagem Concluída
+
+Utilizei o motor gráfico **WSM Image Gen** integrado ao **${selectedModel}** para processar sua instrução.
+
+### 🛠️ Parâmetros do Prompt
+- **Estilo:** Futurista / Cyberpunk de alta fidelidade
+- **Dimensões:** $1024 \\times 1024$ pixels (Proporção $1:1$)
+- **Paleta de Cores:** Tons de roxo neon, ciano profundo e detalhes dourados.
+
+### 🔬 Análise de Composição Gráfica
+1. **Ponto de Fuga Central:** O horizonte converge para uma torre de dados flutuante.
+2. **Iluminação de Raytracing:** Reflexos dinâmicos gerados em superfícies molhadas.
+3. **Escala Fractal:** Geometria urbana calculada usando a equação de Mandelbrot:
+   $$ Z_{n+1} = Z_n^2 + C $$
+
+Veja o resultado da renderização em tempo real abaixo:`,
+        imageUrl: 'cyberpunk_city',
+      };
+    }
+
+    // 3. Code Block Response
+    if (
+      lower.includes('codigo') || 
+      lower.includes('código') || 
+      lower.includes('python') || 
+      lower.includes('javascript') || 
+      lower.includes('função') || 
+      lower.includes('programar') || 
+      lower.includes('html') || 
+      lower.includes('css')
+    ) {
+      const isPy = lower.includes('python');
+      return {
+        text: `## 💻 Solução de Programação Refatorada (${selectedModel})
+
+Aqui está uma solução limpa, altamente otimizada e documentada seguindo as melhores práticas do mercado de desenvolvimento de software.
+
+### 🚀 Destaques da Implementação
+*   **Complexidade de Tempo:** $O(N)$ no pior caso.
+*   **Complexidade de Espaço:** $O(N)$ para armazenamento de chaves de busca.
+*   **Estilo:** Funcional, modular e de fácil legibilidade.
+
+Observe a estrutura de código na seção abaixo:`,
+        codeBlock: {
+          language: isPy ? 'python' : 'javascript',
+          code: isPy 
+            ? `def remover_duplicados(lista):\n    """\n    Remove elementos duplicados de uma lista preservando a ordem original.\n    Complexidade: O(N) tempo e espaço.\n    """\n    vistos = set()\n    return [item for item in lista if not (item in vistos or vistos.add(item))]\n\n# Exemplo prático de uso:\nvalores = [1, 2, 2, 3, 4, 4, 1, 5]\nresultado = remover_duplicados(valores)\nprint(f"Lista sem duplicatas: {resultado}")\n# Saída: [1, 2, 3, 4, 5]`
+            : `function removeDuplicates(arr) {\n  // Utilizando Set para remoção em complexidade O(N)\n  return [...new Set(arr)];\n}\n\n// Exemplo prático de uso:\nconst valores = [10, 20, 20, 30, 40, 40, 10, 50];\nconst limpos = removeDuplicates(valores);\nconsole.log("Valores limpos:", limpos); // [10, 20, 30, 40, 50]`,
+        }
+      };
+    }
+
+    // 4. Translation Response
+    if (
+      lower.includes('traduz') || 
+      lower.includes('traduza') || 
+      lower.includes('traduzir') || 
+      lower.includes('translation')
+    ) {
+      return {
+        text: `## 🌐 Tradução Neural Contextualizada
+
+A tradução foi concluída pelo modelo de linguagem natural **${selectedModel}** aplicando técnicas de desambiguação semântica.
+
+### 📝 Resumo do Trabalho
+*   **Tom de Linguagem:** Técnico e profissional.
+*   **Preservação Estrutural:** Mantida a formatação e as expressões matemáticas originais.
+
+Observe a comparação de blocos de idiomas na listagem abaixo:`,
+        translationData: {
+          original: text.replace(/traduz|traduza|para o português|para o inglês/gi, '').trim() || 'The future of artificial intelligence is open, multi-modal, and extremely fast.',
+          translated: 'O futuro da inteligência artificial é aberto, multimodal e extremamente rápido.',
+          sourceLang: 'Inglês (EN)',
+          targetLang: 'Português (PT-BR)'
+        }
+      };
+    }
+
+    // 5. Data analysis / Table response
+    if (
+      lower.includes('analise') || 
+      lower.includes('dados') || 
+      lower.includes('relatório') || 
+      lower.includes('financeiro') || 
+      lower.includes('tabela')
+    ) {
+      return {
+        text: `## 📊 Relatório Analítico de Desempenho
+
+O motor de análise estatística do **${selectedModel}** processou os dados brutos e produziu uma consolidação de métricas.
+
+### 📈 Descobertas Principais
+- **Eficiência de Processamento:** Houve uma redução drástica no tempo médio de resposta.
+- **Redução de Latência:** O algoritmo de inferência agora é executado de forma paralela.
+- **Consumo Energético:** Otimização de $31\\%$ nos núcleos de processamento gráfico.
+
+### 📋 Tabela Consolidada de Métricas
+| Parâmetro de Performance | Status de Infraestrutura | Valor Anterior | Valor Atual | Variação (%) |
+| :--- | :---: | :---: | :---: | :---: |
+| **Tempo de Execução (inferência)** | Excelente ⚡ | $1.2s$ | $0.35s$ | $-70.8\\%$ |
+| **Acurácia Semântica (LLM)** | Excelente ⭐ | $94.2\\%$ | $99.1\\%$ | $+5.2\\%$ |
+| **Uso de Memória RAM** | Otimizado 📉 | $128\\text{ MB}$ | $88\\text{ MB}$ | $-31.2\\%$ |
+| **Pontuação de Satisfação** | Altíssima 📈 | $4.8/5.0$ | $4.98/5.0$ | $+3.75\\%$ |
+
+> *Recomendação Técnico:* Recomenda-se manter o modelo **${selectedModel}** ativado para todas as operações críticas do dia a dia devido aos ganhos substanciais de performance.`
+      };
+    }
+
+    // 6. General Text Response
+    const searchStatus = isSearchEnabled 
+      ? '🌐 **[Busca na Web Ativada]** Fontes de conhecimento atualizadas com sucesso.\n\n' 
+      : '';
+    
+    return {
+      text: `${searchStatus}# 👋 Bem-vindo ao WSM AI Hub!
+
+Olá! Eu sou o **${selectedModel}**, uma inteligência artificial desenvolvida para fornecer respostas com velocidade de resposta ultrarrápida, raciocínio lógico apurado e recursos multimodais avançados.
+
+---
+
+### ⚡ Recursos Principais do Hub
+- **Cálculo Científico com LaTeX:** Suporta formatação matemática de ponta, como a equação de onda:
+  $$ \\frac{\\partial^2 u}{\\partial t^2} = c^2 \\nabla^2 u $$
+- **Tabelas de Análise Comparativa:** Renderização automática de dados.
+- **Destaques em Negrito e Itálico:** Textos formatados dinamicamente para facilitar a leitura.
+- **Listas e Tópicos Estruturados:** Informações organizadas por relevância temática.
+
+---
+
+### 🚀 Experimente Agora!
+Você pode clicar em um dos cartões de sugestão na tela inicial ou experimentar estas opções:
+1.  **Peça matemática:** "Mostre equações de física e integrais"
+2.  **Peça dados:** "Mostre uma tabela de análise financeira"
+3.  **Peça imagem:** "Crie uma imagem realista de uma cidade cyberpunk"
+4.  **Peça código:** "Escreva uma função para filtrar números pares em JavaScript"
+
+Como posso ajudar você hoje?`
+    };
+  };
+
+  // Main sendMessage routine (used by both MainHome input and ChatWindow input)
+  const handleSendMessage = async (text: string, isSearchEnabled: boolean) => {
+    if (!currentUser) return;
+
+    const userMsg: Message = {
+      id: `msg-${Date.now()}-user`,
+      sender: 'user',
+      text,
+      timestamp: new Date(),
+    };
+
+    let sessionToUpdate: ChatSession;
+
+    if (!activeSessionId) {
+      // Create a brand new session locally first
+      const truncatedTitle = text.length > 28 ? `${text.substring(0, 28)}...` : text;
+      const newId = `session-${Date.now()}`;
+      const newSession: ChatSession = {
+        id: newId,
+        title: truncatedTitle,
+        timestamp: new Date(),
+        messages: [userMsg],
+        category: 'general',
+      };
+      
+      sessionToUpdate = newSession;
+      
+      // Update local state immediately for smooth UI transition
+      setSessions((prev) => [newSession, ...prev]);
+      setActiveSessionId(newId);
+      isDirtyRef.current = true;
+      triggerDebouncedSave(newSession);
+    } else {
+      // Append message to existing session locally first
+      const currentSession = sessions.find((s) => s.id === activeSessionId);
+      if (!currentSession) return;
+
+      sessionToUpdate = {
+        ...currentSession,
+        messages: [...currentSession.messages, userMsg],
+      };
+      
+      // Update local state immediately for smooth UI transition
+      setSessions((prev) => prev.map((s) => s.id === activeSessionId ? sessionToUpdate : s));
+      isDirtyRef.current = true;
+      triggerDebouncedSave(sessionToUpdate);
+    }
+
+    // Real AI response fetch from Express backend
+    setIsThinking(true);
+
+    if (isSearchEnabled) {
+      const initialAiMsg: Message = {
+        id: `msg-${Date.now()}-ai`,
+        sender: "ai",
+        text: "",
+        timestamp: new Date(),
+        isSearchMessage: true,
+        searchIntro: "Preparando a pesquisa...",
+        searchSteps: [],
+        finalSynthesis: "",
+        searchImages: [],
+        searchSources: [],
+        isSimulatingSearch: true,
+      };
+
+      // Put the user's message and the initial AI searching message in state immediately
+      setSessions((prev) => {
+        const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
+        if (!currentSess) return prev;
+        return prev.map((s) => {
+          if (s.id !== sessionToUpdate.id) return s;
+          return {
+            ...s,
+            messages: [
+              ...s.messages.filter((m) => m.id !== userMsg.id),
+              userMsg,
+              initialAiMsg,
+            ],
+          };
+        });
+      });
+
+      fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text,
+          isSearchEnabled,
+          model: selectedModel,
+        }),
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error("Erro na conexão com o servidor de IA");
+
+          const contentType = res.headers.get("content-type") || "";
+          if (!contentType.includes("text/event-stream")) {
+            // Fallback for non-SSE response (e.g. error JSON or missing Tavily key)
+            const data = await res.json();
+            setSessions((prev) => {
+              const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
+              if (!currentSess) return prev;
+              const finalSession = {
+                ...currentSess,
+                messages: currentSess.messages.map((m) =>
+                  m.id === initialAiMsg.id
+                    ? {
+                        ...m,
+                        text: data.text || "",
+                        finalSynthesis: data.text || "",
+                        isSimulatingSearch: false,
+                        searchIntro: data.text ? undefined : "Pesquisa concluída.",
+                      }
+                    : m
+                ),
+              };
+              isDirtyRef.current = true;
+              triggerDebouncedSave(finalSession);
+              return prev.map((s) => s.id === sessionToUpdate.id ? finalSession : s);
+            });
+            setIsThinking(false);
+            return;
+          }
+
+          const reader = res.body?.getReader();
+          if (!reader) throw new Error("Readable stream não suportado");
+          const decoder = new TextDecoder("utf-8");
+          let buffer = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              const cleanedLine = line.trim();
+              if (!cleanedLine.startsWith("data: ")) continue;
+
+              try {
+                const eventData = JSON.parse(cleanedLine.substring(6));
+
+                if (eventData.type === "plan") {
+                  setIsThinking(false); // Stop typing spinner as soon as we start research plan!
+                  setSessions((prev) => {
+                    const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
+                    if (!currentSess) return prev;
+                    return prev.map((s) => {
+                      if (s.id !== sessionToUpdate.id) return s;
+                      return {
+                        ...s,
+                        messages: s.messages.map((m) =>
+                          m.id === initialAiMsg.id
+                            ? {
+                                ...m,
+                                searchIntro: eventData.searchIntro,
+                                searchSteps: eventData.searchSteps,
+                              }
+                            : m
+                        ),
+                      };
+                    });
+                  });
+                } else if (eventData.type === "step_complete") {
+                  setSessions((prev) => {
+                    const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
+                    if (!currentSess) return prev;
+                    return prev.map((s) => {
+                      if (s.id !== sessionToUpdate.id) return s;
+                      return {
+                        ...s,
+                        messages: s.messages.map((m) => {
+                          if (m.id !== initialAiMsg.id) return m;
+                          const steps = m.searchSteps ? [...m.searchSteps] : [];
+                          if (steps[eventData.index]) {
+                            steps[eventData.index] = {
+                              ...steps[eventData.index],
+                              sources: eventData.sources,
+                            };
+                          }
+                          return {
+                            ...m,
+                            searchSteps: steps,
+                          };
+                        }),
+                      };
+                    });
+                  });
+                } else if (eventData.type === "final") {
+                  setSessions((prev) => {
+                    const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
+                    if (!currentSess) return prev;
+                    const finalSession = {
+                      ...currentSess,
+                      messages: currentSess.messages.map((m) =>
+                        m.id === initialAiMsg.id
+                          ? {
+                              ...m,
+                              text: eventData.text,
+                              finalSynthesis: eventData.finalSynthesis,
+                              searchImages: eventData.searchImages,
+                              searchSources: eventData.searchSources,
+                              isSimulatingSearch: true,
+                            }
+                          : m
+                      ),
+                    };
+                    isDirtyRef.current = true;
+                    triggerDebouncedSave(finalSession);
+                    return prev.map((s) => s.id === sessionToUpdate.id ? finalSession : s);
+                  });
+                }
+              } catch (e) {
+                console.error("Erro ao analisar linha SSE:", cleanedLine, e);
+              }
+            }
+          }
+        })
+        .catch((err) => {
+          console.error("Erro na requisição de busca:", err);
+          setIsThinking(false);
+          setSessions((prev) => {
+            const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
+            if (!currentSess) return prev;
+            return prev.map((s) => {
+              if (s.id !== sessionToUpdate.id) return s;
+              return {
+                ...s,
+                messages: s.messages.map((m) =>
+                  m.id === initialAiMsg.id
+                    ? {
+                        ...m,
+                        text: `⚠️ **Ocorreu um erro ao obter resposta do assistente:** ${err.message || err}`,
+                        isSimulatingSearch: false,
+                        searchIntro: "Erro na pesquisa.",
+                      }
+                    : m
+                ),
+              };
+            });
+          });
+        });
+    } else {
+      // Normal chat request without search
+      fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text,
+          isSearchEnabled,
+          model: selectedModel,
+        }),
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error("Erro na conexão com o servidor de IA");
+          return res.json();
+        })
+        .then((data) => {
+          const aiMsg: Message = {
+            id: `msg-${Date.now()}-ai`,
+            sender: "ai",
+            text: data.text || "",
+            timestamp: new Date(),
+          };
+
+          setSessions((prev) => {
+            const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
+            if (!currentSess) return prev;
+
+            const finalSession = {
+              ...currentSess,
+              messages: [
+                ...currentSess.messages.filter((m) => m.id !== userMsg.id),
+                userMsg,
+                aiMsg,
+              ],
+            };
+
+            isDirtyRef.current = true;
+            triggerDebouncedSave(finalSession);
+
+            return prev.map((s) => s.id === sessionToUpdate.id ? finalSession : s);
+          });
+        })
+        .catch((err) => {
+          console.error("Error fetching chat response:", err);
+          const aiMsg: Message = {
+            id: `msg-${Date.now()}-ai`,
+            sender: "ai",
+            text: `⚠️ **Ocorreu um erro ao obter resposta do assistente:** ${err.message || err}`,
+            timestamp: new Date(),
+          };
+
+          setSessions((prev) => {
+            const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
+            if (!currentSess) return prev;
+
+            const finalSession = {
+              ...currentSess,
+              messages: [
+                ...currentSess.messages.filter((m) => m.id !== userMsg.id),
+                userMsg,
+                aiMsg,
+              ],
+            };
+
+            isDirtyRef.current = true;
+            triggerDebouncedSave(finalSession);
+
+            return prev.map((s) => s.id === sessionToUpdate.id ? finalSession : s);
+          });
+        })
+        .finally(() => {
+          setIsThinking(false);
+        });
+    }
+  };
+
+  // Turn off search simulation once it completes and save session
+  const handleSearchSimulationComplete = (messageId: string) => {
+    setSessions((prev) => {
+      const activeSess = prev.find((s) => s.id === activeSessionId);
+      if (!activeSess) return prev;
+
+      const updatedMsgs = activeSess.messages.map((m) =>
+        m.id === messageId ? { ...m, isSimulatingSearch: false } : m
+      );
+
+      const finalSession = {
+        ...activeSess,
+        messages: updatedMsgs,
+      };
+
+      isDirtyRef.current = true;
+      triggerDebouncedSave(finalSession);
+
+      return prev.map((s) => s.id === activeSessionId ? finalSession : s);
+    });
+  };
+
+  // Suggestion pill click triggers immediate interactive query flow
+  const handleSuggestionClick = (type: 'write' | 'code' | 'image' | 'analysis' | 'translate') => {
+    let text = '';
+    switch (type) {
+      case 'write':
+        text = `Escreva um e-mail formal e amigável parabenizando a equipe WSM AI pelo design compacto e alta performance do ${selectedModel}`;
+        break;
+      case 'code':
+        text = 'Escreva uma função rápida em Javascript para ordenar uma lista de objetos';
+        break;
+      case 'image':
+        text = 'Crie uma imagem realista de uma paisagem cyberpunk futurista roxa';
+        break;
+      case 'analysis':
+        text = `Faça uma análise rápida do desempenho do ${selectedModel}`;
+        break;
+      case 'translate':
+        text = 'Traduz a frase: "The speed and intelligence of this new model is incredible."';
+        break;
+    }
+    handleSendMessage(text, false);
+  };
+
+  // Render authentic loading screen
+  if (authLoading) {
+    return (
+      <div id="wsm-loading-screen" className="flex h-screen w-screen flex-col items-center justify-center bg-[#fcfbfa] select-none dot-grid">
+        <div className="w-12 h-12 bg-gradient-to-br from-[#7c3aed] to-[#5c53e5] rounded-xl flex items-center justify-center shadow-md animate-spin mb-4">
+          <svg 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2.5" 
+            className="w-6 h-6 text-white"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+          </svg>
+        </div>
+        <p className="text-[13px] text-gray-400 font-semibold tracking-wide animate-pulse">
+          Inicializando WSM AI Hub...
+        </p>
+      </div>
+    );
+  }
+
+  // If no user is authenticated, force them to Login
+  if (!currentUser) {
+    return <Login onLoginSuccess={() => {}} />;
+  }
+
+  return (
+    <div className="flex h-screen w-screen bg-[#faf9f6] text-gray-800 font-sans overflow-hidden">
+      {/* Sidebar Area */}
+      <Sidebar
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onSelectSession={handleSelectSession}
+        onDeleteSession={handleDeleteSession}
+        onNewChat={handleNewChat}
+        onToggleImagesView={handleToggleImagesView}
+        isImagesView={isImagesView}
+        userEmail={currentUser.email}
+        userName={currentUser.displayName}
+        onSignOut={handleSignOut}
+      />
+
+      {/* Main View Area (Responsive) */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        {isImagesView ? (
+          <ImagesGallery onBackToHome={handleNewChat} />
+        ) : activeSession ? (
+          <ChatWindow
+            messages={activeSession.messages}
+            title={activeSession.title}
+            isThinking={isThinking}
+            onSendMessage={handleSendMessage}
+            onBackToHome={handleNewChat}
+            selectedModel={selectedModel}
+            setSelectedModel={setSelectedModel}
+            onSearchSimulationComplete={handleSearchSimulationComplete}
+          />
+        ) : (
+          <MainHome
+            onSendMessage={handleSendMessage}
+            onSuggestionClick={handleSuggestionClick}
+            selectedModel={selectedModel}
+            setSelectedModel={setSelectedModel}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
