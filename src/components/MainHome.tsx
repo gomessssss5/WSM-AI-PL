@@ -134,38 +134,46 @@ export default function MainHome({
         {/* Animated Central squircle mock dashboard */}
         <div 
           id="center-avatar-card"
-          className="w-16 h-16 bg-white rounded-2xl border border-gray-100 shadow-[0_6px_20px_rgba(0,0,0,0.04)] flex items-center justify-center mb-3 relative overflow-hidden p-2 group hover:scale-[1.03] hover:shadow-[0_10px_25px_rgba(92,83,229,0.08)] transition-all duration-300 select-none cursor-pointer"
+          className="w-16 h-16 flex items-center justify-center mb-6 select-none relative z-50"
         >
-          {/* Subtle colored ring inside squircle */}
-          <div className="absolute inset-0.5 border border-dashed border-[#5c53e5]/10 rounded-[0.95rem] group-hover:border-[#5c53e5]/25 transition-colors" />
-          
-          {/* Miniature Web Design Layout Mockup */}
-          <div className="w-full h-full bg-slate-50 rounded-[0.75rem] border border-slate-100/85 p-1 flex flex-col gap-0.5 shadow-inner relative overflow-hidden">
-            {/* Nav bar mockup */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-0.5">
-              <div className="flex items-center gap-0.5">
-                <span className="w-1 h-1 bg-red-400 rounded-full block" />
-                <span className="w-1 h-1 bg-yellow-400 rounded-full block" />
-                <span className="w-1 h-1 bg-green-400 rounded-full block" />
-              </div>
-              <div className="w-4 h-0.5 bg-slate-200 rounded-full" />
+          {/* Ghost animation centered and styled exactly as requested, loose with no borders or cards */}
+          <div id="ghost" className="animate-ghost-orbit" style={{ scale: '0.45', position: 'absolute' }}>
+            <div id="red">
+              <div id="pupil"></div>
+              <div id="pupil1"></div>
+              <div id="eye"></div>
+              <div id="eye1"></div>
+              <div id="top0"></div>
+              <div id="top1"></div>
+              <div id="top2"></div>
+              <div id="top3"></div>
+              <div id="top4"></div>
+              <div id="st0"></div>
+              <div id="st1"></div>
+              <div id="st2"></div>
+              <div id="st3"></div>
+              <div id="st4"></div>
+              <div id="st5"></div>
+              <div id="an1"></div>
+              <div id="an2"></div>
+              <div id="an3"></div>
+              <div id="an4"></div>
+              <div id="an5"></div>
+              <div id="an6"></div>
+              <div id="an7"></div>
+              <div id="an8"></div>
+              <div id="an9"></div>
+              <div id="an10"></div>
+              <div id="an11"></div>
+              <div id="an12"></div>
+              <div id="an13"></div>
+              <div id="an14"></div>
+              <div id="an15"></div>
+              <div id="an16"></div>
+              <div id="an17"></div>
+              <div id="an18"></div>
             </div>
-
-            {/* Sidebar & content block mockup */}
-            <div className="flex-1 flex gap-0.5 pt-0.5">
-              <div className="w-1 bg-slate-100 rounded-xs" />
-              <div className="flex-1 flex flex-col gap-0.5">
-                <div className="w-6 h-1 bg-[#5c53e5]/20 rounded-xs" />
-                <div className="w-full h-2.5 bg-white rounded-xs border border-slate-100 flex items-center justify-center p-0.5">
-                  <div className="w-full h-full bg-gradient-to-tr from-[#5c53e5]/30 to-purple-400/30 rounded-xxs" />
-                </div>
-              </div>
-            </div>
-            
-            {/* Micro sparkles indicator */}
-            <div className="absolute bottom-0.5 right-0.5">
-              <Sparkles className="w-2 h-2 text-[#5c53e5] animate-pulse" />
-            </div>
+            <div id="shadow"></div>
           </div>
         </div>
 

@@ -5,6 +5,52 @@ import MarkdownRenderer from './MarkdownRenderer';
 import SearchMessageView from './SearchMessageView';
 import TypewriterMarkdown from './TypewriterMarkdown';
 
+const UiverseLoader = ({ isThinking = false }: { isThinking?: boolean }) => (
+  <div 
+    className={`w-7 h-7 flex items-center justify-center shrink-0 relative overflow-visible ${isThinking ? 'animate-ghost-slide' : ''}`} 
+    id="uiverse-custom-loader"
+  >
+    <div id="ghost">
+      <div id="red">
+        <div id="pupil"></div>
+        <div id="pupil1"></div>
+        <div id="eye"></div>
+        <div id="eye1"></div>
+        <div id="top0"></div>
+        <div id="top1"></div>
+        <div id="top2"></div>
+        <div id="top3"></div>
+        <div id="top4"></div>
+        <div id="st0"></div>
+        <div id="st1"></div>
+        <div id="st2"></div>
+        <div id="st3"></div>
+        <div id="st4"></div>
+        <div id="st5"></div>
+        <div id="an1"></div>
+        <div id="an2"></div>
+        <div id="an3"></div>
+        <div id="an4"></div>
+        <div id="an5"></div>
+        <div id="an6"></div>
+        <div id="an7"></div>
+        <div id="an8"></div>
+        <div id="an9"></div>
+        <div id="an10"></div>
+        <div id="an11"></div>
+        <div id="an12"></div>
+        <div id="an13"></div>
+        <div id="an14"></div>
+        <div id="an15"></div>
+        <div id="an16"></div>
+        <div id="an17"></div>
+        <div id="an18"></div>
+      </div>
+      <div id="shadow"></div>
+    </div>
+  </div>
+);
+
 interface ChatWindowProps {
   key?: string;
   messages: Message[];
@@ -271,22 +317,23 @@ export default function ChatWindow({
               >
                 {/* AI Avatar */}
                 {!isUser && (
-                  <div className="w-7 h-7 bg-gradient-to-br from-[#7c3aed] to-[#5c53e5] rounded-lg flex items-center justify-center shrink-0 shadow-xs">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5 text-white">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-                    </svg>
-                  </div>
+                  message.text === "" && isThinking && message.id === messages[messages.length - 1]?.id ? (
+                    <UiverseLoader isThinking={true} />
+                  ) : (
+                    <UiverseLoader isThinking={false} />
+                  )
                 )}
 
                 <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-[85%]`}>
                   {/* Bubble content */}
-                  <div
-                    className={`rounded-xl px-3.5 py-2 text-[13.5px] leading-relaxed w-full ${
-                      isUser
-                        ? 'bg-[#f3f0ec] text-gray-800 shadow-[0_1px_1.5px_rgba(0,0,0,0.01)] border border-[#eae6e1]'
-                        : 'text-gray-800'
-                    }`}
-                  >
+                  {!(message.text === "" && isThinking && message.id === messages[messages.length - 1]?.id) && (
+                    <div
+                      className={`rounded-xl px-3.5 py-2 text-[13.5px] leading-relaxed w-full ${
+                        isUser
+                          ? 'bg-[#f3f0ec] text-gray-800 shadow-[0_1px_1.5px_rgba(0,0,0,0.01)] border border-[#eae6e1]'
+                          : 'text-gray-800'
+                      }`}
+                    >
                     {message.isSearchMessage ? (
                       <SearchMessageView
                         message={message}
@@ -536,11 +583,14 @@ export default function ChatWindow({
                       </div>
                     )}
                   </div>
+                  )}
                   
                   {/* Timestamp */}
-                  <span className="text-[9px] text-gray-400 mt-1 px-1">
-                    {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
+                  {!(message.text === "" && isThinking && message.id === messages[messages.length - 1]?.id) && (
+                    <span className="text-[9px] text-gray-400 mt-1 px-1">
+                      {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
                 </div>
               </div>
             );
