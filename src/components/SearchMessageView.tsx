@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Message, SearchStep } from '../types';
 import { Globe, Check, ChevronDown, ChevronUp, ZoomIn } from 'lucide-react';
 import MarkdownRenderer from './MarkdownRenderer';
+import TypewriterMarkdown from './TypewriterMarkdown';
 
 interface SearchMessageViewProps {
   message: Message;
@@ -61,15 +62,23 @@ export default function SearchMessageView({
     return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
   };
 
-  const isStepCompletedOnBackend = (idx: number) => {
-    if (!isSimulatingSearchRef.current) return true;
-    const step = stepsRef.current[idx];
-    return !!(step && step.sources && step.sources.length > 0);
-  };
+  // We can track the last message ID to reset states on message change
+  const lastMessageIdRef = useRef<string | null>(null);
+  const activeStepStartTimeRef = useRef<number>(0);
+
+  if (lastMessageIdRef.current !== message.id) {
+    lastMessageIdRef.current = message.id;
+    // Reset state directly during render to avoid extra renders or latency
+    setCurrentStepIndex(0);
+    setCompletedSteps({});
+    setShowFinal(false);
+    activeStepStartTimeRef.current = Date.now();
+  }
 
   useEffect(() => {
     if (!message.isSimulatingSearch) {
       // Historical messages load instantly
+      console.log('[SearchMessageView] Loading historical/completed search message instantly.');
       const allDone: Record<number, boolean> = {};
       for (let i = 0; i < totalSteps; i++) {
         allDone[i] = true;
@@ -77,72 +86,88 @@ export default function SearchMessageView({
       setCompletedSteps(allDone);
       setCurrentStepIndex(totalSteps);
       setShowFinal(true);
-      hasStartedRef.current = null;
       return;
     }
 
-    if (totalSteps === 0) {
-      hasStartedRef.current = null;
+    if (totalSteps === 0) return;
+
+    // We are simulating search. Check if current step has completed on the backend
+    const currentStep = steps[currentStepIndex];
+    if (!currentStep) {
+      // All search steps have been processed sequentially
+      // Now wait for the final synthesis from the backend
+      if (message.finalSynthesis && !showFinal) {
+        console.log("[SearchMessageView] All steps done, final synthesis arrived. Completing simulation.");
+        setShowFinal(true);
+        onStepChangeRef.current?.();
+        onSimulationCompleteRef.current?.();
+      }
       return;
     }
 
-    if (hasStartedRef.current === message.id) {
-      // Already running progression for this message, do not restart!
-      return;
-    }
-    hasStartedRef.current = message.id;
+    // Is the current step completed on the backend?
+    const isCompletedOnBackend = currentStep.isCompleted !== undefined 
+      ? currentStep.isCompleted 
+      : !!(currentStep.sources && currentStep.sources.length > 0);
 
-    let isMounted = true;
+    if (isCompletedOnBackend) {
+      // Backend completed this step! Verify if the minimum visual pacing duration (1.2 seconds) has passed
+      const now = Date.now();
+      const elapsed = now - activeStepStartTimeRef.current;
+      const minPaceDelay = 1200;
 
-    const runPacedProgression = async () => {
-      setShowFinal(false);
-      setCompletedSteps({});
-      setCurrentStepIndex(0);
-
-      // Start sequential progression from 0 to totalSteps
-      for (let i = 0; i < totalSteps; i++) {
-        if (!isMounted) return;
-
-        // 1. Set current active step
-        setCurrentStepIndex(i);
+      if (elapsed >= minPaceDelay) {
+        // Yes, 1.2s visual delay is satisfied. Complete this step visually
+        console.log(`[SearchMessageView] Completing step ${currentStepIndex} (tag="${currentStep.tag}")`);
+        setCompletedSteps(prev => {
+          if (prev[currentStepIndex]) return prev;
+          return { ...prev, [currentStepIndex]: true };
+        });
         onStepChangeRef.current?.();
 
-        // 2. Minimum pace delay of 1.2 seconds for "thinking/searching" representation
-        await new Promise(resolve => setTimeout(resolve, 1200));
-        if (!isMounted) return;
+        // Pause for 800ms transition, then advance to the next step
+        const timer = setTimeout(() => {
+          console.log(`[SearchMessageView] Advancing from step ${currentStepIndex} to ${currentStepIndex + 1}`);
+          activeStepStartTimeRef.current = Date.now();
+          setCurrentStepIndex(prev => prev + 1);
+          onStepChangeRef.current?.();
+        }, 800);
 
-        // 3. Wait until backend data actually arrives
-        while (!isStepCompletedOnBackend(i)) {
-          await new Promise(resolve => setTimeout(resolve, 150));
-          if (!isMounted) return;
-        }
+        return () => clearTimeout(timer);
+      } else {
+        // Backend completed the search fast, so wait for the remainder of the 1.2s visual delay
+        const remaining = minPaceDelay - elapsed;
+        console.log(`[SearchMessageView] Step ${currentStepIndex} completed on backend. Visual pacing delay remaining: ${remaining}ms`);
+        const timer = setTimeout(() => {
+          setCompletedSteps(prev => {
+            if (prev[currentStepIndex]) return prev;
+            return { ...prev, [currentStepIndex]: true };
+          });
+          onStepChangeRef.current?.();
 
-        // 4. Mark step as done
-        setCompletedSteps(prev => ({ ...prev, [i]: true }));
-        onStepChangeRef.current?.();
+          const nextTimer = setTimeout(() => {
+            console.log(`[SearchMessageView] Advancing from step ${currentStepIndex} to ${currentStepIndex + 1}`);
+            activeStepStartTimeRef.current = Date.now();
+            setCurrentStepIndex(prev => prev + 1);
+            onStepChangeRef.current?.();
+          }, 800);
+        }, remaining);
 
-        // 5. Short pause to read transition/thinking
-        await new Promise(resolve => setTimeout(resolve, 800));
-        if (!isMounted) return;
+        return () => clearTimeout(timer);
       }
-
-      // Wait for final response to be completely ready
-      while (!finalSynthesisRef.current) {
-        await new Promise(resolve => setTimeout(resolve, 150));
-        if (!isMounted) return;
-      }
-
-      setShowFinal(true);
-      onStepChangeRef.current?.();
-      onSimulationCompleteRef.current?.();
-    };
-
-    runPacedProgression();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [message.id, totalSteps, message.isSimulatingSearch]);
+    } else {
+      // Backend is still working on this step. Do nothing, just wait for backend/prop updates to trigger re-run
+      console.log(`[SearchMessageView] Step ${currentStepIndex} is still running on the backend. Waiting for data...`);
+    }
+  }, [
+    message.id,
+    totalSteps,
+    message.isSimulatingSearch,
+    currentStepIndex,
+    steps,
+    message.finalSynthesis,
+    showFinal
+  ]);
 
   // Handle collapsible state of a step
   const toggleExpand = (idx: number) => {
@@ -370,7 +395,11 @@ export default function SearchMessageView({
       {/* 5. Final Synthesized Markdown Answer */}
       {showFinal && message.finalSynthesis && (
         <div className="prose max-w-none text-[14px] text-gray-800 leading-relaxed w-full mt-3 pt-3 border-t border-gray-150/50 animate-fade-in">
-          <MarkdownRenderer content={message.finalSynthesis} />
+          <TypewriterMarkdown
+            content={message.finalSynthesis}
+            enabled={message.isSimulatingSearch}
+            onComplete={onStepChange}
+          />
         </div>
       )}
 

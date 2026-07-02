@@ -7,6 +7,7 @@ export interface SearchStep {
     url: string;
     snippet?: string;
   }[];
+  isCompleted?: boolean;
 }
 
 export interface Message {

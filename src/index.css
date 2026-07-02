@@ -85,3 +85,20 @@
   animation: scaleUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.typewriter-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  background: currentColor;
+  margin-left: 4px;
+  animation: blink 0.8s infinite;
+  vertical-align: bottom;
+}
+
+

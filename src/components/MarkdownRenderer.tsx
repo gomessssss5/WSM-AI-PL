@@ -5,9 +5,10 @@ import { Copy, Check } from 'lucide-react';
 
 interface MarkdownRendererProps {
   content: string;
+  isTyping?: boolean;
 }
 
-export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
+export default function MarkdownRenderer({ content, isTyping = false }: MarkdownRendererProps) {
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
 
   const copyToClipboard = (text: string, id: string) => {
@@ -438,6 +439,37 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
         </p>
       );
       i++;
+    }
+
+    if (isTyping && blocks.length > 0) {
+      const lastIdx = blocks.length - 1;
+      const lastBlock = blocks[lastIdx];
+
+      const cursorEl = (
+        <span key="typewriter-cursor" className="typewriter-cursor" />
+      );
+
+      if (React.isValidElement(lastBlock)) {
+        const lastBlockProps = lastBlock.props as any;
+        if (lastBlockProps && lastBlockProps.children !== undefined) {
+          let updatedChildren;
+          if (Array.isArray(lastBlockProps.children)) {
+            updatedChildren = [...lastBlockProps.children, cursorEl];
+          } else {
+            updatedChildren = [lastBlockProps.children, cursorEl];
+          }
+          blocks[lastIdx] = React.cloneElement(lastBlock, lastBlock.props, updatedChildren);
+        } else {
+          blocks[lastIdx] = (
+            <div key={`wrapped-last-${lastIdx}`} className="flex items-baseline flex-wrap">
+              {lastBlock}
+              {cursorEl}
+            </div>
+          );
+        }
+      } else {
+        blocks.push(cursorEl);
+      }
     }
 
     return blocks;

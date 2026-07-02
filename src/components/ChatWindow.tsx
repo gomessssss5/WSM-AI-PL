@@ -3,8 +3,10 @@ import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, Dow
 import { Message } from '../types';
 import MarkdownRenderer from './MarkdownRenderer';
 import SearchMessageView from './SearchMessageView';
+import TypewriterMarkdown from './TypewriterMarkdown';
 
 interface ChatWindowProps {
+  key?: string;
   messages: Message[];
   title: string;
   isThinking: boolean;
@@ -37,6 +39,27 @@ export default function ChatWindow({
   } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Typewriter tracking logic to avoid re-triggering for historical messages
+  const processedMessageIdsRef = useRef<Set<string>>(new Set());
+  const isInitialMountRef = useRef(true);
+
+  useEffect(() => {
+    if (isInitialMountRef.current) {
+      messages.forEach((m) => {
+        // Only mark as processed if it's a historical message with actual text
+        if (m.sender === 'ai' && m.text && m.text.length > 0) {
+          processedMessageIdsRef.current.add(m.id);
+        }
+      });
+      isInitialMountRef.current = false;
+    }
+  }, [messages]);
+
+  const handleTypewriterComplete = (messageId: string) => {
+    processedMessageIdsRef.current.add(messageId);
+    scrollToBottom('smooth');
+  };
 
   const modelsList = [
     'WSM 1.6 Mercúrio',
@@ -181,15 +204,23 @@ export default function ChatWindow({
               <div className="absolute left-0 mt-1 w-80 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1">
                 {modelsList.map((model) => {
                   const isActive = selectedModel === model;
+                  const isClickable = model === 'WSM 1.6 Mercúrio';
                   return (
                     <button
                       key={model}
+                      disabled={!isClickable}
                       onClick={() => {
-                        setSelectedModel(model);
-                        setIsModelDropdownOpen(false);
+                        if (isClickable) {
+                          setSelectedModel(model);
+                          setIsModelDropdownOpen(false);
+                        }
                       }}
                       className={`w-full flex flex-col gap-0.5 px-3 py-2 text-left rounded-lg transition-colors ${
-                        isActive ? 'bg-[#f0ede8] text-gray-900 font-semibold' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
+                        isActive 
+                          ? 'bg-[#f0ede8] text-gray-900 font-semibold' 
+                          : isClickable 
+                            ? 'text-gray-500 hover:text-gray-800 hover:bg-gray-50' 
+                            : 'text-gray-400 cursor-not-allowed opacity-50 bg-gray-50/50'
                       }`}
                     >
                       <div className="flex items-center justify-between w-full">
@@ -327,9 +358,24 @@ export default function ChatWindow({
                         })()}
 
                         {/* Render rich formats if present */}
-                        <div className="prose max-w-none text-[14px] text-gray-800 w-full">
-                          <MarkdownRenderer content={message.text} />
-                        </div>
+                        {message.text === "" && isThinking && message.id === messages[messages.length - 1].id ? (
+                          <div className="flex items-center gap-2 text-gray-500 text-xs py-1">
+                            <span className="font-medium animate-pulse">Gerando resposta...</span>
+                            <span className="flex gap-0.5 items-center">
+                              <span className="w-1 h-1 bg-[#5c53e5] rounded-full animate-bounce [animation-delay:-0.3s]" />
+                              <span className="w-1 h-1 bg-[#5c53e5] rounded-full animate-bounce [animation-delay:-0.15s]" />
+                              <span className="w-1 h-1 bg-[#5c53e5] rounded-full animate-bounce" />
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="prose max-w-none text-[14px] text-gray-800 w-full">
+                            <TypewriterMarkdown
+                              content={message.text}
+                              enabled={!processedMessageIdsRef.current.has(message.id)}
+                              onComplete={() => handleTypewriterComplete(message.id)}
+                            />
+                          </div>
+                        )}
                       </>
                     )}
 
@@ -500,26 +546,7 @@ export default function ChatWindow({
             );
           })}
 
-          {/* Typing/Thinking Indicator */}
-          {isThinking && (
-            <div className="flex gap-3 justify-start animate-pulse">
-              <div className="w-7 h-7 bg-gradient-to-br from-[#7c3aed] to-[#5c53e5] rounded-lg flex items-center justify-center shrink-0">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5 text-white">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-                </svg>
-              </div>
-              <div className="flex flex-col items-start max-w-xl">
-                <div className="bg-[#f0ede8]/50 border border-gray-150 rounded-xl px-3 py-2 text-xs text-gray-500 flex items-center gap-2">
-                  <span className="font-medium animate-pulse">Gerando resposta...</span>
-                  <span className="flex gap-0.5 items-center">
-                    <span className="w-1 h-1 bg-[#5c53e5] rounded-full animate-bounce [animation-delay:-0.3s]" />
-                    <span className="w-1 h-1 bg-[#5c53e5] rounded-full animate-bounce [animation-delay:-0.15s]" />
-                    <span className="w-1 h-1 bg-[#5c53e5] rounded-full animate-bounce" />
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
+
 
           {/* Spacing at the bottom of the container */}
           <div className="h-14" />

@@ -21,8 +21,14 @@ export default function App() {
   // Keep references to activeSession and dirty state for event listeners
   const isDirtyRef = useRef<boolean>(false);
   const activeSessionRef = useRef<ChatSession | null>(null);
+  const activeSessionIdRef = useRef<string | null>(null);
   const autoSaveTimeoutRef = useRef<any>(null);
   const currentUserRef = useRef<User | null>(null);
+
+  // Sync activeSessionId reference
+  useEffect(() => {
+    activeSessionIdRef.current = activeSessionId;
+  }, [activeSessionId]);
 
   // Sync currentUser reference
   useEffect(() => {
@@ -57,13 +63,17 @@ export default function App() {
 
     const unsubscribe = subscribeSessions(currentUser.uid, (loadedSessions) => {
       setSessions((prevSessions) => {
-        const activeLocal = prevSessions.find((s) => s.id === activeSessionId);
-        const isActiveLocalDirty = activeLocal && isDirtyRef.current;
-        const isActiveInLoaded = loadedSessions.some((loaded) => loaded.id === activeSessionId);
+        const currentActiveId = activeSessionIdRef.current;
+        const activeLocal = prevSessions.find((s) => s.id === currentActiveId);
+        const isStreamingOrSimulating = activeLocal?.messages.some((m) => m.isSimulatingSearch);
+        // Robust preservation of active local session to prevent any overwriting of ongoing chat, streaming, or simulation
+        const isLocalActivePreserved = !!activeLocal;
+        const isActiveLocalDirtyOrPreserved = activeLocal && (isDirtyRef.current || isStreamingOrSimulating);
+        const isActiveInLoaded = loadedSessions.some((loaded) => loaded.id === currentActiveId);
 
-        // Map loaded sessions, preserving dirty state for active one if it's updated in loaded list
+        // Map loaded sessions, preserving dirty/streaming state for active one if it's updated in loaded list
         const updatedLoaded = loadedSessions.map((loaded) => {
-          if (loaded.id === activeSessionId && isDirtyRef.current && activeLocal) {
+          if (loaded.id === currentActiveId && activeLocal) {
             return {
               ...loaded,
               messages: activeLocal.messages,
@@ -73,8 +83,8 @@ export default function App() {
           return loaded;
         });
 
-        // If active session is dirty but NOT yet in loadedSessions, keep it at the top!
-        if (isActiveLocalDirty && !isActiveInLoaded && activeLocal) {
+        // If active session is dirty/streaming but NOT yet in loadedSessions, keep it at the top!
+        if (isActiveLocalDirtyOrPreserved && !isActiveInLoaded && activeLocal) {
           return [activeLocal, ...updatedLoaded];
         }
 
@@ -105,12 +115,16 @@ export default function App() {
   };
 
   // Triggers a debounced save 8 seconds after the user stops sending messages
-  const triggerDebouncedSave = (session: ChatSession) => {
+  const triggerDebouncedSave = (session?: ChatSession) => {
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current);
     }
     autoSaveTimeoutRef.current = setTimeout(() => {
-      persistSession(session);
+      // Always get the absolute latest state of the active session to avoid saving stale snapshot closures
+      const latestSession = activeSessionRef.current || session;
+      if (latestSession) {
+        persistSession(latestSession);
+      }
     }, 8000);
   };
 
@@ -438,6 +452,7 @@ Como posso ajudar você hoje?`
       
       // Update local state immediately for smooth UI transition
       setSessions((prev) => [newSession, ...prev]);
+      activeSessionIdRef.current = newId;
       setActiveSessionId(newId);
       isDirtyRef.current = true;
       triggerDebouncedSave(newSession);
@@ -460,24 +475,23 @@ Como posso ajudar você hoje?`
     // Real AI response fetch from Express backend
     setIsThinking(true);
 
-    if (isSearchEnabled) {
-      const initialAiMsg: Message = {
-        id: `msg-${Date.now()}-ai`,
-        sender: "ai",
-        text: "",
-        timestamp: new Date(),
-        isSearchMessage: true,
-        searchIntro: "Preparando a pesquisa...",
-        searchSteps: [],
-        finalSynthesis: "",
-        searchImages: [],
-        searchSources: [],
-        isSimulatingSearch: true,
-      };
+    const initialAiMsg: Message = {
+      id: `msg-${Date.now()}-ai`,
+      sender: "ai",
+      text: "",
+      timestamp: new Date(),
+      isSearchMessage: isSearchEnabled,
+      searchIntro: isSearchEnabled ? "Preparando a pesquisa..." : undefined,
+      searchSteps: [],
+      finalSynthesis: "",
+      searchImages: [],
+      searchSources: [],
+      isSimulatingSearch: isSearchEnabled,
+    };
 
-      // Put the user's message and the initial AI searching message in state immediately
-      setSessions((prev) => {
-        const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
+    // Put the user's message and the initial AI searching message in state immediately
+    setSessions((prev) => {
+      const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
         if (!currentSess) return prev;
         return prev.map((s) => {
           if (s.id !== sessionToUpdate.id) return s;
@@ -501,6 +515,10 @@ Como posso ajudar você hoje?`
           text,
           isSearchEnabled,
           model: selectedModel,
+          history: sessionToUpdate.messages.map(m => ({
+            role: m.sender === 'user' ? 'user' : 'model',
+            parts: [{ text: m.text || m.finalSynthesis || "" }]
+          }))
         }),
       })
         .then(async (res) => {
@@ -556,70 +574,101 @@ Como posso ajudar você hoje?`
                 const eventData = JSON.parse(cleanedLine.substring(6));
 
                 if (eventData.type === "plan") {
+                  console.log("[App.tsx] Received SSE plan event:", eventData);
                   setIsThinking(false); // Stop typing spinner as soon as we start research plan!
                   setSessions((prev) => {
                     const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
-                    if (!currentSess) return prev;
+                    if (!currentSess) {
+                      console.warn("[App.tsx] Plan event: sessionToUpdate.id not found in sessions!", sessionToUpdate.id);
+                      return prev;
+                    }
                     return prev.map((s) => {
                       if (s.id !== sessionToUpdate.id) return s;
+                      let matched = false;
+                      const updatedMsgs = s.messages.map((m) => {
+                        if (m.id === initialAiMsg.id) {
+                          matched = true;
+                          return {
+                            ...m,
+                            isSearchMessage: true,
+                            isSimulatingSearch: true,
+                            searchIntro: eventData.searchIntro,
+                            searchSteps: eventData.searchSteps,
+                          };
+                        }
+                        return m;
+                      });
+                      console.log(`[App.tsx] Plan event applied to message. Matched initialAiMsg.id (${initialAiMsg.id}):`, matched);
                       return {
                         ...s,
-                        messages: s.messages.map((m) =>
-                          m.id === initialAiMsg.id
-                            ? {
-                                ...m,
-                                searchIntro: eventData.searchIntro,
-                                searchSteps: eventData.searchSteps,
-                              }
-                            : m
-                        ),
+                        messages: updatedMsgs,
                       };
                     });
                   });
                 } else if (eventData.type === "step_complete") {
+                  console.log("[App.tsx] Received SSE step_complete event:", eventData);
                   setSessions((prev) => {
                     const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
-                    if (!currentSess) return prev;
+                    if (!currentSess) {
+                      console.warn("[App.tsx] Step complete event: sessionToUpdate.id not found in sessions!", sessionToUpdate.id);
+                      return prev;
+                    }
                     return prev.map((s) => {
                       if (s.id !== sessionToUpdate.id) return s;
+                      let matched = false;
+                      const updatedMsgs = s.messages.map((m) => {
+                        if (m.id !== initialAiMsg.id) return m;
+                        matched = true;
+                        const steps = m.searchSteps ? [...m.searchSteps] : [];
+                        if (steps[eventData.index]) {
+                          steps[eventData.index] = {
+                            ...steps[eventData.index],
+                            sources: eventData.sources,
+                            isCompleted: eventData.isCompleted,
+                          };
+                          console.log(`[App.tsx] Updated step at index ${eventData.index}:`, steps[eventData.index]);
+                        } else {
+                          console.warn(`[App.tsx] Step index ${eventData.index} not found in searchSteps! length=${steps.length}`);
+                        }
+                        return {
+                          ...m,
+                          searchSteps: steps,
+                        };
+                      });
+                      console.log(`[App.tsx] Step complete event applied to messages. Matched initialAiMsg.id (${initialAiMsg.id}):`, matched);
                       return {
                         ...s,
-                        messages: s.messages.map((m) => {
-                          if (m.id !== initialAiMsg.id) return m;
-                          const steps = m.searchSteps ? [...m.searchSteps] : [];
-                          if (steps[eventData.index]) {
-                            steps[eventData.index] = {
-                              ...steps[eventData.index],
-                              sources: eventData.sources,
-                            };
-                          }
-                          return {
-                            ...m,
-                            searchSteps: steps,
-                          };
-                        }),
+                        messages: updatedMsgs,
                       };
                     });
                   });
                 } else if (eventData.type === "final") {
+                  console.log("[App.tsx] Received SSE final event:", eventData);
                   setSessions((prev) => {
                     const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
-                    if (!currentSess) return prev;
+                    if (!currentSess) {
+                      console.warn("[App.tsx] Final event: sessionToUpdate.id not found in sessions!", sessionToUpdate.id);
+                      return prev;
+                    }
+                    let matched = false;
                     const finalSession = {
                       ...currentSess,
-                      messages: currentSess.messages.map((m) =>
-                        m.id === initialAiMsg.id
-                          ? {
-                              ...m,
-                              text: eventData.text,
-                              finalSynthesis: eventData.finalSynthesis,
-                              searchImages: eventData.searchImages,
-                              searchSources: eventData.searchSources,
-                              isSimulatingSearch: true,
-                            }
-                          : m
-                      ),
+                      messages: currentSess.messages.map((m) => {
+                        if (m.id === initialAiMsg.id) {
+                          matched = true;
+                          return {
+                            ...m,
+                            text: eventData.text,
+                            finalSynthesis: eventData.finalSynthesis,
+                            searchImages: eventData.searchImages,
+                            searchSources: eventData.searchSources,
+                            isSimulatingSearch: true,
+                          };
+                        }
+                        return m;
+                      }),
                     };
+                    console.log(`[App.tsx] Final event applied. Matched initialAiMsg.id (${initialAiMsg.id}):`, matched);
                     isDirtyRef.current = true;
                     triggerDebouncedSave(finalSession);
                     return prev.map((s) => s.id === sessionToUpdate.id ? finalSession : s);
@@ -655,82 +704,6 @@ Como posso ajudar você hoje?`
             });
           });
         });
-    } else {
-      // Normal chat request without search
-      fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text,
-          isSearchEnabled,
-          model: selectedModel,
-        }),
-      })
-        .then((res) => {
-          if (!res.ok) throw new Error("Erro na conexão com o servidor de IA");
-          return res.json();
-        })
-        .then((data) => {
-          const aiMsg: Message = {
-            id: `msg-${Date.now()}-ai`,
-            sender: "ai",
-            text: data.text || "",
-            timestamp: new Date(),
-          };
-
-          setSessions((prev) => {
-            const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
-            if (!currentSess) return prev;
-
-            const finalSession = {
-              ...currentSess,
-              messages: [
-                ...currentSess.messages.filter((m) => m.id !== userMsg.id),
-                userMsg,
-                aiMsg,
-              ],
-            };
-
-            isDirtyRef.current = true;
-            triggerDebouncedSave(finalSession);
-
-            return prev.map((s) => s.id === sessionToUpdate.id ? finalSession : s);
-          });
-        })
-        .catch((err) => {
-          console.error("Error fetching chat response:", err);
-          const aiMsg: Message = {
-            id: `msg-${Date.now()}-ai`,
-            sender: "ai",
-            text: `⚠️ **Ocorreu um erro ao obter resposta do assistente:** ${err.message || err}`,
-            timestamp: new Date(),
-          };
-
-          setSessions((prev) => {
-            const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
-            if (!currentSess) return prev;
-
-            const finalSession = {
-              ...currentSess,
-              messages: [
-                ...currentSess.messages.filter((m) => m.id !== userMsg.id),
-                userMsg,
-                aiMsg,
-              ],
-            };
-
-            isDirtyRef.current = true;
-            triggerDebouncedSave(finalSession);
-
-            return prev.map((s) => s.id === sessionToUpdate.id ? finalSession : s);
-          });
-        })
-        .finally(() => {
-          setIsThinking(false);
-        });
-    }
   };
 
   // Turn off search simulation once it completes and save session
@@ -827,6 +800,7 @@ Como posso ajudar você hoje?`
           <ImagesGallery onBackToHome={handleNewChat} />
         ) : activeSession ? (
           <ChatWindow
+            key={activeSession.id}
             messages={activeSession.messages}
             title={activeSession.title}
             isThinking={isThinking}

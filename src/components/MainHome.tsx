@@ -80,14 +80,18 @@ export default function MainHome({
               <div className="flex flex-col gap-0.5">
                 {modelsList.map((model) => {
                   const isActive = selectedModel === model;
+                  const isClickable = model === 'WSM 1.6 Mercúrio';
                   return (
                     <button 
                       key={model}
+                      disabled={!isClickable}
                       onClick={() => handleSelectModel(model)}
                       className={`w-full flex flex-col gap-0.5 px-3 py-2 text-left rounded-lg transition-colors ${
                         isActive 
                           ? 'bg-[#f0ede8] text-gray-900 font-semibold' 
-                          : 'text-gray-600 hover:bg-gray-50'
+                          : isClickable 
+                            ? 'text-gray-600 hover:bg-gray-50' 
+                            : 'text-gray-400 cursor-not-allowed opacity-50 bg-gray-50/50'
                       }`}
                     >
                       <div className="flex items-center justify-between w-full">

@@ -19,7 +19,17 @@ const ai = new GoogleGenAI({
 
 // API endpoint for chatbot communication and Web Search
 app.post("/api/chat", async (req: express.Request, res: express.Response) => {
-  const { text, isSearchEnabled, model } = req.body;
+  const { text, isSearchEnabled, model, history } = req.body;
+
+  // Ensure valid history format
+  let finalContents: any = text;
+  if (history && Array.isArray(history) && history.length > 0) {
+    // Filter out any messages without text to prevent API errors
+    const validHistory = history.filter(msg => msg.parts && msg.parts[0] && msg.parts[0].text);
+    if (validHistory.length > 0) {
+      finalContents = validHistory;
+    }
+  }
 
   try {
     if (!process.env.GEMINI_API_KEY) {
@@ -30,8 +40,33 @@ app.post("/api/chat", async (req: express.Request, res: express.Response) => {
       });
     }
 
+    let shouldSearch = isSearchEnabled;
+
+    if (!shouldSearch && process.env.TAVILY_API_KEY) {
+      // AI autonomously decides if it needs to search the web for this query
+      const triagePrompt = `Você é o classificador de intenção de busca web do assistente WSM AI.
+O usuário enviou a seguinte mensagem/pergunta: "${text}"
+
+Avalie se esta mensagem requer uma pesquisa na web em tempo real para ser respondida adequadamente (exemplos: notícias de hoje, clima atual, cotações financeiras, resultados de jogos, ou fatos específicos e recentes que não fazem parte do seu conhecimento estático).
+Se sim, responda EXCLUSIVAMENTE com a palavra "SIM". Se puder responder sem pesquisa, responda EXCLUSIVAMENTE "NAO".`;
+
+      try {
+        const triageResponse = await ai.models.generateContent({
+          model: "gemini-3.1-flash-lite",
+          contents: triagePrompt,
+        });
+        const triageDecision = triageResponse.text?.trim().toUpperCase() || "";
+        if (triageDecision.includes("SIM")) {
+          console.log(`AI autonomously triggered web search for: "${text}"`);
+          shouldSearch = true;
+        }
+      } catch (e) {
+        console.error("Error during search triage:", e);
+      }
+    }
+
     // 1. If web search mode is active, do search with Tavily
-    if (isSearchEnabled) {
+    if (shouldSearch) {
       if (!process.env.TAVILY_API_KEY) {
         return res.json({
           text: "⚠️ **Tavily API Key não configurada.** Por favor, configure a chave `TAVILY_API_KEY` em **Settings > Secrets** para habilitar a busca na web.",
@@ -131,7 +166,8 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
           tag: s.tag,
           thinking: s.thinking,
           transition: s.transition,
-          sources: []
+          sources: [],
+          isCompleted: false
         }))
       });
 
@@ -201,7 +237,8 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
         sendEvent({
           type: "step_complete",
           index: idx,
-          sources: stepResults
+          sources: stepResults,
+          isCompleted: true
         });
 
         // Small delay (300ms)
@@ -267,15 +304,13 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
         )
         .join("\n\n");
 
-      const systemPrompt = `Você é o modelo de inteligência artificial de alta performance 'WSM 1.6'.
+      const systemPrompt = `Você é o modelo de inteligência artificial de alta performance '${model}'.
 O usuário ativou o modo de busca na web. Você pesquisou na internet e reuniu as seguintes informações relevantes para a pergunta do usuário:
 
 --- Informações de Pesquisa ---
 ${contextInfo}
 
-Pergunta do Usuário: "${text}"
-
-Com base nessas informações, responda à pergunta do usuário de forma completa, clara e estruturada em português, com a mesma personalidade natural e humanizada que você usa normalmente — pesquisar não te torna um robô lendo relatório, você está compartilhando o que descobriu como alguém contaria pra um amigo.
+Com base nessas informações, responda à última pergunta do usuário de forma completa, clara e estruturada em português, considerando também o contexto da conversa. Mantenha a mesma personalidade natural e humanizada que você usa normalmente — pesquisar não te torna um robô lendo relatório, você está compartilhando o que descobriu como alguém contaria pra um amigo.
 
 ## Regras de Formatação Obrigatórias
 1. Use **negrito** e *itálico* para enfatizar pontos principais.
@@ -289,12 +324,21 @@ Com base nessas informações, responda à pergunta do usuário de forma complet
 9. Evite jargões de IA como "com base nas pesquisas fornecidas..." — apresente os fatos como conhecimento que você acabou de adquirir pesquisando, de forma fluida e natural.
 10. Se a pesquisa não trouxer informação suficiente pra responder bem, diga isso com honestidade em vez de inventar ou forçar uma resposta.`;
 
-      const aiResponse = await ai.models.generateContent({
-        model: "gemini-3.1-flash-lite",
-        contents: systemPrompt,
-      });
-
-      const finalSynthesisText = aiResponse.text || "Desculpe, não consegui sintetizar uma resposta com os resultados obtidos.";
+      let finalSynthesisText = "Desculpe, não consegui sintetizar uma resposta com os resultados obtidos.";
+      
+      try {
+        const aiResponse = await ai.models.generateContent({
+          model: "gemini-3.1-flash-lite",
+          contents: finalContents,
+          config: {
+            systemInstruction: systemPrompt
+          }
+        });
+        finalSynthesisText = aiResponse.text || finalSynthesisText;
+      } catch (err) {
+        console.error("Error generating final synthesis:", err);
+        finalSynthesisText = "⚠️ **Ocorreu um erro ao sintetizar os resultados da pesquisa.** Por favor, tente novamente.";
+      }
 
       // Send the final result event
       sendEvent({
@@ -325,7 +369,10 @@ Responda em português. Formate suas respostas de forma bonita e profissional:
 - NÃO use equações ou formatação matemática via LaTeX, a menos que o assunto seja estritamente matemático, físico ou científico. Nunca coloque equações em respostas cotidianas comuns.
 - Se o usuário pedir códigos de programação, use blocos de código com a linguagem correspondente (ex: \`\`\`javascript).
 - Se pedir análises ou comparações, monte tabelas organizadas.
-- Para o dia a dia, prefira respostas curtas e objetivas — só se estenda quando o assunto realmente precisar.`,
+- Para o dia a dia, prefira respostas curtas e objetivas — só se estenda quando o assunto realmente precisar.
+
+## Capacidade de Pesquisa na Web
+Você é capaz de buscar informações na internet em tempo real. Sempre que um usuário te perguntar sobre notícias, cotações, ou fatos recentes que você não sabe de cor, o sistema fará uma pesquisa automática para você.`,
 
       'WSM 1.6 Marte': `Você é o modelo de inteligência artificial 'WSM 1.6 Marte', um assistente pessoal inteligente e agêntico, feito para tarefas de complexidade intermediária que exigem raciocínio em etapas.
 
@@ -339,7 +386,10 @@ Responda em português. Formate suas respostas de forma bonita e profissional:
 - NÃO use equações ou formatação matemática via LaTeX, a menos que o assunto seja estritamente matemático, físico ou científico. Nunca coloque equações em respostas cotidianas comuns.
 - Se o usuário pedir códigos de programação, use blocos de código com a linguagem correspondente (ex: \`\`\`javascript).
 - Se pedir análises ou comparações, monte tabelas organizadas.
-- Para tarefas com várias etapas, deixe claro o passo a passo, mas de forma enxuta.`,
+- Para tarefas com várias etapas, deixe claro o passo a passo, mas de forma enxuta.
+
+## Capacidade de Pesquisa na Web
+Você é capaz de buscar informações na internet em tempo real. Sempre que um usuário te perguntar sobre notícias, cotações, ou fatos recentes que você não sabe de cor, o sistema fará uma pesquisa automática para você.`,
 
       'WSM 1.6 Saturno': `Você é o modelo de inteligência artificial 'WSM 1.6 Saturno', um assistente de alta capacidade, feito para tarefas pesadas que exigem profundidade e raciocínio cuidadoso.
 
@@ -353,7 +403,10 @@ Responda em português. Formate suas respostas de forma bonita e profissional:
 - NÃO use equações ou formatação matemática via LaTeX, a menos que o assunto seja estritamente matemático, físico ou científico. Nunca coloque equações em respostas cotidianas comuns.
 - Se o usuário pedir códigos de programação, use blocos de código com a linguagem correspondente (ex: \`\`\`javascript).
 - Se pedir análises ou comparações, monte tabelas organizadas e completas.
-- Para temas pesados, aprofunde de verdade, mas sem encher linguiça — cada parágrafo precisa valer a pena.`,
+- Para temas pesados, aprofunde de verdade, mas sem encher linguiça — cada parágrafo precisa valer a pena.
+
+## Capacidade de Pesquisa na Web
+Você é capaz de buscar informações na internet em tempo real. Sempre que um usuário te perguntar sobre notícias, cotações, ou fatos recentes que você não sabe de cor, o sistema fará uma pesquisa automática para você.`,
 
       'WSM 1.6 Júpiter': `Você é o modelo de inteligência artificial 'WSM 1.6 Júpiter', o assistente mais avançado da linha, feito para tarefas ultra-complexas que exigem o raciocínio mais profundo possível.
 
@@ -367,14 +420,17 @@ Responda em português. Formate suas respostas de forma bonita e profissional:
 - NÃO use equações ou formatação matemática via LaTeX, a menos que o assunto seja estritamente matemático, físico ou científico. Nunca coloque equações em respostas cotidianas comuns.
 - Se o usuário pedir códigos de programação, use blocos de código com a linguagem correspondente (ex: \`\`\`javascript), sempre com boas práticas e comentários quando fizer sentido.
 - Se pedir análises ou comparações, monte tabelas ricas e organizadas.
-- Em temas ultra-complexos, explore o assunto com profundidade real, conectando pontos que o usuário talvez não tenha pedido explicitamente, mas que agregam valor.`
+- Em temas ultra-complexos, explore o assunto com profundidade real, conectando pontos que o usuário talvez não tenha pedido explicitamente, mas que agregam valor.
+
+## Capacidade de Pesquisa na Web
+Você é capaz de buscar informações na internet em tempo real. Sempre que um usuário te perguntar sobre notícias, cotações, ou fatos recentes que você não sabe de cor, o sistema fará uma pesquisa automática para você.`
     };
 
     const activeSystemPrompt = modelSystemPrompts[model] || modelSystemPrompts['WSM 1.6 Mercúrio'];
 
     const normalResponse = await ai.models.generateContent({
       model: "gemini-3.1-flash-lite",
-      contents: text,
+      contents: finalContents,
       config: {
         systemInstruction: activeSystemPrompt,
       },

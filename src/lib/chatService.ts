@@ -101,7 +101,12 @@ const mapSessionToDoc = (session: ChatSession): any => {
         }
       }),
       ...(msg.searchImages && { searchImages: msg.searchImages }),
-      ...(msg.searchSources && { searchSources: msg.searchSources })
+      ...(msg.searchSources && { searchSources: msg.searchSources }),
+      ...(msg.isSearchMessage !== undefined && { isSearchMessage: msg.isSearchMessage }),
+      ...(msg.searchIntro && { searchIntro: msg.searchIntro }),
+      ...(msg.searchSteps && { searchSteps: msg.searchSteps }),
+      ...(msg.finalSynthesis && { finalSynthesis: msg.finalSynthesis }),
+      ...(msg.isSimulatingSearch !== undefined && { isSimulatingSearch: msg.isSimulatingSearch })
     }))
   };
 };
