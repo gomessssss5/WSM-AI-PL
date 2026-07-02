@@ -24,6 +24,7 @@ export default function App() {
   const activeSessionIdRef = useRef<string | null>(null);
   const autoSaveTimeoutRef = useRef<any>(null);
   const currentUserRef = useRef<User | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Sync activeSessionId reference
   useEffect(() => {
@@ -475,6 +476,11 @@ Como posso ajudar você hoje?`
     // Real AI response fetch from Express backend
     setIsThinking(true);
 
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     const initialAiMsg: Message = {
       id: `msg-${Date.now()}-ai`,
       sender: "ai",
@@ -508,6 +514,7 @@ Como posso ajudar você hoje?`
 
       fetch("/api/chat", {
         method: "POST",
+        signal: abortControllerRef.current.signal,
         headers: {
           "Content-Type": "application/json",
         },
@@ -681,8 +688,33 @@ Como posso ajudar você hoje?`
           }
         })
         .catch((err) => {
-          console.error("Erro na requisição de busca:", err);
           setIsThinking(false);
+          if (err.name === 'AbortError') {
+            console.log('Request was aborted');
+            setSessions((prev) => {
+              const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
+              if (!currentSess) return prev;
+              const finalSession = {
+                ...currentSess,
+                messages: currentSess.messages.map((m) =>
+                  m.id === initialAiMsg.id
+                    ? {
+                        ...m,
+                        text: "Você cancelou essa resposta",
+                        finalSynthesis: "Você cancelou essa resposta",
+                        isSimulatingSearch: false,
+                        searchIntro: undefined,
+                      }
+                    : m
+                ),
+              };
+              isDirtyRef.current = true;
+              triggerDebouncedSave(finalSession);
+              return prev.map((s) => s.id === sessionToUpdate.id ? finalSession : s);
+            });
+            return;
+          }
+          console.error("Erro na requisição de busca:", err);
           setSessions((prev) => {
             const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
             if (!currentSess) return prev;
@@ -726,6 +758,12 @@ Como posso ajudar você hoje?`
 
       return prev.map((s) => s.id === activeSessionId ? finalSession : s);
     });
+  };
+
+  const handleCancelGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
   };
 
   // Suggestion pill click triggers immediate interactive query flow
@@ -809,6 +847,7 @@ Como posso ajudar você hoje?`
             selectedModel={selectedModel}
             setSelectedModel={setSelectedModel}
             onSearchSimulationComplete={handleSearchSimulationComplete}
+            onCancelGeneration={handleCancelGeneration}
           />
         ) : (
           <MainHome

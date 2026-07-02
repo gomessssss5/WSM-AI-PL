@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, Download, ZoomIn, X, ChevronsLeft } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, Download, ZoomIn, X, ChevronsLeft, XCircle } from 'lucide-react';
 import { Message } from '../types';
 import MarkdownRenderer from './MarkdownRenderer';
 import SearchMessageView from './SearchMessageView';
@@ -61,6 +61,7 @@ interface ChatWindowProps {
   selectedModel: string;
   setSelectedModel: (model: string) => void;
   onSearchSimulationComplete?: (messageId: string) => void;
+  onCancelGeneration?: () => void;
 }
 
 export default function ChatWindow({
@@ -71,7 +72,8 @@ export default function ChatWindow({
   onBackToHome,
   selectedModel,
   setSelectedModel,
-  onSearchSimulationComplete
+  onSearchSimulationComplete,
+  onCancelGeneration
 }: ChatWindowProps) {
   const [inputValue, setInputValue] = useState('');
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
@@ -414,6 +416,11 @@ export default function ChatWindow({
                               <span className="w-1 h-1 bg-[#5c53e5] rounded-full animate-bounce" />
                             </span>
                           </div>
+                        ) : message.text === "Você cancelou essa resposta" ? (
+                          <div className="bg-red-50 text-red-600 border border-red-200 rounded-lg p-3 text-sm font-medium flex items-center gap-2 w-fit">
+                            <XCircle className="w-4.5 h-4.5 shrink-0" />
+                            <span>Você cancelou essa resposta</span>
+                          </div>
                         ) : (
                           <div className="prose max-w-none text-[14px] text-gray-800 w-full">
                             <TypewriterMarkdown
@@ -660,15 +667,22 @@ export default function ChatWindow({
               </button>
 
               <button
-                type="submit"
-                disabled={!inputValue.trim()}
+                type={isThinking ? "button" : "submit"}
+                onClick={isThinking ? onCancelGeneration : undefined}
+                disabled={!inputValue.trim() && !isThinking}
                 className={`w-6.5 h-6.5 rounded-full flex items-center justify-center transition-all ${
-                  inputValue.trim()
+                  isThinking
+                    ? 'bg-[#ff4d4d] hover:bg-[#ff3333] cursor-pointer'
+                    : inputValue.trim()
                     ? 'bg-[#1f1e1d] text-white hover:bg-[#343230] cursor-pointer'
                     : 'bg-[#faf9f6] text-gray-300 border border-[#eae6e1]'
                 }`}
               >
-                <ArrowUp className="w-3 h-3" />
+                {isThinking ? (
+                  <div className="w-2.5 h-2.5 bg-white rounded-sm" />
+                ) : (
+                  <ArrowUp className="w-3 h-3" />
+                )}
               </button>
             </div>
           </div>
