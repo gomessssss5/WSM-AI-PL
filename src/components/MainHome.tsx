@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Paperclip, Globe, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain, Languages, ChevronDown, Sparkles } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain, Languages, ChevronDown, Sparkles, Calculator, Clock } from 'lucide-react';
 
 interface MainHomeProps {
   onSendMessage: (text: string, isSearchEnabled: boolean) => void;
@@ -17,6 +17,69 @@ export default function MainHome({
   const [inputValue, setInputValue] = useState('');
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+
+  // Slash Menu State
+  const [slashMenuOpen, setSlashMenuOpen] = useState(false);
+  const [slashSearchTerm, setSlashSearchTerm] = useState('');
+  const [slashMenuIndex, setSlashMenuIndex] = useState(0);
+
+  const marteTools = [
+    { id: '/web', name: 'web-search', description: 'Pesquisa na Web', icon: Globe, color: 'text-blue-500' },
+    { id: '/calculadora', name: 'calculadora', description: 'Calculadora Matemática', icon: Calculator, color: 'text-emerald-500' },
+    { id: '/relogio', name: 'relogio', description: 'Relógio e Data Atual', icon: Clock, color: 'text-orange-500' }
+  ];
+
+  const filteredTools = marteTools.filter(tool => tool.id.toLowerCase().includes(slashSearchTerm.toLowerCase()));
+
+  const handleInputValueChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setInputValue(val);
+
+    if (selectedModel !== 'WSM 1.6 Marte') {
+      if (slashMenuOpen) setSlashMenuOpen(false);
+      return;
+    }
+
+    const cursorPosition = e.target.selectionStart;
+    const textBeforeCursor = val.slice(0, cursorPosition);
+    
+    // Check if user is typing a slash command
+    const slashMatch = textBeforeCursor.match(/(^|\s)\/([a-zA-Z0-9-]*)$/);
+
+    if (slashMatch) {
+      setSlashMenuOpen(true);
+      setSlashSearchTerm(slashMatch[2] || '');
+      setSlashMenuIndex(0);
+    } else {
+      setSlashMenuOpen(false);
+    }
+  };
+
+  const handleToolSelect = (toolId: string) => {
+    const textarea = document.getElementById('chat-input-textarea') as HTMLTextAreaElement;
+    const cursorPosition = textarea?.selectionStart || inputValue.length;
+    
+    const textBeforeCursor = inputValue.slice(0, cursorPosition);
+    const textAfterCursor = inputValue.slice(cursorPosition);
+    
+    const slashMatch = textBeforeCursor.match(/(^|\s)\/([a-zA-Z0-9-]*)$/);
+    if (slashMatch) {
+      const matchIndex = slashMatch.index !== undefined ? slashMatch.index : 0;
+      const spaceBefore = slashMatch[1]; // either '' or ' '
+      
+      const newText = textBeforeCursor.slice(0, matchIndex) + spaceBefore + toolId + ' ' + textAfterCursor;
+      setInputValue(newText);
+      setSlashMenuOpen(false);
+      
+      setTimeout(() => {
+        if (textarea) {
+          textarea.focus();
+          const newPos = matchIndex + spaceBefore.length + toolId.length + 1;
+          textarea.setSelectionRange(newPos, newPos);
+        }
+      }, 0);
+    }
+  };
 
   const modelsList = [
     'WSM 1.6 Mercúrio',
@@ -37,9 +100,33 @@ export default function MainHome({
     if (!inputValue.trim()) return;
     onSendMessage(inputValue, isSearchEnabled);
     setInputValue('');
+    setSlashMenuOpen(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (slashMenuOpen && filteredTools.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSlashMenuIndex((prev) => (prev + 1) % filteredTools.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSlashMenuIndex((prev) => (prev - 1 + filteredTools.length) % filteredTools.length);
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleToolSelect(filteredTools[slashMenuIndex].id);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setSlashMenuOpen(false);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
@@ -49,6 +136,7 @@ export default function MainHome({
   const handleSelectModel = (model: string) => {
     setSelectedModel(model);
     setIsModelDropdownOpen(false);
+    setSlashMenuOpen(false);
   };
 
   return (
@@ -80,7 +168,7 @@ export default function MainHome({
               <div className="flex flex-col gap-0.5">
                 {modelsList.map((model) => {
                   const isActive = selectedModel === model;
-                  const isClickable = model === 'WSM 1.6 Mercúrio';
+                  const isClickable = model === 'WSM 1.6 Mercúrio' || model === 'WSM 1.6 Marte';
                   return (
                     <button 
                       key={model}
@@ -101,6 +189,12 @@ export default function MainHome({
                         </div>
                         {model === 'WSM 1.6 Mercúrio' && (
                           <span className="text-[8px] bg-[#5c53e5]/10 text-[#5c53e5] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Padrão</span>
+                        )}
+                        {model === 'WSM 1.6 Marte' && (
+                          <div className="flex items-center gap-0.5">
+                            <span className="text-[8px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Novo</span>
+                            <span className="text-[8px] bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Beta</span>
+                          </div>
                         )}
                       </div>
                       <p className="text-[11px] text-gray-400 pl-3 leading-tight font-normal">
@@ -179,12 +273,38 @@ export default function MainHome({
           onSubmit={handleSubmit}
           className="w-full max-w-xl bg-white border border-[#eae6e1] rounded-2xl shadow-[0_4px_16px_rgba(0,0,0,0.02)] p-2.5 focus-within:border-[#5c53e5]/50 focus-within:ring-1 focus-within:ring-[#5c53e5]/25 transition-all duration-200 relative mb-4"
         >
+          {/* Slash Menu */}
+          {slashMenuOpen && filteredTools.length > 0 && (
+            <div className="absolute bottom-[calc(100%+8px)] left-0 w-64 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
+              {filteredTools.map((tool, index) => {
+                const isSelected = index === slashMenuIndex;
+                const Icon = tool.icon;
+                return (
+                  <button
+                    key={tool.id}
+                    type="button"
+                    onClick={() => handleToolSelect(tool.id)}
+                    className={`w-full flex flex-col gap-0.5 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer ${
+                      isSelected ? 'bg-gray-50' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Icon className={`w-3.5 h-3.5 ${tool.color}`} />
+                      <span className="text-[12px] font-semibold text-gray-800">{tool.id}</span>
+                    </div>
+                    <span className="text-[10px] text-gray-500 pl-5.5">{tool.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Text Area Input */}
           <textarea
             id="chat-input-textarea"
             rows={2}
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            onChange={handleInputValueChange}
             onKeyDown={handleKeyDown}
             placeholder={`Pergunte qualquer coisa ao ${selectedModel}...`}
             className="w-full bg-transparent outline-none resize-none text-gray-800 placeholder-gray-400 text-[13.5px] leading-relaxed pb-1.5 max-h-36"

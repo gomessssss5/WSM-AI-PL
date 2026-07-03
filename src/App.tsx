@@ -546,6 +546,8 @@ Como posso ajudar você hoje?`
                         ...m,
                         text: data.text || "",
                         finalSynthesis: data.text || "",
+                        searchImages: data.searchImages || [],
+                        searchSources: data.searchSources || [],
                         isSimulatingSearch: false,
                         searchIntro: data.text ? undefined : "Pesquisa concluída.",
                       }
@@ -609,6 +611,27 @@ Como posso ajudar você hoje?`
                       return {
                         ...s,
                         messages: updatedMsgs,
+                      };
+                    });
+                  });
+                } else if (eventData.type === "chunk" || eventData.type === "sync_text") {
+                  setSessions((prev) => {
+                    const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
+                    if (!currentSess) return prev;
+                    return prev.map((s) => {
+                      if (s.id !== sessionToUpdate.id) return s;
+                      return {
+                        ...s,
+                        messages: s.messages.map((m) => {
+                          if (m.id === initialAiMsg.id) {
+                            return {
+                              ...m,
+                              text: eventData.type === "sync_text" ? eventData.text : (m.text + eventData.text),
+                              finalSynthesis: eventData.type === "sync_text" ? eventData.text : (m.text + eventData.text),
+                            };
+                          }
+                          return m;
+                        }),
                       };
                     });
                   });
@@ -686,6 +709,7 @@ Como posso ajudar você hoje?`
               }
             }
           }
+          setIsThinking(false);
         })
         .catch((err) => {
           setIsThinking(false);

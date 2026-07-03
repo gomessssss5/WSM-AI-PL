@@ -1,7 +1,7 @@
 import React from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Globe, Calculator, Clock } from 'lucide-react';
 
 interface MarkdownRendererProps {
   content: string;
@@ -43,10 +43,35 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
     interface MathToken { id: string; tex: string; }
     interface CodeToken { id: string; code: string; }
     interface LinkToken { id: string; text: string; url: string; }
+    interface AgenticToken { id: string; type: 'web' | 'calc' | 'clock' | string; text: string; }
 
     const mathTokens: MathToken[] = [];
     const codeTokens: CodeToken[] = [];
     const linkTokens: LinkToken[] = [];
+    const agenticTokens: AgenticToken[] = [];
+
+    interface SlashToken { id: string; text: string; }
+    const slashTokens: SlashToken[] = [];
+
+    // Extract slash commands (e.g., /web, /calculadora, /relogio, /função)
+    const slashRegex = /(?:^|\s)(\/[a-zA-Z0-9áéíóúâêîôûãõàèìòùäëïöüÿñçÇÁÉÍÓÚÂÊÎÔÛÃÕÀÈÌÒÙÄËÏÖÜŸÑ_]+)/gi;
+    currentText = currentText.replace(slashRegex, (match, cmd) => {
+      const id = `:::SLASHTOKEN-${slashTokens.length}:::`;
+      slashTokens.push({ id, text: cmd });
+      const space = match.startsWith(' ') ? ' ' : '';
+      return space + id;
+    });
+
+    // 0. Extract agentic tags: [pesquisou na web], [calculando], [verificando relógio], and active states
+    const agenticRegex = /\[(pesquisou na web|calculando|verificando relógio|pesquisando\.\.\.|calculando\.\.\.|verificando\.\.\.)\]/gi;
+    currentText = currentText.replace(agenticRegex, (match, tagContent) => {
+      const id = `:::AGENTICTOKEN-${agenticTokens.length}:::`;
+      let type = 'web';
+      if (tagContent.toLowerCase().includes('calculando') || tagContent.toLowerCase().includes('calculando...')) type = 'calc';
+      if (tagContent.toLowerCase().includes('relógio') || tagContent.toLowerCase().includes('verificando...')) type = 'clock';
+      agenticTokens.push({ id, type, text: tagContent });
+      return id;
+    });
 
     // 1. Extract inline math: $...$ or \(...\)
     const inlineMathRegex = /\$(.*?)\$|\\\\\((.*?)\\\\\)/g;
@@ -96,11 +121,65 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
           if (!chunk) return [];
           
           // Split on tokens
-          const tokenRegex = /(:::MATHTOKEN-\d+:::|:::CODETOKEN-\d+:::|:::LINKTOKEN-\d+:::)/g;
+          const tokenRegex = /(:::MATHTOKEN-\d+:::|:::CODETOKEN-\d+:::|:::LINKTOKEN-\d+:::|:::AGENTICTOKEN-\d+:::|:::SLASHTOKEN-\d+:::)/g;
           const parts = chunk.split(tokenRegex);
 
           return parts.map((part, pIdx) => {
-            if (part.startsWith(':::MATHTOKEN-')) {
+            if (part.startsWith(':::SLASHTOKEN-')) {
+              const token = slashTokens.find(t => t.id === part);
+              if (token) {
+                return (
+                  <strong
+                    key={`slash-${pIdx}-${keyIndex++}`}
+                    className="text-blue-600 font-bold select-text inline-block"
+                  >
+                    {token.text}
+                  </strong>
+                );
+              }
+            } else if (part.startsWith(':::AGENTICTOKEN-')) {
+              const token = agenticTokens.find(t => t.id === part);
+              if (token) {
+                let Icon = Globe;
+                let displayType = 'Pesquisou na web';
+                let isActive = false;
+                
+                if (token.type === 'calc') {
+                  Icon = Calculator;
+                  displayType = token.text.includes('...') ? 'Calculando...' : 'Calculando';
+                  if (token.text.includes('...')) isActive = true;
+                } else if (token.type === 'clock') {
+                  Icon = Clock;
+                  displayType = token.text.includes('...') ? 'Verificando...' : 'Verificando relógio';
+                  if (token.text.includes('...')) isActive = true;
+                } else {
+                  displayType = token.text.includes('...') ? 'Pesquisando na web...' : 'Pesquisou na web';
+                  if (token.text.includes('...')) isActive = true;
+                }
+
+                if (isActive) {
+                  return (
+                    <span
+                      key={`agentic-${pIdx}-${keyIndex++}`}
+                      className="flex w-fit items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-purple-700 bg-purple-50/50 border-purple-200 cursor-default shadow-3xs mx-0 my-3"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-ping shrink-0" />
+                      <span><strong className="font-semibold">{displayType}</strong></span>
+                    </span>
+                  );
+                }
+
+                return (
+                  <span
+                    key={`agentic-${pIdx}-${keyIndex++}`}
+                    className="flex w-fit items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-gray-500 bg-gray-50/50 hover:bg-gray-100/50 border-gray-150 cursor-default shadow-3xs mx-0 my-3"
+                  >
+                    <Icon className="w-3.5 h-3.5 text-gray-400" />
+                    <span><strong className="font-semibold text-gray-600">{displayType}</strong></span>
+                  </span>
+                );
+              }
+            } else if (part.startsWith(':::MATHTOKEN-')) {
               const token = mathTokens.find(t => t.id === part);
               if (token) {
                 const html = renderMathToHtml(token.tex, false);

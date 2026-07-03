@@ -14,6 +14,8 @@ export default function TypewriterMarkdown({
 }: TypewriterMarkdownProps) {
   const [displayedText, setDisplayedText] = useState(enabled ? "" : content);
   const onCompleteRef = useRef(onComplete);
+  const currentIndexRef = useRef(enabled ? 0 : content.length);
+  const prevContentRef = useRef(enabled ? "" : content);
 
   useEffect(() => {
     onCompleteRef.current = onComplete;
@@ -22,6 +24,8 @@ export default function TypewriterMarkdown({
   useEffect(() => {
     if (!enabled) {
       setDisplayedText(content);
+      currentIndexRef.current = content.length;
+      prevContentRef.current = content;
       onCompleteRef.current?.();
       return;
     }
@@ -29,27 +33,38 @@ export default function TypewriterMarkdown({
     const totalLen = content.length;
     if (totalLen === 0) {
       setDisplayedText("");
+      currentIndexRef.current = 0;
+      prevContentRef.current = content;
       return;
     }
 
+    if (!content.startsWith(prevContentRef.current) && prevContentRef.current !== "") {
+      currentIndexRef.current = 0;
+      setDisplayedText("");
+    }
+    prevContentRef.current = content;
+
     let animationFrameId: number;
-    const speedMsPerChar = 8; // Faster: 8ms per character
-    const startTime = Date.now();
-    let lastLength = 0;
+    let lastTime = Date.now();
+    const charsPerMs = 0.25;
 
     const tick = () => {
-      const elapsed = Date.now() - startTime;
-      const targetLength = Math.floor(elapsed / speedMsPerChar);
+      const now = Date.now();
+      const delta = now - lastTime;
+      lastTime = now;
 
-      if (targetLength >= totalLen) {
-        setDisplayedText(content);
-        onCompleteRef.current?.();
-      } else {
-        if (targetLength > lastLength) {
-          setDisplayedText(content.slice(0, targetLength));
-          lastLength = targetLength;
+      if (currentIndexRef.current < totalLen) {
+        currentIndexRef.current += Math.max(1, Math.floor(delta * charsPerMs));
+        if (currentIndexRef.current > totalLen) {
+          currentIndexRef.current = totalLen;
         }
+        setDisplayedText(content.substring(0, currentIndexRef.current));
+      }
+
+      if (currentIndexRef.current < totalLen) {
         animationFrameId = requestAnimationFrame(tick);
+      } else {
+        onCompleteRef.current?.();
       }
     };
 

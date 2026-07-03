@@ -7,15 +7,80 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-// Initialize Gemini Client
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      "User-Agent": "aistudio-build",
-    },
-  },
-});
+// Initialize Gemini Client Lazily to prevent startup crashes if key is missing
+let aiClient: GoogleGenAI | null = null;
+function getGeminiClient(): GoogleGenAI {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) {
+    throw new Error("GEMINI_API_KEY environment variable is required.");
+  }
+  if (!aiClient) {
+    aiClient = new GoogleGenAI({
+      apiKey: key,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
+  }
+  return aiClient;
+}
+
+let fallbackAiClient: GoogleGenAI | null = null;
+function getFallbackGeminiClient(): GoogleGenAI {
+  const key = process.env.GEMINI_API_KEY_2;
+  if (!key) {
+    throw new Error("GEMINI_API_KEY_2 environment variable is not configured.");
+  }
+  if (!fallbackAiClient) {
+    fallbackAiClient = new GoogleGenAI({
+      apiKey: key,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
+  }
+  return fallbackAiClient;
+}
+
+async function callGeminiWithFallback(options: any) {
+  try {
+    const client = getGeminiClient();
+    return await client.models.generateContent(options);
+  } catch (error: any) {
+    if (process.env.GEMINI_API_KEY_2) {
+      console.warn("First Gemini API Key failed, trying fallback key...", error.message);
+      try {
+        const clientFallback = getFallbackGeminiClient();
+        return await clientFallback.models.generateContent(options);
+      } catch (fallbackError: any) {
+         throw fallbackError;
+      }
+    }
+    throw error;
+  }
+}
+
+async function callGeminiStreamWithFallback(options: any) {
+  try {
+    const client = getGeminiClient();
+    return await client.models.generateContentStream(options);
+  } catch (error: any) {
+    if (process.env.GEMINI_API_KEY_2) {
+      console.warn("First Gemini API Key failed for stream, trying fallback key...", error.message);
+      try {
+        const clientFallback = getFallbackGeminiClient();
+        return await clientFallback.models.generateContentStream(options);
+      } catch (fallbackError: any) {
+         throw fallbackError;
+      }
+    }
+    throw error;
+  }
+}
 
 // API endpoint for chatbot communication and Web Search
 app.post("/api/chat", async (req: express.Request, res: express.Response) => {
@@ -42,7 +107,10 @@ app.post("/api/chat", async (req: express.Request, res: express.Response) => {
 
     let shouldSearch = isSearchEnabled;
 
-    if (!shouldSearch && process.env.TAVILY_API_KEY) {
+    // Marte uses its own agentic flow, disable old auto-triage for it
+    if (model === 'WSM 1.6 Marte') {
+      shouldSearch = false;
+    } else if (!shouldSearch && process.env.TAVILY_API_KEY) {
       // AI autonomously decides if it needs to search the web for this query
       const triagePrompt = `Você é o classificador de intenção de busca web do assistente WSM AI.
 O usuário enviou a seguinte mensagem/pergunta: "${text}"
@@ -51,7 +119,7 @@ Avalie se esta mensagem requer uma pesquisa na web em tempo real para ser respon
 Se sim, responda EXCLUSIVAMENTE com a palavra "SIM". Se puder responder sem pesquisa, responda EXCLUSIVAMENTE "NAO".`;
 
       try {
-        const triageResponse = await ai.models.generateContent({
+        const triageResponse = await callGeminiWithFallback({
           model: "gemini-3.1-flash-lite",
           contents: triagePrompt,
         });
@@ -78,7 +146,7 @@ Se sim, responda EXCLUSIVAMENTE com a palavra "SIM". Se puder responder sem pesq
       console.log(`Generating plan for search query: "${text}"`);
       
       // Step 1: Use Gemini to generate a research plan (intro and up to 4 search steps with transitions)
-      const planResponse = await ai.models.generateContent({
+      const planResponse = await callGeminiWithFallback({
         model: "gemini-3.1-flash-lite",
         contents: `Você é um planejador de pesquisa web em tempo real de alta precisão em português do assistente WSM AI.
 O usuário enviou a seguinte solicitação de pesquisa: "${text}".
@@ -327,7 +395,7 @@ Com base nessas informações, responda à última pergunta do usuário de forma
       let finalSynthesisText = "Desculpe, não consegui sintetizar uma resposta com os resultados obtidos.";
       
       try {
-        const aiResponse = await ai.models.generateContent({
+        const aiResponse = await callGeminiWithFallback({
           model: "gemini-3.1-flash-lite",
           contents: finalContents,
           config: {
@@ -377,19 +445,22 @@ Você é capaz de buscar informações na internet em tempo real. Sempre que um 
       'WSM 1.6 Marte': `Você é o modelo de inteligência artificial 'WSM 1.6 Marte', um assistente pessoal inteligente e agêntico, feito para tarefas de complexidade intermediária que exigem raciocínio em etapas.
 
 ## Personalidade
-Você pensa como alguém organizado e proativo: antes de sair executando, você planeja mentalmente os passos, mas sem enrolar o usuário mostrando processo demais. Você tem voz própria — pode discordar do usuário quando acha que existe um caminho melhor pra resolver algo, e nesse caso você expõe sua visão com segurança, dá seus motivos, e defende seu ponto até ser convencido por um argumento melhor (você não recua só porque o usuário insistiu). Ao mesmo tempo, você é flexível de verdade quando o usuário mostra algo que você não tinha considerado. Fale como uma pessoa competente conversaria: direto, sem jargão técnico desnecessário, sem parecer um manual de instruções.
+Você pensa como alguém organizado e proativo: antes de sair executando, você planeja mentalmente os passos. Você tem voz própria — pode discordar do usuário quando acha que existe um caminho melhor pra resolver algo, e nesse caso você expõe sua visão com segurança.
 
-## Formatação
-Responda em português. Formate suas respostas de forma bonita e profissional:
-- Use **negrito**, *itálico* e listas.
-- Use títulos (#) e subtítulos (##) para estruturar respostas longas.
-- NÃO use equações ou formatação matemática via LaTeX, a menos que o assunto seja estritamente matemático, físico ou científico. Nunca coloque equações em respostas cotidianas comuns.
-- Se o usuário pedir códigos de programação, use blocos de código com a linguagem correspondente (ex: \`\`\`javascript).
-- Se pedir análises ou comparações, monte tabelas organizadas.
-- Para tarefas com várias etapas, deixe claro o passo a passo, mas de forma enxuta.
+## Ferramentas Agênticas e Funcionalidades (Obrigatório)
+Você possui ferramentas (tools/function calling) integradas que podem ser chamadas para cumprir tarefas: Pesquisa na Web, Calculadora, e Relógio.
+IMPORTANTE: Você deve usar o recurso de Function Calling fornecido pela API para usar essas ferramentas. 
+NUNCA escreva comandos como "/web", "/calculadora" ou "/relogio" no seu texto de resposta. O usuário pode digitar isso, mas você DEVE usar a ferramenta chamando a função correspondente.
+NUNCA escreva tags como "[pesquisou na web]", "[calculando]" ou "[verificando relógio]" manualmente em seu texto. O sistema cuidará de renderizar essas tags visualmente de forma automática.
 
-## Capacidade de Pesquisa na Web
-Você é capaz de buscar informações na internet em tempo real. Sempre que um usuário te perguntar sobre notícias, cotações, ou fatos recentes que você não sabe de cor, o sistema fará uma pesquisa automática para você.`,
+## Padrão de Chamada e Fluxo
+Quando decidir usar uma ferramenta, você DEVE estruturar sua resposta na seguinte ordem:
+1. **Raciocínio**: Um parágrafo descritivo inicial explicando o que você vai fazer. Ex: "Para fornecer uma visão abrangente sobre Neymar, realizarei uma pesquisa dividida nos seguintes pontos principais..."
+2. **Chamada de Função**: Imediatamente após o texto de raciocínio, você deve invocar a ferramenta correspondente através da API de Function Calling (NÃO é texto).
+3. O sistema renderizará a tag e pausará o processamento.
+4. Após o sistema retornar o resultado da função, você deve continuar sua resposta logo abaixo, relatando as descobertas. Você pode repetir o processo (Ex: texto de raciocínio -> chamada de função -> texto analisando resultado -> novo texto de raciocínio -> nova chamada de função).
+
+Seja natural, explique seu raciocínio antes de chamar as funções e continue o texto normalmente quando receber a resposta delas.`,
 
       'WSM 1.6 Saturno': `Você é o modelo de inteligência artificial 'WSM 1.6 Saturno', um assistente de alta capacidade, feito para tarefas pesadas que exigem profundidade e raciocínio cuidadoso.
 
@@ -428,7 +499,226 @@ Você é capaz de buscar informações na internet em tempo real. Sempre que um 
 
     const activeSystemPrompt = modelSystemPrompts[model] || modelSystemPrompts['WSM 1.6 Mercúrio'];
 
-    const normalResponse = await ai.models.generateContent({
+    if (model === 'WSM 1.6 Marte') {
+      console.log("Starting agentic loop for Marte...");
+      const marteTools = [{
+        functionDeclarations: [
+          {
+            name: "web_search",
+            description: "Busca na internet em tempo real.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                query: {
+                  type: Type.STRING,
+                  description: "Termo de busca para pesquisar."
+                }
+              },
+              required: ["query"]
+            }
+          },
+          {
+            name: "calculadora",
+            description: "Calculadora matemática avançada.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                expression: { type: Type.STRING }
+              },
+              required: ["expression"]
+            }
+          },
+          {
+            name: "relogio",
+            description: "Verifica a data e hora local.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {}
+            }
+          }
+        ]
+      }];
+
+      let currentContents = Array.isArray(finalContents) ? [...finalContents] : [{ role: "user", parts: [{ text: finalContents }] }];
+      const marteSources: any[] = [];
+      const marteImages: string[] = [];
+      let fullOutput = "";
+      let turnCount = 0;
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      const sendEvent = (data: any) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+
+      while (turnCount < 5) {
+        if (turnCount > 0) {
+          console.log(`[Marte] Waiting 2 seconds before next Gemini request to prevent rate limits...`);
+          await new Promise(r => setTimeout(r, 2000));
+        }
+
+        const response = await callGeminiWithFallback({
+          model: "gemini-3.1-flash-lite", // using flash lite as requested
+          contents: currentContents,
+          config: {
+            systemInstruction: activeSystemPrompt + "\nIMPORTANTE: Quando usar uma ferramenta, chame a função ANTES. NUNCA gere as tags [pesquisou na web], [calculando] ou [verificando relógio] ANTES de chamar a função. Gere a tag APENAS na sua resposta final de texto, APÓS receber o resultado da função.",
+            tools: marteTools,
+            temperature: 0.7
+          }
+        });
+
+        const modelContent = response.candidates?.[0]?.content;
+        if (!modelContent) {
+          throw new Error("No content returned from Gemini model");
+        }
+
+        let textForThisTurn = "";
+        let functionCallsForThisTurn: any[] = [];
+
+        if (modelContent.parts) {
+          for (const part of modelContent.parts) {
+            if (part.text) {
+              textForThisTurn += part.text;
+            }
+            if (part.functionCall) {
+              functionCallsForThisTurn.push(part.functionCall);
+            }
+          }
+        }
+
+        if (textForThisTurn) {
+          fullOutput += textForThisTurn;
+          // Send text in simulated stream chunks for smooth UI typewriter feel
+          const words = textForThisTurn.split(/(\s+)/);
+          let chunkGroup = "";
+          for (let i = 0; i < words.length; i++) {
+            chunkGroup += words[i];
+            if (i % 6 === 0 || i === words.length - 1) {
+              sendEvent({ type: "chunk", text: chunkGroup });
+              chunkGroup = "";
+              await new Promise(r => setTimeout(r, 15));
+            }
+          }
+        }
+
+        if (functionCallsForThisTurn.length > 0) {
+          // Push exact model content to keep thought_signature intact!
+          currentContents.push(modelContent);
+
+          const functionResponseParts: any[] = [];
+
+          for (const fc of functionCallsForThisTurn) {
+            console.log(`[Marte] Agent called function: ${fc.name}`, fc.args);
+            
+            // Artificial delay/spinner for user experience
+            const thinkingText = fc.name === "web_search" ? "\n\n[pesquisando...]\n\n" : fc.name === "calculadora" ? "\n\n[calculando...]\n\n" : "\n\n[verificando...]\n\n";
+            sendEvent({ type: "chunk", text: thinkingText });
+            fullOutput += thinkingText;
+            
+            if (fc.name === "web_search") {
+              const args = fc.args as any;
+              let resultData = null;
+              try {
+                if (process.env.TAVILY_API_KEY) {
+                  const tvRes = await fetch("https://api.tavily.com/search", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      api_key: process.env.TAVILY_API_KEY,
+                      query: args.query,
+                      search_depth: "basic",
+                      include_images: true,
+                      include_answer: true,
+                      max_results: 5,
+                    })
+                  });
+                  if (tvRes.ok) {
+                    const data = await tvRes.json();
+                    resultData = data.results;
+                    if (data.results) {
+                      data.results.forEach((r: any) => marteSources.push({ title: r.title || r.url, url: r.url, snippet: r.content }));
+                    }
+                    if (data.images) {
+                      marteImages.push(...data.images.map((i:any) => typeof i === "string" ? i : i.url));
+                    }
+                  } else {
+                     resultData = { error: "Failed to search web" };
+                  }
+                } else {
+                   resultData = { error: "TAVILY_API_KEY is not configured" };
+                }
+              } catch (e) {
+                 resultData = { error: String(e) };
+              }
+              functionResponseParts.push({
+                functionResponse: { name: fc.name, response: { result: resultData } }
+              });
+            } else if (fc.name === "calculadora") {
+              const args = fc.args as any;
+              let mathResult;
+              try {
+                const math = await import("mathjs");
+                mathResult = math.evaluate(args.expression);
+              } catch (e: any) {
+                mathResult = { error: e.message };
+              }
+              // Artificial delay for realism
+              await new Promise(r => setTimeout(r, 1500));
+              functionResponseParts.push({
+                functionResponse: { name: fc.name, response: { result: mathResult } }
+              });
+            } else if (fc.name === "relogio") {
+              let timeData;
+              try {
+                const timeRes = await fetch("https://timeapi.io/api/Time/current/zone?timeZone=America/Sao_Paulo");
+                timeData = await timeRes.json();
+              } catch (e) {
+                timeData = { time: new Date().toISOString() };
+              }
+              // Artificial delay for realism
+              await new Promise(r => setTimeout(r, 1000));
+              functionResponseParts.push({
+                functionResponse: { name: fc.name, response: { result: timeData } }
+              });
+            }
+            
+            // Remove the thinking text and replace with the final tag text
+            const finalTagText = fc.name === "web_search" ? "\n\n[pesquisou na web]\n\n" : fc.name === "calculadora" ? "\n\n[calculando]\n\n" : "\n\n[verificando relógio]\n\n";
+            fullOutput = fullOutput.replace(thinkingText, finalTagText);
+            sendEvent({ type: "sync_text", text: fullOutput });
+          }
+          currentContents.push({ role: "user", parts: functionResponseParts });
+          turnCount++;
+        } else {
+          break; // no more function calls, we are done
+        }
+      }
+
+      const uniqueSourcesMap = new Map();
+      marteSources.forEach(s => uniqueSourcesMap.set(s.url, s));
+      const uniqueSources = Array.from(uniqueSourcesMap.values());
+      const uniqueImages = Array.from(new Set(marteImages)).filter(Boolean);
+      
+      const validImageExtensions = /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|heic)(\?.*)?$/i;
+      const filteredImages = uniqueImages.filter((imgUrl) => {
+        if (typeof imgUrl !== "string") return false;
+        try {
+          const urlObj = new URL(imgUrl);
+          return validImageExtensions.test(urlObj.pathname) || imgUrl.includes("/images/") || imgUrl.includes("/img/");
+        } catch { return false; }
+      });
+
+      sendEvent({
+        type: "final",
+        text: fullOutput.trim() || "Nenhuma resposta gerada.",
+        finalSynthesis: fullOutput.trim() || "Nenhuma resposta gerada.",
+        searchSources: uniqueSources,
+        searchImages: filteredImages.slice(0, 15)
+      });
+      res.end();
+      return;
+    }
+
+    const normalResponse = await callGeminiWithFallback({
       model: "gemini-3.1-flash-lite",
       contents: finalContents,
       config: {
