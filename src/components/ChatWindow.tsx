@@ -144,6 +144,7 @@ export default function ChatWindow({
     if (!inputValue.trim()) return;
     onSendMessage(inputValue, isSearchEnabled);
     setInputValue('');
+    setIsSearchEnabled(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

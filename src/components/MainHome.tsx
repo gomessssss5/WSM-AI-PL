@@ -113,19 +113,6 @@ export default function MainHome({
             </div>
           )}
         </div>
-
-        {/* Promo Purple Pill Banner */}
-        <div 
-          id="promo-banner"
-          className="flex items-center gap-1.5 bg-[#5c53e5] hover:bg-[#4b42cc] text-white pl-1 pr-3 py-1 rounded-full shadow-[0_1px_5px_rgba(92,83,229,0.12)] transition-all cursor-pointer select-none active:scale-[0.99]"
-        >
-          <div className="bg-[#4139bd] text-[8px] font-extrabold tracking-wider px-2 py-0.5 rounded-full text-white uppercase shadow-inner">
-            NOVO
-          </div>
-          <span className="text-[10px] font-medium tracking-wide">
-            Geração de imagens WSM 1.6 ativa →
-          </span>
-        </div>
       </header>
 
       {/* Main Center content area */}
@@ -261,57 +248,7 @@ export default function MainHome({
         </form>
 
         {/* Suggestion Chips */}
-        <div id="suggestion-chips-row" className="flex flex-wrap items-center justify-center gap-2 max-w-md">
-          <button
-            type="button"
-            id="suggestion-write"
-            onClick={() => onSuggestionClick('write')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 border border-[#eae6e1] hover:border-gray-300 rounded-full text-[12.5px] font-semibold text-gray-700 cursor-pointer shadow-2xs transition-all active:scale-[0.98]"
-          >
-            <Pencil className="w-3 h-3 text-blue-500" />
-            <span>Escrever</span>
-          </button>
 
-          <button
-            type="button"
-            id="suggestion-code"
-            onClick={() => onSuggestionClick('code')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 border border-[#eae6e1] hover:border-gray-300 rounded-full text-[12.5px] font-semibold text-gray-700 cursor-pointer shadow-2xs transition-all active:scale-[0.98]"
-          >
-            <Code className="w-3 h-3 text-emerald-500" />
-            <span>Programar</span>
-          </button>
-
-          <button
-            type="button"
-            id="suggestion-image"
-            onClick={() => onSuggestionClick('image')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 border border-[#eae6e1] hover:border-gray-300 rounded-full text-[12.5px] font-semibold text-gray-700 cursor-pointer shadow-2xs transition-all active:scale-[0.98]"
-          >
-            <ImageIcon className="w-3 h-3 text-purple-500" />
-            <span>Criar imagem</span>
-          </button>
-
-          <button
-            type="button"
-            id="suggestion-analysis"
-            onClick={() => onSuggestionClick('analysis')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 border border-[#eae6e1] hover:border-gray-300 rounded-full text-[12.5px] font-semibold text-gray-700 cursor-pointer shadow-2xs transition-all active:scale-[0.98]"
-          >
-            <Brain className="w-3 h-3 text-orange-500" />
-            <span>Analisar</span>
-          </button>
-
-          <button
-            type="button"
-            id="suggestion-translate"
-            onClick={() => onSuggestionClick('translate')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 border border-[#eae6e1] hover:border-gray-300 rounded-full text-[12.5px] font-semibold text-gray-700 cursor-pointer shadow-2xs transition-all active:scale-[0.98]"
-          >
-            <Languages className="w-3 h-3 text-red-500" />
-            <span>Traduzir</span>
-          </button>
-        </div>
 
       </main>
     </div>

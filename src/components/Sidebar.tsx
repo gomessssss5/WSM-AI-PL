@@ -68,19 +68,6 @@ export default function Sidebar({
           <Plus className="w-4 h-4 text-gray-500" />
           Nova conversa
         </button>
-
-        <button
-          id="btn-images-gallery"
-          onClick={onToggleImagesView}
-          className={`w-full flex items-center gap-2 py-2 px-3 rounded-lg transition-all duration-150 cursor-pointer text-[12.5px] font-semibold ${
-            isImagesView 
-              ? 'bg-[#eae6e1] text-gray-900' 
-              : 'text-gray-700 hover:bg-[#eae6e1]/60'
-          }`}
-        >
-          <ImageIcon className="w-4 h-4 text-gray-500" />
-          Galeria de Imagens
-        </button>
       </div>
 
       {/* Search Input */}
