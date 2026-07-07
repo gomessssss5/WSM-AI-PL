@@ -1,3 +1,20 @@
+export interface WsmFormQuestion {
+  type: 'single_choice' | 'multiple_choice' | 'text';
+  question: string;
+  options?: string[];
+  allow_other?: boolean;
+}
+
+export interface WsmForm {
+  id?: string;
+  questions: WsmFormQuestion[];
+}
+
+export interface WsmDocument {
+  title: string;
+  content: string;
+}
+
 export interface SearchStep {
   tag: string;
   thinking: string;

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
+import { extractWsmForm } from '../utils/formParser';
+import { extractWsmDoc } from '../utils/docParser';
 
 interface TypewriterMarkdownProps {
   content: string;
@@ -12,10 +14,13 @@ export default function TypewriterMarkdown({
   enabled = true,
   onComplete
 }: TypewriterMarkdownProps) {
-  const [displayedText, setDisplayedText] = useState(enabled ? "" : content);
+  let { cleanText } = extractWsmForm(content);
+  cleanText = extractWsmDoc(cleanText).cleanText;
+  
+  const [displayedText, setDisplayedText] = useState(enabled ? "" : cleanText);
   const onCompleteRef = useRef(onComplete);
-  const currentIndexRef = useRef(enabled ? 0 : content.length);
-  const prevContentRef = useRef(enabled ? "" : content);
+  const currentIndexRef = useRef(enabled ? 0 : cleanText.length);
+  const prevContentRef = useRef(enabled ? "" : cleanText);
 
   useEffect(() => {
     onCompleteRef.current = onComplete;
@@ -23,26 +28,28 @@ export default function TypewriterMarkdown({
 
   useEffect(() => {
     if (!enabled) {
-      setDisplayedText(content);
-      currentIndexRef.current = content.length;
-      prevContentRef.current = content;
+      setDisplayedText(cleanText);
+      currentIndexRef.current = cleanText.length;
+      prevContentRef.current = cleanText;
       onCompleteRef.current?.();
       return;
     }
 
-    const totalLen = content.length;
+    const totalLen = cleanText.length;
+    
     if (totalLen === 0) {
       setDisplayedText("");
       currentIndexRef.current = 0;
-      prevContentRef.current = content;
+      prevContentRef.current = cleanText;
       return;
     }
 
-    if (!content.startsWith(prevContentRef.current) && prevContentRef.current !== "") {
+    if (!cleanText.startsWith(prevContentRef.current) && prevContentRef.current !== "") {
       currentIndexRef.current = 0;
       setDisplayedText("");
     }
-    prevContentRef.current = content;
+
+    prevContentRef.current = cleanText;
 
     let animationFrameId: number;
     let lastTime = Date.now();
@@ -58,7 +65,7 @@ export default function TypewriterMarkdown({
         if (currentIndexRef.current > totalLen) {
           currentIndexRef.current = totalLen;
         }
-        setDisplayedText(content.substring(0, currentIndexRef.current));
+        setDisplayedText(cleanText.substring(0, currentIndexRef.current));
       }
 
       if (currentIndexRef.current < totalLen) {
@@ -71,10 +78,10 @@ export default function TypewriterMarkdown({
     animationFrameId = requestAnimationFrame(tick);
 
     return () => cancelAnimationFrame(animationFrameId);
-  }, [content, enabled]);
+  }, [cleanText, enabled]);
 
   // Check if typewriter animation is currently running
-  const isTyping = enabled && displayedText.length < content.length;
+  const isTyping = enabled && displayedText.length < cleanText.length;
 
   return (
     <div className="relative w-full">

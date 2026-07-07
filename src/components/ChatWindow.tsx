@@ -1,9 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2 } from 'lucide-react';
 import { Message } from '../types';
 import MarkdownRenderer from './MarkdownRenderer';
 import SearchMessageView from './SearchMessageView';
 import TypewriterMarkdown from './TypewriterMarkdown';
+import InteractiveForm from './InteractiveForm';
+import DocumentCard from './DocumentCard';
+import { extractWsmForm } from '../utils/formParser';
+import { extractWsmDoc } from '../utils/docParser';
 
 const UiverseLoader = ({ isThinking = false }: { isThinking?: boolean }) => (
   <div 
@@ -62,6 +66,7 @@ interface ChatWindowProps {
   setSelectedModel: (model: string) => void;
   onSearchSimulationComplete?: (messageId: string) => void;
   onCancelGeneration?: () => void;
+  onEditMessage?: (messageId: string, newText: string) => void;
 }
 
 export default function ChatWindow({
@@ -73,7 +78,8 @@ export default function ChatWindow({
   selectedModel,
   setSelectedModel,
   onSearchSimulationComplete,
-  onCancelGeneration
+  onCancelGeneration,
+  onEditMessage,
 }: ChatWindowProps) {
   const [inputValue, setInputValue] = useState('');
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
@@ -87,6 +93,34 @@ export default function ChatWindow({
   } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editInputValue, setEditInputValue] = useState('');
+  
+  const [evaluations, setEvaluations] = useState<Record<string, 'up' | 'down'>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('wsm_evaluations') || '{}');
+    } catch {
+      return {};
+    }
+  });
+
+  const handleEvaluate = (msgId: string, rating: 'up' | 'down') => {
+    const evals = { ...evaluations, [msgId]: rating };
+    setEvaluations(evals);
+    localStorage.setItem('wsm_evaluations', JSON.stringify(evals));
+    try {
+      const stored = JSON.parse(localStorage.getItem('wsm_evaluations_data') || '[]');
+      const existingIdx = stored.findIndex((e: any) => e.msgId === msgId);
+      const newEntry = { msgId, rating, conversation: messages.slice(0, messages.findIndex(m => m.id === msgId) + 1), timestamp: new Date().toISOString() };
+      if (existingIdx >= 0) {
+        stored[existingIdx] = newEntry;
+      } else {
+        stored.push(newEntry);
+      }
+      localStorage.setItem('wsm_evaluations_data', JSON.stringify(stored));
+    } catch {}
+  };
 
   // Slash Menu State
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
@@ -315,6 +349,13 @@ export default function ChatWindow({
     </div>
   );
 
+  const lastMessage = messages[messages.length - 1];
+  let activeForm = null;
+  if (lastMessage?.sender === 'ai' && !lastMessage.isSimulatingSearch) {
+    const { formObj } = extractWsmForm(lastMessage.text);
+    activeForm = formObj;
+  }
+
   return (
     <div id="wsm-chat-window" className="flex-1 flex flex-col h-full bg-[#fcfbfa] relative overflow-hidden">
       
@@ -409,7 +450,7 @@ export default function ChatWindow({
               <div
                 key={message.id}
                 id={`msg-container-${message.id}`}
-                className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}
+                className={`flex gap-3 group ${isUser ? 'justify-end' : 'justify-start'}`}
               >
                 {/* AI Avatar */}
                 {!isUser && (
@@ -430,7 +471,22 @@ export default function ChatWindow({
                           : 'text-gray-800'
                       }`}
                     >
-                    {message.isSearchMessage ? (
+                    {isUser && editingMessageId === message.id ? (
+                      <div className="w-full flex flex-col gap-2 min-w-[250px]">
+                        <textarea 
+                          value={editInputValue}
+                          onChange={(e) => setEditInputValue(e.target.value)}
+                          className="w-full text-[13.5px] p-2 border border-[#eae6e1] rounded-lg bg-white resize-none outline-none focus:border-[#5c53e5] min-h-[60px]"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button onClick={() => setEditingMessageId(null)} className="text-xs px-2 py-1 text-gray-500 hover:bg-gray-100 rounded transition-colors border border-[#eae6e1]">Cancelar</button>
+                          <button onClick={() => {
+                             onEditMessage?.(message.id, editInputValue);
+                             setEditingMessageId(null);
+                          }} className="text-xs px-2 py-1 bg-[#5c53e5] text-white rounded hover:bg-[#4b43c6] transition-colors">Confirmar</button>
+                        </div>
+                      </div>
+                    ) : message.isSearchMessage ? (
                       <SearchMessageView
                         message={message}
                         title={title}
@@ -522,6 +578,13 @@ export default function ChatWindow({
                               enabled={!processedMessageIdsRef.current.has(message.id)}
                               onComplete={() => handleTypewriterComplete(message.id)}
                             />
+                            {(() => {
+                              const { docObj } = extractWsmDoc(extractWsmForm(message.text).cleanText);
+                              if (docObj) {
+                                return <DocumentCard document={docObj} />;
+                              }
+                              return null;
+                            })()}
                           </div>
                         )}
                       </>
@@ -630,7 +693,7 @@ export default function ChatWindow({
                             } catch {
                               hostname = src.title;
                             }
-                            if (!uniqueSources.some(s => s.hostname === hostname)) {
+                            if (!uniqueSources.some(s => s.url === src.url)) {
                               uniqueSources.push({ hostname, title: src.title, url: src.url, snippet: src.snippet });
                             }
                           });
@@ -686,11 +749,37 @@ export default function ChatWindow({
                   </div>
                   )}
                   
-                  {/* Timestamp */}
                   {!(message.text === "" && isThinking && message.id === messages[messages.length - 1]?.id) && (
-                    <span className="text-[9px] text-gray-400 mt-1 px-1">
-                      {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+                    <div className="flex items-center gap-2 mt-1 px-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="text-[9px] text-gray-400">
+                        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      
+                      {isUser && !editingMessageId && (
+                        <div className="flex items-center justify-end gap-1.5 ml-1">
+                          <button onClick={() => handleCopy(message.text, message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
+                            {copiedId === message.id ? <Check size={12} /> : <Copy size={12} />}
+                          </button>
+                          <button onClick={() => { setEditingMessageId(message.id); setEditInputValue(message.text); }} className="text-gray-400 hover:text-blue-600 p-0.5" title="Editar">
+                            <Edit2 size={12} />
+                          </button>
+                        </div>
+                      )}
+
+                      {!isUser && (
+                        <div className="flex items-center justify-start gap-1.5 ml-1">
+                          <button onClick={() => handleCopy(message.text, message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
+                            {copiedId === message.id ? <Check size={12} /> : <Copy size={12} />}
+                          </button>
+                          <button onClick={() => handleEvaluate(message.id, 'up')} className={`p-0.5 transition-colors ${evaluations[message.id] === 'up' ? 'text-green-600' : 'text-gray-400 hover:text-green-600'}`} title="Boa resposta">
+                            <ThumbsUp size={12} />
+                          </button>
+                          <button onClick={() => handleEvaluate(message.id, 'down')} className={`p-0.5 transition-colors ${evaluations[message.id] === 'down' ? 'text-red-600' : 'text-gray-400 hover:text-red-600'}`} title="Resposta ruim">
+                            <ThumbsDown size={12} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -707,10 +796,24 @@ export default function ChatWindow({
       </div>
 
       {/* Floating Input Area */}
-      <footer className="p-3 bg-white border-t border-[#eae6e1] relative z-10">
+      <footer className="p-3 bg-white border-t border-[#eae6e1] relative z-10 flex flex-col items-center">
+        {activeForm && (
+          <div className="w-full max-w-xl mx-auto z-20">
+            <InteractiveForm 
+              form={activeForm} 
+              onSubmit={(resp) => onSendMessage(resp, false)} 
+              onCancel={() => {
+                // If they cancel, we could clear it, but typing a message naturally dismisses it.
+                // We'll just let them type.
+                const textarea = document.getElementById('chat-input-textarea-floating') as HTMLTextAreaElement;
+                textarea?.focus();
+              }}
+            />
+          </div>
+        )}
         <form
           onSubmit={handleSubmit}
-          className="max-w-xl mx-auto bg-white border border-[#eae6e1] rounded-xl shadow-[0_1px_8px_rgba(0,0,0,0.01)] p-2 focus-within:border-[#5c53e5]/50 focus-within:ring-1 focus-within:ring-[#5c53e5]/15 transition-all duration-200 relative"
+          className="w-full max-w-xl mx-auto bg-white border border-[#eae6e1] rounded-xl shadow-[0_1px_8px_rgba(0,0,0,0.01)] p-2 focus-within:border-[#5c53e5]/50 focus-within:ring-1 focus-within:ring-[#5c53e5]/15 transition-all duration-200 relative"
         >
           {/* Slash Menu */}
           {slashMenuOpen && filteredTools.length > 0 && (

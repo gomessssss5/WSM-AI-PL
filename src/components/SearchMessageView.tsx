@@ -3,6 +3,8 @@ import { Message, SearchStep } from '../types';
 import { Globe, Check, ChevronDown, ChevronUp, ZoomIn } from 'lucide-react';
 import MarkdownRenderer from './MarkdownRenderer';
 import TypewriterMarkdown from './TypewriterMarkdown';
+import { extractWsmForm } from '../utils/formParser';
+import { extractWsmDoc } from '../utils/docParser';
 
 interface SearchMessageViewProps {
   message: Message;
@@ -193,6 +195,18 @@ export default function SearchMessageView({
 
   // 1. Initial Loading Placeholder before Research Plan Arrives
   if (totalSteps === 0) {
+    if (!message.isSimulatingSearch) {
+      let cleanFallback = extractWsmForm(message.text || message.finalSynthesis || "Erro na pesquisa.").cleanText;
+      cleanFallback = extractWsmDoc(cleanFallback).cleanText;
+      return (
+        <div className="w-full flex flex-col space-y-3.5 animate-fade-in">
+          <div className="prose max-w-none text-[14px] text-gray-800 leading-relaxed w-full">
+            <MarkdownRenderer content={cleanFallback} />
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-col space-y-3.5 w-full animate-fade-in py-1">
         <div className="flex items-center gap-2.5 text-gray-500 text-[14px] font-medium select-none">
@@ -292,7 +306,7 @@ export default function SearchMessageView({
 
                   {/* Sources List Box */}
                   <div className="border border-gray-150 rounded-xl bg-[#faf9f6]/40 overflow-hidden shadow-2xs divide-y divide-gray-150/40">
-                    {step.sources.slice(0, 8).map((src, sIdx) => {
+                    {step.sources.map((src, sIdx) => {
                       const domain = getDomain(src.url);
                       return (
                         <a
@@ -344,7 +358,7 @@ export default function SearchMessageView({
       })}
 
       {/* 4. Tavily Search Images Carousel (only at the end of the simulation) */}
-      {showFinal && message.searchImages && message.searchImages.length > 0 && (() => {
+      {(showFinal || !message.isSimulatingSearch) && message.searchImages && message.searchImages.length > 0 && (() => {
         const displayableImages = message.searchImages.filter(img => {
           try {
             if (!img.startsWith("http://") && !img.startsWith("https://")) return false;
@@ -393,10 +407,10 @@ export default function SearchMessageView({
       })()}
 
       {/* 5. Final Synthesized Markdown Answer */}
-      {showFinal && message.finalSynthesis && (
+      {(showFinal || !message.isSimulatingSearch) && (message.finalSynthesis || message.text) && (
         <div className="prose max-w-none text-[14px] text-gray-800 leading-relaxed w-full mt-3 pt-3 border-t border-gray-150/50 animate-fade-in">
           <TypewriterMarkdown
-            content={message.finalSynthesis}
+            content={extractWsmDoc(extractWsmForm(message.finalSynthesis || message.text || "").cleanText).cleanText}
             enabled={message.isSimulatingSearch}
             onComplete={onStepChange}
           />
@@ -404,7 +418,7 @@ export default function SearchMessageView({
       )}
 
       {/* 6. Tavily Search Sources Pill footer */}
-      {showFinal && message.searchSources && message.searchSources.length > 0 && onOpenSources && (
+      {(showFinal || !message.isSimulatingSearch) && message.searchSources && message.searchSources.length > 0 && onOpenSources && (
         <div className="mt-3 pt-3 border-t border-gray-150/50 flex items-center justify-start animate-fade-in">
           {(() => {
             const uniqueSources: { hostname: string; title: string; url: string; snippet?: string }[] = [];
@@ -415,7 +429,7 @@ export default function SearchMessageView({
               } catch {
                 hostname = src.title;
               }
-              if (!uniqueSources.some(s => s.hostname === hostname)) {
+              if (!uniqueSources.some(s => s.url === src.url)) {
                 uniqueSources.push({ hostname, title: src.title, url: src.url, snippet: src.snippet });
               }
             });

@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar';
 import MainHome from './components/MainHome';
 import ChatWindow from './components/ChatWindow';
 import ImagesGallery from './components/ImagesGallery';
+import EvaluationDashboard from './components/EvaluationDashboard';
 import Login from './components/Login';
 import { auth, onAuthStateChanged, signOut, User, getRedirectResult } from './lib/firebase';
 import { subscribeSessions, saveSession, deleteSessionFromDb } from './lib/chatService';
@@ -17,6 +18,7 @@ export default function App() {
   const [isImagesView, setIsImagesView] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('WSM 1.6 Mercúrio');
+  const [showEvaluations, setShowEvaluations] = useState(false);
 
   // Keep references to activeSession and dirty state for event listeners
   const isDirtyRef = useRef<boolean>(false);
@@ -25,6 +27,52 @@ export default function App() {
   const autoSaveTimeoutRef = useRef<any>(null);
   const currentUserRef = useRef<User | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isSearchActiveRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    const keys = new Set<string>();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      keys.add(e.key);
+      if (e.shiftKey && (keys.has('5') || keys.has('%')) && (keys.has('0') || keys.has(')'))) {
+        setShowEvaluations(true);
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keys.delete(e.key);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+
+  // Request Notification permission immediately when the app mounts
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then((permission) => {
+        console.log('Permissão de notificação concedida:', permission);
+      });
+    }
+  }, []);
+
+  const sendCompletionNotification = () => {
+    if (document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        const title = "Resposta do WSM AI está pronta!";
+        const options: any = {
+          body: `O modelo ${selectedModel} terminou de processar a sua resposta.`,
+          icon: '/favicon.ico',
+          tag: 'wsm-ai-response',
+          renotify: true
+        };
+        new Notification(title, options);
+      } catch (err) {
+        console.error('Erro ao disparar notificação:', err);
+      }
+    }
+  };
 
   // Sync activeSessionId reference
   useEffect(() => {
@@ -425,8 +473,10 @@ Como posso ajudar você hoje?`
   };
 
   // Main sendMessage routine (used by both MainHome input and ChatWindow input)
-  const handleSendMessage = async (text: string, isSearchEnabled: boolean) => {
+  const handleSendMessage = async (text: string, isSearchEnabled: boolean, overrideMessages?: Message[]) => {
     if (!currentUser) return;
+
+    isSearchActiveRef.current = isSearchEnabled;
 
     const userMsg: Message = {
       id: `msg-${Date.now()}-user`,
@@ -461,10 +511,10 @@ Como posso ajudar você hoje?`
       // Append message to existing session locally first
       const currentSession = sessions.find((s) => s.id === activeSessionId);
       if (!currentSession) return;
-
+      
       sessionToUpdate = {
         ...currentSession,
-        messages: [...currentSession.messages, userMsg],
+        messages: overrideMessages ? [...overrideMessages, userMsg] : [...currentSession.messages, userMsg],
       };
       
       // Update local state immediately for smooth UI transition
@@ -559,6 +609,7 @@ Como posso ajudar você hoje?`
               return prev.map((s) => s.id === sessionToUpdate.id ? finalSession : s);
             });
             setIsThinking(false);
+            sendCompletionNotification();
             return;
           }
 
@@ -710,9 +761,34 @@ Como posso ajudar você hoje?`
             }
           }
           setIsThinking(false);
+          setSessions((prev) => {
+            const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
+            if (!currentSess) return prev;
+            return prev.map((s) => {
+              if (s.id !== sessionToUpdate.id) return s;
+              let changed = false;
+              const updatedMsgs = s.messages.map((m) => {
+                if (m.id === initialAiMsg.id && m.isSimulatingSearch && !m.finalSynthesis) {
+                   changed = true;
+                   return {
+                     ...m,
+                     isSimulatingSearch: false,
+                     text: m.text || "⚠️ O assistente parou de responder inesperadamente.",
+                   };
+                }
+                return m;
+              });
+              if (!changed) return s;
+              return { ...s, messages: updatedMsgs };
+            });
+          });
+          if (!isSearchActiveRef.current) {
+            sendCompletionNotification();
+          }
         })
         .catch((err) => {
           setIsThinking(false);
+          sendCompletionNotification();
           if (err.name === 'AbortError') {
             console.log('Request was aborted');
             setSessions((prev) => {
@@ -782,6 +858,18 @@ Como posso ajudar você hoje?`
 
       return prev.map((s) => s.id === activeSessionId ? finalSession : s);
     });
+    sendCompletionNotification();
+  };
+
+  const handleEditMessage = async (msgId: string, newText: string) => {
+    if (!activeSessionId) return;
+    handleCancelGeneration();
+    const currentSession = sessions.find((s) => s.id === activeSessionId);
+    if (!currentSession) return;
+    const idx = currentSession.messages.findIndex((m) => m.id === msgId);
+    if (idx === -1) return;
+    const overrideMessages = currentSession.messages.slice(0, idx);
+    await handleSendMessage(newText, false, overrideMessages);
   };
 
   const handleCancelGeneration = () => {
@@ -872,6 +960,7 @@ Como posso ajudar você hoje?`
             setSelectedModel={setSelectedModel}
             onSearchSimulationComplete={handleSearchSimulationComplete}
             onCancelGeneration={handleCancelGeneration}
+            onEditMessage={handleEditMessage}
           />
         ) : (
           <MainHome
@@ -882,6 +971,10 @@ Como posso ajudar você hoje?`
           />
         )}
       </div>
+      
+      {showEvaluations && (
+        <EvaluationDashboard onClose={() => setShowEvaluations(false)} />
+      )}
     </div>
   );
 }

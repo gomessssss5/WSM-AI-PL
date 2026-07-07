@@ -497,7 +497,50 @@ Responda em português. Formate suas respostas de forma bonita e profissional:
 Você é capaz de buscar informações na internet em tempo real. Sempre que um usuário te perguntar sobre notícias, cotações, ou fatos recentes que você não sabe de cor, o sistema fará uma pesquisa automática para você.`
     };
 
-    const activeSystemPrompt = modelSystemPrompts[model] || modelSystemPrompts['WSM 1.6 Mercúrio'];
+    const formInstruction = `
+Você pode enviar formulários interativos para o usuário preencher. Isso é útil para coletar preferências, entender o nível técnico ou estruturar um pedido complexo de forma organizada, antes de você prosseguir com a tarefa.
+IMPORTANTE: Use formulários com parcimônia e controle! Apenas envie um formulário quando for REALMENTE necessário entender requisitos estruturados ou múltiplas opções de uma vez. NÃO envie formulários para perguntas casuais (ex: "oi", "tudo bem?"), dúvidas diretas ou comandos simples. Sempre avalie cuidadosamente se a situação realmente exige um formulário.
+Para enviar um formulário, inclua um bloco JSON na sua resposta delimitado EXATAMENTE pelas tags <wsm_form> e </wsm_form>. O frontend interceptará esse bloco e renderizará um formulário interativo bonito. Não escreva mais nada além do formulário se o objetivo for apenas coletar as informações.
+Exemplo de formato:
+<wsm_form>
+{
+  "questions": [
+    {
+      "type": "single_choice",
+      "question": "O que você quer fazer comigo hoje?",
+      "options": ["Criar algo (código, documento, design)", "Tirar uma dúvida/aprender", "Conversa casual", "Resolver um problema"],
+      "allow_other": true
+    },
+    {
+      "type": "multiple_choice",
+      "question": "Como você prefere que eu responda?",
+      "options": ["Bem direto e objetivo", "Com exemplos práticos", "Detalhado e completo", "Em formato visual (diagramas, gráficos)"],
+      "allow_other": true
+    }
+  ]
+}
+</wsm_form>
+Tipos suportados: "single_choice" (apenas uma opção), "multiple_choice" (várias opções), "text" (resposta em texto livre sem opções).
+Você deve avaliar se a situação se beneficia de "single_choice" ou "multiple_choice" ou texto livre.
+O formulário será preenchido pelo usuário e as respostas retornarão para você na próxima mensagem como texto comum (ex: P: Pergunta \\n R: Resposta).
+`;
+
+    const docInstruction = `
+Você pode gerar documentos formais para o usuário (como relatórios longos, artigos, análises, redações, resumos detalhados, etc). Quando o usuário pedir a criação de um documento assim longo, não escreva o documento inteiro solto na mensagem de chat.
+Em vez disso, diga no chat que você criou o documento (ex: "Aqui está o relatório que você pediu. Criei um documento para você:") e inclua um bloco JSON na sua resposta delimitado EXATAMENTE pelas tags <wsm_doc> e </wsm_doc>.
+O frontend irá interceptar esse bloco e renderizar um componente de documento bonito e expansível.
+Exemplo de formato:
+<wsm_doc>
+{
+  "title": "Relatório de Exemplo",
+  "content": "# Relatório\\n\\nEste é o conteúdo do documento em **Markdown**.\\n\\nVocê pode usar toda a formatação suportada..."
+}
+</wsm_doc>
+Certifique-se de escapar corretamente as aspas e quebras de linha dentro da string \`content\` JSON (use \\n para novas linhas e \\" para aspas).
+`;
+
+    const basePrompt = modelSystemPrompts[model] || modelSystemPrompts['WSM 1.6 Mercúrio'];
+    const activeSystemPrompt = basePrompt + "\n\n" + formInstruction + "\n\n" + docInstruction;
 
     if (model === 'WSM 1.6 Marte') {
       console.log("Starting agentic loop for Marte...");
@@ -628,7 +671,7 @@ Você é capaz de buscar informações na internet em tempo real. Sempre que um 
                       search_depth: "basic",
                       include_images: true,
                       include_answer: true,
-                      max_results: 5,
+                      max_results: 20,
                     })
                   });
                   if (tvRes.ok) {
