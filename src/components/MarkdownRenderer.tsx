@@ -2,6 +2,7 @@ import React from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { Copy, Check, Globe, Calculator, Clock } from 'lucide-react';
+import HtmlCodeBlock from './HtmlCodeBlock';
 
 interface MarkdownRendererProps {
   content: string;
@@ -297,34 +298,44 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
         i++; // skip ending ```
         
         const codeBlockId = `code-block-${i}`;
-        blocks.push(
-          <div key={`code-${i}`} className="my-4 bg-gray-950 rounded-xl overflow-hidden shadow-md border border-gray-850 w-full max-w-full">
-            <div className="bg-gray-900 px-3.5 py-2 flex items-center justify-between text-[11px] text-gray-400 border-b border-gray-800/60 select-none">
-              <span className="font-mono text-purple-400 uppercase tracking-wider font-semibold">
-                {lang || 'code'}
-              </span>
-              <button
-                onClick={() => copyToClipboard(code.trim(), codeBlockId)}
-                className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer text-xs"
-              >
-                {copiedId === codeBlockId ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="text-emerald-400 font-bold">Copiado!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>Copiar código</span>
-                  </>
-                )}
-              </button>
+        const normalizedLang = lang.toLowerCase();
+
+        if (normalizedLang === 'html' || normalizedLang === 'htm') {
+          blocks.push(
+            <div key={`html-code-${i}`}>
+              <HtmlCodeBlock code={code.trim()} />
             </div>
-            <pre className="p-4 overflow-x-auto text-[12.5px] text-gray-200 font-mono leading-relaxed bg-gray-950/60 select-text">
-              <code>{code.trim()}</code>
-            </pre>
-          </div>
-        );
+          );
+        } else {
+          blocks.push(
+            <div key={`code-${i}`} className="my-4 bg-gray-950 rounded-xl overflow-hidden shadow-md border border-gray-850 w-full max-w-full">
+              <div className="bg-gray-900 px-3.5 py-2 flex items-center justify-between text-[11px] text-gray-400 border-b border-gray-800/60 select-none">
+                <span className="font-mono text-purple-400 uppercase tracking-wider font-semibold">
+                  {lang || 'code'}
+                </span>
+                <button
+                  onClick={() => copyToClipboard(code.trim(), codeBlockId)}
+                  className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer text-xs"
+                >
+                  {copiedId === codeBlockId ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-400 font-bold">Copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copiar código</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              <pre className="p-4 overflow-x-auto text-[12.5px] text-gray-200 font-mono leading-relaxed bg-gray-950/60 select-text">
+                <code>{code.trim()}</code>
+              </pre>
+            </div>
+          );
+        }
         continue;
       }
 

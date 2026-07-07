@@ -18,12 +18,12 @@ export default function InteractiveForm({ form, onSubmit, onCancel }: Interactiv
   const totalSteps = form.questions.length;
   const question = form.questions[currentStep];
 
-  const handleNext = () => {
+  const handleNext = (updatedAnswers = answers) => {
     if (currentStep < totalSteps - 1) {
       setCurrentStep(currentStep + 1);
       setOtherText("");
     } else {
-      handleSubmit();
+      handleSubmit(updatedAnswers);
     }
   };
 
@@ -34,13 +34,26 @@ export default function InteractiveForm({ form, onSubmit, onCancel }: Interactiv
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (currentAnswers = answers) => {
     // Format all answers into a clear text message for the AI
     let result = "";
+    // If there is otherText on the last step, let's include it
+    let finalAnswers = { ...currentAnswers };
+    if (otherText.trim()) {
+      if (question.type === 'multiple_choice') {
+        const currentAns = finalAnswers[currentStep] || [];
+        if (!currentAns.includes(otherText.trim())) {
+          finalAnswers[currentStep] = [...currentAns, otherText.trim()];
+        }
+      } else {
+        finalAnswers[currentStep] = otherText.trim();
+      }
+    }
+
     for (let i = 0; i < totalSteps; i++) {
       const q = form.questions[i];
-      const a = answers[i];
-      if (a !== undefined) {
+      const a = finalAnswers[i];
+      if (a !== undefined && a !== null && a !== "") {
         let answerText = "";
         if (Array.isArray(a)) {
           answerText = a.join(", ");
@@ -56,9 +69,10 @@ export default function InteractiveForm({ form, onSubmit, onCancel }: Interactiv
   };
 
   const handleSingleSelect = (val: string) => {
-    setAnswers({ ...answers, [currentStep]: val });
+    const nextAnswers = { ...answers, [currentStep]: val };
+    setAnswers(nextAnswers);
     setTimeout(() => {
-      handleNext();
+      handleNext(nextAnswers);
     }, 150);
   };
 
@@ -150,11 +164,13 @@ export default function InteractiveForm({ form, onSubmit, onCancel }: Interactiv
                 if (e.key === 'Enter' && otherText.trim()) {
                   if (isMulti) {
                      const currentAns = answers[currentStep] || [];
-                     setAnswers({ ...answers, [currentStep]: [...currentAns, otherText.trim()] });
-                     setTimeout(() => handleNext(), 100);
+                     const nextAnswers = { ...answers, [currentStep]: [...currentAns, otherText.trim()] };
+                     setAnswers(nextAnswers);
+                     setTimeout(() => handleNext(nextAnswers), 100);
                   } else {
-                    setAnswers({ ...answers, [currentStep]: otherText.trim() });
-                    setTimeout(() => handleNext(), 100);
+                    const nextAnswers = { ...answers, [currentStep]: otherText.trim() };
+                    setAnswers(nextAnswers);
+                    setTimeout(() => handleNext(nextAnswers), 100);
                   }
                 }
               }}
@@ -165,11 +181,13 @@ export default function InteractiveForm({ form, onSubmit, onCancel }: Interactiv
                 onClick={() => {
                    if (isMulti) {
                       const currentAns = answers[currentStep] || [];
-                      setAnswers({ ...answers, [currentStep]: [...currentAns, otherText.trim()] });
-                      setTimeout(() => handleNext(), 100);
+                      const nextAnswers = { ...answers, [currentStep]: [...currentAns, otherText.trim()] };
+                      setAnswers(nextAnswers);
+                      setTimeout(() => handleNext(nextAnswers), 100);
                    } else {
-                      setAnswers({ ...answers, [currentStep]: otherText.trim() });
-                      setTimeout(() => handleNext(), 100);
+                      const nextAnswers = { ...answers, [currentStep]: otherText.trim() };
+                      setAnswers(nextAnswers);
+                      setTimeout(() => handleNext(nextAnswers), 100);
                    }
                 }}
                 className="w-7 h-7 bg-black text-white rounded-lg flex items-center justify-center hover:bg-gray-800 transition-colors cursor-pointer mr-1"

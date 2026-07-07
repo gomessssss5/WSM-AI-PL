@@ -757,7 +757,7 @@ export default function ChatWindow({
                       
                       {isUser && !editingMessageId && (
                         <div className="flex items-center justify-end gap-1.5 ml-1">
-                          <button onClick={() => handleCopy(message.text, message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
+                          <button onClick={() => copyToClipboard(message.text, message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
                             {copiedId === message.id ? <Check size={12} /> : <Copy size={12} />}
                           </button>
                           <button onClick={() => { setEditingMessageId(message.id); setEditInputValue(message.text); }} className="text-gray-400 hover:text-blue-600 p-0.5" title="Editar">
@@ -768,7 +768,7 @@ export default function ChatWindow({
 
                       {!isUser && (
                         <div className="flex items-center justify-start gap-1.5 ml-1">
-                          <button onClick={() => handleCopy(message.text, message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
+                          <button onClick={() => copyToClipboard(message.text, message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
                             {copiedId === message.id ? <Check size={12} /> : <Copy size={12} />}
                           </button>
                           <button onClick={() => handleEvaluate(message.id, 'up')} className={`p-0.5 transition-colors ${evaluations[message.id] === 'up' ? 'text-green-600' : 'text-gray-400 hover:text-green-600'}`} title="Boa resposta">
