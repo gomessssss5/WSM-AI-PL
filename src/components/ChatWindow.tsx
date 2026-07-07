@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2 } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2 } from 'lucide-react';
 import { Message } from '../types';
 import MarkdownRenderer from './MarkdownRenderer';
 import SearchMessageView from './SearchMessageView';
@@ -67,6 +67,7 @@ interface ChatWindowProps {
   onSearchSimulationComplete?: (messageId: string) => void;
   onCancelGeneration?: () => void;
   onEditMessage?: (messageId: string, newText: string) => void;
+  onDeleteSession?: () => void;
 }
 
 export default function ChatWindow({
@@ -80,6 +81,7 @@ export default function ChatWindow({
   onSearchSimulationComplete,
   onCancelGeneration,
   onEditMessage,
+  onDeleteSession,
 }: ChatWindowProps) {
   const [inputValue, setInputValue] = useState('');
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
@@ -105,6 +107,13 @@ export default function ChatWindow({
     }
   });
 
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportText, setReportText] = useState('');
+  const [isRateModalOpen, setIsRateModalOpen] = useState(false);
+  const [ratingStars, setRatingStars] = useState(5);
+  const [ratingComment, setRatingComment] = useState('');
+
   const handleEvaluate = (msgId: string, rating: 'up' | 'down') => {
     const evals = { ...evaluations, [msgId]: rating };
     setEvaluations(evals);
@@ -120,6 +129,81 @@ export default function ChatWindow({
       }
       localStorage.setItem('wsm_evaluations_data', JSON.stringify(stored));
     } catch {}
+  };
+
+  const handleExportConversation = () => {
+    let md = `# Conversa do WSM AI - ${title || 'Chat'}\n\n`;
+    md += `**Modelo selecionado:** ${selectedModel}\n`;
+    md += `**Exportado em:** ${new Date().toLocaleString()}\n\n`;
+    md += `---\n\n`;
+
+    messages.forEach((msg) => {
+      const senderName = msg.sender === 'user' ? 'Usuário' : 'WSM AI';
+      md += `### 👤 **${senderName}** (${new Date(msg.timestamp).toLocaleTimeString()})\n\n`;
+      md += `${msg.text}\n\n`;
+      
+      if (msg.imageUrl) {
+        md += `![Imagem Gerada](${msg.imageUrl})\n\n`;
+      }
+      
+      if (msg.codeBlock) {
+        md += `\`\`\`${msg.codeBlock.language || 'code'}\n${msg.codeBlock.code}\n\`\`\`\n\n`;
+      }
+      
+      md += `---\n\n`;
+    });
+
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `conversa-${(title || 'wsm-ai').toLowerCase().replace(/\s+/g, '-')}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleSendReport = (text: string) => {
+    if (!text.trim()) return;
+    try {
+      const stored = JSON.parse(localStorage.getItem('wsm_evaluations_data') || '[]');
+      const newEntry = {
+        msgId: `report-${Date.now()}`,
+        rating: 'down' as 'up' | 'down',
+        isReport: true,
+        reportText: text,
+        conversation: messages,
+        timestamp: new Date().toISOString()
+      };
+      stored.push(newEntry);
+      localStorage.setItem('wsm_evaluations_data', JSON.stringify(stored));
+      setIsReportModalOpen(false);
+      setReportText('');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSendRating = (stars: number, text: string) => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('wsm_evaluations_data') || '[]');
+      const newEntry = {
+        msgId: `eval-stars-${Date.now()}`,
+        rating: (stars >= 4 ? 'up' : 'down') as 'up' | 'down',
+        stars,
+        feedbackText: text,
+        conversation: messages,
+        timestamp: new Date().toISOString()
+      };
+      stored.push(newEntry);
+      localStorage.setItem('wsm_evaluations_data', JSON.stringify(stored));
+      setIsRateModalOpen(false);
+      setRatingComment('');
+      setRatingStars(5);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   // Slash Menu State
@@ -431,14 +515,93 @@ export default function ChatWindow({
           </span>
         </div>
 
-        {/* Back Button */}
-        <button
-          id="btn-back-home"
-          onClick={onBackToHome}
-          className="text-[11px] font-bold text-gray-500 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 border border-[#eae6e1] px-3 py-1 rounded-full transition-all cursor-pointer active:scale-95"
-        >
-          Nova conversa
-        </button>
+        {/* Options Button / 3-dots menu */}
+        {messages.length === 0 ? (
+          <button
+            id="btn-back-home"
+            onClick={onBackToHome}
+            className="text-[11px] font-bold text-gray-500 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 border border-[#eae6e1] px-3 py-1 rounded-full transition-all cursor-pointer active:scale-95 animate-in fade-in duration-200"
+          >
+            Nova conversa
+          </button>
+        ) : (
+          <div className="relative">
+            <button
+              id="btn-back-home"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 border border-[#eae6e1] dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-all cursor-pointer flex items-center justify-center active:scale-95"
+              title="Opções do chat"
+            >
+              <MoreVertical size={16} />
+            </button>
+            
+            {isMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setIsMenuOpen(false)} />
+                <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-900 border border-[#eae6e1] dark:border-gray-800 rounded-2xl shadow-lg py-1.5 z-30 font-sans select-none animate-in fade-in slide-in-from-top-2 duration-150">
+                  <button
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      onBackToHome();
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4 text-gray-400" />
+                    <span>Nova conversa</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      handleExportConversation();
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 text-gray-400" />
+                    <span>Exportar conversa (Markdown)</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      setIsReportModalOpen(true);
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Flag className="w-4 h-4 text-gray-400" />
+                    <span>Denunciar chat</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      setIsRateModalOpen(true);
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Star className="w-4 h-4 text-gray-400" />
+                    <span>Avaliar chat (Estrelas)</span>
+                  </button>
+
+                  <div className="h-px bg-gray-100 dark:bg-gray-800 my-1" />
+
+                  <button
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      if (confirm('Tem certeza de que deseja excluir este chat permanentemente?')) {
+                        onDeleteSession?.();
+                      }
+                    }}
+                    className="w-full px-4 py-2 text-left text-[13px] text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 flex items-center gap-2.5 transition-colors font-semibold cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4 text-red-500" />
+                    <span>Excluir chat</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </header>
 
       {/* Message List */}
@@ -1048,6 +1211,119 @@ export default function ChatWindow({
           {/* Bottom helper text */}
           <div className="mt-4 text-xs font-semibold text-gray-400 tracking-wide">
             Clique em qualquer lugar ou no botão de fechar para voltar ao chat
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Denúncia */}
+      {isReportModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-xs select-none animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-md p-6 border border-[#eae6e1] dark:border-gray-800 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-[#eae6e1] dark:border-gray-800 pb-3">
+              <h3 className="font-bold text-gray-800 dark:text-white flex items-center gap-2 text-base">
+                <Flag className="w-5 h-5 text-red-500 fill-red-500/10" />
+                <span>Denunciar este chat</span>
+              </h3>
+              <button 
+                onClick={() => setIsReportModalOpen(false)} 
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <p className="text-[13px] text-gray-500 dark:text-gray-400 leading-relaxed">
+              Encontrou algo incorreto ou impróprio que a IA falou? Descreva abaixo o problema para que possamos analisar a resposta.
+            </p>
+
+            <textarea
+              value={reportText}
+              onChange={(e) => setReportText(e.target.value)}
+              placeholder="Descreva o erro ou problema com detalhes aqui..."
+              className="w-full text-[13.5px] p-3 border border-[#eae6e1] dark:border-gray-800 rounded-xl bg-white dark:bg-gray-950 text-gray-800 dark:text-gray-200 resize-none outline-none focus:border-red-500 min-h-[110px]"
+            />
+
+            <div className="flex justify-end gap-2.5 pt-2">
+              <button
+                onClick={() => setIsReportModalOpen(false)}
+                className="text-xs font-bold px-3 py-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors border border-[#eae6e1] dark:border-gray-800 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleSendReport(reportText)}
+                disabled={!reportText.trim()}
+                className={`text-xs font-bold px-4 py-2 rounded-xl transition-colors text-white ${
+                  reportText.trim() ? 'bg-red-600 hover:bg-red-700 cursor-pointer' : 'bg-red-300 dark:bg-red-900/40 cursor-not-allowed'
+                }`}
+              >
+                Enviar Denúncia
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Avaliação em Estrelas */}
+      {isRateModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-xs select-none animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-md p-6 border border-[#eae6e1] dark:border-gray-800 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-[#eae6e1] dark:border-gray-800 pb-3">
+              <h3 className="font-bold text-gray-800 dark:text-white flex items-center gap-2 text-base">
+                <Star className="w-5 h-5 text-amber-500 fill-amber-500/15" />
+                <span>Avaliar este chat</span>
+              </h3>
+              <button 
+                onClick={() => setIsRateModalOpen(false)} 
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-[13px] text-gray-500 dark:text-gray-400 leading-relaxed text-center">
+              Como foi sua experiência de conversa com o **{selectedModel}** neste chat?
+            </p>
+
+            {/* Estrelas */}
+            <div className="flex items-center justify-center gap-2.5 my-1.5">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => setRatingStars(star)}
+                  className="p-1 hover:scale-110 active:scale-95 transition-all text-amber-400 hover:text-amber-500 cursor-pointer"
+                >
+                  <Star 
+                    className="w-8 h-8" 
+                    fill={star <= ratingStars ? 'currentColor' : 'none'} 
+                    stroke="currentColor" 
+                    strokeWidth={2}
+                  />
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              value={ratingComment}
+              onChange={(e) => setRatingComment(e.target.value)}
+              placeholder="Opcional: Escreva um feedback ou comentário aqui..."
+              className="w-full text-[13.5px] p-3 border border-[#eae6e1] dark:border-gray-800 rounded-xl bg-white dark:bg-gray-950 text-gray-800 dark:text-gray-200 resize-none outline-none focus:border-amber-500 min-h-[90px]"
+            />
+
+            <div className="flex justify-end gap-2.5 pt-2">
+              <button
+                onClick={() => setIsRateModalOpen(false)}
+                className="text-xs font-bold px-3 py-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors border border-[#eae6e1] dark:border-gray-800 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleSendRating(ratingStars, ratingComment)}
+                className="text-xs font-bold px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-colors cursor-pointer"
+              >
+                Enviar Avaliação
+              </button>
+            </div>
           </div>
         </div>
       )}

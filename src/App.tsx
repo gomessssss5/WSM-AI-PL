@@ -961,6 +961,21 @@ Como posso ajudar você hoje?`
             onSearchSimulationComplete={handleSearchSimulationComplete}
             onCancelGeneration={handleCancelGeneration}
             onEditMessage={handleEditMessage}
+            onDeleteSession={async () => {
+              if (currentUser && activeSessionId) {
+                try {
+                  isDirtyRef.current = false;
+                  if (autoSaveTimeoutRef.current) {
+                    clearTimeout(autoSaveTimeoutRef.current);
+                    autoSaveTimeoutRef.current = null;
+                  }
+                  await deleteSessionFromDb(currentUser.uid, activeSessionId);
+                  setActiveSessionId(null);
+                } catch (err) {
+                  console.error('Erro ao excluir sessão do banco de dados:', err);
+                }
+              }
+            }}
           />
         ) : (
           <MainHome
