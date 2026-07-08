@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon, Menu } from 'lucide-react';
 import { Message } from '../types';
 import MarkdownRenderer from './MarkdownRenderer';
 import SearchMessageView from './SearchMessageView';
@@ -76,6 +76,7 @@ interface ChatWindowProps {
   isEmbedded?: boolean;
   attachedText?: string;
   onClearAttachedText?: () => void;
+  onOpenMobileHistory?: () => void;
 }
 
 export default function ChatWindow({
@@ -93,6 +94,7 @@ export default function ChatWindow({
   isEmbedded = false,
   attachedText = '',
   onClearAttachedText,
+  onOpenMobileHistory
 }: ChatWindowProps) {
   const [inputValue, setInputValue] = useState('');
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
@@ -566,8 +568,14 @@ export default function ChatWindow({
     <div id="wsm-chat-window" className={`flex-1 flex flex-col h-full bg-[#fcfbfa] relative overflow-hidden ${!isEmbedded ? 'animate-in zoom-in-95 duration-200' : ''}`}>
       
       {/* Top Header */}
-      <header className="px-4 py-2.5 bg-white/80 backdrop-blur-md border-b border-[#eae6e1] flex items-center justify-between relative z-40">
+      <header className="flex px-4 py-2.5 bg-white/80 backdrop-blur-md border-b border-[#eae6e1] items-center justify-between relative z-40">
         <div className="flex items-center gap-2.5">
+          <button 
+            onClick={onOpenMobileHistory} 
+            className="md:hidden flex items-center justify-center p-2 -ml-2 text-gray-700 hover:bg-black/5 rounded-full active:opacity-70 transition-colors"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           {/* AI Model Selector Pill */}
           <div className="relative z-50">
             <button
@@ -584,50 +592,57 @@ export default function ChatWindow({
             </button>
 
             {isModelDropdownOpen && (
-              <div className="absolute left-0 mt-1 w-80 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1">
-                {modelsList.map((model) => {
-                  const isActive = selectedModel === model;
-                  const isClickable = model === 'WSM 1.6 Mercúrio' || model === 'WSM 1.6 Marte';
-                  return (
-                    <button
-                      key={model}
-                      disabled={!isClickable}
-                      onClick={() => {
-                        if (isClickable) {
-                          setSelectedModel(model);
-                          setIsModelDropdownOpen(false);
-                        }
-                      }}
-                      className={`w-full flex flex-col gap-0.5 px-3 py-2 text-left rounded-lg transition-colors ${
-                        isActive 
-                          ? 'bg-[#f0ede8] text-gray-900 font-semibold' 
-                          : isClickable 
-                            ? 'text-gray-500 hover:text-gray-800 hover:bg-gray-50' 
-                            : 'text-gray-400 cursor-not-allowed opacity-50 bg-gray-50/50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-1.5 text-[13px] font-semibold">
-                          <div className={`w-1 h-1 rounded-full ${isActive ? 'bg-[#5c53e5]' : 'bg-transparent'}`} />
-                          <span>{model}</span>
-                        </div>
-                        {model === 'WSM 1.6 Mercúrio' && (
-                          <span className="text-[8px] bg-[#5c53e5]/10 text-[#5c53e5] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Padrão</span>
-                        )}
-                        {model === 'WSM 1.6 Marte' && (
-                          <div className="flex items-center gap-0.5">
-                            <span className="text-[8px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Novo</span>
-                            <span className="text-[8px] bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Beta</span>
+              <>
+                {/* Backdrop for mobile to close the selector when clicking outside */}
+                <div 
+                  className="fixed inset-0 bg-black/40 z-40 md:hidden" 
+                  onClick={() => setIsModelDropdownOpen(false)} 
+                />
+                <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 md:absolute md:inset-auto md:left-0 md:top-full md:mt-1.5 md:translate-y-0 w-auto max-w-[calc(100vw-2rem)] md:w-80 bg-white border border-gray-150 rounded-xl shadow-2xl md:shadow-lg z-50 p-1 animate-in fade-in zoom-in-95 duration-150">
+                  {modelsList.map((model) => {
+                    const isActive = selectedModel === model;
+                    const isClickable = model === 'WSM 1.6 Mercúrio' || model === 'WSM 1.6 Marte';
+                    return (
+                      <button
+                        key={model}
+                        disabled={!isClickable}
+                        onClick={() => {
+                          if (isClickable) {
+                            setSelectedModel(model);
+                            setIsModelDropdownOpen(false);
+                          }
+                        }}
+                        className={`w-full flex flex-col gap-0.5 px-3 py-2 text-left rounded-lg transition-colors ${
+                          isActive 
+                            ? 'bg-[#f0ede8] text-gray-900 font-semibold' 
+                            : isClickable 
+                              ? 'text-gray-500 hover:text-gray-800 hover:bg-gray-50' 
+                              : 'text-gray-400 cursor-not-allowed opacity-50 bg-gray-50/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex items-center gap-1.5 text-[13px] font-semibold">
+                            <div className={`w-1 h-1 rounded-full ${isActive ? 'bg-[#5c53e5]' : 'bg-transparent'}`} />
+                            <span>{model}</span>
                           </div>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-gray-400 pl-2 leading-tight font-normal">
-                        {modelDescriptions[model]}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
+                          {model === 'WSM 1.6 Mercúrio' && (
+                            <span className="text-[8px] bg-[#5c53e5]/10 text-[#5c53e5] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Padrão</span>
+                          )}
+                          {model === 'WSM 1.6 Marte' && (
+                            <div className="flex items-center gap-0.5">
+                              <span className="text-[8px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Novo</span>
+                              <span className="text-[8px] bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Beta</span>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-gray-400 pl-2 leading-tight font-normal">
+                          {modelDescriptions[model]}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
 
@@ -1104,14 +1119,14 @@ export default function ChatWindow({
 
 
           {/* Spacing at the bottom of the container */}
-          <div className="h-14" />
+          <div className="h-24 md:h-14" />
           {/* Empty scroll target */}
           <div ref={messagesEndRef} />
         </div>
       </div>
 
       {/* Floating Input Area */}
-      <footer className="p-3 bg-white border-t border-[#eae6e1] relative z-10 flex flex-col items-center">
+      <footer className="p-0 md:p-3 bg-transparent md:bg-white border-none md:border-t border-[#eae6e1] relative z-10 flex flex-col items-center pb-4 md:pb-3">
         {activeForm && (
           <div className="w-full max-w-xl mx-auto z-20">
             <InteractiveForm 
@@ -1145,7 +1160,7 @@ export default function ChatWindow({
         )}
         <form
           onSubmit={handleSubmit}
-          className="w-full max-w-xl mx-auto bg-white border border-[#eae6e1] rounded-xl shadow-[0_1px_8px_rgba(0,0,0,0.01)] p-2 focus-within:border-[#5c53e5]/50 focus-within:ring-1 focus-within:ring-[#5c53e5]/15 transition-all duration-200 relative"
+          className="w-[calc(100%-2rem)] md:w-full md:max-w-xl mx-auto bg-white border border-[#eae6e1] md:rounded-xl rounded-[28px] shadow-lg md:shadow-[0_1px_8px_rgba(0,0,0,0.01)] p-3 md:p-2 focus-within:border-[#5c53e5]/50 focus-within:ring-1 focus-within:ring-[#5c53e5]/15 transition-all duration-200 absolute bottom-3 md:static z-50 mb-0 left-4"
         >
           {/* Hidden File Input */}
           <input 
@@ -1302,7 +1317,7 @@ export default function ChatWindow({
             </div>
           </div>
         </form>
-        <div className="text-[9px] text-center text-gray-400 font-medium pt-1.5 select-none">
+        <div className="hidden md:block text-[9px] text-center text-gray-400 font-medium pt-1.5 select-none">
           {selectedModel} pode cometer erros. Verifique informações importantes.
         </div>
       </footer>

@@ -25,6 +25,7 @@ export default function App() {
   const [isThinking, setIsThinking] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('WSM 1.6 Mercúrio');
   const [showEvaluations, setShowEvaluations] = useState(false);
+  const [isMobileHistoryOpen, setIsMobileHistoryOpen] = useState(true); // Default to true on initial load (only applies to mobile)
 
   // Keep references to activeSession and dirty state for event listeners
   const isDirtyRef = useRef<boolean>(false);
@@ -1092,19 +1093,21 @@ Como posso ajudar você hoje?`
       <Sidebar
         sessions={sessions}
         activeSessionId={isWriterMode ? null : activeSessionId}
-        onSelectSession={handleSelectSession}
+        onSelectSession={(id) => { handleSelectSession(id); setIsMobileHistoryOpen(false); }}
         onDeleteSession={handleDeleteSession}
-        onNewChat={handleNewChat}
-        onToggleImagesView={handleToggleImagesView}
+        onNewChat={() => { handleNewChat(); setIsMobileHistoryOpen(false); }}
+        onToggleImagesView={() => { handleToggleImagesView(); setIsMobileHistoryOpen(false); }}
         isImagesView={isImagesView}
         userEmail={currentUser.email}
         userName={currentUser.displayName}
         onSignOut={handleSignOut}
-        onOpenWriterArea={handleOpenWriterArea}
+        onOpenWriterArea={() => { handleOpenWriterArea(); setIsMobileHistoryOpen(false); }}
+        isMobileHistoryOpen={isMobileHistoryOpen}
+        onCloseMobileHistory={() => setIsMobileHistoryOpen(false)}
       />
 
       {/* Main View Area (Responsive) */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className={`flex-1 flex flex-col h-full overflow-hidden ${isMobileHistoryOpen ? 'hidden md:flex' : 'flex'}`}>
         {isWriterMode ? (
           activeWriterDocId && writerDocs.find(d => d.id === activeWriterDocId) ? (
             <WriterWorkspace
@@ -1115,6 +1118,7 @@ Como posso ajudar você hoje?`
               onNewMessage={handleSendMessage}
               isThinking={isThinking}
               onCancelGeneration={handleCancelGeneration}
+              onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
             />
           ) : (
             <WriterDashboard
@@ -1122,10 +1126,11 @@ Como posso ajudar você hoje?`
               onNewDocument={handleNewWriterDocument}
               onOpenDocument={handleOpenWriterDocument}
               onDeleteDocument={handleDeleteWriterDocument}
+              onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
             />
           )
         ) : isImagesView ? (
-          <ImagesGallery onBackToHome={handleNewChat} />
+          <ImagesGallery onBackToHome={() => { handleNewChat(); setIsMobileHistoryOpen(true); }} />
         ) : activeSession ? (
           <ChatWindow
             key={activeSession.id}
@@ -1133,7 +1138,7 @@ Como posso ajudar você hoje?`
             title={activeSession.title}
             isThinking={isThinking}
             onSendMessage={handleSendMessage}
-            onBackToHome={handleNewChat}
+            onBackToHome={() => { handleNewChat(); setIsMobileHistoryOpen(true); }}
             selectedModel={selectedModel}
             setSelectedModel={setSelectedModel}
             onSearchSimulationComplete={handleSearchSimulationComplete}
@@ -1149,11 +1154,13 @@ Como posso ajudar você hoje?`
                   }
                   await deleteSessionFromDb(currentUser.uid, activeSessionId);
                   setActiveSessionId(null);
+                  setIsMobileHistoryOpen(true);
                 } catch (err) {
                   console.error('Erro ao excluir sessão do banco de dados:', err);
                 }
               }
             }}
+            onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
           />
         ) : (
           <MainHome
@@ -1161,6 +1168,7 @@ Como posso ajudar você hoje?`
             onSuggestionClick={handleSuggestionClick}
             selectedModel={selectedModel}
             setSelectedModel={setSelectedModel}
+            onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
           />
         )}
       </div>

@@ -1,18 +1,20 @@
 import React, { useState, useRef } from 'react';
-import { Paperclip, Globe, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain, Languages, ChevronDown, Sparkles, Calculator, Clock, Video, Volume2, FileText, AlertCircle, X } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain, Languages, ChevronDown, Sparkles, Calculator, Clock, Video, Volume2, FileText, AlertCircle, X, Menu } from 'lucide-react';
 
 interface MainHomeProps {
   onSendMessage: (text: string, isSearchEnabled: boolean, overrideMessages?: any, attachments?: any[]) => void;
   onSuggestionClick: (suggestionType: 'write' | 'code' | 'image' | 'analysis' | 'translate') => void;
   selectedModel: string;
   setSelectedModel: (model: string) => void;
+  onOpenMobileHistory?: () => void;
 }
 
 export default function MainHome({
   onSendMessage,
   onSuggestionClick,
   selectedModel,
-  setSelectedModel
+  setSelectedModel,
+  onOpenMobileHistory
 }: MainHomeProps) {
   const [inputValue, setInputValue] = useState('');
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
@@ -245,10 +247,18 @@ export default function MainHome({
       <div className="absolute top-[-10%] right-[-10%] w-[45%] h-[45%] glow-right pointer-events-none rounded-full" />
 
       {/* Top Header / Action Bar */}
-      <header className="relative z-40 px-5 py-3.5 flex items-center justify-between">
-        {/* Model Dropdown Pill */}
-        <div className="relative z-50">
-          <button
+      <header className="flex relative z-40 px-5 py-3.5 items-center justify-between">
+        <div className="flex items-center gap-3 relative z-50">
+          <button 
+            onClick={onOpenMobileHistory} 
+            className="md:hidden flex items-center justify-center p-2 -ml-2 text-gray-700 hover:bg-black/5 rounded-full active:opacity-70 transition-colors"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          
+          {/* Model Dropdown Pill */}
+          <div className="relative">
+            <button
             id="model-selector-pill"
             onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#eae6e1] hover:border-gray-300 rounded-full text-[13px] font-semibold text-gray-700 shadow-2xs cursor-pointer transition-all duration-150 active:scale-[0.98]"
@@ -259,61 +269,69 @@ export default function MainHome({
           </button>
 
           {isModelDropdownOpen && (
-            <div className="absolute left-0 mt-1.5 w-80 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1">
-              <div className="px-2.5 py-1.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                Modelos Disponíveis
-              </div>
-              <div className="flex flex-col gap-0.5">
-                {modelsList.map((model) => {
-                  const isActive = selectedModel === model;
-                  const isClickable = model === 'WSM 1.6 Mercúrio' || model === 'WSM 1.6 Marte';
-                  return (
-                    <button 
-                      key={model}
-                      disabled={!isClickable}
-                      onClick={() => handleSelectModel(model)}
-                      className={`w-full flex flex-col gap-0.5 px-3 py-2 text-left rounded-lg transition-colors ${
-                        isActive 
-                          ? 'bg-[#f0ede8] text-gray-900 font-semibold' 
-                          : isClickable 
-                            ? 'text-gray-600 hover:bg-gray-50' 
-                            : 'text-gray-400 cursor-not-allowed opacity-50 bg-gray-50/50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-1.5 text-[13px] font-semibold">
-                          <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-[#5c53e5]' : 'bg-transparent'}`} />
-                          <span>{model}</span>
-                        </div>
-                        {model === 'WSM 1.6 Mercúrio' && (
-                          <span className="text-[8px] bg-[#5c53e5]/10 text-[#5c53e5] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Padrão</span>
-                        )}
-                        {model === 'WSM 1.6 Marte' && (
-                          <div className="flex items-center gap-0.5">
-                            <span className="text-[8px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Novo</span>
-                            <span className="text-[8px] bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Beta</span>
+            <>
+              {/* Backdrop for mobile to close the selector when clicking outside */}
+              <div 
+                className="fixed inset-0 bg-black/40 z-40 md:hidden" 
+                onClick={() => setIsModelDropdownOpen(false)} 
+              />
+              <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 md:absolute md:inset-auto md:left-0 md:top-full md:mt-1.5 md:translate-y-0 w-auto max-w-[calc(100vw-2rem)] md:w-80 bg-white border border-gray-150 rounded-xl shadow-2xl md:shadow-lg z-50 p-1 animate-in fade-in zoom-in-95 duration-150">
+                <div className="px-2.5 py-1.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                  Modelos Disponíveis
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  {modelsList.map((model) => {
+                    const isActive = selectedModel === model;
+                    const isClickable = model === 'WSM 1.6 Mercúrio' || model === 'WSM 1.6 Marte';
+                    return (
+                      <button 
+                        key={model}
+                        disabled={!isClickable}
+                        onClick={() => handleSelectModel(model)}
+                        className={`w-full flex flex-col gap-0.5 px-3 py-2 text-left rounded-lg transition-colors ${
+                          isActive 
+                            ? 'bg-[#f0ede8] text-gray-900 font-semibold' 
+                            : isClickable 
+                              ? 'text-gray-600 hover:bg-gray-50' 
+                              : 'text-gray-400 cursor-not-allowed opacity-50 bg-gray-50/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex items-center gap-1.5 text-[13px] font-semibold">
+                            <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-[#5c53e5]' : 'bg-transparent'}`} />
+                            <span>{model}</span>
                           </div>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-gray-400 pl-3 leading-tight font-normal">
-                        {modelDescriptions[model]}
-                      </p>
-                    </button>
-                  );
-                })}
+                          {model === 'WSM 1.6 Mercúrio' && (
+                            <span className="text-[8px] bg-[#5c53e5]/10 text-[#5c53e5] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Padrão</span>
+                          )}
+                          {model === 'WSM 1.6 Marte' && (
+                            <div className="flex items-center gap-0.5">
+                              <span className="text-[8px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Novo</span>
+                              <span className="text-[8px] bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Beta</span>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-gray-400 pl-3 leading-tight font-normal">
+                          {modelDescriptions[model]}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            </>
           )}
+        </div>
         </div>
       </header>
 
       {/* Main Center content area */}
-      <main className="flex-1 flex flex-col items-center justify-center px-4 max-w-2xl mx-auto w-full relative z-10 pb-8">
+      <main className="flex-1 flex flex-col items-center justify-center px-4 max-w-2xl mx-auto w-full relative z-10 pb-8 md:pb-8 pb-32">
         
         {/* Animated Central squircle mock dashboard */}
         <div 
           id="center-avatar-card"
-          className="w-16 h-16 flex items-center justify-center mb-6 select-none relative z-50"
+          className="hidden md:flex w-16 h-16 items-center justify-center mb-6 select-none relative z-50"
         >
           {/* Ghost animation centered and styled exactly as requested, loose with no borders or cards */}
           <div id="ghost" className="animate-ghost-orbit" style={{ scale: '0.45', position: 'absolute' }}>
@@ -357,19 +375,26 @@ export default function MainHome({
         </div>
 
         {/* Brand Headline Typography */}
-        <h1 id="home-headline" className="text-center mb-5 select-none">
-          <span className="font-sans font-extrabold text-gray-900 tracking-tight text-[1.95rem] md:text-[2.3rem]">
-            Como posso{' '}
-          </span>
-          <span className="font-sans font-light text-gray-400 tracking-tight text-[1.95rem] md:text-[2.3rem]">
-            ajudar?
-          </span>
+        <h1 id="home-headline" className="text-center mb-5 md:mb-5 select-none absolute top-[35%] md:static left-1/2 -translate-x-1/2 -translate-y-1/2 md:translate-x-0 md:translate-y-0 w-full md:w-auto">
+          <div className="md:hidden">
+             <span className="font-serif font-medium text-gray-800 tracking-tight text-[28px]">
+                Como posso ajudar você?
+             </span>
+          </div>
+          <div className="hidden md:block">
+            <span className="font-sans font-extrabold text-gray-900 tracking-tight text-[1.95rem] md:text-[2.3rem]">
+              Como posso{' '}
+            </span>
+            <span className="font-sans font-light text-gray-400 tracking-tight text-[1.95rem] md:text-[2.3rem]">
+              ajudar?
+            </span>
+          </div>
         </h1>
 
         {/* Main Large Chat Input Box */}
         <form 
           onSubmit={handleSubmit}
-          className="w-full max-w-xl bg-white border border-[#eae6e1] rounded-2xl shadow-[0_4px_16px_rgba(0,0,0,0.02)] p-2.5 focus-within:border-[#5c53e5]/50 focus-within:ring-1 focus-within:ring-[#5c53e5]/25 transition-all duration-200 relative mb-4"
+          className="w-[calc(100%-2rem)] md:w-full md:max-w-xl bg-white border border-[#eae6e1] md:rounded-2xl rounded-[28px] shadow-lg md:shadow-[0_4px_16px_rgba(0,0,0,0.02)] p-3 md:p-2.5 focus-within:border-[#5c53e5]/50 focus-within:ring-1 focus-within:ring-[#5c53e5]/25 transition-all duration-200 absolute bottom-3 md:static z-50 mb-0 md:mb-4 left-4"
         >
           {/* Hidden File Input */}
           <input 

@@ -18,6 +18,7 @@ interface WriterWorkspaceProps {
   onNewMessage: (text: string, isSearch: boolean) => Promise<void>;
   isThinking: boolean;
   onCancelGeneration: () => void;
+  onOpenMobileHistory?: () => void;
 }
 
 interface CustomPresetStyle {
@@ -33,7 +34,8 @@ export default function WriterWorkspace({
   onUpdateDocument,
   onNewMessage,
   isThinking,
-  onCancelGeneration
+  onCancelGeneration,
+  onOpenMobileHistory
 }: WriterWorkspaceProps) {
   const [content, setContent] = useState(writerDoc.content);
   const [title, setTitle] = useState(writerDoc.title);
@@ -569,7 +571,7 @@ export default function WriterWorkspace({
         className="flex-[3] flex flex-col border-r border-blue-100 h-full bg-white relative overflow-hidden"
       >
         {/* Editor Top Bar */}
-        <div className="h-14 border-b border-blue-50 flex items-center justify-between px-4 bg-slate-50/70 backdrop-blur-sm relative z-10 shrink-0">
+        <div className="hidden md:flex h-14 border-b border-blue-50 items-center justify-between px-4 bg-slate-50/70 backdrop-blur-sm relative z-10 shrink-0">
           <div className="flex items-center gap-3 w-full max-w-xl">
             <button 
               onClick={onBack}
@@ -597,6 +599,23 @@ export default function WriterWorkspace({
                 <Check className="w-3.5 h-3.5 text-emerald-500" />
                 Salvo no Firestore
               </span>
+            )}
+          </div>
+        </div>
+
+        {/* Top Header / Action Bar - Mobile */}
+        <div className="md:hidden flex items-center justify-between p-4 bg-transparent w-full relative z-40 border-b border-gray-100/50 shrink-0">
+          <button onClick={onOpenMobileHistory} className="flex items-center gap-1.5 text-gray-800 text-[16px] font-normal active:opacity-70">
+            <span className="text-[20px] font-light mr-1">‹</span>
+            WSM Writer <ChevronDown className="w-4 h-4 text-gray-500 ml-1" />
+          </button>
+          <div className="flex items-center gap-3">
+            {isSaving ? (
+              <span className="text-xs font-semibold text-blue-500 flex items-center gap-1">
+                 <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+              </span>
+            ) : (
+              <span className="text-xs font-semibold text-emerald-500">Salvo</span>
             )}
           </div>
         </div>
