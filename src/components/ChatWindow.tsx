@@ -55,24 +55,32 @@ const UiverseLoader = ({ isThinking = false }: { isThinking?: boolean }) => (
   </div>
 );
 
+const cleanWriterUpdateTags = (text: string) => {
+  if (!text) return "";
+  return text.replace(/<wsm_writer_update>[\s\S]*?<\/wsm_writer_update>/g, "").trim();
+};
+
 interface ChatWindowProps {
   key?: string;
   messages: Message[];
-  title: string;
+  title?: string;
   isThinking: boolean;
   onSendMessage: (text: string, isSearchEnabled: boolean) => void;
-  onBackToHome: () => void;
+  onBackToHome?: () => void;
   selectedModel: string;
-  setSelectedModel: (model: string) => void;
+  setSelectedModel?: (model: string) => void;
   onSearchSimulationComplete?: (messageId: string) => void;
   onCancelGeneration?: () => void;
   onEditMessage?: (messageId: string, newText: string) => void;
   onDeleteSession?: () => void;
+  isEmbedded?: boolean;
+  attachedText?: string;
+  onClearAttachedText?: () => void;
 }
 
 export default function ChatWindow({
   messages,
-  title,
+  title = '',
   isThinking,
   onSendMessage,
   onBackToHome,
@@ -82,6 +90,9 @@ export default function ChatWindow({
   onCancelGeneration,
   onEditMessage,
   onDeleteSession,
+  isEmbedded = false,
+  attachedText = '',
+  onClearAttachedText,
 }: ChatWindowProps) {
   const [inputValue, setInputValue] = useState('');
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
@@ -322,11 +333,24 @@ export default function ChatWindow({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim()) return;
-    onSendMessage(inputValue, isSearchEnabled);
+    if (!inputValue.trim() && !attachedText) return;
+    
+    let textToSend = '';
+    if (attachedText && inputValue.trim()) {
+      textToSend = `[Texto Anexado do Editor:\n"${attachedText}"]\n\n${inputValue}`;
+    } else if (attachedText) {
+      textToSend = `[Texto Anexado do Editor:\n"${attachedText}"]\n\nPor favor, analise ou revise o texto anexado acima.`;
+    } else {
+      textToSend = inputValue;
+    }
+    
+    onSendMessage(textToSend, isSearchEnabled);
     setInputValue('');
     setIsSearchEnabled(false);
     setSlashMenuOpen(false);
+    if (onClearAttachedText) {
+      onClearAttachedText();
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -441,7 +465,7 @@ export default function ChatWindow({
   }
 
   return (
-    <div id="wsm-chat-window" className="flex-1 flex flex-col h-full bg-[#fcfbfa] relative overflow-hidden">
+    <div id="wsm-chat-window" className={`flex-1 flex flex-col h-full bg-[#fcfbfa] relative overflow-hidden ${!isEmbedded ? 'animate-in zoom-in-95 duration-200' : ''}`}>
       
       {/* Top Header */}
       <header className="px-4 py-2.5 bg-white/80 backdrop-blur-md border-b border-[#eae6e1] flex items-center justify-between relative z-40">
@@ -737,7 +761,7 @@ export default function ChatWindow({
                         ) : (
                           <div className="prose max-w-none text-[14px] text-gray-800 w-full">
                             <TypewriterMarkdown
-                              content={message.text}
+                              content={cleanWriterUpdateTags(message.text)}
                               enabled={!processedMessageIdsRef.current.has(message.id)}
                               onComplete={() => handleTypewriterComplete(message.id)}
                             />
@@ -920,7 +944,7 @@ export default function ChatWindow({
                       
                       {isUser && !editingMessageId && (
                         <div className="flex items-center justify-end gap-1.5 ml-1">
-                          <button onClick={() => copyToClipboard(message.text, message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
+                          <button onClick={() => copyToClipboard(cleanWriterUpdateTags(message.text), message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
                             {copiedId === message.id ? <Check size={12} /> : <Copy size={12} />}
                           </button>
                           <button onClick={() => { setEditingMessageId(message.id); setEditInputValue(message.text); }} className="text-gray-400 hover:text-blue-600 p-0.5" title="Editar">
@@ -931,7 +955,7 @@ export default function ChatWindow({
 
                       {!isUser && (
                         <div className="flex items-center justify-start gap-1.5 ml-1">
-                          <button onClick={() => copyToClipboard(message.text, message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
+                          <button onClick={() => copyToClipboard(cleanWriterUpdateTags(message.text), message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
                             {copiedId === message.id ? <Check size={12} /> : <Copy size={12} />}
                           </button>
                           <button onClick={() => handleEvaluate(message.id, 'up')} className={`p-0.5 transition-colors ${evaluations[message.id] === 'up' ? 'text-green-600' : 'text-gray-400 hover:text-green-600'}`} title="Boa resposta">
@@ -972,6 +996,23 @@ export default function ChatWindow({
                 textarea?.focus();
               }}
             />
+          </div>
+        )}
+        {attachedText && (
+          <div className="w-full max-w-xl mx-auto flex items-center justify-between gap-2 bg-blue-50/75 border border-blue-100 rounded-xl px-3 py-2 text-xs text-blue-800 mb-2 animate-in slide-in-from-bottom-2 duration-150">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Sparkles className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              <span className="font-bold shrink-0">Texto anexado:</span>
+              <span className="truncate italic font-medium text-blue-900">"{attachedText}"</span>
+            </div>
+            <button
+              type="button"
+              onClick={onClearAttachedText}
+              className="p-1 hover:bg-blue-100 rounded-lg text-blue-500 hover:text-blue-700 transition-colors cursor-pointer shrink-0"
+              title="Limpar anexo"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
         <form
@@ -1055,11 +1096,11 @@ export default function ChatWindow({
               <button
                 type={isThinking ? "button" : "submit"}
                 onClick={isThinking ? onCancelGeneration : undefined}
-                disabled={!inputValue.trim() && !isThinking}
+                disabled={(!inputValue.trim() && !attachedText) && !isThinking}
                 className={`w-6.5 h-6.5 rounded-full flex items-center justify-center transition-all ${
                   isThinking
                     ? 'bg-[#ff4d4d] hover:bg-[#ff3333] cursor-pointer'
-                    : inputValue.trim()
+                    : (inputValue.trim() || attachedText)
                     ? 'bg-[#1f1e1d] text-white hover:bg-[#343230] cursor-pointer'
                     : 'bg-[#faf9f6] text-gray-300 border border-[#eae6e1]'
                 }`}

@@ -13,20 +13,23 @@ interface SidebarProps {
   userEmail?: string | null;
   userName?: string | null;
   onSignOut?: () => void;
+  onOpenWriterArea?: () => void;
 }
 
-export default function Sidebar({
-  sessions,
-  activeSessionId,
-  onSelectSession,
-  onDeleteSession,
-  onNewChat,
-  onToggleImagesView,
-  isImagesView,
-  userEmail,
-  userName,
-  onSignOut
-}: SidebarProps) {
+export default function Sidebar(props: SidebarProps) {
+  const {
+    sessions,
+    activeSessionId,
+    onSelectSession,
+    onDeleteSession,
+    onNewChat,
+    onToggleImagesView,
+    isImagesView,
+    userEmail,
+    userName,
+    onSignOut,
+    onOpenWriterArea
+  } = props;
   const [searchQuery, setSearchQuery] = useState('');
 
   // Filter sessions based on search
@@ -67,6 +70,19 @@ export default function Sidebar({
         >
           <Plus className="w-4 h-4 text-gray-500" />
           Nova conversa
+        </button>
+        <button
+          id="btn-writer-area"
+          onClick={() => {
+            // We will pass an onOpenWriterArea prop
+            if ((props as any).onOpenWriterArea) {
+              (props as any).onOpenWriterArea();
+            }
+          }}
+          className="w-full flex items-center justify-center gap-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-blue-900 py-2 px-3 rounded-lg border border-blue-200 shadow-2xs transition-all duration-200 active:scale-[0.98] cursor-pointer font-semibold text-[12.5px]"
+        >
+          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+          Área do Escritor
         </button>
       </div>
 

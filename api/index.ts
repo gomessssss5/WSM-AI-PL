@@ -84,7 +84,7 @@ async function callGeminiStreamWithFallback(options: any) {
 
 // API endpoint for chatbot communication and Web Search
 app.post("/api/chat", async (req: express.Request, res: express.Response) => {
-  const { text, isSearchEnabled, model, history } = req.body;
+  const { text, isSearchEnabled, model, history, isWriterMode, writerDocument } = req.body;
 
   // Ensure valid history format
   let finalContents: any = text;
@@ -539,8 +539,37 @@ Exemplo de formato:
 Certifique-se de escapar corretamente as aspas e quebras de linha dentro da string \`content\` JSON (use \\n para novas linhas e \\" para aspas).
 `;
 
+    const writerInstruction = isWriterMode ? `
+--- MODO ÁREA DO ESCRITOR ---
+Você está atualmente no "Modo Área do Escritor". A tela do usuário está dividida: de um lado, há um editor de texto (onde o usuário escreve o documento principal) e do outro lado, este chat.
+Como Assistente do Escritor, seu papel principal é atuar como um revisor, brainstormer, crítico construtivo e coautor para o que o usuário estiver escrevendo.
+
+--- DOCUMENTO ATUAL DO USUÁRIO ---
+Título: ${writerDocument?.title || 'Sem título'}
+Conteúdo:
+"""
+${writerDocument?.content || ''}
+"""
+
+--- SUAS CAPACIDADES DE LEITURA E ESCRITA ---
+1. Você pode LER todo o documento acima para entender o contexto, analisar a redação, estilo, tom, ortografia e responder a qualquer pergunta ou solicitação sobre ele.
+2. Você pode SUGERIR ou fazer alterações diretas no texto. Quando o usuário pedir para você ESCREVER, REESCREVER, REVISAR, CORRIGIR ou EDITAR o texto do documento e você quiser aplicar essas alterações diretamente no documento dele (não apenas mostrar no chat), você DEVE incluir um bloco JSON de atualização do documento delimitado EXATAMENTE pelas tags <wsm_writer_update> e </wsm_writer_update> na sua resposta do chat.
+   Exemplo de formato:
+   <wsm_writer_update>
+   {
+     "title": "Novo Título ou Título Atual",
+     "content": "Conteúdo inteiramente atualizado/reescrito..."
+   }
+   </wsm_writer_update>
+   IMPORTANTE: Certifique-se de retornar o conteúdo completo e atualizado do documento dentro do JSON. O frontend irá interceptar esse bloco e atualizar o documento do usuário automaticamente na tela!
+   Certifique-se de escapar corretamente as aspas e quebras de linha dentro da string \`content\` JSON (use \\n para novas linhas e \\" para aspas).
+
+Ao invés de tentar fazer o trabalho todo sozinho se não solicitado, forneça dicas, avaliações, parágrafos de sugestão, ou reescreva trechos solicitados.
+Aja como um mentor literário ou editor experiente.
+` : "";
+
     const basePrompt = modelSystemPrompts[model] || modelSystemPrompts['WSM 1.6 Mercúrio'];
-    const activeSystemPrompt = basePrompt + "\n\n" + formInstruction + "\n\n" + docInstruction;
+    const activeSystemPrompt = basePrompt + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + writerInstruction;
 
     if (model === 'WSM 1.6 Marte') {
       console.log("Starting agentic loop for Marte...");

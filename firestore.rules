@@ -30,6 +30,19 @@ service cloud.firestore {
         && data.messages.size() <= 1000;
     }
 
+    function isValidWriterDocument(data) {
+      return data.title is string 
+        && data.title.size() <= 500
+        && data.content is string
+        && data.userId is string
+        && (data.chatSessionId is string || data.chatSessionId == null)
+        && data.updatedAt is number;
+    }
+
+    match /writer_documents/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
     match /users/{userId} {
       allow read, write: if isOwner(userId);
 

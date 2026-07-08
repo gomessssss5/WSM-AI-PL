@@ -4,9 +4,12 @@ import MainHome from './components/MainHome';
 import ChatWindow from './components/ChatWindow';
 import ImagesGallery from './components/ImagesGallery';
 import EvaluationDashboard from './components/EvaluationDashboard';
+import WriterDashboard from './components/writer/WriterDashboard';
+import WriterWorkspace from './components/writer/WriterWorkspace';
 import Login from './components/Login';
 import { auth, onAuthStateChanged, signOut, User, getRedirectResult } from './lib/firebase';
 import { subscribeSessions, saveSession, deleteSessionFromDb } from './lib/chatService';
+import { WriterDocument, subscribeWriterDocuments, saveWriterDocument, deleteWriterDocument } from './lib/writerService';
 import { ChatSession, Message } from './types';
 import { Sparkles } from 'lucide-react';
 
@@ -16,6 +19,9 @@ export default function App() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isImagesView, setIsImagesView] = useState(false);
+  const [isWriterMode, setIsWriterMode] = useState(false);
+  const [activeWriterDocId, setActiveWriterDocId] = useState<string | null>(null);
+  const [writerDocs, setWriterDocs] = useState<WriterDocument[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('WSM 1.6 Mercúrio');
   const [showEvaluations, setShowEvaluations] = useState(false);
@@ -107,20 +113,19 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) {
       setSessions([]);
+      setWriterDocs([]);
       return;
     }
 
-    const unsubscribe = subscribeSessions(currentUser.uid, (loadedSessions) => {
+    const unsubscribeSessions = subscribeSessions(currentUser.uid, (loadedSessions) => {
       setSessions((prevSessions) => {
         const currentActiveId = activeSessionIdRef.current;
         const activeLocal = prevSessions.find((s) => s.id === currentActiveId);
         const isStreamingOrSimulating = activeLocal?.messages.some((m) => m.isSimulatingSearch);
-        // Robust preservation of active local session to prevent any overwriting of ongoing chat, streaming, or simulation
         const isLocalActivePreserved = !!activeLocal;
         const isActiveLocalDirtyOrPreserved = activeLocal && (isDirtyRef.current || isStreamingOrSimulating);
         const isActiveInLoaded = loadedSessions.some((loaded) => loaded.id === currentActiveId);
 
-        // Map loaded sessions, preserving dirty/streaming state for active one if it's updated in loaded list
         const updatedLoaded = loadedSessions.map((loaded) => {
           if (loaded.id === currentActiveId && activeLocal) {
             return {
@@ -132,16 +137,21 @@ export default function App() {
           return loaded;
         });
 
-        // If active session is dirty/streaming but NOT yet in loadedSessions, keep it at the top!
         if (isActiveLocalDirtyOrPreserved && !isActiveInLoaded && activeLocal) {
           return [activeLocal, ...updatedLoaded];
         }
-
         return updatedLoaded;
       });
     });
 
-    return () => unsubscribe();
+    const unsubscribeWriterDocs = subscribeWriterDocuments(currentUser.uid, (docs) => {
+      setWriterDocs(docs);
+    });
+
+    return () => {
+      unsubscribeSessions();
+      unsubscribeWriterDocs();
+    };
   }, [currentUser, activeSessionId]);
 
   // Persists the specified session directly to Firestore and clears the active save timeout
@@ -209,6 +219,8 @@ export default function App() {
       persistSession(activeSessionRef.current);
     }
     setIsImagesView(false);
+    setIsWriterMode(false);
+    setActiveWriterDocId(null);
     setActiveSessionId(id);
   };
 
@@ -218,12 +230,72 @@ export default function App() {
       persistSession(activeSessionRef.current);
     }
     setIsImagesView(false);
+    setIsWriterMode(false);
+    setActiveWriterDocId(null);
     setActiveSessionId(null);
   };
 
   // Toggle images gallery view
   const handleToggleImagesView = () => {
     setIsImagesView(!isImagesView);
+    setIsWriterMode(false);
+    setActiveWriterDocId(null);
+  };
+  
+  // Writer Handlers
+  const handleOpenWriterArea = () => {
+    setIsImagesView(false);
+    setActiveSessionId(null);
+    setIsWriterMode(true);
+    setActiveWriterDocId(null);
+  };
+
+  const handleNewWriterDocument = async () => {
+    if (!currentUser) return;
+    const newDocId = `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Create an associated chat session
+    const initialSession: ChatSession = {
+      id: newSessionId,
+      title: 'Assistente do Escritor',
+      messages: [],
+      timestamp: new Date()
+    };
+    await saveSession(currentUser.uid, initialSession);
+
+    const newDoc: WriterDocument = {
+      id: newDocId,
+      title: 'Documento sem Título',
+      content: '',
+      userId: currentUser.uid,
+      updatedAt: Date.now(),
+      chatSessionId: newSessionId
+    };
+    
+    // Optimistic UI update
+    setWriterDocs(prev => [newDoc, ...prev]);
+    setActiveWriterDocId(newDocId);
+    setActiveSessionId(newSessionId);
+    
+    await saveWriterDocument(newDoc);
+  };
+
+  const handleOpenWriterDocument = (doc: WriterDocument) => {
+    setActiveWriterDocId(doc.id);
+    setActiveSessionId(doc.chatSessionId);
+  };
+
+  const handleDeleteWriterDocument = async (docId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (activeWriterDocId === docId) {
+      setActiveWriterDocId(null);
+    }
+    await deleteWriterDocument(docId);
+  };
+
+  const handleUpdateWriterDocument = (updatedDoc: WriterDocument) => {
+    // Optimistic update in state if needed, though onSnapshot handles it
   };
 
   // Delete an existing session from Firestore
@@ -472,6 +544,34 @@ Como posso ajudar você hoje?`
     };
   };
 
+  const checkAndApplyWriterUpdate = async (text: string) => {
+    if (!isWriterMode || !activeWriterDocId) return;
+    const match = text.match(/<wsm_writer_update>([\s\S]*?)<\/wsm_writer_update>/);
+    if (match && match[1]) {
+      try {
+        const parsed = JSON.parse(match[1].trim());
+        if (parsed && (parsed.content !== undefined || parsed.title !== undefined)) {
+          setWriterDocs(prev => prev.map(d => {
+            if (d.id === activeWriterDocId) {
+              const updated = {
+                ...d,
+                title: parsed.title !== undefined ? parsed.title : d.title,
+                content: parsed.content !== undefined ? parsed.content : d.content,
+                updatedAt: Date.now()
+              };
+              // Save to firestore asynchronously
+              saveWriterDocument(updated).catch(e => console.error("Error saving automatic writer doc update:", e));
+              return updated;
+            }
+            return d;
+          }));
+        }
+      } catch (e) {
+        // JSON parsing might fail if it's incomplete during streaming, which is expected
+      }
+    }
+  };
+
   // Main sendMessage routine (used by both MainHome input and ChatWindow input)
   const handleSendMessage = async (text: string, isSearchEnabled: boolean, overrideMessages?: Message[]) => {
     if (!currentUser) return;
@@ -571,6 +671,11 @@ Como posso ajudar você hoje?`
         body: JSON.stringify({
           text,
           isSearchEnabled,
+          isWriterMode,
+          writerDocument: isWriterMode && activeWriterDocId ? {
+            title: writerDocs.find(d => d.id === activeWriterDocId)?.title || "",
+            content: writerDocs.find(d => d.id === activeWriterDocId)?.content || ""
+          } : null,
           model: selectedModel,
           history: sessionToUpdate.messages.map(m => ({
             role: m.sender === 'user' ? 'user' : 'model',
@@ -585,6 +690,9 @@ Como posso ajudar você hoje?`
           if (!contentType.includes("text/event-stream")) {
             // Fallback for non-SSE response (e.g. error JSON or missing Tavily key)
             const data = await res.json();
+            if (data.text) {
+              checkAndApplyWriterUpdate(data.text);
+            }
             setSessions((prev) => {
               const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
               if (!currentSess) return prev;
@@ -763,6 +871,13 @@ Como posso ajudar você hoje?`
           setIsThinking(false);
           setSessions((prev) => {
             const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
+            if (currentSess) {
+              const aiMsg = currentSess.messages.find(m => m.id === initialAiMsg.id);
+              if (aiMsg && (aiMsg.text || aiMsg.finalSynthesis)) {
+                checkAndApplyWriterUpdate(aiMsg.text || aiMsg.finalSynthesis || "");
+              }
+            }
+            
             if (!currentSess) return prev;
             return prev.map((s) => {
               if (s.id !== sessionToUpdate.id) return s;
@@ -933,7 +1048,7 @@ Como posso ajudar você hoje?`
       {/* Sidebar Area */}
       <Sidebar
         sessions={sessions}
-        activeSessionId={activeSessionId}
+        activeSessionId={isWriterMode ? null : activeSessionId}
         onSelectSession={handleSelectSession}
         onDeleteSession={handleDeleteSession}
         onNewChat={handleNewChat}
@@ -942,11 +1057,31 @@ Como posso ajudar você hoje?`
         userEmail={currentUser.email}
         userName={currentUser.displayName}
         onSignOut={handleSignOut}
+        onOpenWriterArea={handleOpenWriterArea}
       />
 
       {/* Main View Area (Responsive) */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
-        {isImagesView ? (
+        {isWriterMode ? (
+          activeWriterDocId && writerDocs.find(d => d.id === activeWriterDocId) ? (
+            <WriterWorkspace
+              document={writerDocs.find(d => d.id === activeWriterDocId)!}
+              sessions={sessions}
+              onBack={() => setActiveWriterDocId(null)}
+              onUpdateDocument={handleUpdateWriterDocument}
+              onNewMessage={handleSendMessage}
+              isThinking={isThinking}
+              onCancelGeneration={handleCancelGeneration}
+            />
+          ) : (
+            <WriterDashboard
+              documents={writerDocs}
+              onNewDocument={handleNewWriterDocument}
+              onOpenDocument={handleOpenWriterDocument}
+              onDeleteDocument={handleDeleteWriterDocument}
+            />
+          )
+        ) : isImagesView ? (
           <ImagesGallery onBackToHome={handleNewChat} />
         ) : activeSession ? (
           <ChatWindow
