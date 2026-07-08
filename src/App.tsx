@@ -573,7 +573,7 @@ Como posso ajudar você hoje?`
   };
 
   // Main sendMessage routine (used by both MainHome input and ChatWindow input)
-  const handleSendMessage = async (text: string, isSearchEnabled: boolean, overrideMessages?: Message[]) => {
+  const handleSendMessage = async (text: string, isSearchEnabled: boolean, overrideMessages?: Message[], attachments?: any[]) => {
     if (!currentUser) return;
 
     isSearchActiveRef.current = isSearchEnabled;
@@ -583,13 +583,20 @@ Como posso ajudar você hoje?`
       sender: 'user',
       text,
       timestamp: new Date(),
+      attachments: attachments,
     };
 
     let sessionToUpdate: ChatSession;
 
     if (!activeSessionId) {
       // Create a brand new session locally first
-      const truncatedTitle = text.length > 28 ? `${text.substring(0, 28)}...` : text;
+      let titleText = text;
+      if (!titleText && attachments && attachments.length > 0) {
+        titleText = `Anexo: ${attachments[0].name}`;
+      } else if (!titleText) {
+        titleText = "Nova conversa";
+      }
+      const truncatedTitle = titleText.length > 28 ? `${titleText.substring(0, 28)}...` : titleText;
       const newId = `session-${Date.now()}`;
       const newSession: ChatSession = {
         id: newId,
@@ -662,6 +669,16 @@ Como posso ajudar você hoje?`
         });
       });
 
+      // Format current request text with attachments if present
+      let requestText = text;
+      if (!requestText && attachments && attachments.length > 0) {
+        requestText = "Enviei arquivos em anexo.";
+      }
+      if (attachments && attachments.length > 0) {
+        const fileList = attachments.map(att => `- [Anexo: ${att.name} (${att.type === 'image' ? 'Imagem' : att.type === 'video' ? 'Vídeo' : att.type === 'audio' ? 'Áudio' : 'Documento'}, ${(att.size / 1024).toFixed(1)} KB)]`).join('\n');
+        requestText += `\n\n[Arquivos Anexados]\n${fileList}`;
+      }
+
       fetch("/api/chat", {
         method: "POST",
         signal: abortControllerRef.current.signal,
@@ -669,7 +686,7 @@ Como posso ajudar você hoje?`
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          text,
+          text: requestText,
           isSearchEnabled,
           isWriterMode,
           writerDocument: isWriterMode && activeWriterDocId ? {
@@ -677,10 +694,36 @@ Como posso ajudar você hoje?`
             content: writerDocs.find(d => d.id === activeWriterDocId)?.content || ""
           } : null,
           model: selectedModel,
-          history: sessionToUpdate.messages.map(m => ({
-            role: m.sender === 'user' ? 'user' : 'model',
-            parts: [{ text: m.text || m.finalSynthesis || "" }]
-          }))
+          history: sessionToUpdate.messages.map(m => {
+            let msgText = m.text || m.finalSynthesis || "";
+            if (!msgText && m.sender === 'user' && m.attachments && m.attachments.length > 0) {
+              msgText = "Enviei arquivos em anexo.";
+            }
+            if (m.sender === 'user' && m.attachments && m.attachments.length > 0) {
+              const fileList = m.attachments.map(att => `- [Anexo: ${att.name} (${att.type === 'image' ? 'Imagem' : att.type === 'video' ? 'Vídeo' : att.type === 'audio' ? 'Áudio' : 'Documento'}, ${(att.size / 1024).toFixed(1)} KB)]`).join('\n');
+              msgText += `\n\n[Arquivos Anexados]\n${fileList}`;
+            }
+
+            const parts: any[] = [{ text: msgText }];
+
+            if (m.sender === 'user' && m.attachments && Array.isArray(m.attachments)) {
+              m.attachments.forEach(att => {
+                if (att.base64 && att.mimeType) {
+                  parts.push({
+                    inlineData: {
+                      mimeType: att.mimeType,
+                      data: att.base64
+                    }
+                  });
+                }
+              });
+            }
+
+            return {
+              role: m.sender === 'user' ? 'user' : 'model',
+              parts: parts
+            };
+          })
         }),
       })
         .then(async (res) => {

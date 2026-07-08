@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2 } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon } from 'lucide-react';
 import { Message } from '../types';
 import MarkdownRenderer from './MarkdownRenderer';
 import SearchMessageView from './SearchMessageView';
@@ -65,7 +65,7 @@ interface ChatWindowProps {
   messages: Message[];
   title?: string;
   isThinking: boolean;
-  onSendMessage: (text: string, isSearchEnabled: boolean) => void;
+  onSendMessage: (text: string, isSearchEnabled: boolean, overrideMessages?: Message[], attachments?: any[]) => void;
   onBackToHome?: () => void;
   selectedModel: string;
   setSelectedModel?: (model: string) => void;
@@ -99,6 +99,12 @@ export default function ChatWindow({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+
+  // Attachments States
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [drawerSources, setDrawerSources] = useState<{
     sources: { hostname: string; title: string; url: string; snippet?: string }[];
     query: string;
@@ -214,6 +220,96 @@ export default function ChatWindow({
       setRatingStars(5);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const getFileType = (file: File) => {
+    const mime = file.type.toLowerCase();
+    if (mime.startsWith('image/')) return 'image';
+    if (mime.startsWith('video/')) return 'video';
+    if (mime.startsWith('audio/')) return 'audio';
+    return 'document';
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    
+    const fileList: File[] = Array.from(files) as File[];
+    
+    let videoCount = 0;
+    let imgDocCount = 0;
+    let audioCount = 0;
+    
+    attachments.forEach(att => {
+      if (att.type === 'video') videoCount++;
+      else if (att.type === 'audio') audioCount++;
+      else if (att.type === 'image' || att.type === 'document') imgDocCount++;
+    });
+    
+    // First, validate limits
+    for (const file of fileList) {
+      const type = getFileType(file);
+      if (type === 'video') {
+        videoCount++;
+        if (videoCount > 10) {
+          setUploadError("Limite excedido: Máximo de 10 vídeos por mensagem.");
+          return;
+        }
+      } else if (type === 'audio') {
+        audioCount++;
+        if (audioCount > 1) {
+          setUploadError("Limite excedido: É permitido apenas 1 áudio por mensagem.");
+          return;
+        }
+      } else if (type === 'image' || type === 'document') {
+        imgDocCount++;
+        if (imgDocCount > 10) {
+          setUploadError("Limite excedido: Imagens e Documentos combinados possuem limite de até 10 arquivos.");
+          return;
+        }
+      }
+    }
+
+    // Convert all to base64
+    const promises = fileList.map((file) => {
+      const type = getFileType(file);
+      return new Promise<any>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          const base64 = result.split(',')[1] || '';
+          resolve({
+            name: file.name,
+            type: type,
+            size: file.size,
+            mimeType: file.type || "application/octet-stream",
+            url: URL.createObjectURL(file),
+            base64: base64,
+          });
+        };
+        reader.onerror = () => reject(new Error("Failed to read file"));
+        reader.readAsDataURL(file);
+      });
+    });
+
+    Promise.all(promises)
+      .then((newAttachments) => {
+        setUploadError(null);
+        setAttachments(prev => [...prev, ...newAttachments]);
+      })
+      .catch((err) => {
+        console.error("Error reading files:", err);
+        setUploadError("Erro ao processar os arquivos anexados.");
+      });
+  };
+
+  const handleAttachClick = () => {
+    const hasAccepted = localStorage.getItem('wsm_accepted_file_terms') === 'true';
+    if (hasAccepted) {
+      fileInputRef.current?.click();
+    } else {
+      setShowTermsModal(true);
     }
   };
 
@@ -333,7 +429,7 @@ export default function ChatWindow({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() && !attachedText) return;
+    if (!inputValue.trim() && !attachedText && attachments.length === 0) return;
     
     let textToSend = '';
     if (attachedText && inputValue.trim()) {
@@ -344,8 +440,10 @@ export default function ChatWindow({
       textToSend = inputValue;
     }
     
-    onSendMessage(textToSend, isSearchEnabled);
+    onSendMessage(textToSend, isSearchEnabled, undefined, attachments);
     setInputValue('');
+    setAttachments([]);
+    setUploadError(null);
     setIsSearchEnabled(false);
     setSlashMenuOpen(false);
     if (onClearAttachedText) {
@@ -658,6 +756,36 @@ export default function ChatWindow({
                           : 'text-gray-800'
                       }`}
                     >
+                    {isUser && message.attachments && message.attachments.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2 select-none border-b border-gray-200/30 pb-2">
+                        {message.attachments.map((file, idx) => (
+                          <div 
+                            key={idx} 
+                            className="flex items-center gap-2 bg-white/85 border border-gray-150 rounded-lg p-1.5 pr-2 text-xs shrink-0 max-w-full"
+                          >
+                            {file.type === 'image' ? (
+                              <button 
+                                type="button"
+                                onClick={() => setLightboxImage(file.url)}
+                                className="shrink-0 relative group"
+                              >
+                                <img src={file.url} alt={file.name} className="w-8 h-8 rounded object-cover border border-gray-100 hover:opacity-95 shrink-0" />
+                              </button>
+                            ) : (
+                              <div className="w-8 h-8 rounded bg-[#fcfbfa] flex items-center justify-center border border-gray-200 text-gray-500 shrink-0">
+                                {file.type === 'video' && <Video className="w-4 h-4 text-purple-500 animate-pulse" />}
+                                {file.type === 'audio' && <Volume2 className="w-4 h-4 text-emerald-500 animate-pulse" />}
+                                {file.type === 'document' && <FileText className="w-4 h-4 text-blue-500" />}
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-gray-700 truncate w-24" title={file.name}>{file.name}</p>
+                              <p className="text-[10px] text-gray-400">{(file.size / 1024).toFixed(1)} KB</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {isUser && editingMessageId === message.id ? (
                       <div className="w-full flex flex-col gap-2 min-w-[250px]">
                         <textarea 
@@ -1019,6 +1147,15 @@ export default function ChatWindow({
           onSubmit={handleSubmit}
           className="w-full max-w-xl mx-auto bg-white border border-[#eae6e1] rounded-xl shadow-[0_1px_8px_rgba(0,0,0,0.01)] p-2 focus-within:border-[#5c53e5]/50 focus-within:ring-1 focus-within:ring-[#5c53e5]/15 transition-all duration-200 relative"
         >
+          {/* Hidden File Input */}
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileChange} 
+            multiple 
+            className="hidden" 
+          />
+
           {/* Slash Menu */}
           {slashMenuOpen && filteredTools.length > 0 && (
             <div className="absolute bottom-[calc(100%+8px)] left-0 w-64 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
@@ -1045,6 +1182,56 @@ export default function ChatWindow({
             </div>
           )}
 
+          {/* Upload Error Banner */}
+          {uploadError && (
+            <div className="w-full flex items-center justify-between gap-2 bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900 rounded-xl px-3 py-2 text-xs text-red-800 dark:text-red-300 mb-2 animate-in slide-in-from-bottom-2 duration-150 select-none">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                <span className="font-medium">{uploadError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUploadError(null)}
+                className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg text-red-500 hover:text-red-700 dark:hover:text-red-300 transition-colors cursor-pointer shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Attachments horizontal list */}
+          {attachments.length > 0 && (
+            <div className="w-full flex flex-wrap gap-2 mb-2 p-1.5 bg-gray-50 dark:bg-gray-900/50 border border-gray-150 dark:border-gray-800 rounded-xl max-h-36 overflow-y-auto select-none">
+              {attachments.map((file, idx) => (
+                <div 
+                  key={idx} 
+                  className="flex items-center gap-2 bg-white dark:bg-gray-850 border border-gray-150 dark:border-gray-800 rounded-lg p-1.5 pr-2 text-xs shadow-xxs shrink-0"
+                >
+                  {file.type === 'image' ? (
+                    <img src={file.url} alt={file.name} className="w-7 h-7 rounded object-cover border border-gray-100 dark:border-gray-700 shrink-0" />
+                  ) : (
+                    <div className="w-7 h-7 rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 shrink-0">
+                      {file.type === 'video' && <Video className="w-3.5 h-3.5 text-purple-500" />}
+                      {file.type === 'audio' && <Volume2 className="w-3.5 h-3.5 text-emerald-500" />}
+                      {file.type === 'document' && <FileText className="w-3.5 h-3.5 text-blue-500" />}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-700 dark:text-gray-300 truncate w-24" title={file.name}>{file.name}</p>
+                    <p className="text-[10px] text-gray-400">{(file.size / 1024).toFixed(1)} KB</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+                    className="p-1 hover:bg-gray-100 dark:hover:bg-gray-850 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Textarea */}
           <textarea
             id="chat-input-textarea-floating"
@@ -1062,6 +1249,7 @@ export default function ChatWindow({
             <div className="flex items-center gap-1">
               <button
                 type="button"
+                onClick={handleAttachClick}
                 className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
                 title="Anexar arquivo"
               >
@@ -1096,11 +1284,11 @@ export default function ChatWindow({
               <button
                 type={isThinking ? "button" : "submit"}
                 onClick={isThinking ? onCancelGeneration : undefined}
-                disabled={(!inputValue.trim() && !attachedText) && !isThinking}
+                disabled={(!inputValue.trim() && !attachedText && attachments.length === 0) && !isThinking}
                 className={`w-6.5 h-6.5 rounded-full flex items-center justify-center transition-all ${
                   isThinking
                     ? 'bg-[#ff4d4d] hover:bg-[#ff3333] cursor-pointer'
-                    : (inputValue.trim() || attachedText)
+                    : (inputValue.trim() || attachedText || attachments.length > 0)
                     ? 'bg-[#1f1e1d] text-white hover:bg-[#343230] cursor-pointer'
                     : 'bg-[#faf9f6] text-gray-300 border border-[#eae6e1]'
                 }`}
@@ -1118,6 +1306,54 @@ export default function ChatWindow({
           {selectedModel} pode cometer erros. Verifique informações importantes.
         </div>
       </footer>
+
+      {/* Terms of Attachment Consent Modal */}
+      {showTermsModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 border border-[#eae6e1] dark:border-gray-800 rounded-2xl p-6 shadow-2xl max-w-md w-full animate-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="p-2 bg-amber-50 dark:bg-amber-950/20 rounded-xl text-amber-500">
+                <Paperclip className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 font-sans">
+                  Termos de Anexo de Arquivos
+                </h3>
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-mono mt-0.5">
+                  IMPORTANTE • CONSENTIMENTO
+                </p>
+              </div>
+            </div>
+            
+            <p className="text-[12.5px] leading-relaxed text-gray-600 dark:text-gray-300 font-sans mb-6">
+              Antes de anexar arquivos, você concorda que é o único responsável pelo conteúdo enviado, garantindo que ele não possui dados pessoais sensíveis, imagens protegidas por direitos autorais, nudez ou conteúdos ofensivos. Você também aceita que seus arquivos serão processados pela inteligência artificial para gerar as respostas do chat, estando em conformidade com as regras de segurança e privacidade da plataforma.
+            </p>
+            
+            <div className="flex items-center justify-end gap-3 font-sans">
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(false)}
+                className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors cursor-pointer"
+              >
+                Voltar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.setItem('wsm_accepted_file_terms', 'true');
+                  setShowTermsModal(false);
+                  setTimeout(() => {
+                    fileInputRef.current?.click();
+                  }, 100);
+                }}
+                className="px-4 py-2 text-xs font-semibold bg-[#5c53e5] hover:bg-[#4b43c6] text-white rounded-xl shadow-sm transition-colors cursor-pointer"
+              >
+                Concordo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sliding Lateral Sources Drawer */}
       {drawerSources && (

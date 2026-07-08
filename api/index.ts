@@ -5,7 +5,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Initialize Gemini Client Lazily to prevent startup crashes if key is missing
 let aiClient: GoogleGenAI | null = null;
@@ -89,8 +90,10 @@ app.post("/api/chat", async (req: express.Request, res: express.Response) => {
   // Ensure valid history format
   let finalContents: any = text;
   if (history && Array.isArray(history) && history.length > 0) {
-    // Filter out any messages without text to prevent API errors
-    const validHistory = history.filter(msg => msg.parts && msg.parts[0] && msg.parts[0].text);
+    // Filter out any messages without valid text or inlineData parts to prevent API errors
+    const validHistory = history.filter(msg => {
+      return msg.parts && Array.isArray(msg.parts) && msg.parts.some((p: any) => p.text || p.inlineData);
+    });
     if (validHistory.length > 0) {
       finalContents = validHistory;
     }

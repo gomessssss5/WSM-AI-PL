@@ -75,7 +75,8 @@ const mapDocToSession = (id: string, data: any): ChatSession => {
         }
       }),
       searchImages: msg.searchImages || [],
-      searchSources: msg.searchSources || []
+      searchSources: msg.searchSources || [],
+      attachments: msg.attachments || []
     }))
   };
 };
@@ -106,7 +107,14 @@ const mapSessionToDoc = (session: ChatSession): any => {
       ...(msg.searchIntro && { searchIntro: msg.searchIntro }),
       ...(msg.searchSteps && { searchSteps: msg.searchSteps }),
       ...(msg.finalSynthesis && { finalSynthesis: msg.finalSynthesis }),
-      ...(msg.isSimulatingSearch !== undefined && { isSimulatingSearch: msg.isSimulatingSearch })
+      ...(msg.isSimulatingSearch !== undefined && { isSimulatingSearch: msg.isSimulatingSearch }),
+      ...(msg.attachments && { attachments: msg.attachments.map((a: any) => ({
+        name: a.name,
+        type: a.type,
+        size: a.size,
+        mimeType: a.mimeType || '',
+        url: a.url || '',
+      })) })
     }))
   };
 };

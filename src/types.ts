@@ -60,6 +60,14 @@ export interface Message {
   finalSynthesis?: string;
   visibleStepsCount?: number;
   isSimulatingSearch?: boolean;
+  attachments?: {
+    name: string;
+    type: 'image' | 'video' | 'audio' | 'document';
+    size: number;
+    url: string;
+    mimeType?: string;
+    base64?: string;
+  }[];
 }
 
 export interface ChatSession {
