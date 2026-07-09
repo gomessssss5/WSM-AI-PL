@@ -1136,7 +1136,7 @@ export default function ChatWindow({
                   )}
                   
                   {!(message.text === "" && isThinking && message.id === messages[messages.length - 1]?.id) && (
-                    <div className="flex items-center gap-2 mt-1 px-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-2 mt-1 px-1">
                       <span className="text-[9px] text-gray-400">
                         {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
