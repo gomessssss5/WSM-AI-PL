@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Search, Image as ImageIcon, MessageSquare, Trash2, LogOut, Clock, BookOpen, Folder, MessageSquarePlus, User, X } from 'lucide-react';
+import { Plus, Search, Image as ImageIcon, MessageSquare, Trash2, LogOut, Clock, BookOpen, Folder, MessageSquarePlus, User, X, Wrench } from 'lucide-react';
 import { ChatSession } from '../types';
 
 interface SidebarProps {
@@ -14,6 +14,7 @@ interface SidebarProps {
   userName?: string | null;
   onSignOut?: () => void;
   onOpenWriterArea?: () => void;
+  onOpenTools?: () => void;
   isMobileHistoryOpen?: boolean;
   onCloseMobileHistory?: () => void;
 }
@@ -31,6 +32,7 @@ export default function Sidebar(props: SidebarProps) {
     userName,
     onSignOut,
     onOpenWriterArea,
+    onOpenTools,
     isMobileHistoryOpen,
     onCloseMobileHistory
   } = props;
@@ -94,12 +96,12 @@ export default function Sidebar(props: SidebarProps) {
           <button
             id="btn-writer-area"
             onClick={() => {
-              if (onOpenWriterArea) onOpenWriterArea();
+              if (onOpenTools) onOpenTools();
             }}
-            className="hidden md:flex w-full items-center justify-center gap-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-blue-900 py-2 px-3 rounded-lg border border-blue-200 shadow-2xs transition-all duration-200 active:scale-[0.98] cursor-pointer font-semibold text-[12.5px]"
+            className="flex w-full items-center justify-center gap-1.5 bg-white hover:bg-[#fafaf9] text-gray-800 py-2 px-3 rounded-lg border border-[#eae6e1] shadow-2xs transition-all duration-200 active:scale-[0.98] cursor-pointer font-semibold text-[12.5px]"
           >
-            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-            Área do Escritor
+            <Wrench className="w-4 h-4 text-gray-500" />
+            Ferramentas
           </button>
         </div>
 

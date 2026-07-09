@@ -11,8 +11,9 @@ import { auth, onAuthStateChanged, signOut, User, getRedirectResult } from './li
 import { subscribeSessions, saveSession, deleteSessionFromDb } from './lib/chatService';
 import { WriterDocument, subscribeWriterDocuments, saveWriterDocument, deleteWriterDocument } from './lib/writerService';
 import { ChatSession, Message } from './types';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Trash2 } from 'lucide-react';
 import SecretApiTester from './components/SecretApiTester';
+import ToolsDashboard from './components/ToolsDashboard';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -20,6 +21,7 @@ export default function App() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isImagesView, setIsImagesView] = useState(false);
+  const [isToolsView, setIsToolsView] = useState(false);
   const [isWriterMode, setIsWriterMode] = useState(false);
   const [activeWriterDocId, setActiveWriterDocId] = useState<string | null>(null);
   const [writerDocs, setWriterDocs] = useState<WriterDocument[]>([]);
@@ -28,6 +30,7 @@ export default function App() {
   const [showEvaluations, setShowEvaluations] = useState(false);
   const [showSecretTester, setShowSecretTester] = useState(false);
   const [isMobileHistoryOpen, setIsMobileHistoryOpen] = useState(true); // Default to true on initial load (only applies to mobile)
+  const [sessionToDeleteId, setSessionToDeleteId] = useState<string | null>(null);
 
   // Secret shortcut refs
   const ctrl1PressCountRef = useRef<number>(0);
@@ -242,6 +245,7 @@ export default function App() {
       persistSession(activeSessionRef.current);
     }
     setIsImagesView(false);
+    setIsToolsView(false);
     setIsWriterMode(false);
     setActiveWriterDocId(null);
     setActiveSessionId(id);
@@ -253,6 +257,7 @@ export default function App() {
       persistSession(activeSessionRef.current);
     }
     setIsImagesView(false);
+    setIsToolsView(false);
     setIsWriterMode(false);
     setActiveWriterDocId(null);
     setActiveSessionId(null);
@@ -261,6 +266,7 @@ export default function App() {
   // Toggle images gallery view
   const handleToggleImagesView = () => {
     setIsImagesView(!isImagesView);
+    setIsToolsView(false);
     setIsWriterMode(false);
     setActiveWriterDocId(null);
   };
@@ -268,9 +274,18 @@ export default function App() {
   // Writer Handlers
   const handleOpenWriterArea = () => {
     setIsImagesView(false);
+    setIsToolsView(false);
     setActiveSessionId(null);
     setIsWriterMode(true);
     setActiveWriterDocId(null);
+  };
+
+  const handleOpenToolsView = () => {
+    setIsImagesView(false);
+    setIsWriterMode(false);
+    setActiveWriterDocId(null);
+    setActiveSessionId(null);
+    setIsToolsView(true);
   };
 
   const handleNewWriterDocument = async () => {
@@ -322,24 +337,30 @@ export default function App() {
   };
 
   // Delete an existing session from Firestore
-  const handleDeleteSession = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDeleteSession = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     if (!currentUser) return;
+    setSessionToDeleteId(id);
+  };
 
+  const confirmDeleteSession = async () => {
+    if (!sessionToDeleteId || !currentUser) return;
     try {
-      if (activeSessionId === id) {
+      if (activeSessionId === sessionToDeleteId) {
         isDirtyRef.current = false;
         if (autoSaveTimeoutRef.current) {
           clearTimeout(autoSaveTimeoutRef.current);
           autoSaveTimeoutRef.current = null;
         }
       }
-      await deleteSessionFromDb(currentUser.uid, id);
-      if (activeSessionId === id) {
+      await deleteSessionFromDb(currentUser.uid, sessionToDeleteId);
+      if (activeSessionId === sessionToDeleteId) {
         setActiveSessionId(null);
       }
     } catch (err) {
       console.error('Erro ao excluir sessão do banco de dados:', err);
+    } finally {
+      setSessionToDeleteId(null);
     }
   };
 
@@ -702,6 +723,34 @@ Como posso ajudar você hoje?`
         requestText += `\n\n[Arquivos Anexados]\n${fileList}`;
       }
 
+      // Add 45-second timeout to prevent eternal loading if the request hangs
+      const timeoutId = setTimeout(() => {
+        if (abortControllerRef.current) {
+          console.warn("Request timed out after 45 seconds. Aborting.");
+          abortControllerRef.current.abort();
+          setSessions((prev) => {
+            const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
+            if (!currentSess) return prev;
+            return prev.map((s) => {
+              if (s.id !== sessionToUpdate.id) return s;
+              return {
+                ...s,
+                messages: s.messages.map((m) =>
+                  m.id === initialAiMsg.id
+                    ? {
+                        ...m,
+                        text: `⚠️ **Tempo limite de conexão excedido.** O servidor não respondeu a tempo. Por favor, tente novamente utilizando o botão "Tentar novamente" abaixo.`,
+                        isSimulatingSearch: false,
+                        searchIntro: "Tempo limite excedido.",
+                      }
+                    : m
+                ),
+              };
+            });
+          });
+        }
+      }, 45000);
+
       fetch("/api/chat", {
         method: "POST",
         signal: abortControllerRef.current.signal,
@@ -750,6 +799,7 @@ Como posso ajudar você hoje?`
         }),
       })
         .then(async (res) => {
+          clearTimeout(timeoutId);
           if (!res.ok) throw new Error("Erro na conexão com o servidor de IA");
 
           const contentType = res.headers.get("content-type") || "";
@@ -968,6 +1018,7 @@ Como posso ajudar você hoje?`
           }
         })
         .catch((err) => {
+          clearTimeout(timeoutId);
           setIsThinking(false);
           sendCompletionNotification();
           if (err.name === 'AbortError') {
@@ -1124,6 +1175,7 @@ Como posso ajudar você hoje?`
         userName={currentUser.displayName}
         onSignOut={handleSignOut}
         onOpenWriterArea={() => { handleOpenWriterArea(); setIsMobileHistoryOpen(false); }}
+        onOpenTools={() => { handleOpenToolsView(); setIsMobileHistoryOpen(false); }}
         isMobileHistoryOpen={isMobileHistoryOpen}
         onCloseMobileHistory={() => setIsMobileHistoryOpen(false)}
       />
@@ -1151,6 +1203,11 @@ Como posso ajudar você hoje?`
               onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
             />
           )
+        ) : isToolsView ? (
+          <ToolsDashboard
+            onOpenWriterArea={() => { handleOpenWriterArea(); }}
+            onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
+          />
         ) : isImagesView ? (
           <ImagesGallery onBackToHome={() => { handleNewChat(); setIsMobileHistoryOpen(true); }} />
         ) : activeSession ? (
@@ -1166,20 +1223,9 @@ Como posso ajudar você hoje?`
             onSearchSimulationComplete={handleSearchSimulationComplete}
             onCancelGeneration={handleCancelGeneration}
             onEditMessage={handleEditMessage}
-            onDeleteSession={async () => {
-              if (currentUser && activeSessionId) {
-                try {
-                  isDirtyRef.current = false;
-                  if (autoSaveTimeoutRef.current) {
-                    clearTimeout(autoSaveTimeoutRef.current);
-                    autoSaveTimeoutRef.current = null;
-                  }
-                  await deleteSessionFromDb(currentUser.uid, activeSessionId);
-                  setActiveSessionId(null);
-                  setIsMobileHistoryOpen(true);
-                } catch (err) {
-                  console.error('Erro ao excluir sessão do banco de dados:', err);
-                }
+            onDeleteSession={() => {
+              if (activeSessionId) {
+                handleDeleteSession(activeSessionId);
               }
             }}
             onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
@@ -1201,6 +1247,40 @@ Como posso ajudar você hoje?`
 
       {showSecretTester && (
         <SecretApiTester onClose={() => setShowSecretTester(false)} />
+      )}
+
+      {sessionToDeleteId && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-[#eae6e1] rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center border border-red-100 text-red-500 shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <h3 className="font-sans text-base font-bold text-gray-900">
+                Excluir Conversa?
+              </h3>
+            </div>
+            
+            <p className="text-xs text-gray-500 leading-relaxed font-medium">
+              Tem certeza que deseja excluir esta conversa? Esta ação é irreversível e todas as mensagens serão apagadas permanentemente do servidor.
+            </p>
+            
+            <div className="flex items-center justify-end gap-2.5 mt-2">
+              <button
+                onClick={() => setSessionToDeleteId(null)}
+                className="px-4 py-2 bg-gray-50 border border-[#eae6e1] rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-all cursor-pointer active:scale-[0.98]"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDeleteSession}
+                className="px-4 py-2 bg-red-500 border border-red-600 rounded-xl text-xs font-semibold text-white hover:bg-red-600 transition-all cursor-pointer active:scale-[0.98] shadow-sm"
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

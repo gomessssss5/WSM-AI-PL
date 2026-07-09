@@ -45,18 +45,27 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     } catch (err: any) {
       console.error(err);
       let errorMsg = 'Ocorreu um erro ao realizar a autenticação.';
-      if (err.code === 'auth/wrong-password') {
-        errorMsg = 'Senha incorreta. Tente novamente.';
-      } else if (err.code === 'auth/user-not-found') {
-        errorMsg = 'Nenhum usuário encontrado com este e-mail.';
+      
+      // Map newer and legacy Firebase auth errors to secure, readable Portuguese messages
+      if (
+        err.code === 'auth/invalid-credential' || 
+        err.code === 'auth/wrong-password' || 
+        err.code === 'auth/user-not-found'
+      ) {
+        errorMsg = 'E-mail ou senha incorretos. Verifique suas credenciais.';
       } else if (err.code === 'auth/email-already-in-use') {
         errorMsg = 'Este endereço de e-mail já está sendo utilizado.';
       } else if (err.code === 'auth/invalid-email') {
-        errorMsg = 'E-mail inválido.';
+        errorMsg = 'O endereço de e-mail informado é inválido.';
       } else if (err.code === 'auth/weak-password') {
         errorMsg = 'A senha deve conter no mínimo 6 caracteres.';
+      } else if (err.code === 'auth/too-many-requests') {
+        errorMsg = 'Muitas tentativas malsucedidas de login. Por favor, tente novamente mais tarde.';
+      } else if (err.message && err.message.includes('auth/invalid-credential')) {
+        errorMsg = 'E-mail ou senha incorretos. Verifique suas credenciais.';
       } else if (err.message) {
-        errorMsg = err.message;
+        // Clean any residual "Firebase: Error" prefix if present
+        errorMsg = err.message.replace(/^Firebase:\s*/, '');
       }
       setError(errorMsg);
     } finally {

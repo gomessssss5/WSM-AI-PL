@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon, Menu } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon, Menu, RotateCcw } from 'lucide-react';
 import { Message } from '../types';
 import MarkdownRenderer from './MarkdownRenderer';
 import SearchMessageView from './SearchMessageView';
@@ -1107,6 +1107,20 @@ export default function ChatWindow({
                           <button onClick={() => handleEvaluate(message.id, 'down')} className={`p-0.5 transition-colors ${evaluations[message.id] === 'down' ? 'text-red-600' : 'text-gray-400 hover:text-red-600'}`} title="Resposta ruim">
                             <ThumbsDown size={12} />
                           </button>
+                          {message.id === messages[messages.length - 1]?.id && !isThinking && (
+                            <button
+                              onClick={() => {
+                                const lastUser = [...messages].reverse().find(m => m.sender === 'user');
+                                if (lastUser) {
+                                  onEditMessage?.(lastUser.id, lastUser.text);
+                                }
+                              }}
+                              className="text-gray-400 hover:text-[#5c53e5] p-0.5"
+                              title="Tentar novamente"
+                            >
+                              <RotateCcw size={12} />
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
