@@ -11,9 +11,9 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Initialize Gemini Client Lazily to prevent startup crashes if key is missing
 let aiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI {
-  const key = process.env.GEMINI_API_KEY;
+  const key = process.env.IA_API_KEY;
   if (!key) {
-    throw new Error("GEMINI_API_KEY environment variable is required.");
+    throw new Error("IA_API_KEY environment variable is required.");
   }
   if (!aiClient) {
     aiClient = new GoogleGenAI({
@@ -30,9 +30,9 @@ function getGeminiClient(): GoogleGenAI {
 
 let fallbackAiClient: GoogleGenAI | null = null;
 function getFallbackGeminiClient(): GoogleGenAI {
-  const key = process.env.GEMINI_API_KEY_2;
+  const key = process.env.IA_API_KEY_2;
   if (!key) {
-    throw new Error("GEMINI_API_KEY_2 environment variable is not configured.");
+    throw new Error("IA_API_KEY_2 environment variable is not configured.");
   }
   if (!fallbackAiClient) {
     fallbackAiClient = new GoogleGenAI({
@@ -52,7 +52,7 @@ async function callGeminiWithFallback(options: any) {
     const client = getGeminiClient();
     return await client.models.generateContent(options);
   } catch (error: any) {
-    if (process.env.GEMINI_API_KEY_2) {
+    if (process.env.IA_API_KEY_2) {
       console.warn("First Gemini API Key failed, trying fallback key...", error.message);
       try {
         const clientFallback = getFallbackGeminiClient();
@@ -70,7 +70,7 @@ async function callGeminiStreamWithFallback(options: any) {
     const client = getGeminiClient();
     return await client.models.generateContentStream(options);
   } catch (error: any) {
-    if (process.env.GEMINI_API_KEY_2) {
+    if (process.env.IA_API_KEY_2) {
       console.warn("First Gemini API Key failed for stream, trying fallback key...", error.message);
       try {
         const clientFallback = getFallbackGeminiClient();
@@ -100,9 +100,9 @@ app.post("/api/chat", async (req: express.Request, res: express.Response) => {
   }
 
   try {
-    if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.IA_API_KEY) {
       return res.json({
-        text: "⚠️ **Chave de API do Gemini (GEMINI_API_KEY) não configurada.**\n\nPor favor, configure sua chave `GEMINI_API_KEY` em **Settings > Secrets** no AI Studio (ou nas variáveis de ambiente da sua hospedagem, como a Vercel) para que os modelos do WSM AI possam processar suas mensagens.",
+        text: "⚠️ **Chave de API (IA_API_KEY) não configurada.**\n\nPor favor, configure sua chave `IA_API_KEY` em **Settings > Secrets** no AI Studio (ou nas variáveis de ambiente da sua hospedagem, como a Vercel) para que os modelos do WSM AI possam processar suas mensagens.",
         searchImages: [],
         searchSources: []
       });
@@ -806,10 +806,86 @@ Aja como um mentor literário ou editor experiente.
     });
   } catch (error: any) {
     console.error("Chat API Error:", error);
+    
+    const errorMessage = error.message || String(error);
+    const isPermissionError = errorMessage.includes("PERMISSION_DENIED") || errorMessage.includes("API_KEY_INVALID") || errorMessage.includes("API key");
+    const errorText = isPermissionError 
+      ? "⚠️ **Erro de Permissão na API.**\n\nA chave de API fornecida foi recusada (pode estar sem cota, revogada ou projeto restrito).\nPor favor, verifique a chave `IA_API_KEY` em **Settings > Secrets**."
+      : "⚠️ **Erro no servidor:** " + (error.message || "Falha ao processar o chat");
+
+    if (res.headersSent) {
+      res.write(`data: ${JSON.stringify({ type: "chunk", text: "\n\n" + errorText })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: "final", text: errorText, finalSynthesis: errorText, searchSources: [], searchImages: [] })}\n\n`);
+      res.end();
+      return;
+    }
+
+    if (isPermissionError) {
+      return res.json({
+        text: errorText,
+      });
+    }
+
     return res.status(500).json({
       error: error.message || "Erro interno do servidor ao processar o chat",
     });
   }
+});
+
+// Endpoint secreto para testar se ambas as chaves IA_API_KEY e IA_API_KEY_2 estão funcionando
+app.post("/api/test-keys", async (req: express.Request, res: express.Response) => {
+  const results = {
+    key1: { success: false, message: "" },
+    key2: { success: false, message: "" }
+  };
+
+  const modelName = "gemini-3.1-flash-lite";
+
+  // Teste da chave 1 (IA_API_KEY)
+  const key1 = process.env.IA_API_KEY;
+  if (!key1) {
+    results.key1.message = "IA_API_KEY não está configurada.";
+  } else {
+    try {
+      const client = new GoogleGenAI({ apiKey: key1 });
+      const resp = await client.models.generateContent({
+        model: modelName,
+        contents: "Responda apenas 'OK' se você puder ler isso."
+      });
+      if (resp.text) {
+        results.key1.success = true;
+        results.key1.message = `Funcionando perfeitamente! Resposta do modelo: "${resp.text.trim()}"`;
+      } else {
+        results.key1.message = "O modelo respondeu com sucesso, mas o texto veio vazio.";
+      }
+    } catch (err: any) {
+      results.key1.message = err.message || String(err);
+    }
+  }
+
+  // Teste da chave 2 (IA_API_KEY_2)
+  const key2 = process.env.IA_API_KEY_2;
+  if (!key2) {
+    results.key2.message = "IA_API_KEY_2 não está configurada.";
+  } else {
+    try {
+      const client = new GoogleGenAI({ apiKey: key2 });
+      const resp = await client.models.generateContent({
+        model: modelName,
+        contents: "Responda apenas 'OK' se você puder ler isso."
+      });
+      if (resp.text) {
+        results.key2.success = true;
+        results.key2.message = `Funcionando perfeitamente! Resposta do modelo: "${resp.text.trim()}"`;
+      } else {
+        results.key2.message = "O modelo respondeu com sucesso, mas o texto veio vazio.";
+      }
+    } catch (err: any) {
+      results.key2.message = err.message || String(err);
+    }
+  }
+
+  return res.json(results);
 });
 
 export default app;

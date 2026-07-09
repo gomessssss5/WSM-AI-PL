@@ -12,6 +12,7 @@ import { subscribeSessions, saveSession, deleteSessionFromDb } from './lib/chatS
 import { WriterDocument, subscribeWriterDocuments, saveWriterDocument, deleteWriterDocument } from './lib/writerService';
 import { ChatSession, Message } from './types';
 import { Sparkles } from 'lucide-react';
+import SecretApiTester from './components/SecretApiTester';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -25,7 +26,12 @@ export default function App() {
   const [isThinking, setIsThinking] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('WSM 1.6 Mercúrio');
   const [showEvaluations, setShowEvaluations] = useState(false);
+  const [showSecretTester, setShowSecretTester] = useState(false);
   const [isMobileHistoryOpen, setIsMobileHistoryOpen] = useState(true); // Default to true on initial load (only applies to mobile)
+
+  // Secret shortcut refs
+  const ctrl1PressCountRef = useRef<number>(0);
+  const lastCtrl1TimeRef = useRef<number>(0);
 
   // Keep references to activeSession and dirty state for event listeners
   const isDirtyRef = useRef<boolean>(false);
@@ -42,6 +48,22 @@ export default function App() {
       keys.add(e.key);
       if (e.shiftKey && (keys.has('5') || keys.has('%')) && (keys.has('0') || keys.has(')'))) {
         setShowEvaluations(true);
+      }
+
+      // Detect Ctrl + 1 pressed 5 times consecutively within 3 seconds
+      if (e.ctrlKey && e.key === '1') {
+        e.preventDefault();
+        const now = Date.now();
+        if (now - lastCtrl1TimeRef.current > 3000) {
+          ctrl1PressCountRef.current = 1;
+        } else {
+          ctrl1PressCountRef.current += 1;
+        }
+        lastCtrl1TimeRef.current = now;
+        if (ctrl1PressCountRef.current >= 5) {
+          ctrl1PressCountRef.current = 0;
+          setShowSecretTester(true);
+        }
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -1175,6 +1197,10 @@ Como posso ajudar você hoje?`
       
       {showEvaluations && (
         <EvaluationDashboard onClose={() => setShowEvaluations(false)} />
+      )}
+
+      {showSecretTester && (
+        <SecretApiTester onClose={() => setShowSecretTester(false)} />
       )}
     </div>
   );
