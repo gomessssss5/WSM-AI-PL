@@ -1085,7 +1085,7 @@ Como posso ajudar você hoje?`
   // Render authentic loading screen
   if (authLoading) {
     return (
-      <div id="wsm-loading-screen" className="flex h-screen w-screen flex-col items-center justify-center bg-[#fcfbfa] select-none dot-grid">
+      <div id="wsm-loading-screen" className="flex h-[100dvh] w-screen flex-col items-center justify-center bg-[#fcfbfa] select-none dot-grid">
         <div className="w-12 h-12 bg-gradient-to-br from-[#7c3aed] to-[#5c53e5] rounded-xl flex items-center justify-center shadow-md animate-spin mb-4">
           <svg 
             viewBox="0 0 24 24" 
@@ -1110,7 +1110,7 @@ Como posso ajudar você hoje?`
   }
 
   return (
-    <div className="flex h-screen w-screen bg-[#faf9f6] text-gray-800 font-sans overflow-hidden">
+    <div className="flex h-[100dvh] w-screen bg-[#faf9f6] text-gray-800 font-sans overflow-hidden">
       {/* Sidebar Area */}
       <Sidebar
         sessions={sessions}

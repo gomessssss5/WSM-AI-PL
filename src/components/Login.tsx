@@ -86,7 +86,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   };
 
   return (
-    <div id="wsm-login-container" className="flex min-h-screen w-screen items-center justify-center bg-[#fcfbfa] relative overflow-hidden select-none dot-grid p-4">
+    <div id="wsm-login-container" className="flex h-[100dvh] w-screen items-center justify-center bg-[#fcfbfa] relative overflow-hidden select-none dot-grid p-4">
       {/* Ambient background glows */}
       <div className="absolute bottom-[-10%] left-[-10%] w-[45%] h-[45%] glow-left pointer-events-none rounded-full" />
       <div className="absolute top-[-10%] right-[-10%] w-[45%] h-[45%] glow-right pointer-events-none rounded-full" />
