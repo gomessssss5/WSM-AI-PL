@@ -25,6 +25,7 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
         displayMode,
         throwOnError: false,
         trust: true,
+        output: 'html',
       });
     } catch (err) {
       console.error('KaTeX rendering error:', err);
@@ -479,24 +480,29 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
 
       // 7. Unordered Lists: - item or * item
       if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('• ')) {
-        const listItems: string[] = [];
+        const listItems: { text: string, indent: number }[] = [];
         while (
           i < lines.length &&
           (lines[i].trim().startsWith('- ') ||
             lines[i].trim().startsWith('* ') ||
             lines[i].trim().startsWith('• '))
         ) {
-          listItems.push(lines[i].trim().replace(/^[-*•]\s*/, ''));
+          const indent = lines[i].match(/^\s*/)?.[0].length || 0;
+          listItems.push({ text: lines[i].trim().replace(/^[-*•]\s*/, ''), indent });
           i++;
         }
 
         blocks.push(
-          <ul key={`ul-${i}`} className="my-3 pl-6 list-disc space-y-1.5 text-gray-700 text-[13.5px]">
-            {listItems.map((item, idx) => (
-              <li key={idx} className="leading-relaxed select-text marker:text-[#5c53e5]">
-                {renderInlineContent(item)}
-              </li>
-            ))}
+          <ul key={`ul-${i}`} className="my-3 list-none space-y-1.5 text-gray-700 text-[13.5px]">
+            {listItems.map((item, idx) => {
+              if (!item.text) return null; // Skip empty bullets
+              return (
+                <li key={idx} style={{ marginLeft: `${item.indent * 0.75}rem` }} className="flex gap-2 leading-relaxed select-text">
+                  <span className="text-[#5c53e5] font-bold shrink-0">•</span>
+                  <div>{renderInlineContent(item.text)}</div>
+                </li>
+              );
+            })}
           </ul>
         );
         continue;
@@ -504,20 +510,26 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
 
       // 8. Ordered Lists: 1. item
       if (/^\d+\.\s+/.test(trimmed)) {
-        const listItems: string[] = [];
+        const listItems: { text: string, indent: number, num: string }[] = [];
         while (i < lines.length && /^\d+\.\s+/.test(lines[i].trim())) {
-          listItems.push(lines[i].trim().replace(/^\d+\.\s+/, ''));
+          const indent = lines[i].match(/^\s*/)?.[0].length || 0;
+          const num = lines[i].trim().match(/^(\d+\.)\s+/)?.[1] || '1.';
+          listItems.push({ text: lines[i].trim().replace(/^\d+\.\s+/, ''), indent, num });
           i++;
         }
 
         blocks.push(
-          <ol key={`ol-${i}`} className="my-3 pl-6 list-decimal space-y-1.5 text-gray-700 text-[13.5px]">
-            {listItems.map((item, idx) => (
-              <li key={idx} className="leading-relaxed select-text marker:font-bold marker:text-gray-400">
-                {renderInlineContent(item)}
-              </li>
-            ))}
-          </ol>
+          <div key={`ol-${i}`} className="my-3 space-y-1.5 text-gray-700 text-[13.5px]">
+            {listItems.map((item, idx) => {
+              if (!item.text) return null;
+              return (
+                <div key={idx} style={{ marginLeft: `${item.indent * 0.75}rem` }} className="flex gap-2 leading-relaxed select-text">
+                  <span className="text-gray-400 font-bold shrink-0">{item.num}</span>
+                  <div>{renderInlineContent(item.text)}</div>
+                </div>
+              );
+            })}
+          </div>
         );
         continue;
       }

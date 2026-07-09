@@ -133,6 +133,62 @@ export default function ChatWindow({
   const [ratingStars, setRatingStars] = useState(5);
   const [ratingComment, setRatingComment] = useState('');
 
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        recognitionRef.current = new SpeechRecognition();
+        recognitionRef.current.continuous = false;
+        recognitionRef.current.interimResults = false;
+        recognitionRef.current.lang = 'pt-BR';
+
+        recognitionRef.current.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          setInputValue(prev => {
+            const space = prev.length > 0 && !prev.endsWith(' ') ? ' ' : '';
+            return prev + space + transcript;
+          });
+        };
+
+        recognitionRef.current.onend = () => {
+          setIsListening(false);
+        };
+        
+        recognitionRef.current.onerror = (event: any) => {
+           console.error("Speech recognition error", event.error);
+           setIsListening(false);
+        };
+      }
+    }
+    
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+    };
+  }, [setInputValue]);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      alert("Reconhecimento de voz não suportado neste navegador.");
+      return;
+    }
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
   const handleEvaluate = (msgId: string, rating: 'up' | 'down') => {
     const evals = { ...evaluations, [msgId]: rating };
     setEvaluations(evals);
@@ -1304,8 +1360,9 @@ export default function ChatWindow({
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
-                title="Voz"
+                onClick={toggleListening}
+                className={`p-1.5 rounded-full transition-colors cursor-pointer ${isListening ? 'text-red-500 bg-red-50 animate-pulse' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                title={isListening ? "Parar gravação" : "Voz"}
               >
                 <Mic className="w-3.5 h-3.5" />
               </button>

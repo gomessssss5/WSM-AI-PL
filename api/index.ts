@@ -571,8 +571,13 @@ Ao invés de tentar fazer o trabalho todo sozinho se não solicitado, forneça d
 Aja como um mentor literário ou editor experiente.
 ` : "";
 
+    const writingConstraints = `
+## Naturalidade e Restrições de Escrita
+Se o usuário pedir para você incluir certas letras, fonemas ou caracteres especiais (como "ção", "ñ", "ü") em um texto, você DEVE incorporá-los de forma absolutamente natural usando palavras reais do vocabulário que os contenham adequadamente (ex: "emoção", "mañana", "müller"). NUNCA insira caracteres de forma forçada, literal e sem sentido em palavras que não os possuem (como escrever "ümidade" em vez de "umidade" ou "ção de calor" em vez de "sensação"). Mantenha o texto ortograficamente e gramaticalmente perfeito sempre.
+`;
+
     const basePrompt = modelSystemPrompts[model] || modelSystemPrompts['WSM 1.6 Mercúrio'];
-    const activeSystemPrompt = basePrompt + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + writerInstruction;
+    const activeSystemPrompt = basePrompt + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + writerInstruction;
 
     if (model === 'WSM 1.6 Marte') {
       console.log("Starting agentic loop for Marte...");

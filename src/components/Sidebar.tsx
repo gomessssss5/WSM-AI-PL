@@ -39,9 +39,15 @@ export default function Sidebar(props: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Filter sessions based on search
+  const normalizeString = (str: string) => {
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  };
+
+  const normalizedQuery = normalizeString(searchQuery);
+
   const filteredSessions = sessions.filter(session =>
-    session.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    session.messages.some(m => m.text.toLowerCase().includes(searchQuery.toLowerCase()))
+    normalizeString(session.title).includes(normalizedQuery) ||
+    session.messages.some(m => normalizeString(m.text).includes(normalizedQuery))
   );
 
   return (

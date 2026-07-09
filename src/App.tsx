@@ -26,7 +26,14 @@ export default function App() {
   const [activeWriterDocId, setActiveWriterDocId] = useState<string | null>(null);
   const [writerDocs, setWriterDocs] = useState<WriterDocument[]>([]);
   const [isThinking, setIsThinking] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<string>('WSM 1.6 Mercúrio');
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    const saved = localStorage.getItem('wsm_selected_model');
+    return saved || 'WSM 1.6 Mercúrio';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('wsm_selected_model', selectedModel);
+  }, [selectedModel]);
   const [showEvaluations, setShowEvaluations] = useState(false);
   const [showSecretTester, setShowSecretTester] = useState(false);
   const [isMobileHistoryOpen, setIsMobileHistoryOpen] = useState(true); // Default to true on initial load (only applies to mobile)
