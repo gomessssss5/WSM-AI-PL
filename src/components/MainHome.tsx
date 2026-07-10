@@ -59,6 +59,30 @@ export default function MainHome({
     };
   }, []);
 
+  // Synchronize inputValue with the actual DOM value to prevent duplication from direct DOM manipulation (e.g. testing tools)
+  useEffect(() => {
+    const textarea = document.getElementById('chat-input-textarea') as HTMLTextAreaElement;
+    if (!textarea) return;
+
+    const syncValue = () => {
+      if (textarea.value !== inputValue) {
+        setInputValue(textarea.value);
+      }
+    };
+
+    textarea.addEventListener('focus', syncValue);
+    textarea.addEventListener('mousedown', syncValue);
+    textarea.addEventListener('touchstart', syncValue);
+    textarea.addEventListener('input', syncValue);
+
+    return () => {
+      textarea.removeEventListener('focus', syncValue);
+      textarea.removeEventListener('mousedown', syncValue);
+      textarea.removeEventListener('touchstart', syncValue);
+      textarea.removeEventListener('input', syncValue);
+    };
+  }, [inputValue]);
+
   const toggleListening = () => {
     if (!recognitionRef.current) {
       alert("Reconhecimento de voz não suportado neste navegador.");
@@ -250,8 +274,8 @@ export default function MainHome({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e?: React.FormEvent | React.MouseEvent | React.TouchEvent) => {
+    e?.preventDefault();
     if (!inputValue.trim() && attachments.length === 0) return;
     onSendMessage(inputValue, isSearchEnabled, undefined, attachments);
     setInputValue('');
@@ -338,8 +362,9 @@ export default function MainHome({
                 </div>
                 <div className="flex flex-col gap-0.5">
                   {modelsList.map((model) => {
-                    const isActive = selectedModel === model;
                     const isClickable = model === 'WSM 1.6 Mercúrio' || model === 'WSM 1.6 Marte';
+                    if (!isClickable) return null;
+                    const isActive = selectedModel === model;
                     return (
                       <button 
                         key={model}
@@ -348,9 +373,7 @@ export default function MainHome({
                         className={`w-full flex flex-col gap-0.5 px-3 py-2 text-left rounded-lg transition-colors ${
                           isActive 
                             ? 'bg-[#f0ede8] text-gray-900 font-semibold' 
-                            : isClickable 
-                              ? 'text-gray-600 hover:bg-gray-50' 
-                              : 'text-gray-400 cursor-not-allowed opacity-50 bg-gray-50/50'
+                            : 'text-gray-600 hover:bg-gray-50'
                         }`}
                       >
                         <div className="flex items-center justify-between w-full">
@@ -599,6 +622,17 @@ export default function MainHome({
               <button
                 type="submit"
                 id="btn-send-message"
+                onClick={(e) => {
+                  handleSubmit(e);
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleSubmit(e);
+                }}
+                onTouchStart={(e) => {
+                  e.preventDefault();
+                  handleSubmit(e);
+                }}
                 disabled={!inputValue.trim() && attachments.length === 0}
                 className={`w-7.5 h-7.5 rounded-full flex items-center justify-center transition-all ${
                   inputValue.trim() || attachments.length > 0

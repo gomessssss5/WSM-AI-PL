@@ -1,5 +1,5 @@
 {
-  "name": "WSM AI",
+  "name": "WSM AI 1.6",
   "description": "Interface de IA (chat web) da IA WSM 1.5 Flash, replicando fielmente o design original com alta interatividade.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

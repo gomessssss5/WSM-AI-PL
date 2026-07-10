@@ -110,8 +110,8 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
     boldSplit.forEach((boldChunk, bIdx) => {
       const isBold = bIdx % 2 === 1;
 
-      // Split on *italic* or _italic_
-      const italicSplit = boldChunk.split(/\*(.*?)\*|_(.*?)_/g);
+      // Split on *italic* or _italic_ (using lookbehinds/lookaheads to ignore underscores within word characters like area_principal)
+      const italicSplit = boldChunk.split(/\*(.*?)\*|(?<!\w)_(?!\s)(.*?)(?<!\s)_(?!\w)/g);
 
       italicSplit.forEach((italicChunk, iIdx) => {
         // Since there are 2 capturing groups, every 3rd item is a match (iIdx % 3 !== 0)

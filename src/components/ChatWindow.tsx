@@ -171,6 +171,30 @@ export default function ChatWindow({
     };
   }, [setInputValue]);
 
+  // Synchronize inputValue with the actual DOM value to prevent duplication from direct DOM manipulation (e.g. testing tools)
+  useEffect(() => {
+    const textarea = document.getElementById('chat-input-textarea-floating') as HTMLTextAreaElement;
+    if (!textarea) return;
+
+    const syncValue = () => {
+      if (textarea.value !== inputValue) {
+        setInputValue(textarea.value);
+      }
+    };
+
+    textarea.addEventListener('focus', syncValue);
+    textarea.addEventListener('mousedown', syncValue);
+    textarea.addEventListener('touchstart', syncValue);
+    textarea.addEventListener('input', syncValue);
+
+    return () => {
+      textarea.removeEventListener('focus', syncValue);
+      textarea.removeEventListener('mousedown', syncValue);
+      textarea.removeEventListener('touchstart', syncValue);
+      textarea.removeEventListener('input', syncValue);
+    };
+  }, [inputValue, setInputValue]);
+
   const toggleListening = () => {
     if (!recognitionRef.current) {
       alert("Reconhecimento de voz não suportado neste navegador.");
@@ -485,8 +509,8 @@ export default function ChatWindow({
     scrollToBottom('smooth');
   }, [messages, isThinking]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e?: React.FormEvent | React.MouseEvent | React.TouchEvent) => {
+    e?.preventDefault();
     if (!inputValue.trim() && !attachedText && attachments.length === 0) return;
     
     let textToSend = '';
@@ -656,8 +680,9 @@ export default function ChatWindow({
                 />
                 <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 md:absolute md:inset-auto md:left-0 md:top-full md:mt-1.5 md:translate-y-0 w-auto max-w-[calc(100vw-2rem)] md:w-80 bg-white border border-gray-150 rounded-xl shadow-2xl md:shadow-lg z-50 p-1 animate-in fade-in zoom-in-95 duration-150">
                   {modelsList.map((model) => {
-                    const isActive = selectedModel === model;
                     const isClickable = model === 'WSM 1.6 Mercúrio' || model === 'WSM 1.6 Marte';
+                    if (!isClickable) return null;
+                    const isActive = selectedModel === model;
                     return (
                       <button
                         key={model}
@@ -671,9 +696,7 @@ export default function ChatWindow({
                         className={`w-full flex flex-col gap-0.5 px-3 py-2 text-left rounded-lg transition-colors ${
                           isActive 
                             ? 'bg-[#f0ede8] text-gray-900 font-semibold' 
-                            : isClickable 
-                              ? 'text-gray-500 hover:text-gray-800 hover:bg-gray-50' 
-                              : 'text-gray-400 cursor-not-allowed opacity-50 bg-gray-50/50'
+                            : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
                         }`}
                       >
                         <div className="flex items-center justify-between w-full">
@@ -1369,7 +1392,25 @@ export default function ChatWindow({
 
               <button
                 type={isThinking ? "button" : "submit"}
-                onClick={isThinking ? onCancelGeneration : undefined}
+                onClick={(e) => {
+                  if (isThinking) {
+                    onCancelGeneration?.();
+                  } else {
+                    handleSubmit(e);
+                  }
+                }}
+                onMouseDown={(e) => {
+                  if (!isThinking) {
+                    e.preventDefault();
+                    handleSubmit(e);
+                  }
+                }}
+                onTouchStart={(e) => {
+                  if (!isThinking) {
+                    e.preventDefault();
+                    handleSubmit(e);
+                  }
+                }}
                 disabled={(!inputValue.trim() && !attachedText && attachments.length === 0) && !isThinking}
                 className={`w-6.5 h-6.5 rounded-full flex items-center justify-center transition-all ${
                   isThinking
