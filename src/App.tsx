@@ -340,7 +340,7 @@ export default function App() {
   };
 
   const handleUpdateWriterDocument = (updatedDoc: WriterDocument) => {
-    // Optimistic update in state if needed, though onSnapshot handles it
+    setWriterDocs(prev => prev.map(d => d.id === updatedDoc.id ? updatedDoc : d));
   };
 
   // Delete an existing session from Firestore
@@ -600,7 +600,24 @@ Como posso ajudar você hoje?`
     const match = text.match(/<wsm_writer_update>([\s\S]*?)<\/wsm_writer_update>/);
     if (match && match[1]) {
       try {
-        const parsed = JSON.parse(match[1].trim());
+        let jsonStr = match[1].trim();
+        // Remove possible markdown formatting if AI added it inside the tag
+        jsonStr = jsonStr.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+        
+        let parsed: any = null;
+        try {
+          parsed = JSON.parse(jsonStr);
+        } catch (err) {
+          // Fallback: try to repair unquoted keys (e.g. {content: "..."})
+          try {
+            const repaired = jsonStr.replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
+            parsed = JSON.parse(repaired);
+          } catch (err2) {
+             console.error("Failed to parse writer update:", jsonStr);
+             return; // Stop if it's really unparseable
+          }
+        }
+
         if (parsed && (parsed.content !== undefined || parsed.title !== undefined)) {
           setWriterDocs(prev => prev.map(d => {
             if (d.id === activeWriterDocId) {
@@ -618,7 +635,7 @@ Como posso ajudar você hoje?`
           }));
         }
       } catch (e) {
-        // JSON parsing might fail if it's incomplete during streaming, which is expected
+        // Handle unexpected outer errors gracefully
       }
     }
   };

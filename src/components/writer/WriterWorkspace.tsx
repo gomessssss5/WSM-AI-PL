@@ -15,7 +15,7 @@ interface WriterWorkspaceProps {
   sessions: ChatSession[];
   onBack: () => void;
   onUpdateDocument: (doc: WriterDocument) => void;
-  onNewMessage: (text: string, isSearch: boolean) => Promise<void>;
+  onNewMessage: (text: string, isSearch: boolean, overrideMessages?: any[], attachments?: any[]) => Promise<void>;
   isThinking: boolean;
   onCancelGeneration: () => void;
   onOpenMobileHistory?: () => void;
@@ -109,6 +109,19 @@ export default function WriterWorkspace({
     await saveWriterDocument(updatedDoc);
     onUpdateDocument(updatedDoc);
     setIsSaving(false);
+  };
+
+  const handleSendMessageWrapper = async (text: string, isSearch: boolean, overrideMessages?: any[], attachments?: any[]) => {
+    // Force sync the latest content immediately so the AI can read it
+    const updatedDoc = {
+      ...writerDoc,
+      content,
+      title,
+      updatedAt: Date.now()
+    };
+    onUpdateDocument(updatedDoc);
+    
+    await onNewMessage(text, isSearch, overrideMessages, attachments);
   };
 
   const handleEditorInput = (e: React.FormEvent<HTMLDivElement>) => {
@@ -1257,7 +1270,7 @@ export default function WriterWorkspace({
           messages={activeChatSession?.messages || []}
           isThinking={isThinking}
           selectedModel="WSM 1.6 Mercúrio"
-          onSendMessage={onNewMessage}
+          onSendMessage={handleSendMessageWrapper}
           onCancelGeneration={onCancelGeneration}
           onBackToHome={onBack}
           isEmbedded={true}

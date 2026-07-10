@@ -79,6 +79,11 @@ interface ChatWindowProps {
   onOpenMobileHistory?: () => void;
 }
 
+const displayUserText = (text: string) => {
+  const match = text.match(/^\[Texto Anexado do Editor:\n"[\s\S]*?"\]\n\n([\s\S]*)$/);
+  return match ? match[1] : text;
+};
+
 export default function ChatWindow({
   messages,
   title = '',
@@ -810,9 +815,9 @@ export default function ChatWindow({
         ) : (
           <div className="relative">
             <button
-              id="btn-back-home"
+              id="btn-chat-options"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 border border-[#eae6e1] dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-all cursor-pointer flex items-center justify-center active:scale-95"
+              className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 border border-[#eae6e1] dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-all cursor-pointer flex items-center justify-center"
               title="Opções do chat"
             >
               <MoreVertical size={16} />
@@ -1070,6 +1075,10 @@ export default function ChatWindow({
                             <XCircle className="w-4.5 h-4.5 shrink-0" />
                             <span>Você cancelou essa resposta</span>
                           </div>
+                        ) : isUser ? (
+                          <div className="prose max-w-none text-[14px] text-gray-800 w-full whitespace-pre-wrap">
+                            {displayUserText(message.text)}
+                          </div>
                         ) : (
                           <div className="prose max-w-none text-[14px] text-gray-800 w-full">
                             <TypewriterMarkdown
@@ -1259,7 +1268,7 @@ export default function ChatWindow({
                           <button onClick={() => copyToClipboard(cleanWriterUpdateTags(message.text), message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
                             {copiedId === message.id ? <Check size={12} /> : <Copy size={12} />}
                           </button>
-                          <button onClick={() => { setEditingMessageId(message.id); setEditInputValue(message.text); }} className="text-gray-400 hover:text-blue-600 p-0.5" title="Editar">
+                          <button onClick={() => { setEditingMessageId(message.id); setEditInputValue(displayUserText(message.text)); }} className="text-gray-400 hover:text-blue-600 p-0.5" title="Editar">
                             <Edit2 size={12} />
                           </button>
                         </div>
