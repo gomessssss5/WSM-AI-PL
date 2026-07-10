@@ -313,12 +313,15 @@ export default function ChatWindow({
     return 'document';
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    
-    const fileList: File[] = Array.from(files) as File[];
-    
+  const [isDragging, setIsDragging] = useState(false);
+
+  const processFiles = (fileList: File[]) => {
+    const hasAccepted = localStorage.getItem('wsm_accepted_file_terms') === 'true';
+    if (!hasAccepted) {
+      setShowTermsModal(true);
+      return;
+    }
+
     let videoCount = 0;
     let imgDocCount = 0;
     let audioCount = 0;
@@ -384,6 +387,70 @@ export default function ChatWindow({
         console.error("Error reading files:", err);
         setUploadError("Erro ao processar os arquivos anexados.");
       });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    const fileList = Array.from(files) as File[];
+    processFiles(fileList);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const pastedFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === 'file') {
+        const file = item.getAsFile();
+        if (file) {
+          pastedFiles.push(file);
+        }
+      }
+    }
+    if (pastedFiles.length > 0) {
+      e.preventDefault();
+      processFiles(pastedFiles);
+    }
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer?.types?.includes('Files')) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer?.types?.includes('Files')) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const { clientX, clientY } = e;
+    if (clientX < rect.left || clientX >= rect.right || clientY < rect.top || clientY >= rect.bottom) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      const droppedFiles = Array.from(files) as File[];
+      processFiles(droppedFiles);
+    }
   };
 
   const handleAttachClick = () => {
@@ -850,34 +917,57 @@ export default function ChatWindow({
                           : 'text-gray-800'
                       }`}
                     >
-                    {isUser && message.attachments && message.attachments.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mb-2 select-none border-b border-gray-200/30 pb-2">
-                        {message.attachments.map((file, idx) => (
-                          <div 
-                            key={idx} 
-                            className="flex items-center gap-2 bg-white/85 border border-gray-150 rounded-lg p-1.5 pr-2 text-xs shrink-0 max-w-full"
-                          >
-                            {file.type === 'image' ? (
-                              <button 
-                                type="button"
-                                onClick={() => setLightboxImage(file.url)}
-                                className="shrink-0 relative group"
-                              >
-                                <img src={file.url} alt={file.name} className="w-8 h-8 rounded object-cover border border-gray-100 hover:opacity-95 shrink-0" />
-                              </button>
-                            ) : (
-                              <div className="w-8 h-8 rounded bg-[#fcfbfa] flex items-center justify-center border border-gray-200 text-gray-500 shrink-0">
-                                {file.type === 'video' && <Video className="w-4 h-4 text-purple-500 animate-pulse" />}
-                                {file.type === 'audio' && <Volume2 className="w-4 h-4 text-emerald-500 animate-pulse" />}
-                                {file.type === 'document' && <FileText className="w-4 h-4 text-blue-500" />}
-                              </div>
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <p className="font-semibold text-gray-700 truncate w-24" title={file.name}>{file.name}</p>
-                              <p className="text-[10px] text-gray-400">{(file.size / 1024).toFixed(1)} KB</p>
+                    {message.attachments && message.attachments.length > 0 && (
+                      <div className="flex flex-wrap gap-3 mb-3 select-none pb-1">
+                        {message.attachments.map((file, idx) => {
+                          const getExt = (name: string, type: string) => {
+                            const parts = name.split('.');
+                            if (parts.length > 1) {
+                              const ext = parts[parts.length - 1].toUpperCase();
+                              if (ext.length <= 4) return ext;
+                            }
+                            return type.toUpperCase();
+                          };
+
+                          return (
+                            <div key={idx} className="shrink-0">
+                              {file.type === 'image' || file.type === 'video' ? (
+                                <div className="w-20 h-20 rounded-xl overflow-hidden relative shadow-xs bg-gray-100 dark:bg-gray-800">
+                                  {file.type === 'image' ? (
+                                    <button 
+                                      type="button"
+                                      onClick={() => setLightboxImage(file.url)}
+                                      className="w-full h-full block focus:outline-none"
+                                      title="Expandir imagem"
+                                    >
+                                      <img 
+                                        src={file.url} 
+                                        alt={file.name} 
+                                        className="w-full h-full object-cover transition-opacity hover:opacity-95" 
+                                      />
+                                    </button>
+                                  ) : (
+                                    <div className="relative w-full h-full bg-gray-900 overflow-hidden">
+                                      <video src={file.url} className="w-full h-full object-cover opacity-80" />
+                                      <div className="absolute inset-0 flex items-center justify-center">
+                                        <Video className="w-5 h-5 text-white drop-shadow-md" />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="w-20 h-20 p-2 bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-800 rounded-xl flex flex-col justify-between shadow-xxs text-left">
+                                  <div className="font-sans font-medium text-gray-700 dark:text-gray-300 text-[10px] leading-tight break-all line-clamp-2" title={file.name}>
+                                    {file.name}
+                                  </div>
+                                  <div className="border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5 text-[8px] uppercase font-bold text-gray-500 dark:text-gray-400 bg-gray-50/50 dark:bg-gray-900/50 inline-block w-fit select-none">
+                                    {getExt(file.name, file.type)}
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                     {isUser && editingMessageId === message.id ? (
@@ -1253,7 +1343,11 @@ export default function ChatWindow({
         )}
         <form
           onSubmit={handleSubmit}
-          className="w-[calc(100%-2rem)] md:w-full md:max-w-xl mx-auto bg-white border border-[#eae6e1] md:rounded-xl rounded-[28px] shadow-lg md:shadow-[0_1px_8px_rgba(0,0,0,0.01)] p-3 md:p-2 focus-within:border-[#5c53e5]/50 focus-within:ring-1 focus-within:ring-[#5c53e5]/15 transition-all duration-200 absolute bottom-3 md:static z-50 mb-0 left-4"
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className="w-[calc(100%-2rem)] md:w-full md:max-w-xl mx-auto bg-white border border-[#eae6e1] md:rounded-xl rounded-[28px] shadow-lg md:shadow-[0_1px_8px_rgba(0,0,0,0.01)] p-3 md:p-2 focus-within:border-[#5c53e5]/50 focus-within:ring-1 focus-within:ring-[#5c53e5]/15 transition-all duration-200 absolute bottom-3 md:relative z-50 mb-0 left-4"
         >
           {/* Hidden File Input */}
           <input 
@@ -1309,34 +1403,57 @@ export default function ChatWindow({
 
           {/* Attachments horizontal list */}
           {attachments.length > 0 && (
-            <div className="w-full flex flex-wrap gap-2 mb-2 p-1.5 bg-gray-50 dark:bg-gray-900/50 border border-gray-150 dark:border-gray-800 rounded-xl max-h-36 overflow-y-auto select-none">
-              {attachments.map((file, idx) => (
-                <div 
-                  key={idx} 
-                  className="flex items-center gap-2 bg-white dark:bg-gray-850 border border-gray-150 dark:border-gray-800 rounded-lg p-1.5 pr-2 text-xs shadow-xxs shrink-0"
-                >
-                  {file.type === 'image' ? (
-                    <img src={file.url} alt={file.name} className="w-7 h-7 rounded object-cover border border-gray-100 dark:border-gray-700 shrink-0" />
-                  ) : (
-                    <div className="w-7 h-7 rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 shrink-0">
-                      {file.type === 'video' && <Video className="w-3.5 h-3.5 text-purple-500" />}
-                      {file.type === 'audio' && <Volume2 className="w-3.5 h-3.5 text-emerald-500" />}
-                      {file.type === 'document' && <FileText className="w-3.5 h-3.5 text-blue-500" />}
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <p className="font-semibold text-gray-700 dark:text-gray-300 truncate w-24" title={file.name}>{file.name}</p>
-                    <p className="text-[10px] text-gray-400">{(file.size / 1024).toFixed(1)} KB</p>
+            <div className="w-full flex flex-wrap gap-3 mb-3 p-2 bg-gray-50/50 dark:bg-gray-900/30 rounded-2xl max-h-48 overflow-y-auto select-none">
+              {attachments.map((file, idx) => {
+                const getExt = (name: string, type: string) => {
+                  const parts = name.split('.');
+                  if (parts.length > 1) {
+                    const ext = parts[parts.length - 1].toUpperCase();
+                    if (ext.length <= 4) return ext;
+                  }
+                  return type.toUpperCase();
+                };
+
+                return (
+                  <div key={idx} className="shrink-0 relative">
+                    {file.type === 'image' || file.type === 'video' ? (
+                      <div className="w-20 h-20 rounded-xl overflow-hidden relative shadow-xs bg-gray-100 dark:bg-gray-800">
+                        {file.type === 'image' ? (
+                          <img 
+                            src={file.url} 
+                            alt={file.name} 
+                            className="w-full h-full object-cover" 
+                          />
+                        ) : (
+                          <div className="relative w-full h-full bg-gray-900 overflow-hidden">
+                            <video src={file.url} className="w-full h-full object-cover opacity-80" />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <Video className="w-5 h-5 text-white drop-shadow-md" />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="w-20 h-20 p-2 bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-800 rounded-xl flex flex-col justify-between shadow-xxs text-left">
+                        <div className="font-sans font-medium text-gray-700 dark:text-gray-300 text-[10px] leading-tight break-all line-clamp-2" title={file.name}>
+                          {file.name}
+                        </div>
+                        <div className="border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5 text-[8px] uppercase font-bold text-gray-500 dark:text-gray-400 bg-gray-50/50 dark:bg-gray-900/50 inline-block w-fit select-none">
+                          {getExt(file.name, file.type)}
+                        </div>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+                      className="absolute -top-1.5 -right-1.5 p-1 bg-black/70 hover:bg-black/90 text-white rounded-full transition-colors cursor-pointer z-20 shadow-xs"
+                      title="Remover"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
-                    className="p-1 hover:bg-gray-100 dark:hover:bg-gray-850 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -1347,6 +1464,7 @@ export default function ChatWindow({
             value={inputValue}
             onChange={handleInputValueChange}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={`Pergunte ao ${selectedModel}...`}
             className="w-full bg-transparent outline-none resize-none text-gray-800 placeholder-gray-400 text-[13.5px] leading-relaxed pb-1 max-h-24"
           />
@@ -1428,6 +1546,15 @@ export default function ChatWindow({
               </button>
             </div>
           </div>
+
+          {isDragging && (
+            <div 
+              className="absolute inset-0 bg-[#fbfbfa]/95 border-2 border-dashed border-[#5c53e5] rounded-[28px] md:rounded-xl z-50 flex flex-col items-center justify-center gap-2 animate-in fade-in duration-150 pointer-events-none"
+            >
+              <Paperclip className="w-6 h-6 text-[#5c53e5] animate-bounce" />
+              <span className="text-xs font-semibold text-[#5c53e5]">Solte os arquivos aqui</span>
+            </div>
+          )}
         </form>
         <div className="hidden md:block text-[9px] text-center text-gray-400 font-medium pt-1.5 select-none">
           {selectedModel} pode cometer erros. Verifique informações importantes.
