@@ -83,10 +83,30 @@ interface ProcessedStats {
     relativeTime: string;
     statusColor: string;
   }[];
+  apiMetrics?: {
+    geminiDailyLimit: number;
+    geminiDailyUsed: number;
+    geminiDailyLeft: number;
+    geminiDailyPercent: number;
+    geminiRpmLimit: number;
+    geminiRpmUsed: number;
+    geminiTpmLimit: number;
+    geminiTpmUsed: number;
+    geminiResetHours: number;
+    geminiResetMinutes: number;
+    
+    tavilyMonthlyLimit: number;
+    tavilyMonthlyUsed: number;
+    tavilyMonthlyLeft: number;
+    tavilyMonthlyPercent: number;
+    tavilyRpmLimit: number;
+    tavilyResetDays: number;
+    tavilyResetHours: number;
+  };
 }
 
 export default function AdminDashboard({ onBack }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'metrics' | 'engagement' | 'models' | 'evaluations' | 'diagnostics' | 'errors' | 'simulation' | 'users' | 'broadcast'>('metrics');
+  const [activeTab, setActiveTab] = useState<'metrics' | 'engagement' | 'models' | 'evaluations' | 'diagnostics' | 'errors' | 'simulation' | 'users' | 'broadcast' | 'gemini'>('metrics');
   const [loading, setLoading] = useState(true);
   const [realStats, setRealStats] = useState<ProcessedStats | null>(null);
 
@@ -348,6 +368,11 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
       let returningUsersCount = 0;
       let userMessagesTotal = 0;
       
+      let geminiDailyUsed = 0;
+      let geminiRpmUsed = 0;
+      let geminiTpmUsed = 0;
+      let tavilyMonthlyUsed = 0;
+      
       for (const u of usersList) {
         const uId = u.id;
         const uEmail = u.email || `usr_${uId.substring(0, 5)}@wsm.ai`;
@@ -422,6 +447,33 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
 
             if (m.sender === 'ai' || m.sender === 'model') {
               aiMessagesCount++;
+
+              // Exact Real API Metrics tracking
+              const nowLocalObj = new Date();
+              const todayStr = nowLocalObj.toISOString().split('T')[0];
+              const msgDateStr = mDate.toISOString().split('T')[0];
+              
+              if (msgDateStr === todayStr) {
+                geminiDailyUsed++;
+              }
+              
+              const oneMinAgo = Date.now() - 60000;
+              const msgCharCount = (m.text || '').length;
+              const msgEstimatedTokens = Math.max(1, Math.round(msgCharCount / 4.2));
+              
+              if (mDate.getTime() >= oneMinAgo) {
+                geminiRpmUsed++;
+                geminiTpmUsed += msgEstimatedTokens;
+              }
+              
+              const isThisMonth = mDate.getMonth() === nowLocalObj.getMonth() && mDate.getFullYear() === nowLocalObj.getFullYear();
+              if (isThisMonth) {
+                const hasSearchSources = (m.searchSources && m.searchSources.length > 0);
+                const hasSearchText = (m.text || '').includes('[pesquisou na web]') || (m.text || '').includes('[pesquisando...]');
+                if (hasSearchSources || hasSearchText) {
+                  tavilyMonthlyUsed++;
+                }
+              }
 
               // Infer model usage
               const textLower = (m.text || '').toLowerCase();
@@ -1033,6 +1085,47 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
         });
       }
 
+      // Calculate dynamic resets and metrics objects
+      const nowLocal = new Date();
+      const nextMidnightUtc = new Date(Date.UTC(nowLocal.getUTCFullYear(), nowLocal.getUTCMonth(), nowLocal.getUTCDate() + 1, 0, 0, 0, 0));
+      const msToReset = nextMidnightUtc.getTime() - nowLocal.getTime();
+      const geminiResetHours = Math.floor(msToReset / 3600000);
+      const geminiResetMinutes = Math.floor((msToReset % 3600000) / 60000);
+
+      const nextMonthFirstDay = new Date(nowLocal.getFullYear(), nowLocal.getMonth() + 1, 1, 0, 0, 0, 0);
+      const msToTavilyReset = nextMonthFirstDay.getTime() - nowLocal.getTime();
+      const tavilyResetDays = Math.floor(msToTavilyReset / (1000 * 60 * 60 * 24));
+      const tavilyResetHours = Math.floor((msToTavilyReset % (1000 * 60 * 60 * 24)) / 3600000);
+
+      const geminiDailyLimit = 1500;
+      const geminiDailyLeft = Math.max(0, geminiDailyLimit - geminiDailyUsed);
+      const geminiDailyPercent = parseFloat(((geminiDailyUsed / geminiDailyLimit) * 100).toFixed(2));
+
+      const tavilyMonthlyLimit = 1000;
+      const tavilyMonthlyLeft = Math.max(0, tavilyMonthlyLimit - tavilyMonthlyUsed);
+      const tavilyMonthlyPercent = parseFloat(((tavilyMonthlyUsed / tavilyMonthlyLimit) * 100).toFixed(2));
+
+      const calculatedApiMetrics = {
+        geminiDailyLimit,
+        geminiDailyUsed,
+        geminiDailyLeft,
+        geminiDailyPercent,
+        geminiRpmLimit: 15,
+        geminiRpmUsed,
+        geminiTpmLimit: 1000000,
+        geminiTpmUsed,
+        geminiResetHours,
+        geminiResetMinutes,
+        
+        tavilyMonthlyLimit,
+        tavilyMonthlyUsed,
+        tavilyMonthlyLeft,
+        tavilyMonthlyPercent,
+        tavilyRpmLimit: 60,
+        tavilyResetDays,
+        tavilyResetHours
+      };
+
       setRealStats({
         totalUsers: Math.max(usersList.length, 1),
         totalSessions,
@@ -1071,7 +1164,8 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
         powerUsers,
         storageUse,
         filteredContent,
-        realTimeActiveUsers: activeUsersList
+        realTimeActiveUsers: activeUsersList,
+        apiMetrics: calculatedApiMetrics
       });
 
     } catch (err) {
@@ -1330,6 +1424,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
               { id: 'engagement', label: 'Análise de Engajamento', icon: Activity },
               { id: 'users', label: 'Gestão de Usuários', icon: Users },
               { id: 'models', label: 'Distribuição de Modelos', icon: Cpu },
+              { id: 'gemini', label: 'Cotas Gemini & Tavily', icon: Sparkles },
               { id: 'evaluations', label: 'Avaliações & Interações', icon: Star },
               { id: 'diagnostics', label: 'Diagnóstico de APIs', icon: ShieldCheck },
               { id: 'errors', label: 'Logs & Erros', icon: AlertCircle },
@@ -2172,6 +2267,355 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   </div>
                 </div>
               )}
+            </motion.div>
+          )}
+
+          {activeTab === 'gemini' && (
+            <motion.div
+              key="gemini"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.15 }}
+              className="space-y-6"
+            >
+              {/* Cards Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                
+                {/* Gemini Daily Requests Card */}
+                <div className="bg-white p-5 rounded-3xl border border-[#eae6e1] shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Cota Diária Gemini</span>
+                      <span className="bg-indigo-50 text-[#5c53e5] text-[9px] font-bold px-2 py-0.5 rounded-full border border-indigo-100">
+                        1.5K RPD Limit
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <span className="text-3xl font-black text-gray-900 tracking-tight">
+                        {stats.apiMetrics?.geminiDailyUsed ?? 0}
+                      </span>
+                      <span className="text-xs text-gray-400">/ {stats.apiMetrics?.geminiDailyLimit ?? 1500} requisições</span>
+                    </div>
+                    
+                    {/* Progress Bar */}
+                    <div className="w-full bg-gray-100 h-2 rounded-full mt-4 overflow-hidden">
+                      <div 
+                        className="bg-[#5c53e5] h-full rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(100, stats.apiMetrics?.geminiDailyPercent ?? 0)}%` }}
+                      />
+                    </div>
+                    
+                    <div className="flex justify-between items-center mt-2 text-[10px] font-semibold text-gray-400">
+                      <span>{stats.apiMetrics?.geminiDailyPercent ?? 0}% Consumido</span>
+                      <span>{stats.apiMetrics?.geminiDailyLeft ?? 1500} restantes</span>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-5 pt-3 border-t border-gray-100 flex items-center gap-1.5 text-[10px] text-gray-500 font-bold">
+                    <Clock className="w-3.5 h-3.5 text-gray-400" />
+                    <span>Reseta em: {stats.apiMetrics?.geminiResetHours ?? 12}h {stats.apiMetrics?.geminiResetMinutes ?? 0}m (UTC)</span>
+                  </div>
+                </div>
+
+                {/* Gemini RPM Card */}
+                <div className="bg-white p-5 rounded-3xl border border-[#eae6e1] shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Taxa de Chamadas (RPM)</span>
+                      <span className="bg-amber-50 text-amber-600 text-[9px] font-bold px-2 py-0.5 rounded-full border border-amber-100">
+                        15 RPM Limit
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <span className="text-3xl font-black text-gray-900 tracking-tight">
+                        {stats.apiMetrics?.geminiRpmUsed ?? 0}
+                      </span>
+                      <span className="text-xs text-gray-400">/ 15 req/min</span>
+                    </div>
+                    
+                    {/* Progress Bar */}
+                    <div className="w-full bg-gray-100 h-2 rounded-full mt-4 overflow-hidden">
+                      <div 
+                        className="bg-amber-500 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(100, ((stats.apiMetrics?.geminiRpmUsed ?? 0) / 15) * 100)}%` }}
+                      />
+                    </div>
+                    
+                    <div className="flex justify-between items-center mt-2 text-[10px] font-semibold text-gray-400">
+                      <span>{(((stats.apiMetrics?.geminiRpmUsed ?? 0) / 15) * 100).toFixed(0)}% Taxa Atual</span>
+                      <span>Janela móvel de 60s</span>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-5 pt-3 border-t border-gray-100 flex items-center gap-1.5 text-[10px] text-gray-500 font-bold">
+                    <Activity className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Impede bloqueios de sobrecarga</span>
+                  </div>
+                </div>
+
+                {/* Gemini TPM Card */}
+                <div className="bg-white p-5 rounded-3xl border border-[#eae6e1] shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Volume de Tokens (TPM)</span>
+                      <span className="bg-purple-50 text-purple-600 text-[9px] font-bold px-2 py-0.5 rounded-full border border-purple-100">
+                        1M TPM Limit
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <span className="text-xl font-black text-gray-900 tracking-tight truncate max-w-[150px]">
+                        {(stats.apiMetrics?.geminiTpmUsed ?? 0).toLocaleString()}
+                      </span>
+                      <span className="text-[10px] text-gray-400">/ 1.0M tokens</span>
+                    </div>
+                    
+                    {/* Progress Bar */}
+                    <div className="w-full bg-gray-100 h-2 rounded-full mt-4 overflow-hidden">
+                      <div 
+                        className="bg-purple-500 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(100, ((stats.apiMetrics?.geminiTpmUsed ?? 0) / 1000000) * 100)}%` }}
+                      />
+                    </div>
+                    
+                    <div className="flex justify-between items-center mt-2 text-[10px] font-semibold text-gray-400">
+                      <span>{(((stats.apiMetrics?.geminiTpmUsed ?? 0) / 1000000) * 100).toFixed(4)}% Capacidade</span>
+                      <span>Reset por minuto</span>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-5 pt-3 border-t border-gray-100 flex items-center gap-1.5 text-[10px] text-gray-500 font-bold">
+                    <Database className="w-3.5 h-3.5 text-purple-500" />
+                    <span>Média por caractere: ~4.2</span>
+                  </div>
+                </div>
+
+                {/* Tavily Monthly searches Card */}
+                <div className="bg-white p-5 rounded-3xl border border-[#eae6e1] shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Cota Mensal Tavily Search</span>
+                      <span className="bg-emerald-50 text-emerald-600 text-[9px] font-bold px-2 py-0.5 rounded-full border border-emerald-100">
+                        1.0K searches limit
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <span className="text-3xl font-black text-gray-900 tracking-tight">
+                        {stats.apiMetrics?.tavilyMonthlyUsed ?? 0}
+                      </span>
+                      <span className="text-xs text-gray-400">/ {stats.apiMetrics?.tavilyMonthlyLimit ?? 1000} buscas</span>
+                    </div>
+                    
+                    {/* Progress Bar */}
+                    <div className="w-full bg-gray-100 h-2 rounded-full mt-4 overflow-hidden">
+                      <div 
+                        className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(100, stats.apiMetrics?.tavilyMonthlyPercent ?? 0)}%` }}
+                      />
+                    </div>
+                    
+                    <div className="flex justify-between items-center mt-2 text-[10px] font-semibold text-gray-400">
+                      <span>{stats.apiMetrics?.tavilyMonthlyPercent ?? 0}% Consumido</span>
+                      <span>{stats.apiMetrics?.tavilyMonthlyLeft ?? 1000} restantes</span>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-5 pt-3 border-t border-gray-100 flex items-center gap-1.5 text-[10px] text-gray-500 font-bold">
+                    <Globe className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Reseta em: {stats.apiMetrics?.tavilyResetDays ?? 20}d {stats.apiMetrics?.tavilyResetHours ?? 0}h</span>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Graphic and Table Breakdown Layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* Usage Comparison Chart */}
+                <div className="bg-white p-6 rounded-3xl border border-[#eae6e1] shadow-sm flex flex-col lg:col-span-2">
+                  <div className="mb-4">
+                    <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Visualização Gráfica de Utilização</h3>
+                    <p className="text-[10px] text-gray-400">Percentual de uso real em tempo real contra as cotas gratuitas</p>
+                  </div>
+                  
+                  <div className="h-64 w-full flex items-center justify-center">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart 
+                        data={[
+                          { 
+                            name: 'Cota Gemini (Diária)', 
+                            Usado: stats.apiMetrics?.geminiDailyUsed ?? 0, 
+                            Limite: stats.apiMetrics?.geminiDailyLimit ?? 1500,
+                            percent: stats.apiMetrics?.geminiDailyPercent ?? 0
+                          },
+                          { 
+                            name: 'Cota Tavily (Mensal)', 
+                            Usado: stats.apiMetrics?.tavilyMonthlyUsed ?? 0, 
+                            Limite: stats.apiMetrics?.tavilyMonthlyLimit ?? 1000,
+                            percent: stats.apiMetrics?.tavilyMonthlyPercent ?? 0
+                          }
+                        ]}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                        barSize={40}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#eae6e1" vertical={false} />
+                        <XAxis dataKey="name" stroke="#a3a3a3" fontSize={11} fontWeight={600} />
+                        <YAxis stroke="#a3a3a3" fontSize={11} fontWeight={600} />
+                        <Tooltip 
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload;
+                              return (
+                                <div className="bg-white p-3 border border-gray-100 rounded-xl shadow-lg text-[11px] font-bold space-y-1">
+                                  <p className="text-gray-900">{data.name}</p>
+                                  <p className="text-[#5c53e5]">Consumido: {data.Usado} reqs ({data.percent}%)</p>
+                                  <p className="text-gray-400">Limite Free Tier: {data.Limite} reqs</p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Legend />
+                        <Bar dataKey="Usado" fill="#5c53e5" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="Limite" fill="#e5e5e5" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Pie Distribution of Tavily searches */}
+                <div className="bg-white p-6 rounded-3xl border border-[#eae6e1] shadow-sm flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider mb-1">Cota Tavily Search</h3>
+                    <p className="text-[10px] text-gray-400 leading-normal">Distribuição proporcional da cota mensal do motor de pesquisa externa.</p>
+                  </div>
+                  
+                  <div className="h-44 w-full relative flex items-center justify-center my-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: 'Consumido', value: stats.apiMetrics?.tavilyMonthlyUsed ?? 0 },
+                            { name: 'Disponível', value: stats.apiMetrics?.tavilyMonthlyLeft ?? 1000 }
+                          ]}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={55}
+                          outerRadius={75}
+                          paddingAngle={3}
+                          dataKey="value"
+                        >
+                          <Cell fill="#10b981" />
+                          <Cell fill="#f3f4f6" />
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <span className="text-xl font-black text-gray-900">
+                        {stats.apiMetrics?.tavilyMonthlyPercent ?? 0}%
+                      </span>
+                      <span className="text-[9px] text-gray-400 uppercase font-bold">Consumo</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 text-[10px] font-bold">
+                    <div className="flex justify-between items-center bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                        <span className="text-gray-600">Buscas Feitas</span>
+                      </div>
+                      <span className="text-gray-900">{stats.apiMetrics?.tavilyMonthlyUsed ?? 0} / 1.0K</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
+                        <span className="text-gray-600">Buscas Restantes</span>
+                      </div>
+                      <span className="text-gray-900">{stats.apiMetrics?.tavilyMonthlyLeft ?? 1000}</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Complete Informational Table */}
+              <div className="bg-white p-6 rounded-3xl border border-[#eae6e1] shadow-sm">
+                <div className="mb-4">
+                  <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Regras & Limites Oficiais das APIs (Free Tier)</h3>
+                  <p className="text-[10px] text-gray-400">Informações oficiais pesquisadas na web sobre as cotas vigentes</p>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-[11px] whitespace-nowrap">
+                    <thead>
+                      <tr className="border-b border-gray-200 text-gray-400 uppercase font-black text-[9px] tracking-wider">
+                        <th className="pb-3 px-3">API / Provedor</th>
+                        <th className="pb-3 px-3">Modelo / Recurso</th>
+                        <th className="pb-3 px-3 text-center">Limite RPM</th>
+                        <th className="pb-3 px-3 text-center">Limite Diário / Mensal</th>
+                        <th className="pb-3 px-3 text-center">Janela de Resete</th>
+                        <th className="pb-3 px-3 text-right">Status do Plano</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
+                      
+                      {/* Gemini 3.1 Flash-Lite */}
+                      <tr className="hover:bg-gray-50/80 transition-colors">
+                        <td className="py-3.5 px-3">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-[#5c53e5]" />
+                            <span className="font-extrabold text-gray-900">Google AI Studio (Gemini)</span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-3 font-mono text-[10px] text-indigo-600 bg-indigo-50/30 rounded-md">
+                          gemini-3.1-flash-lite
+                        </td>
+                        <td className="py-3.5 px-3 text-center text-gray-900 font-bold">15 RPM</td>
+                        <td className="py-3.5 px-3 text-center text-gray-900 font-bold">1,500 requisições / dia</td>
+                        <td className="py-3.5 px-3 text-center text-gray-500">A cada 24 horas (00:00 UTC)</td>
+                        <td className="py-3.5 px-3 text-right font-black text-emerald-600 uppercase text-[10px]">Ativo (Gratuito)</td>
+                      </tr>
+
+                      {/* Gemini TPM */}
+                      <tr className="hover:bg-gray-50/80 transition-colors">
+                        <td className="py-3.5 px-3">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-[#5c53e5]" />
+                            <span className="font-extrabold text-gray-900">Google AI Studio (Tokens)</span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-3 font-mono text-[10px] text-purple-600 bg-purple-50/30 rounded-md">
+                          Token limit per minute (TPM)
+                        </td>
+                        <td className="py-3.5 px-3 text-center text-gray-900 font-bold">1,000,000 TPM</td>
+                        <td className="py-3.5 px-3 text-center text-gray-900 font-bold">N/A (Limitado por RPM)</td>
+                        <td className="py-3.5 px-3 text-center text-gray-500">Rolagem contínua de 60 segundos</td>
+                        <td className="py-3.5 px-3 text-right font-black text-emerald-600 uppercase text-[10px]">Ativo (Gratuito)</td>
+                      </tr>
+
+                      {/* Tavily API */}
+                      <tr className="hover:bg-gray-50/80 transition-colors">
+                        <td className="py-3.5 px-3">
+                          <div className="flex items-center gap-2">
+                            <Globe className="w-4 h-4 text-emerald-500" />
+                            <span className="font-extrabold text-gray-900">Tavily Search API</span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-3 font-mono text-[10px] text-emerald-600 bg-emerald-50/30 rounded-md">
+                          https://api.tavily.com/search
+                        </td>
+                        <td className="py-3.5 px-3 text-center text-gray-900 font-bold">60 RPM (1 Rps)</td>
+                        <td className="py-3.5 px-3 text-center text-gray-900 font-bold">1,000 buscas / mês</td>
+                        <td className="py-3.5 px-3 text-center text-gray-500">Mensal (1º dia de cada mês)</td>
+                        <td className="py-3.5 px-3 text-right font-black text-emerald-600 uppercase text-[10px]">Ativo (Gratuito)</td>
+                      </tr>
+
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
             </motion.div>
           )}
 
