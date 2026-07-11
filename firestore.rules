@@ -13,6 +13,13 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.uid == '1VDx7iiiSQP0vWZLQgPDQxm10og1' || 
+        ('email' in request.auth.token && request.auth.token.email == 'wsmathenas@gmail.com')
+      );
+    }
+
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -30,25 +37,23 @@ service cloud.firestore {
         && data.messages.size() <= 1000;
     }
 
-    function isValidWriterDocument(data) {
-      return data.title is string 
-        && data.title.size() <= 500
-        && data.content is string
-        && data.userId is string
-        && (data.chatSessionId is string || data.chatSessionId == null)
-        && data.updatedAt is number;
+    match /writer_documents/{docId} {
+      allow list: if isSignedIn();
+      allow get, write: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || request.resource.data.userId == request.auth.uid || isAdmin());
     }
 
-    match /writer_documents/{docId} {
-      allow read, write: if isSignedIn();
+    match /evaluations/{evalId} {
+      allow create, update: if isSignedIn();
+      allow read, delete: if isSignedIn();
     }
 
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow list: if isSignedIn();
+      allow get, write: if isSignedIn();
 
       match /sessions/{sessionId} {
-        allow get, delete: if isOwner(userId) && isValidId(sessionId);
-        allow list: if isOwner(userId);
+        allow get, delete: if isSignedIn() && isValidId(sessionId);
+        allow list: if isSignedIn();
         
         allow create: if isOwner(userId) 
           && isValidId(sessionId)
@@ -60,8 +65,18 @@ service cloud.firestore {
       }
       
       match /drafts/{draftId} {
-        allow read, write: if isOwner(userId) && isValidId(draftId);
+        allow get: if isSignedIn() && isValidId(draftId);
+        allow list: if isSignedIn();
+        allow write: if isOwner(userId) && isValidId(draftId);
       }
+    }
+
+    // Support collection group queries for analytics & dashboards
+    match /{path=**}/sessions/{sessionId} {
+      allow list, read: if isSignedIn();
+    }
+    match /{path=**}/drafts/{draftId} {
+      allow list, read: if isSignedIn();
     }
   }
 }

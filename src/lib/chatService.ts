@@ -121,6 +121,29 @@ const mapSessionToDoc = (session: ChatSession): any => {
 };
 
 /**
+ * Ensures that a user profile document exists in the `/users` collection
+ * so that they appear on the Admin Dashboard.
+ */
+export const ensureUserExists = async (userId: string): Promise<void> => {
+  if (!userId) return;
+  const currentUser = auth.currentUser;
+  if (!currentUser) return;
+
+  const userRef = doc(db, 'users', userId);
+  try {
+    await setDoc(userRef, {
+      email: currentUser.email || `usr_${userId.substring(0, 5)}@wsm.ai`,
+      displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Usuário Sem Nome',
+      photoURL: currentUser.photoURL || '',
+      lastInteraction: Timestamp.now(),
+      updatedAt: Timestamp.now()
+    }, { merge: true });
+  } catch (err) {
+    console.error("Error ensuring user document exists:", err);
+  }
+};
+
+/**
  * Subscribes to real-time updates for a user's chat sessions
  */
 export const subscribeSessions = (
@@ -130,6 +153,9 @@ export const subscribeSessions = (
   const path = `users/${userId}/sessions`;
   const sessionsCollectionRef = collection(db, 'users', userId, 'sessions');
   const q = query(sessionsCollectionRef, orderBy('timestamp', 'desc'));
+
+  // Ensure user is registered in Firestore
+  ensureUserExists(userId).catch(console.error);
 
   return onSnapshot(q, (snapshot) => {
     const sessionsList: ChatSession[] = [];
@@ -152,6 +178,7 @@ export const saveSession = async (userId: string, session: ChatSession): Promise
   const docData = mapSessionToDoc(session);
   try {
     await setDoc(sessionDocRef, docData);
+    await ensureUserExists(userId);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -178,6 +205,9 @@ export const subscribeDrafts = (
   const path = `users/${userId}/drafts`;
   const draftsCollectionRef = collection(db, 'users', userId, 'drafts');
   
+  // Ensure user is registered in Firestore
+  ensureUserExists(userId).catch(console.error);
+
   return onSnapshot(draftsCollectionRef, (snapshot) => {
     const draftsMap: Record<string, Draft> = {};
     snapshot.forEach((docSnap) => {
@@ -206,6 +236,7 @@ export const saveDraft = async (userId: string, draftId: string, draft: Partial<
       ...draft,
       timestamp: Timestamp.now()
     }, { merge: true });
+    await ensureUserExists(userId);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -230,10 +261,34 @@ export const saveEvaluationToDb = async (evaluation: any): Promise<void> => {
   const path = `evaluations/${evaluation.msgId}`;
   const evalRef = doc(db, 'evaluations', evaluation.msgId);
   try {
-    await setDoc(evalRef, {
+    const dataToSave = {
       ...evaluation,
       timestamp: evaluation.timestamp || new Date().toISOString()
-    });
+    };
+    
+    // Recursively remove any undefined properties before saving to Firestore
+    const deepCleanUndefined = (obj: any): any => {
+      if (obj === null || obj === undefined) return obj;
+      if (obj instanceof Date) return obj;
+      if (typeof obj === 'object' && typeof obj.toDate === 'function') return obj; // Firebase Timestamp
+      if (Array.isArray(obj)) {
+        return obj.map(item => deepCleanUndefined(item));
+      }
+      if (typeof obj === 'object') {
+        const cleaned: any = {};
+        for (const key in obj) {
+          if (obj[key] !== undefined) {
+            cleaned[key] = deepCleanUndefined(obj[key]);
+          }
+        }
+        return cleaned;
+      }
+      return obj;
+    };
+
+    const cleanedData = deepCleanUndefined(dataToSave);
+
+    await setDoc(evalRef, cleanedData);
     console.log('Evaluation saved to Firestore:', evaluation.msgId);
   } catch (error) {
     console.error('Error saving evaluation to Firestore:', error);
