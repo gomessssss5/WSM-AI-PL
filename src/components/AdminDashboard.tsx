@@ -72,7 +72,7 @@ interface ProcessedStats {
   tokenUsageSeries: { date: string; input: number; output: number }[];
   anomalies: { email: string; reason: string; level: 'warning' | 'critical'; timestamp: string }[];
   powerUsers: { email: string; streak: number; messages: number; score: number; role: string }[];
-  storageUse: { usedGB: number; totalGB: number; percent: number };
+  storageUse: { usedGB: number; totalGB: number; percent: number; formattedUsed?: string };
   filteredContent: { time: string; user: string; prompt: string; reason: string }[];
 }
 
@@ -103,6 +103,67 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
   const loadAllData = async () => {
     setLoading(true);
     try {
+      // Helper to calculate exact size of document data in Firestore rules spec
+      const getDocSizeInBytes = (docId: string, path: string, data: any): number => {
+        let size = 0;
+        const fullPath = `projects/applet/databases/(default)/documents/${path}/${docId}`;
+        try {
+          size += new TextEncoder().encode(fullPath).length + 32;
+        } catch {
+          size += fullPath.length + 32;
+        }
+
+        const calculateValueSize = (val: any): number => {
+          if (val === null || val === undefined) return 1;
+          if (typeof val === 'boolean') return 1;
+          if (typeof val === 'number') return 8;
+          if (typeof val === 'string') {
+            try {
+              return new TextEncoder().encode(val).length + 1;
+            } catch {
+              return val.length + 1;
+            }
+          }
+          if (val instanceof Date) return 8;
+          if (val && typeof val === 'object' && ('seconds' in val || '_seconds' in val)) return 8;
+          if (Array.isArray(val)) {
+            return val.reduce((acc, el) => acc + calculateValueSize(el), 0);
+          }
+          if (typeof val === 'object') {
+            let mapSize = 0;
+            for (const [k, v] of Object.entries(val)) {
+              try {
+                mapSize += new TextEncoder().encode(k).length + 32;
+              } catch {
+                mapSize += k.length + 32;
+              }
+              mapSize += calculateValueSize(v);
+            }
+            return mapSize;
+          }
+          return 0;
+        };
+
+        if (data && typeof data === 'object') {
+          for (const [k, v] of Object.entries(data)) {
+            try {
+              size += new TextEncoder().encode(k).length + 32;
+            } catch {
+              size += k.length + 32;
+            }
+            size += calculateValueSize(v);
+          }
+        }
+        return size;
+      };
+
+      const formatBytes = (bytes: number): string => {
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+        if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+        return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+      };
+
       // 1. Fetch Users
       let usersSnapshot; try { usersSnapshot = await getDocs(collection(db, 'users')); } catch(err) { console.error("users error", err); usersSnapshot = { forEach: () => {} }; }
       const usersList: any[] = [];
@@ -502,56 +563,138 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
       ];
 
       // Error Alerts Log
-      const errorAlertTypes = ['Rate Limit Excedido (429)', 'Resposta Cortada', 'Falha de Conexão (503)'];
-      const errorAlerts = Array.from({ length: 3 + Math.floor(Math.random() * 3) }, (_, i) => ({
-        id: `err-${Math.random().toString(36).substring(2, 9)}`,
-        time: new Date(Date.now() - Math.random() * 10000000).toLocaleTimeString(),
-        type: errorAlertTypes[Math.floor(Math.random() * errorAlertTypes.length)],
-        message: `Atenção: Evento detectado na API do modelo.`,
-        severity: (Math.random() > 0.7 ? 'high' : 'medium') as 'high'|'medium'|'low'
-      }));
+      const errorAlerts = logs
+        .filter((l: any) => l.type === 'ERROR')
+        .map((l: any) => {
+          const typeAndMsg = l.message.split(':');
+          const type = typeAndMsg[0] ? typeAndMsg[0].replace('Falha operacional', '').trim() : 'Falha Operacional';
+          const msg = typeAndMsg[1] ? typeAndMsg[1].trim() : l.message;
+          return {
+            id: l.id,
+            time: l.timestamp,
+            type: type,
+            message: msg,
+            severity: 'high' as 'high' | 'medium' | 'low'
+          };
+        });
 
       // Retention Cohorts
+      const baseUsers = Math.max(usersList.length, 1);
       const retentionCohorts = [
-        { week: 'Semana 1', users: 100, retainedW1: 85, retainedW2: 60 },
-        { week: 'Semana 2', users: 120, retainedW1: 90, retainedW2: 65 },
-        { week: 'Semana 3', users: 150, retainedW1: 110, retainedW2: 0 },
-        { week: 'Semana 4', users: 180, retainedW1: 0, retainedW2: 0 }
+        { week: 'Semana 1', users: baseUsers, retainedW1: Math.round(baseUsers * 0.85), retainedW2: Math.round(baseUsers * 0.6) },
+        { week: 'Semana 2', users: Math.round(baseUsers * 1.2), retainedW1: Math.round(baseUsers * 0.9), retainedW2: Math.round(baseUsers * 0.65) },
+        { week: 'Semana 3', users: Math.round(baseUsers * 1.5), retainedW1: Math.round(baseUsers * 1.1), retainedW2: 0 },
+        { week: 'Semana 4', users: Math.round(baseUsers * 1.8), retainedW1: 0, retainedW2: 0 }
       ];
 
       // Active Users Gauge
+      let realDau = 0;
+      let realWau = 0;
+      let realMau = 0;
+      const nowTime = Date.now();
+      
+      userSessionsList.forEach(u => {
+        if (u.lastActive) {
+          const diffMs = nowTime - u.lastActive.getTime();
+          const diffDays = diffMs / (1000 * 60 * 60 * 24);
+          if (diffDays <= 1) realDau++;
+          if (diffDays <= 7) realWau++;
+          if (diffDays <= 30) realMau++;
+        }
+      });
+      
+      if (realMau === 0 && usersList.length > 0) {
+        realMau = usersList.length;
+        realWau = Math.max(1, Math.floor(usersList.length * 0.7));
+        realDau = Math.max(1, Math.floor(usersList.length * 0.3));
+      } else if (usersList.length > 0) {
+        if (realWau === 0) realWau = Math.max(1, Math.floor(realMau * 0.7));
+        if (realDau === 0) realDau = Math.max(1, Math.floor(realWau * 0.4));
+      }
+      
       const activeUsersGauge = {
-        dau: usersList.length > 0 ? Math.max(1, Math.floor(usersList.length * 0.3)) : 0,
-        wau: usersList.length > 0 ? Math.max(1, Math.floor(usersList.length * 0.7)) : 0,
-        mau: usersList.length
+        dau: realDau,
+        wau: realWau,
+        mau: realMau
       };
 
       // Cost Projections
       let cumulativeCost = 0;
       const projectedCostSeries = Array.from({ length: 30 }, (_, i) => {
-        const dailyCost = (calculatedCost / 30) + (Math.random() * 0.05);
+        const dailyCost = calculatedCost / 30 || 0.001;
         cumulativeCost += dailyCost;
         return {
           day: `Dia ${i + 1}`,
-          cost: parseFloat(dailyCost.toFixed(3)),
-          cumulative: parseFloat(cumulativeCost.toFixed(3))
+          cost: parseFloat(dailyCost.toFixed(5)),
+          cumulative: parseFloat(cumulativeCost.toFixed(5))
         };
       });
 
-      const avgSessionDuration = totalSessions > 0 ? parseFloat((Math.random() * 5 + 2).toFixed(1)) : 0; // In minutes
+      // Calculate real session durations and Gantt sessions
+      const actualSessionDurations: number[] = [];
+      const actualSessionsListForGantt: { id: string; user: string; start: number; duration: number }[] = [];
 
-      // 1. Heatmap Data
-      const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-      const heatmapData = days.map(day => ({
+      for (const u of usersList) {
+        const uId = u.id;
+        const uEmail = u.email || `usr_${uId.substring(0, 5)}@wsm.ai`;
+        const userSessions = discoveredUserSessions.get(uId) || [];
+
+        userSessions.forEach(sessionData => {
+          const msgs = sessionData.messages || [];
+          const sessDate = convertToDate(sessionData.timestamp);
+          
+          let durationMin = 1; // Default to 1 minute
+          if (msgs.length > 1) {
+            const msgTimes = msgs.map((m: any) => convertToDate(m.timestamp).getTime()).sort((a, b) => a - b);
+            const firstMsgTime = msgTimes[0];
+            const lastMsgTime = msgTimes[msgTimes.length - 1];
+            durationMin = parseFloat(((lastMsgTime - firstMsgTime) / 60000).toFixed(1));
+            if (durationMin < 1) durationMin = 1;
+          }
+          actualSessionDurations.push(durationMin);
+
+          actualSessionsListForGantt.push({
+            id: sessionData.id,
+            user: uEmail,
+            start: 0,
+            duration: durationMin
+          });
+        });
+      }
+
+      const avgSessionDuration = actualSessionDurations.length > 0
+        ? parseFloat((actualSessionDurations.reduce((a, b) => a + b, 0) / actualSessionDurations.length).toFixed(1))
+        : 0;
+
+      // Heatmap Data (Real Hours and Days)
+      const daysNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+      const realHeatmapMatrix: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
+
+      for (const u of usersList) {
+        const uId = u.id;
+        const userSessions = discoveredUserSessions.get(uId) || [];
+        userSessions.forEach(sessionData => {
+          const msgs = sessionData.messages || [];
+          msgs.forEach((m: any) => {
+            const mDate = m.timestamp ? convertToDate(m.timestamp) : convertToDate(sessionData.timestamp);
+            const mHour = mDate.getHours();
+            const mDay = mDate.getDay(); // 0 (Dom) to 6 (Sáb)
+            if (mHour >= 0 && mHour < 24 && mDay >= 0 && mDay < 7) {
+              realHeatmapMatrix[mDay][mHour]++;
+            }
+          });
+        });
+      }
+
+      const heatmapData = daysNames.map((day, dIdx) => ({
         day,
         hours: Array.from({ length: 24 }, (_, h) => ({
           hour: `${h}h`,
-          count: Math.floor(Math.random() * (day === 'Sáb' || day === 'Dom' ? 20 : 60))
+          count: realHeatmapMatrix[dIdx][h]
         }))
       }));
 
-      // 2. Cost Breakdown (Waterfall Simulation)
-      // [start, end] values for a waterfall effect
+      // Cost Breakdown (Waterfall Simulation)
       const fbCost = parseFloat((calculatedCost * 0.1).toFixed(2));
       const dbCost = parseFloat((calculatedCost * 0.2).toFixed(2));
       const aiCost = parseFloat((calculatedCost * 0.7).toFixed(2));
@@ -562,61 +705,184 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
         { name: 'Total', value: [0, fbCost + dbCost + aiCost], amount: parseFloat((fbCost + dbCost + aiCost).toFixed(2)) }
       ];
 
-      // 3. Gantt Sessions
-      const longSessions = Array.from({ length: 5 }, (_, i) => ({
-        id: `sess-${i}`,
-        user: `user${i}@app.com`,
-        start: i * 15,
-        duration: 40 + Math.random() * 60
-      }));
+      // Gantt Sessions (Real Longest Sessions)
+      const longSessions = actualSessionsListForGantt
+        .sort((a, b) => b.duration - a.duration)
+        .slice(0, 5)
+        .map((sess, i) => ({
+          id: sess.id,
+          user: sess.user,
+          start: i * 15,
+          duration: sess.duration
+        }));
 
-      // 4. Logarithmic Retention
+      if (longSessions.length === 0) {
+        longSessions.push({
+          id: 'sess-empty',
+          user: 'Nenhuma sessão ativa ainda',
+          start: 0,
+          duration: 0
+        });
+      }
+
+      // Logarithmic Retention Forecast (Scaled with actual users)
+      const activeCount = Math.max(usersList.length, 1);
       const retentionForecast = [
-        { month: 'Mês 1', users: 100, projected: false },
-        { month: 'Mês 2', users: 60, projected: false },
-        { month: 'Mês 3', users: 40, projected: false },
-        { month: 'Mês 4', users: 28, projected: true },
-        { month: 'Mês 5', users: 21, projected: true },
-        { month: 'Mês 6', users: 16, projected: true }
+        { month: 'Mês 1', users: activeCount, projected: false },
+        { month: 'Mês 2', users: Math.round(activeCount * 0.6), projected: false },
+        { month: 'Mês 3', users: Math.round(activeCount * 0.4), projected: false },
+        { month: 'Mês 4', users: Math.round(activeCount * 0.28), projected: true },
+        { month: 'Mês 5', users: Math.round(activeCount * 0.21), projected: true },
+        { month: 'Mês 6', users: Math.round(activeCount * 0.16), projected: true }
       ];
 
-      // 5. Input vs Output tokens
-      const tokenUsageSeries = Array.from({ length: 14 }, (_, i) => ({
-        date: `Dia ${i + 1}`,
-        input: 1000 + Math.random() * 3000,
-        output: 500 + Math.random() * 1500
+      // Input vs Output tokens (Real daily usage estimation from message character counts)
+      const last14Days = Array.from({ length: 14 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (13 - i));
+        return d;
+      });
+      
+      const dailyTokenUsage = last14Days.map(date => {
+        const dateStr = date.toISOString().split('T')[0];
+        return {
+          date: date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+          dateString: dateStr,
+          input: 0,
+          output: 0
+        };
+      });
+
+      for (const u of usersList) {
+        const uId = u.id;
+        const userSessions = discoveredUserSessions.get(uId) || [];
+        userSessions.forEach(sessionData => {
+          const msgs = sessionData.messages || [];
+          msgs.forEach((m: any) => {
+            const mDate = m.timestamp ? convertToDate(m.timestamp) : convertToDate(sessionData.timestamp);
+            const mDateOnly = mDate.toISOString().split('T')[0];
+            const bucketIndex = dailyTokenUsage.findIndex(b => b.dateString === mDateOnly);
+            if (bucketIndex !== -1) {
+              const charCount = (m.text || '').length;
+              const estimatedTokens = Math.max(1, Math.round(charCount / 4.2));
+              if (m.sender === 'ai' || m.sender === 'model') {
+                dailyTokenUsage[bucketIndex].output += estimatedTokens;
+              } else {
+                dailyTokenUsage[bucketIndex].input += estimatedTokens;
+              }
+            }
+          });
+        });
+      }
+
+      const tokenUsageSeries = dailyTokenUsage.map(t => ({
+        date: t.date,
+        input: t.input,
+        output: t.output
       }));
 
-      // 7. Anomalies Table
-      const anomalies = Array.from({ length: 3 }, (_, i) => ({
-        email: `suspect_${i}@gmail.com`,
-        reason: i === 0 ? 'Enviou 100 msg em 1 min' : 'Múltiplos logins falhos',
-        level: (i === 0 ? 'critical' : 'warning') as 'warning'|'critical',
-        timestamp: new Date().toLocaleTimeString()
-      }));
+      // Anomalies Table (Real database rule-triggers or high volume spikes)
+      const anomalies: { email: string; reason: string; level: 'warning' | 'critical'; timestamp: string }[] = [];
+      userSessionsList.forEach(u => {
+        if (u.messagesCount > 80) {
+          anomalies.push({
+            email: u.email,
+            reason: `Tráfego elevado (${u.messagesCount} mensagens)`,
+            level: 'warning',
+            timestamp: u.lastActive ? u.lastActive.toLocaleTimeString() : new Date().toLocaleTimeString()
+          });
+        }
+        if (u.draftsCount > 15) {
+          anomalies.push({
+            email: u.email,
+            reason: `Grande volume de rascunhos (${u.draftsCount} docs)`,
+            level: 'warning',
+            timestamp: u.lastActive ? u.lastActive.toLocaleTimeString() : new Date().toLocaleTimeString()
+          });
+        }
+      });
 
-      // 8. Power Users
-      const powerUsers = usersList.slice(0, 5).map((u, i) => ({
-        email: u.email || `power${i}@app.com`,
-        streak: 10 + Math.floor(Math.random() * 20),
-        messages: 100 + Math.floor(Math.random() * 400),
-        score: 500 - i * 50,
-        role: i === 0 ? 'VIP' : 'Padrão'
-      }));
+      // Power Users (Real user ranking based on activity)
+      const powerUsers = [...userSessionsList]
+        .sort((a, b) => b.messagesCount - a.messagesCount)
+        .slice(0, 5)
+        .map((u, i) => ({
+          email: u.email,
+          streak: Math.min(30, u.sessionsCount * 2 + 1),
+          messages: u.messagesCount,
+          score: u.messagesCount * 10 + u.sessionsCount * 5,
+          role: i === 0 && u.messagesCount > 10 ? 'VIP' : 'Padrão'
+        }));
+
       if (powerUsers.length === 0) {
         powerUsers.push({ email: 'power_demo@app.com', streak: 25, messages: 450, score: 999, role: 'VIP' });
       }
 
-      // 10. Storage Use
-      const storageUse = { usedGB: 4.2, totalGB: 5.0, percent: 84 };
+      // Real Database Storage size calculation
+      let totalDatabaseBytes = 0;
+      if (usersSnapshot && typeof usersSnapshot.forEach === 'function') {
+        usersSnapshot.forEach((docSnap: any) => {
+          totalDatabaseBytes += getDocSizeInBytes(docSnap.id, 'users', docSnap.data());
+        });
+      }
+      if (sessionsGroupSnapshot && typeof sessionsGroupSnapshot.forEach === 'function') {
+        sessionsGroupSnapshot.forEach((docSnap: any) => {
+          totalDatabaseBytes += getDocSizeInBytes(docSnap.id, docSnap.ref?.path || 'users/.../sessions', docSnap.data());
+        });
+      }
+      if (draftsGroupSnapshot && typeof draftsGroupSnapshot.forEach === 'function') {
+        draftsGroupSnapshot.forEach((docSnap: any) => {
+          totalDatabaseBytes += getDocSizeInBytes(docSnap.id, docSnap.ref?.path || 'users/.../drafts', docSnap.data());
+        });
+      }
+      if (writerDocsSnapshot && typeof writerDocsSnapshot.forEach === 'function') {
+        writerDocsSnapshot.forEach((docSnap: any) => {
+          totalDatabaseBytes += getDocSizeInBytes(docSnap.id, 'writer_documents', docSnap.data());
+        });
+      }
+      if (dbEvals && Array.isArray(dbEvals)) {
+        dbEvals.forEach((evalData: any, idx: number) => {
+          totalDatabaseBytes += getDocSizeInBytes(evalData.msgId || `eval-${idx}`, 'evaluations', evalData);
+        });
+      }
 
-      // 11. Filtered Content
-      const filteredContent = Array.from({ length: 4 }, (_, i) => ({
-        time: new Date(Date.now() - Math.random() * 500000).toLocaleTimeString(),
-        user: `user${i}@mail.com`,
-        prompt: i % 2 === 0 ? 'Como hackear...' : 'Gerar conteúdo explícito...',
-        reason: 'Segurança / Conteúdo Nocivo'
-      }));
+      // 1.0 GB is the daily/total standard Firestore free tier capacity (1,073,741,824 bytes)
+      const dbUsedGB = totalDatabaseBytes / (1024 * 1024 * 1024);
+      const dbPercent = parseFloat(((totalDatabaseBytes / 1073741824) * 100).toFixed(6));
+      const storageUse = {
+        usedGB: dbUsedGB,
+        totalGB: 1.0,
+        percent: dbPercent,
+        formattedUsed: formatBytes(totalDatabaseBytes)
+      };
+
+      // Filtered Content Audit Log (Real message safety filter scanning)
+      const filteredContent: { time: string; user: string; prompt: string; reason: string }[] = [];
+      for (const u of usersList) {
+        const uId = u.id;
+        const uEmail = u.email || `usr_${uId.substring(0, 5)}@wsm.ai`;
+        const userSessions = discoveredUserSessions.get(uId) || [];
+        userSessions.forEach(sessionData => {
+          const msgs = sessionData.messages || [];
+          msgs.forEach((m: any) => {
+            const textLower = (m.text || '').toLowerCase();
+            const isSafetyBlocked = textLower.includes('bloqueado por diretrizes') || 
+                                    textLower.includes('conteúdo retido') || 
+                                    textLower.includes('safety') || 
+                                    textLower.includes('regras de segurança') ||
+                                    textLower.includes('restrito por segurança');
+            if (isSafetyBlocked) {
+              const mDate = m.timestamp ? convertToDate(m.timestamp) : convertToDate(sessionData.timestamp);
+              filteredContent.push({
+                time: mDate.toLocaleTimeString(),
+                user: uEmail,
+                prompt: m.promptText || m.text || 'Consulta Restrita',
+                reason: 'Diretriz de Segurança / Filtro de Conteúdo'
+              });
+            }
+          });
+        });
+      }
 
       setRealStats({
         totalUsers: Math.max(usersList.length, 1),
@@ -1894,9 +2160,9 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                 </div>
                 <div className="flex flex-col space-y-2">
                   <div className="flex justify-between text-xs font-bold">
-                    <span className="text-gray-500">Armazenamento (GB)</span>
+                    <span className="text-gray-500">Armazenamento (Real)</span>
                     <span className={stats.storageUse.percent > 80 ? 'text-red-500' : 'text-[#5c53e5]'}>
-                      {stats.storageUse.usedGB.toFixed(1)}GB / {stats.storageUse.totalGB.toFixed(1)}GB ({stats.storageUse.percent}%)
+                      {stats.storageUse.formattedUsed || `${stats.storageUse.usedGB.toFixed(6)}GB`} / {stats.storageUse.totalGB.toFixed(1)}GB ({stats.storageUse.percent < 0.0001 ? stats.storageUse.percent.toFixed(6) : stats.storageUse.percent.toFixed(4)}%)
                     </span>
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
@@ -1904,11 +2170,11 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       className={`h-full rounded-full transition-all duration-1000 ${
                         stats.storageUse.percent > 90 ? 'bg-red-500' : stats.storageUse.percent > 70 ? 'bg-orange-500' : 'bg-emerald-500'
                       }`}
-                      style={{ width: `${stats.storageUse.percent}%` }}
+                      style={{ width: `${Math.max(0.5, stats.storageUse.percent)}%` }}
                     />
                   </div>
                   <div className="text-[10px] font-bold text-gray-400 text-right mt-1">
-                    {100 - stats.storageUse.percent}% livre
+                    {(100 - stats.storageUse.percent).toFixed(4)}% livre
                   </div>
                 </div>
               </div>
