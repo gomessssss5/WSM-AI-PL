@@ -58,6 +58,10 @@ service cloud.firestore {
           && isValidId(sessionId)
           && isValidChatSession(incoming());
       }
+      
+      match /drafts/{draftId} {
+        allow read, write: if isOwner(userId) && isValidId(draftId);
+      }
     }
   }
 }

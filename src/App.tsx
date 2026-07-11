@@ -8,9 +8,9 @@ import WriterDashboard from './components/writer/WriterDashboard';
 import WriterWorkspace from './components/writer/WriterWorkspace';
 import Login from './components/Login';
 import { auth, onAuthStateChanged, signOut, User, getRedirectResult } from './lib/firebase';
-import { subscribeSessions, saveSession, deleteSessionFromDb } from './lib/chatService';
+import { subscribeSessions, saveSession, deleteSessionFromDb, subscribeDrafts, saveDraft, deleteDraft } from './lib/chatService';
 import { WriterDocument, subscribeWriterDocuments, saveWriterDocument, deleteWriterDocument } from './lib/writerService';
-import { ChatSession, Message } from './types';
+import { ChatSession, Message, Draft } from './types';
 import { Sparkles, Trash2 } from 'lucide-react';
 import SecretApiTester from './components/SecretApiTester';
 import ToolsDashboard from './components/ToolsDashboard';
@@ -19,6 +19,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isImagesView, setIsImagesView] = useState(false);
   const [isToolsView, setIsToolsView] = useState(false);
@@ -181,9 +182,14 @@ export default function App() {
       setWriterDocs(docs);
     });
 
+    const unsubscribeDrafts = subscribeDrafts(currentUser.uid, (loadedDrafts) => {
+      setDrafts(loadedDrafts);
+    });
+
     return () => {
       unsubscribeSessions();
       unsubscribeWriterDocs();
+      unsubscribeDrafts();
     };
   }, [currentUser, activeSessionId]);
 
@@ -1253,6 +1259,9 @@ Como posso ajudar você hoje?`
               }
             }}
             onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
+            initialDraft={activeSessionId ? drafts[activeSessionId] : undefined}
+            onSaveDraft={(draft) => { if (currentUser && activeSessionId) saveDraft(currentUser.uid, activeSessionId, draft) }}
+            onDeleteDraft={() => { if (currentUser && activeSessionId) deleteDraft(currentUser.uid, activeSessionId) }}
           />
         ) : (
           <MainHome
@@ -1261,6 +1270,9 @@ Como posso ajudar você hoje?`
             selectedModel={selectedModel}
             setSelectedModel={setSelectedModel}
             onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
+            initialDraft={drafts['new_chat']}
+            onSaveDraft={(draft) => currentUser && saveDraft(currentUser.uid, 'new_chat', draft)}
+            onDeleteDraft={() => currentUser && deleteDraft(currentUser.uid, 'new_chat')}
           />
         )}
       </div>

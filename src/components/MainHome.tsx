@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Paperclip, Globe, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain, Languages, ChevronDown, Sparkles, Calculator, Clock, Video, Volume2, FileText, AlertCircle, X, Menu } from 'lucide-react';
+import { Draft } from '../types';
 
 interface MainHomeProps {
   onSendMessage: (text: string, isSearchEnabled: boolean, overrideMessages?: any, attachments?: any[]) => void;
@@ -7,6 +8,9 @@ interface MainHomeProps {
   selectedModel: string;
   setSelectedModel: (model: string) => void;
   onOpenMobileHistory?: () => void;
+  initialDraft?: Draft;
+  onSaveDraft?: (draft: Partial<Draft>) => void;
+  onDeleteDraft?: () => void;
 }
 
 export default function MainHome({
@@ -14,7 +18,10 @@ export default function MainHome({
   onSuggestionClick,
   selectedModel,
   setSelectedModel,
-  onOpenMobileHistory
+  onOpenMobileHistory,
+  initialDraft,
+  onSaveDraft,
+  onDeleteDraft
 }: MainHomeProps) {
   const [inputValue, setInputValue] = useState('');
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
@@ -106,6 +113,37 @@ export default function MainHome({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const hasInitializedRef = useRef(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (!hasInitializedRef.current && initialDraft !== undefined) {
+      setInputValue(initialDraft?.inputValue || '');
+      setAttachments(initialDraft?.attachments || []);
+      hasInitializedRef.current = true;
+    }
+  }, [initialDraft]);
+
+  useEffect(() => {
+    if (!hasInitializedRef.current) return;
+    
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    
+    saveTimeoutRef.current = setTimeout(() => {
+      if (!inputValue.trim() && attachments.length === 0) {
+        if (onDeleteDraft) onDeleteDraft();
+      } else {
+        if (onSaveDraft) {
+          onSaveDraft({ inputValue, attachments });
+        }
+      }
+    }, 1000);
+    
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [inputValue, attachments, onSaveDraft, onDeleteDraft]);
 
   // Slash Menu State
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
@@ -345,6 +383,8 @@ export default function MainHome({
     e?.preventDefault();
     if (!inputValue.trim() && attachments.length === 0) return;
     if (inputValue.length > 1500) return;
+    
+    if (onDeleteDraft) onDeleteDraft();
     onSendMessage(inputValue, isSearchEnabled, undefined, attachments);
     setInputValue('');
     setAttachments([]);

@@ -77,3 +77,18 @@ export interface ChatSession {
   messages: Message[];
   category?: 'write' | 'code' | 'image' | 'analysis' | 'translate' | 'general';
 }
+
+export interface Draft {
+  id: string;
+  inputValue: string;
+  attachedText?: string;
+  attachments?: {
+    name: string;
+    type: 'image' | 'video' | 'audio' | 'document';
+    size: number;
+    url: string;
+    mimeType?: string;
+    base64?: string;
+  }[];
+  timestamp: Date;
+}

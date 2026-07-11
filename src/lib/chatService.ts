@@ -9,7 +9,7 @@ import {
   orderBy,
   Timestamp 
 } from 'firebase/firestore';
-import { ChatSession, Message } from '../types';
+import { ChatSession, Message, Draft } from '../types';
 
 export enum OperationType {
   CREATE = 'create',
@@ -165,6 +165,58 @@ export const deleteSessionFromDb = async (userId: string, sessionId: string): Pr
   const sessionDocRef = doc(db, 'users', userId, 'sessions', sessionId);
   try {
     await deleteDoc(sessionDocRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+};
+
+export const subscribeDrafts = (
+  userId: string,
+  onUpdate: (drafts: Record<string, Draft>) => void
+) => {
+  const path = `users/${userId}/drafts`;
+  const draftsCollectionRef = collection(db, 'users', userId, 'drafts');
+  
+  return onSnapshot(draftsCollectionRef, (snapshot) => {
+    const draftsMap: Record<string, Draft> = {};
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      draftsMap[docSnap.id] = {
+        id: docSnap.id,
+        inputValue: data.inputValue || '',
+        attachedText: data.attachedText || '',
+        attachments: data.attachments || [],
+        timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : new Date(data.timestamp || Date.now()),
+      };
+    });
+    onUpdate(draftsMap);
+  }, (error) => {
+    handleFirestoreError(error, OperationType.LIST, path);
+  });
+};
+
+export const saveDraft = async (userId: string, draftId: string, draft: Partial<Draft>): Promise<void> => {
+  if (!userId || !draftId) return;
+  const path = `users/${userId}/drafts/${draftId}`;
+  const draftRef = doc(db, 'users', userId, 'drafts', draftId);
+  
+  try {
+    await setDoc(draftRef, {
+      ...draft,
+      timestamp: Timestamp.now()
+    }, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+};
+
+export const deleteDraft = async (userId: string, draftId: string): Promise<void> => {
+  if (!userId || !draftId) return;
+  const path = `users/${userId}/drafts/${draftId}`;
+  const draftRef = doc(db, 'users', userId, 'drafts', draftId);
+  
+  try {
+    await deleteDoc(draftRef);
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
   }

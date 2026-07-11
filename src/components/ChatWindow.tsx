@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon, Menu, RotateCcw } from 'lucide-react';
-import { Message } from '../types';
+import { Message, Draft } from '../types';
 import MarkdownRenderer from './MarkdownRenderer';
 import SearchMessageView from './SearchMessageView';
 import TypewriterMarkdown from './TypewriterMarkdown';
@@ -77,6 +77,9 @@ interface ChatWindowProps {
   attachedText?: string;
   onClearAttachedText?: () => void;
   onOpenMobileHistory?: () => void;
+  initialDraft?: Draft;
+  onSaveDraft?: (draft: Partial<Draft>) => void;
+  onDeleteDraft?: () => void;
 }
 
 const displayUserText = (text: string) => {
@@ -99,7 +102,10 @@ export default function ChatWindow({
   isEmbedded = false,
   attachedText = '',
   onClearAttachedText,
-  onOpenMobileHistory
+  onOpenMobileHistory,
+  initialDraft,
+  onSaveDraft,
+  onDeleteDraft
 }: ChatWindowProps) {
   const [inputValue, setInputValue] = useState('');
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
@@ -112,6 +118,37 @@ export default function ChatWindow({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const hasInitializedRef = useRef(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (!hasInitializedRef.current && initialDraft !== undefined) {
+      setInputValue(initialDraft?.inputValue || '');
+      setAttachments(initialDraft?.attachments || []);
+      hasInitializedRef.current = true;
+    }
+  }, [initialDraft]);
+
+  useEffect(() => {
+    if (!hasInitializedRef.current) return;
+    
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    
+    saveTimeoutRef.current = setTimeout(() => {
+      if (!inputValue.trim() && !attachedText && attachments.length === 0) {
+        if (onDeleteDraft) onDeleteDraft();
+      } else {
+        if (onSaveDraft) {
+          onSaveDraft({ inputValue, attachments });
+        }
+      }
+    }, 1000);
+    
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [inputValue, attachedText, attachments, onSaveDraft, onDeleteDraft]);
   const [drawerSources, setDrawerSources] = useState<{
     sources: { hostname: string; title: string; url: string; snippet?: string }[];
     query: string;
@@ -595,6 +632,7 @@ export default function ChatWindow({
       textToSend = inputValue;
     }
     
+    if (onDeleteDraft) onDeleteDraft();
     onSendMessage(textToSend, isSearchEnabled, undefined, attachments);
     setInputValue('');
     setAttachments([]);
