@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon, Menu, RotateCcw } from 'lucide-react';
 import { Message, Draft } from '../types';
+import { saveEvaluationToDb } from '../lib/chatService';
 import MarkdownRenderer from './MarkdownRenderer';
 import SearchMessageView from './SearchMessageView';
 import TypewriterMarkdown from './TypewriterMarkdown';
@@ -213,30 +214,6 @@ export default function ChatWindow({
     };
   }, [setInputValue]);
 
-  // Synchronize inputValue with the actual DOM value to prevent duplication from direct DOM manipulation (e.g. testing tools)
-  useEffect(() => {
-    const textarea = document.getElementById('chat-input-textarea-floating') as HTMLTextAreaElement;
-    if (!textarea) return;
-
-    const syncValue = () => {
-      if (textarea.value !== inputValue) {
-        setInputValue(textarea.value);
-      }
-    };
-
-    textarea.addEventListener('focus', syncValue);
-    textarea.addEventListener('mousedown', syncValue);
-    textarea.addEventListener('touchstart', syncValue);
-    textarea.addEventListener('input', syncValue);
-
-    return () => {
-      textarea.removeEventListener('focus', syncValue);
-      textarea.removeEventListener('mousedown', syncValue);
-      textarea.removeEventListener('touchstart', syncValue);
-      textarea.removeEventListener('input', syncValue);
-    };
-  }, [inputValue, setInputValue]);
-
   const toggleListening = () => {
     if (!recognitionRef.current) {
       alert("Reconhecimento de voz não suportado neste navegador.");
@@ -269,6 +246,7 @@ export default function ChatWindow({
         stored.push(newEntry);
       }
       localStorage.setItem('wsm_evaluations_data', JSON.stringify(stored));
+      saveEvaluationToDb(newEntry).catch(err => console.error("Error saving evaluation to Firestore:", err));
     } catch {}
   };
 
@@ -319,6 +297,7 @@ export default function ChatWindow({
       };
       stored.push(newEntry);
       localStorage.setItem('wsm_evaluations_data', JSON.stringify(stored));
+      saveEvaluationToDb(newEntry).catch(err => console.error("Error saving report to Firestore:", err));
       setIsReportModalOpen(false);
       setReportText('');
     } catch (err) {
@@ -339,6 +318,7 @@ export default function ChatWindow({
       };
       stored.push(newEntry);
       localStorage.setItem('wsm_evaluations_data', JSON.stringify(stored));
+      saveEvaluationToDb(newEntry).catch(err => console.error("Error saving rating to Firestore:", err));
       setIsRateModalOpen(false);
       setRatingComment('');
       setRatingStars(5);
@@ -620,20 +600,29 @@ export default function ChatWindow({
 
   const handleSubmit = (e?: React.FormEvent | React.MouseEvent | React.TouchEvent) => {
     e?.preventDefault();
-    if (!inputValue.trim() && !attachedText && attachments.length === 0) return;
-    if (inputValue.length > 1500) return;
+    
+    const textarea = document.getElementById('chat-input-textarea-floating') as HTMLTextAreaElement;
+    const currentText = textarea ? textarea.value : inputValue;
+    
+    if (!currentText.trim() && !attachedText && attachments.length === 0) return;
+    if (currentText.length > 1500) return;
     
     let textToSend = '';
-    if (attachedText && inputValue.trim()) {
-      textToSend = `[Texto Anexado do Editor:\n"${attachedText}"]\n\n${inputValue}`;
+    if (attachedText && currentText.trim()) {
+      textToSend = `[Texto Anexado do Editor:\n"${attachedText}"]\n\n${currentText}`;
     } else if (attachedText) {
       textToSend = `[Texto Anexado do Editor:\n"${attachedText}"]\n\nPor favor, analise ou revise o texto anexado acima.`;
     } else {
-      textToSend = inputValue;
+      textToSend = currentText;
     }
     
     if (onDeleteDraft) onDeleteDraft();
     onSendMessage(textToSend, isSearchEnabled, undefined, attachments);
+    
+    // Synchronously clear the DOM value to prevent race conditions during rapid consecutive sends
+    if (textarea) {
+      textarea.value = '';
+    }
     setInputValue('');
     setAttachments([]);
     setUploadError(null);

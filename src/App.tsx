@@ -3,7 +3,6 @@ import Sidebar from './components/Sidebar';
 import MainHome from './components/MainHome';
 import ChatWindow from './components/ChatWindow';
 import ImagesGallery from './components/ImagesGallery';
-import EvaluationDashboard from './components/EvaluationDashboard';
 import WriterDashboard from './components/writer/WriterDashboard';
 import WriterWorkspace from './components/writer/WriterWorkspace';
 import Login from './components/Login';
@@ -12,8 +11,9 @@ import { subscribeSessions, saveSession, deleteSessionFromDb, subscribeDrafts, s
 import { WriterDocument, subscribeWriterDocuments, saveWriterDocument, deleteWriterDocument } from './lib/writerService';
 import { ChatSession, Message, Draft } from './types';
 import { Sparkles, Trash2 } from 'lucide-react';
-import SecretApiTester from './components/SecretApiTester';
 import ToolsDashboard from './components/ToolsDashboard';
+import AdminDashboard from './components/AdminDashboard';
+import AdminAuthModal from './components/AdminAuthModal';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -35,14 +35,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('wsm_selected_model', selectedModel);
   }, [selectedModel]);
-  const [showEvaluations, setShowEvaluations] = useState(false);
-  const [showSecretTester, setShowSecretTester] = useState(false);
   const [isMobileHistoryOpen, setIsMobileHistoryOpen] = useState(true); // Default to true on initial load (only applies to mobile)
   const [sessionToDeleteId, setSessionToDeleteId] = useState<string | null>(null);
-
-  // Secret shortcut refs
-  const ctrl1PressCountRef = useRef<number>(0);
-  const lastCtrl1TimeRef = useRef<number>(0);
+  const [isAdminView, setIsAdminView] = useState(false);
+  const [showAdminAuth, setShowAdminAuth] = useState(false);
 
   // Keep references to activeSession and dirty state for event listeners
   const isDirtyRef = useRef<boolean>(false);
@@ -52,41 +48,6 @@ export default function App() {
   const currentUserRef = useRef<User | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isSearchActiveRef = useRef<boolean>(false);
-
-  useEffect(() => {
-    const keys = new Set<string>();
-    const handleKeyDown = (e: KeyboardEvent) => {
-      keys.add(e.key);
-      if (e.shiftKey && (keys.has('5') || keys.has('%')) && (keys.has('0') || keys.has(')'))) {
-        setShowEvaluations(true);
-      }
-
-      // Detect Ctrl + 1 pressed 5 times consecutively within 3 seconds
-      if (e.ctrlKey && e.key === '1') {
-        e.preventDefault();
-        const now = Date.now();
-        if (now - lastCtrl1TimeRef.current > 3000) {
-          ctrl1PressCountRef.current = 1;
-        } else {
-          ctrl1PressCountRef.current += 1;
-        }
-        lastCtrl1TimeRef.current = now;
-        if (ctrl1PressCountRef.current >= 5) {
-          ctrl1PressCountRef.current = 0;
-          setShowSecretTester(true);
-        }
-      }
-    };
-    const handleKeyUp = (e: KeyboardEvent) => {
-      keys.delete(e.key);
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, []);
 
   // Request Notification permission immediately when the app mounts
   useEffect(() => {
@@ -650,6 +611,11 @@ Como posso ajudar você hoje?`
   const handleSendMessage = async (text: string, isSearchEnabled: boolean, overrideMessages?: Message[], attachments?: any[]) => {
     if (!currentUser) return;
 
+    if (text.trim().toUpperCase() === 'ADM') {
+      setShowAdminAuth(true);
+      return;
+    }
+
     isSearchActiveRef.current = isSearchEnabled;
 
     const userMsg: Message = {
@@ -1212,7 +1178,12 @@ Como posso ajudar você hoje?`
 
       {/* Main View Area (Responsive) */}
       <div className={`flex-1 flex flex-col h-full overflow-hidden ${isMobileHistoryOpen ? 'hidden md:flex' : 'flex'}`}>
-        {isWriterMode ? (
+        {isAdminView ? (
+          <AdminDashboard 
+            onBack={() => setIsAdminView(false)} 
+            actualSessionsCount={sessions.length}
+          />
+        ) : isWriterMode ? (
           activeWriterDocId && writerDocs.find(d => d.id === activeWriterDocId) ? (
             <WriterWorkspace
               document={writerDocs.find(d => d.id === activeWriterDocId)!}
@@ -1277,12 +1248,14 @@ Como posso ajudar você hoje?`
         )}
       </div>
       
-      {showEvaluations && (
-        <EvaluationDashboard onClose={() => setShowEvaluations(false)} />
-      )}
-
-      {showSecretTester && (
-        <SecretApiTester onClose={() => setShowSecretTester(false)} />
+      {showAdminAuth && (
+        <AdminAuthModal 
+          onClose={() => setShowAdminAuth(false)}
+          onSuccess={() => {
+            setShowAdminAuth(false);
+            setIsAdminView(true);
+          }}
+        />
       )}
 
       {sessionToDeleteId && (

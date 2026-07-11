@@ -7,7 +7,8 @@ import {
   onSnapshot, 
   query, 
   orderBy,
-  Timestamp 
+  Timestamp,
+  getDocs
 } from 'firebase/firestore';
 import { ChatSession, Message, Draft } from '../types';
 
@@ -219,5 +220,41 @@ export const deleteDraft = async (userId: string, draftId: string): Promise<void
     await deleteDoc(draftRef);
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
+  }
+};
+
+/**
+ * Saves a user evaluation or report to Firestore under a global 'evaluations' collection
+ */
+export const saveEvaluationToDb = async (evaluation: any): Promise<void> => {
+  const path = `evaluations/${evaluation.msgId}`;
+  const evalRef = doc(db, 'evaluations', evaluation.msgId);
+  try {
+    await setDoc(evalRef, {
+      ...evaluation,
+      timestamp: evaluation.timestamp || new Date().toISOString()
+    });
+    console.log('Evaluation saved to Firestore:', evaluation.msgId);
+  } catch (error) {
+    console.error('Error saving evaluation to Firestore:', error);
+  }
+};
+
+/**
+ * Retrieves all user evaluations and reports from Firestore
+ */
+export const getEvaluationsFromDb = async (): Promise<any[]> => {
+  const path = 'evaluations';
+  const evalsCollectionRef = collection(db, 'evaluations');
+  try {
+    const snapshot = await getDocs(evalsCollectionRef);
+    const evalsList: any[] = [];
+    snapshot.forEach((docSnap) => {
+      evalsList.push(docSnap.data());
+    });
+    return evalsList;
+  } catch (error) {
+    console.error('Error getting evaluations from Firestore:', error);
+    return [];
   }
 };
