@@ -344,6 +344,7 @@ export default function MainHome({
   const handleSubmit = (e?: React.FormEvent | React.MouseEvent | React.TouchEvent) => {
     e?.preventDefault();
     if (!inputValue.trim() && attachments.length === 0) return;
+    if (inputValue.length > 1500) return;
     onSendMessage(inputValue, isSearchEnabled, undefined, attachments);
     setInputValue('');
     setAttachments([]);
@@ -702,8 +703,7 @@ export default function MainHome({
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                id="btn-voice-input"
-                onClick={toggleListening}
+                                onClick={toggleListening}
                 className={`p-1.5 rounded-full transition-colors cursor-pointer ${
                   isListening
                     ? 'text-red-500 bg-red-50 animate-pulse'
@@ -713,6 +713,12 @@ export default function MainHome({
               >
                 <Mic className="w-3.5 h-3.5" />
               </button>
+
+              {inputValue.length >= 1300 && (
+                <span className={`text-[10px] font-medium ${inputValue.length > 1500 ? 'text-red-500' : 'text-gray-400'} flex items-center`}>
+                  {inputValue.length} / 1500
+                </span>
+              )}
 
               <button
                 type="submit"
@@ -728,9 +734,9 @@ export default function MainHome({
                   e.preventDefault();
                   handleSubmit(e);
                 }}
-                disabled={!inputValue.trim() && attachments.length === 0}
+                disabled={(!inputValue.trim() && attachments.length === 0) || inputValue.length > 1500}
                 className={`w-7.5 h-7.5 rounded-full flex items-center justify-center transition-all ${
-                  inputValue.trim() || attachments.length > 0
+                  (inputValue.trim() || attachments.length > 0) && inputValue.length <= 1500
                     ? 'bg-[#1f1e1d] text-white hover:bg-[#343230] cursor-pointer shadow-xs'
                     : 'bg-[#faf9f6] text-gray-300 cursor-not-allowed border border-[#eae6e1]'
                 }`}
@@ -739,6 +745,14 @@ export default function MainHome({
               </button>
             </div>
           </div>
+
+          {inputValue.length > 1500 && (
+            <div className="absolute -bottom-8 left-0 right-0 flex justify-center animate-in fade-in slide-in-from-top-2">
+              <span className="bg-red-50 text-red-600 border border-red-100 px-3 py-1 rounded-full text-[10px] font-bold tracking-wide shadow-sm">
+                O limite de caracteres é 1500. Você ultrapassou esse limite.
+              </span>
+            </div>
+          )}
 
           {isDragging && (
             <div 

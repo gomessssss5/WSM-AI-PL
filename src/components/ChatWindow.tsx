@@ -584,6 +584,7 @@ export default function ChatWindow({
   const handleSubmit = (e?: React.FormEvent | React.MouseEvent | React.TouchEvent) => {
     e?.preventDefault();
     if (!inputValue.trim() && !attachedText && attachments.length === 0) return;
+    if (inputValue.length > 1500) return;
     
     let textToSend = '';
     if (attachedText && inputValue.trim()) {
@@ -1517,6 +1518,12 @@ export default function ChatWindow({
                 <Mic className="w-3.5 h-3.5" />
               </button>
 
+              {inputValue.length >= 1300 && (
+                <span className={`text-[10px] font-medium ${inputValue.length > 1500 ? 'text-red-500' : 'text-gray-400'} flex items-center`}>
+                  {inputValue.length} / 1500
+                </span>
+              )}
+
               <button
                 type={isThinking ? "button" : "submit"}
                 onClick={(e) => {
@@ -1538,11 +1545,11 @@ export default function ChatWindow({
                     handleSubmit(e);
                   }
                 }}
-                disabled={(!inputValue.trim() && !attachedText && attachments.length === 0) && !isThinking}
+                disabled={((!inputValue.trim() && !attachedText && attachments.length === 0) || inputValue.length > 1500) && !isThinking}
                 className={`w-6.5 h-6.5 rounded-full flex items-center justify-center transition-all ${
                   isThinking
                     ? 'bg-[#ff4d4d] hover:bg-[#ff3333] cursor-pointer'
-                    : (inputValue.trim() || attachedText || attachments.length > 0)
+                    : ((inputValue.trim() || attachedText || attachments.length > 0) && inputValue.length <= 1500)
                     ? 'bg-[#1f1e1d] text-white hover:bg-[#343230] cursor-pointer'
                     : 'bg-[#faf9f6] text-gray-300 border border-[#eae6e1]'
                 }`}
@@ -1555,6 +1562,16 @@ export default function ChatWindow({
               </button>
             </div>
           </div>
+
+          {inputValue.length > 1500 && (
+            <div className="absolute -bottom-8 left-0 right-0 flex justify-center animate-in fade-in slide-in-from-top-2">
+              <span className="bg-red-50 text-red-600 border border-red-100 px-3 py-1 rounded-full text-[10px] font-bold tracking-wide shadow-sm">
+                O limite de caracteres é 1500. Você ultrapassou esse limite.
+              </span>
+            </div>
+          )}
+
+          
 
           {isDragging && (
             <div 
