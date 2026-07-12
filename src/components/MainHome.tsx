@@ -26,6 +26,7 @@ export default function MainHome({
   const [inputValue, setInputValue] = useState('');
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
 
   // Speech Recognition States
   const [isListening, setIsListening] = useState(false);
@@ -563,15 +564,17 @@ export default function MainHome({
           </div>
         </h1>
 
-        {/* Main Large Chat Input Box */}
-        <form 
-          onSubmit={handleSubmit}
-          onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          className="w-[calc(100%-2rem)] md:w-full md:max-w-xl bg-white border border-[#eae6e1] md:rounded-2xl rounded-[28px] shadow-lg md:shadow-[0_4px_16px_rgba(0,0,0,0.02)] p-3 md:p-2.5 focus-within:border-[#5c53e5]/50 focus-within:ring-1 focus-within:ring-[#5c53e5]/25 transition-all duration-200 absolute bottom-3 md:relative z-50 mb-0 md:mb-4 left-4"
-        >
+        {/* Input area & news card container */}
+        <div className="w-[calc(100%-2rem)] md:w-full md:max-w-xl flex flex-col gap-3.5 absolute bottom-3 md:relative z-50 left-4 md:left-auto">
+          {/* Main Large Chat Input Box */}
+          <form 
+            onSubmit={handleSubmit}
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className="w-full bg-white border border-[#eae6e1] md:rounded-2xl rounded-[28px] shadow-lg md:shadow-[0_4px_16px_rgba(0,0,0,0.02)] p-3 md:p-2.5 focus-within:border-[#5c53e5]/50 focus-within:ring-1 focus-within:ring-[#5c53e5]/25 transition-all duration-200"
+          >
           {/* Hidden File Input */}
           <input 
             type="file" 
@@ -786,7 +789,29 @@ export default function MainHome({
               <span className="text-xs font-semibold text-[#5c53e5]">Solte os arquivos aqui</span>
             </div>
           )}
-        </form>
+          </form>
+
+          {/* Card de novidades dos novos modelos */}
+          <div 
+            onClick={() => setIsNewsModalOpen(true)}
+            className="w-full bg-gray-100/65 border border-[#eae6e1]/70 rounded-2xl p-4 flex items-center gap-4 select-none cursor-pointer hover:bg-gray-100/90 active:scale-[0.99] transition-all"
+          >
+            <img
+              src="https://i.ibb.co/TMJBp2n7/38000-removebg-preview.png"
+              alt="Novos Modelos"
+              className="w-14 h-14 md:w-16 md:h-16 object-contain shrink-0"
+              referrerPolicy="no-referrer"
+            />
+            <div className="flex flex-col text-left">
+              <h3 className="font-sans font-bold text-gray-900 text-[14px] md:text-[15px] tracking-tight leading-snug">
+                Novos modelos: WSM 1.6 Flash e Pro
+              </h3>
+              <p className="font-sans text-gray-500 text-[12px] md:text-[12.5px] leading-relaxed mt-0.5">
+                Conheça nossos 2 novos modelos da família 1.6, mais inteligentes e poderosos.
+              </p>
+            </div>
+          </div>
+        </div>
 
         {/* Suggestion Chips */}
 
@@ -836,6 +861,41 @@ export default function MainHome({
               >
                 Concordo
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full screen news modal */}
+      {isNewsModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[100] flex items-center justify-center p-4">
+          {/* Click outside to close */}
+          <div className="absolute inset-0" onClick={() => setIsNewsModalOpen(false)} />
+          
+          <div className="bg-white border border-[#eae6e1] rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl relative z-10 animate-in zoom-in-95 duration-200">
+            {/* Close Button */}
+            <button 
+              onClick={() => setIsNewsModalOpen(false)}
+              className="absolute top-3 right-3 p-1.5 rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors z-20 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            
+            {/* Image on top */}
+            <div className="w-full bg-gray-100 relative overflow-hidden flex items-center justify-center p-4">
+              <img 
+                src="https://i.ibb.co/tw9yWNfj/38003.png" 
+                alt="Novos modelos" 
+                className="max-w-full max-h-[350px] object-contain rounded-lg"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            
+            {/* Content below */}
+            <div className="p-6 border-t border-[#eae6e1]/60 text-center">
+              <p className="font-sans font-bold text-gray-900 text-lg">
+                Teste
+              </p>
             </div>
           </div>
         </div>
