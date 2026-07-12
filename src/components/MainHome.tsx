@@ -761,14 +761,6 @@ export default function MainHome({
                 onClick={(e) => {
                   handleSubmit(e);
                 }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  handleSubmit(e);
-                }}
-                onTouchStart={(e) => {
-                  e.preventDefault();
-                  handleSubmit(e);
-                }}
                 disabled={(!inputValue.trim() && attachments.length === 0) || inputValue.length > 1500}
                 className={`w-7.5 h-7.5 rounded-full flex items-center justify-center transition-all ${
                   (inputValue.trim() || attachments.length > 0) && inputValue.length <= 1500

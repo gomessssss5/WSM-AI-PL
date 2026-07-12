@@ -1769,20 +1769,6 @@ export default function ChatWindow({
                 onClick={(e) => {
                   if (isThinking) {
                     onCancelGeneration?.();
-                  } else {
-                    handleSubmit(e);
-                  }
-                }}
-                onMouseDown={(e) => {
-                  if (!isThinking) {
-                    e.preventDefault();
-                    handleSubmit(e);
-                  }
-                }}
-                onTouchStart={(e) => {
-                  if (!isThinking) {
-                    e.preventDefault();
-                    handleSubmit(e);
                   }
                 }}
                 disabled={((!inputValue.trim() && !attachedText && attachments.length === 0) || inputValue.length > 1500) && !isThinking}

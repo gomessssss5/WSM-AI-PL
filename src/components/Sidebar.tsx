@@ -394,12 +394,32 @@ export default function Sidebar(props: SidebarProps) {
                   Instale o WSM AI no seu celular para acessar de forma mais rápida, direto da sua tela inicial e ter uma experiência melhor.
                 </p>
               </div>
-              <button
-                onClick={handleInstallApp}
-                className="w-full bg-[#5c53e5] hover:bg-[#4d45c7] text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all active:scale-[0.98] mt-2"
-              >
-                Instalar Agora
-              </button>
+              
+              {deferredPrompt ? (
+                <button
+                  onClick={handleInstallApp}
+                  className="w-full bg-[#5c53e5] hover:bg-[#4d45c7] text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all active:scale-[0.98] mt-2"
+                >
+                  Instalar Agora
+                </button>
+              ) : (
+                <div className="w-full text-left bg-gray-50 p-4 rounded-xl border border-gray-100 mt-2">
+                  <h4 className="font-semibold text-gray-800 text-sm mb-2 flex items-center gap-1.5">
+                    <Download className="w-4 h-4 text-gray-500" />
+                    Como instalar manualmente
+                  </h4>
+                  <ol className="text-sm text-gray-600 space-y-2 list-decimal list-inside">
+                    <li>Se estiver no <strong>Safari / iOS</strong>, toque no ícone de <strong>Compartilhar</strong> na barra do navegador e escolha <strong>Adicionar à Tela de Início</strong>.</li>
+                    <li>Se estiver no <strong>Chrome / Android</strong>, abra as opções do navegador (três pontinhos) e toque em <strong>Adicionar à tela inicial</strong>.</li>
+                  </ol>
+                  <button
+                    onClick={() => setShowInstallModal(false)}
+                    className="w-full mt-4 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2.5 px-4 rounded-lg transition-all active:scale-[0.98]"
+                  >
+                    Entendi
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
