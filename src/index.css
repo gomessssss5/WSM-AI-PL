@@ -459,25 +459,5 @@ html, body, #root {
   animation: ghostSlide 3.2s ease-in-out infinite;
 }
 
-/* Orbit animation for the main home ghost with a perfect square/rectangular path, wider margins, and a 5s pause */
-@keyframes ghostOrbit {
-  0% { transform: translate(0px, 0px); }
-  12% { transform: translate(min(1380px, 75vw), 0px); }
-  22% { transform: translate(min(1380px, 75vw), min(2100px, 130vh)); }
-  45% { transform: translate(max(-1380px, -75vw), min(2100px, 130vh)); }
-  55% { transform: translate(max(-1380px, -75vw), 0px); }
-  66.7% { transform: translate(0px, 0px); }
-  100% { transform: translate(0px, 0px); } /* 5 seconds pause (33.3% of 15s) */
-}
-
-.animate-ghost-orbit {
-  z-index: 50;
-}
-
-@media (min-width: 768px) {
-  .animate-ghost-orbit {
-    animation: ghostOrbit 15s linear infinite;
-  }
-}
 
 

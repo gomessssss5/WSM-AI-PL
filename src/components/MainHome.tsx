@@ -214,8 +214,8 @@ export default function MainHome({
   ];
 
   const modelDescriptions: Record<string, string> = {
-    'WSM 1.6 Flash': 'Modelo para o dia-a-dia, rápido, eficiente e inteligente',
-    'WSM 1.6 Pro': 'Modelo intermediário agêntico, com planejamento de tarefas em etapas'
+    'WSM 1.6 Flash': 'Para uso do dia-a-dia',
+    'WSM 1.6 Pro': 'Para tarefas complexas'
   };
 
   const getFileType = (file: File) => {
@@ -460,10 +460,7 @@ export default function MainHome({
                 className="fixed inset-0 bg-black/40 z-40 md:hidden" 
                 onClick={() => setIsModelDropdownOpen(false)} 
               />
-              <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 md:absolute md:inset-auto md:left-0 md:top-full md:mt-1.5 md:translate-y-0 w-auto max-w-[calc(100vw-2rem)] md:w-80 bg-white border border-gray-150 rounded-xl shadow-2xl md:shadow-lg z-50 p-1 animate-in fade-in zoom-in-95 duration-150">
-                <div className="px-2.5 py-1.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                  Modelos Disponíveis
-                </div>
+              <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 md:absolute md:inset-auto md:left-0 md:top-full md:mt-1.5 md:translate-y-0 w-auto max-w-[calc(100vw-2rem)] md:w-56 bg-white border border-gray-150 rounded-xl shadow-2xl md:shadow-lg z-50 p-1 animate-in fade-in zoom-in-95 duration-150">
                 <div className="flex flex-col gap-0.5">
                   {modelsList.map((model) => {
                     const isClickable = model === 'WSM 1.6 Flash' || model === 'WSM 1.6 Pro';
@@ -485,15 +482,6 @@ export default function MainHome({
                             <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-[#5c53e5]' : 'bg-transparent'}`} />
                             <span>{model}</span>
                           </div>
-                          {model === 'WSM 1.6 Flash' && (
-                            <span className="text-[8px] bg-[#5c53e5]/10 text-[#5c53e5] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Padrão</span>
-                          )}
-                          {model === 'WSM 1.6 Pro' && (
-                            <div className="flex items-center gap-0.5">
-                              <span className="text-[8px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Agêntico</span>
-                              <span className="text-[8px] bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Beta</span>
-                            </div>
-                          )}
                         </div>
                         <p className="text-[11px] text-gray-400 pl-3 leading-tight font-normal">
                           {modelDescriptions[model]}
@@ -518,7 +506,7 @@ export default function MainHome({
           className="hidden md:flex w-16 h-16 items-center justify-center mb-6 select-none relative z-50"
         >
           {/* Ghost animation centered and styled exactly as requested, loose with no borders or cards */}
-          <div id="ghost" className="animate-ghost-orbit" style={{ scale: '0.45', position: 'absolute' }}>
+          <div id="ghost" style={{ scale: '0.45', position: 'absolute' }}>
             <div id="red">
               <div id="pupil"></div>
               <div id="pupil1"></div>

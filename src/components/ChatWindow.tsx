@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2 } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2 } from 'lucide-react';
 import { Message, Draft } from '../types';
 import { saveEvaluationToDb } from '../lib/chatService';
 import MarkdownRenderer from './MarkdownRenderer';
@@ -683,8 +683,8 @@ export default function ChatWindow({
   ];
 
   const modelDescriptions: Record<string, string> = {
-    'WSM 1.6 Flash': 'Modelo para o dia-a-dia, rápido, eficiente e inteligente',
-    'WSM 1.6 Pro': 'Modelo intermediário agêntico, com planejamento de tarefas em etapas'
+    'WSM 1.6 Flash': 'Para uso do dia-a-dia',
+    'WSM 1.6 Pro': 'Para tarefas complexas'
   };
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
@@ -863,18 +863,31 @@ export default function ChatWindow({
           </button>
           {/* AI Model Selector Pill */}
           <div className="relative z-50">
-            <button
-              onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-[#eae6e1] hover:border-gray-300 rounded-full text-[13px] font-semibold text-gray-800 shadow-2xs cursor-pointer transition-all active:scale-95"
-            >
-              <div className="w-6 h-6 bg-gradient-to-br from-[#7c3aed] to-[#5c53e5] rounded-md flex items-center justify-center shadow-xs shrink-0">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3 text-white">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-                </svg>
-              </div>
-              <span className="font-bold tracking-tight text-gray-900">{selectedModel}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-            </button>
+            {(() => {
+              const hasMessages = messages && messages.length > 0;
+              if (hasMessages) {
+                return (
+                  <div className="flex items-center px-1.5 py-1.5 text-[13px] font-extrabold text-gray-600 select-none tracking-tight">
+                    <span>{selectedModel}</span>
+                  </div>
+                );
+              }
+              return (
+                <button
+                  onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-[#eae6e1] rounded-full text-[13px] font-semibold text-gray-800 shadow-2xs hover:border-gray-300 cursor-pointer active:scale-95 transition-all"
+                  title="Selecione o modelo"
+                >
+                  <div className="w-6 h-6 bg-gradient-to-br from-[#7c3aed] to-[#5c53e5] rounded-md flex items-center justify-center shadow-xs shrink-0">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3 text-white">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                    </svg>
+                  </div>
+                  <span className="font-bold tracking-tight text-gray-900">{selectedModel}</span>
+                  <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+                </button>
+              );
+            })()}
 
             {isModelDropdownOpen && (
               <>
@@ -909,17 +922,8 @@ export default function ChatWindow({
                             <div className={`w-1 h-1 rounded-full ${isActive ? 'bg-[#5c53e5]' : 'bg-transparent'}`} />
                             <span>{model}</span>
                           </div>
-                          {model === 'WSM 1.6 Flash' && (
-                            <span className="text-[8px] bg-[#5c53e5]/10 text-[#5c53e5] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Padrão</span>
-                          )}
-                          {model === 'WSM 1.6 Pro' && (
-                            <div className="flex items-center gap-0.5">
-                              <span className="text-[8px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Agêntico</span>
-                              <span className="text-[8px] bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Beta</span>
-                            </div>
-                          )}
                         </div>
-                        <p className="text-[11px] text-gray-400 pl-2 leading-tight font-normal">
+                        <p className="text-[11px] text-gray-400 pl-2.5 leading-tight font-normal">
                           {modelDescriptions[model]}
                         </p>
                       </button>
@@ -930,10 +934,6 @@ export default function ChatWindow({
             )}
           </div>
 
-          <span className="text-[9px] text-emerald-500 font-bold uppercase tracking-wider flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
-            <span className="w-1 h-1 bg-emerald-500 rounded-full inline-block animate-ping" />
-            Ativo
-          </span>
         </div>
 
         {/* Options Button / 3-dots menu */}
