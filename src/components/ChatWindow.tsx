@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon, Menu, RotateCcw } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2 } from 'lucide-react';
 import { Message, Draft } from '../types';
 import { saveEvaluationToDb } from '../lib/chatService';
 import MarkdownRenderer from './MarkdownRenderer';
@@ -61,6 +61,79 @@ const cleanWriterUpdateTags = (text: string) => {
   return text.replace(/<wsm_writer_update>[\s\S]*?<\/wsm_writer_update>/g, "").trim();
 };
 
+const cleanTaskTags = (text: string) => {
+  if (!text) return "";
+  let clean = text.replace(/<task>[\s\S]*?<\/task>/g, "");
+  if (clean.includes('<task>')) {
+    const idx = clean.indexOf('<task>');
+    clean = clean.slice(0, idx);
+  }
+  return clean.trim();
+};
+
+interface TaskProgress {
+  tasks: string[];
+  activeIndex: number;
+  completedCount: number;
+  totalCount: number;
+}
+
+const getTaskProgress = (text: string): TaskProgress | null => {
+  if (!text) return null;
+  const taskStartIndex = text.indexOf('<task>');
+  if (taskStartIndex === -1) return null;
+
+  let taskBlock = '';
+  const taskEndIndex = text.indexOf('</task>');
+  if (taskEndIndex !== -1) {
+    taskBlock = text.slice(taskStartIndex + 6, taskEndIndex);
+  } else {
+    taskBlock = text.slice(taskStartIndex + 6);
+  }
+
+  const lines = taskBlock.split('\n');
+  const tasks = lines
+    .map(line => {
+      const m = line.match(/\[(.*?)\]/);
+      return m ? m[1].trim() : null;
+    })
+    .filter(Boolean) as string[];
+
+  if (tasks.length === 0) return null;
+
+  const textAfterTask = taskEndIndex !== -1 ? text.slice(taskEndIndex + 7) : '';
+
+  // Count tool call completions in the streamed text
+  const searchCompletions = (textAfterTask.match(/\[pesquisou na web\]/g) || []).length;
+  const calcCompletions = (textAfterTask.match(/\[calculando\]/g) || []).length;
+  const clockCompletions = (textAfterTask.match(/\[verificando relógio\]/g) || []).length;
+  const totalCompletions = searchCompletions + calcCompletions + clockCompletions;
+
+  // Check if any tool call is actively running
+  const isSearchActive = textAfterTask.includes('[pesquisando...]');
+  const isCalcActive = textAfterTask.includes('[calculando...]');
+  const isClockActive = textAfterTask.includes('[verificando...]');
+  const isAnyToolActive = isSearchActive || isCalcActive || isClockActive;
+
+  let activeIndex = totalCompletions;
+
+  // If there are no active tools and there is some text after tasks, we estimate progress based on text length
+  if (!isAnyToolActive && textAfterTask.length > 0) {
+    // Estimating about 350 characters of response per task item
+    const estimatedIndex = Math.floor(textAfterTask.length / 350);
+    activeIndex = Math.max(activeIndex, estimatedIndex);
+  }
+
+  activeIndex = Math.min(tasks.length - 1, activeIndex);
+
+  return {
+    tasks,
+    activeIndex,
+    completedCount: activeIndex,
+    totalCount: tasks.length
+  };
+};
+
 interface ChatWindowProps {
   key?: string;
   messages: Message[];
@@ -113,6 +186,13 @@ export default function ChatWindow({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [isTasksExpanded, setIsTasksExpanded] = useState(true);
+
+  useEffect(() => {
+    if (isThinking) {
+      setIsTasksExpanded(true);
+    }
+  }, [isThinking]);
 
   // Attachments States
   const [attachments, setAttachments] = useState<any[]>([]);
@@ -1110,7 +1190,7 @@ export default function ChatWindow({
                         ) : (
                           <div className="prose max-w-none text-[14px] text-gray-800 w-full">
                             <TypewriterMarkdown
-                              content={cleanWriterUpdateTags(message.text)}
+                              content={cleanTaskTags(cleanWriterUpdateTags(message.text))}
                               enabled={!processedMessageIdsRef.current.has(message.id)}
                               onComplete={() => handleTypewriterComplete(message.id)}
                             />
@@ -1378,14 +1458,85 @@ export default function ChatWindow({
             </button>
           </div>
         )}
-        <form
-          onSubmit={handleSubmit}
-          onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          className="w-[calc(100%-2rem)] md:w-full md:max-w-xl mx-auto bg-white border border-[#eae6e1] md:rounded-xl rounded-[28px] shadow-lg md:shadow-[0_1px_8px_rgba(0,0,0,0.01)] p-3 md:p-2 focus-within:border-[#5c53e5]/50 focus-within:ring-1 focus-within:ring-[#5c53e5]/15 transition-all duration-200 absolute bottom-3 md:relative z-50 mb-0 left-4"
-        >
+        {(() => {
+          const lastMessageText = messages[messages.length - 1]?.text || "";
+          const isMarte = selectedModel === 'WSM 1.6 Marte';
+          const taskProgress = (isMarte && isThinking && messages[messages.length - 1]?.sender === 'ai')
+            ? getTaskProgress(lastMessageText)
+            : null;
+
+          return (
+            <div className={`w-[calc(100%-2rem)] md:w-full md:max-w-xl mx-auto absolute bottom-3 left-4 md:relative md:bottom-auto md:left-auto z-50 flex flex-col mb-0 ${
+              taskProgress ? 'shadow-lg md:shadow-[0_1px_8px_rgba(0,0,0,0.01)] rounded-2xl' : ''
+            }`}>
+              {taskProgress && (
+                <div className="w-full bg-[#f4f3f1] border border-[#eae6e1] rounded-t-2xl p-0 transition-all duration-300">
+                  {/* Header */}
+                  <div 
+                    onClick={() => setIsTasksExpanded(!isTasksExpanded)}
+                    className="flex items-center justify-between px-4 py-3 md:py-2.5 cursor-pointer hover:bg-[#eae8e5] transition-colors rounded-t-2xl"
+                  >
+                    <div className="flex items-center">
+                      <Flag className="w-4 h-4 text-gray-500 mr-2.5" />
+                      <span className="text-sm font-semibold text-gray-700">Tarefas</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono text-gray-500 bg-gray-200/60 px-1.5 py-0.5 rounded font-bold">
+                        {taskProgress.completedCount}/{taskProgress.totalCount}
+                      </span>
+                      {isTasksExpanded ? (
+                        <ChevronDown className="w-4 h-4 text-gray-500" />
+                      ) : (
+                        <ChevronUp className="w-4 h-4 text-gray-500" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tasks List */}
+                  {isTasksExpanded && (
+                    <div className="px-4 pb-3 pt-1 border-t border-[#eae6e1]/40 flex flex-col gap-2 animate-in fade-in duration-200">
+                      {taskProgress.tasks.map((task, idx) => {
+                        const isCompleted = idx < taskProgress.activeIndex;
+                        const isActive = idx === taskProgress.activeIndex;
+                        const isFuture = idx > taskProgress.activeIndex;
+
+                        return (
+                          <div key={idx} className="flex items-start py-0.5 text-left">
+                            {isCompleted ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500 mr-2.5 mt-0.5 shrink-0" />
+                            ) : isActive ? (
+                              <Loader2 className="w-4 h-4 text-emerald-500 animate-spin mr-2.5 mt-0.5 shrink-0" />
+                            ) : (
+                              <Circle className="w-4 h-4 text-gray-300 mr-2.5 mt-0.5 shrink-0" />
+                            )}
+                            <span className={`text-sm ${
+                              isCompleted 
+                                ? 'text-gray-400 line-through font-normal' 
+                                : isActive 
+                                  ? 'text-gray-800 font-semibold' 
+                                  : 'text-gray-500 font-normal'
+                            }`}>
+                              {task}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+              <form
+                onSubmit={handleSubmit}
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`w-full bg-white border border-[#eae6e1] p-3 md:p-2 focus-within:border-[#5c53e5]/50 focus-within:ring-1 focus-within:ring-[#5c53e5]/15 transition-all duration-200 z-50 ${
+                  taskProgress 
+                    ? 'rounded-b-2xl md:rounded-b-xl border-t-0' 
+                    : 'md:rounded-xl rounded-[28px] shadow-lg md:shadow-[0_1px_8px_rgba(0,0,0,0.01)]'
+                }`}
+              >
           {/* Hidden File Input */}
           <input 
             type="file" 
@@ -1609,6 +1760,9 @@ export default function ChatWindow({
             </div>
           )}
         </form>
+      </div>
+    );
+  })()}
         <div className="hidden md:block text-[9px] text-center text-gray-400 font-medium pt-1.5 select-none">
           {selectedModel} pode cometer erros. Verifique informações importantes.
         </div>
