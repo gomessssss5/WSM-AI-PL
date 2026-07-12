@@ -313,3 +313,39 @@ export const getEvaluationsFromDb = async (): Promise<any[]> => {
     return [];
   }
 };
+
+/**
+ * Subscribes to user profile document in Firestore
+ */
+export const subscribeUserProfile = (
+  userId: string,
+  onUpdate: (userData: any) => void
+) => {
+  const path = `users/${userId}`;
+  const userDocRef = doc(db, 'users', userId);
+  return onSnapshot(userDocRef, (docSnap) => {
+    if (docSnap.exists()) {
+      onUpdate(docSnap.data());
+    } else {
+      onUpdate(null);
+    }
+  }, (error) => {
+    handleFirestoreError(error, OperationType.GET, path);
+  });
+};
+
+/**
+ * Persists news card dismissal in Firestore for the given user
+ */
+export const dismissNewsCardForUser = async (userId: string): Promise<void> => {
+  if (!userId) return;
+  const userRef = doc(db, 'users', userId);
+  try {
+    await setDoc(userRef, {
+      dismissedNewsCard: true,
+      updatedAt: Timestamp.now()
+    }, { merge: true });
+  } catch (err) {
+    console.error("Error dismissing news card:", err);
+  }
+};

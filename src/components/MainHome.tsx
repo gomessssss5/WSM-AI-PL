@@ -11,6 +11,8 @@ interface MainHomeProps {
   initialDraft?: Draft;
   onSaveDraft?: (draft: Partial<Draft>) => void;
   onDeleteDraft?: () => void;
+  userProfile?: any;
+  onDismissNewsCard?: () => void;
 }
 
 export default function MainHome({
@@ -21,12 +23,27 @@ export default function MainHome({
   onOpenMobileHistory,
   initialDraft,
   onSaveDraft,
-  onDeleteDraft
+  onDeleteDraft,
+  userProfile,
+  onDismissNewsCard
 }: MainHomeProps) {
   const [inputValue, setInputValue] = useState('');
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
+  const [isNewsCardDismissedLocal, setIsNewsCardDismissedLocal] = useState(() => {
+    return localStorage.getItem('wsm_news_card_dismissed') === 'true';
+  });
+
+  const handleDismissNewsCard = () => {
+    setIsNewsCardDismissedLocal(true);
+    localStorage.setItem('wsm_news_card_dismissed', 'true');
+    if (onDismissNewsCard) {
+      onDismissNewsCard();
+    }
+  };
+
+  const shouldShowNewsCard = !isNewsCardDismissedLocal && !userProfile?.dismissedNewsCard;
 
   // Preload the news card images so they load instantly from browser cache
   useEffect(() => {
@@ -581,7 +598,7 @@ export default function MainHome({
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className="w-full bg-white border border-[#eae6e1] md:rounded-2xl rounded-[28px] shadow-lg md:shadow-[0_4px_16px_rgba(0,0,0,0.02)] p-3 md:p-2.5 focus-within:border-[#5c53e5]/50 focus-within:ring-1 focus-within:ring-[#5c53e5]/25 transition-all duration-200"
+            className="w-full bg-white border border-[#eae6e1] md:rounded-2xl rounded-[28px] shadow-lg md:shadow-[0_4px_16px_rgba(0,0,0,0.02)] p-3 md:p-2.5 focus-within:border-[#5c53e5]/50 focus-within:ring-1 focus-within:ring-[#5c53e5]/25 transition-all duration-200 order-2 md:order-1"
           >
           {/* Hidden File Input */}
           <input 
@@ -792,25 +809,38 @@ export default function MainHome({
           </form>
 
           {/* Card de novidades dos novos modelos */}
-          <div 
-            onClick={() => setIsNewsModalOpen(true)}
-            className="w-full bg-gray-100/65 border border-[#eae6e1]/70 rounded-2xl p-4 flex items-center gap-4 select-none cursor-pointer hover:bg-gray-100/90 active:scale-[0.99] transition-all"
-          >
-            <img
-              src="https://i.ibb.co/TMJBp2n7/38000-removebg-preview.png"
-              alt="Novos Modelos"
-              className="w-14 h-14 md:w-16 md:h-16 object-contain shrink-0"
-              referrerPolicy="no-referrer"
-            />
-            <div className="flex flex-col text-left">
-              <h3 className="font-sans font-bold text-gray-900 text-[14px] md:text-[15px] tracking-tight leading-snug">
-                Novos modelos: WSM 1.6 Flash e Pro
-              </h3>
-              <p className="font-sans text-gray-500 text-[12px] md:text-[12.5px] leading-relaxed mt-0.5">
-                Conheça nossos 2 novos modelos da família 1.6, mais inteligentes e poderosos.
-              </p>
+          {shouldShowNewsCard && (
+            <div 
+              onClick={() => setIsNewsModalOpen(true)}
+              className="w-full bg-gray-100/65 border border-[#eae6e1]/70 rounded-2xl p-4 flex items-center gap-4 select-none cursor-pointer hover:bg-gray-100/90 active:scale-[0.99] transition-all relative order-1 md:order-2"
+            >
+              <img
+                src="https://i.ibb.co/TMJBp2n7/38000-removebg-preview.png"
+                alt="Novos Modelos"
+                className="w-14 h-14 md:w-16 md:h-16 object-contain shrink-0"
+                referrerPolicy="no-referrer"
+              />
+              <div className="flex flex-col text-left pr-6">
+                <h3 className="font-sans font-bold text-gray-900 text-[14px] md:text-[15px] tracking-tight leading-snug">
+                  Novos modelos: WSM 1.6 Flash e Pro
+                </h3>
+                <p className="font-sans text-gray-500 text-[12px] md:text-[12.5px] leading-relaxed mt-0.5">
+                  Conheça nossos 2 novos modelos da família 1.6, mais inteligentes e poderosos.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDismissNewsCard();
+                }}
+                className="absolute top-3 right-3 p-1.5 rounded-full hover:bg-gray-250/50 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer z-10"
+                title="Dispensar"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Suggestion Chips */}
