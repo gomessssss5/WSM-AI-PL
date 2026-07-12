@@ -47,6 +47,7 @@ export default function App() {
   const autoSaveTimeoutRef = useRef<any>(null);
   const currentUserRef = useRef<User | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isExplicitCancelRef = useRef<boolean>(false);
   const isSearchActiveRef = useRef<boolean>(false);
 
   // Request Notification permission immediately when the app mounts
@@ -674,6 +675,7 @@ Como posso ajudar você hoje?`
     setIsThinking(true);
 
     if (abortControllerRef.current) {
+      isExplicitCancelRef.current = false;
       abortControllerRef.current.abort();
     }
     abortControllerRef.current = new AbortController();
@@ -1024,17 +1026,18 @@ Como posso ajudar você hoje?`
               if (!currentSess) return prev;
               const finalSession = {
                 ...currentSess,
-                messages: currentSess.messages.map((m) =>
-                  m.id === initialAiMsg.id
-                    ? {
-                        ...m,
-                        text: "Você cancelou essa resposta",
-                        finalSynthesis: "Você cancelou essa resposta",
-                        isSimulatingSearch: false,
-                        searchIntro: undefined,
-                      }
-                    : m
-                ),
+                messages: currentSess.messages.map((m) => {
+                  if (m.id === initialAiMsg.id) {
+                    return {
+                      ...m,
+                      text: isExplicitCancelRef.current ? "Você cancelou essa resposta" : m.text,
+                      finalSynthesis: isExplicitCancelRef.current ? "Você cancelou essa resposta" : m.finalSynthesis,
+                      isSimulatingSearch: false,
+                      searchIntro: undefined,
+                    };
+                  }
+                  return m;
+                }),
               };
               isDirtyRef.current = true;
               triggerDebouncedSave(finalSession);
@@ -1102,6 +1105,7 @@ Como posso ajudar você hoje?`
 
   const handleCancelGeneration = () => {
     if (abortControllerRef.current) {
+      isExplicitCancelRef.current = true;
       abortControllerRef.current.abort();
     }
   };
