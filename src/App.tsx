@@ -29,7 +29,7 @@ export default function App() {
   const [isThinking, setIsThinking] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     const saved = localStorage.getItem('wsm_selected_model');
-    return saved || 'WSM 1.6 Mercúrio';
+    return saved || 'WSM 1.6 Flash';
   });
 
   useEffect(() => {

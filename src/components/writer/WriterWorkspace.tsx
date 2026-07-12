@@ -1269,7 +1269,7 @@ export default function WriterWorkspace({
         <ChatWindow 
           messages={activeChatSession?.messages || []}
           isThinking={isThinking}
-          selectedModel="WSM 1.6 Mercúrio"
+          selectedModel="WSM 1.6 Flash"
           onSendMessage={handleSendMessageWrapper}
           onCancelGeneration={onCancelGeneration}
           onBackToHome={onBack}

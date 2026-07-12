@@ -295,10 +295,8 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
       };
 
       const modelCounts: Record<string, number> = {
-        'WSM 1.6 Mercúrio': 0,
-        'WSM 1.6 Marte': 0,
-        'WSM 1.6 Saturno': 0,
-        'WSM 1.6 Júpiter': 0
+        'WSM 1.6 Flash': 0,
+        'WSM 1.6 Pro': 0
       };
 
       const errorCounts: Record<string, number> = {
@@ -477,10 +475,8 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
 
               // Infer model usage
               const textLower = (m.text || '').toLowerCase();
-              let inferredModel = 'WSM 1.6 Mercúrio';
-              if (textLower.includes('marte')) inferredModel = 'WSM 1.6 Marte';
-              else if (textLower.includes('saturno')) inferredModel = 'WSM 1.6 Saturno';
-              else if (textLower.includes('júpiter') || textLower.includes('jupiter')) inferredModel = 'WSM 1.6 Júpiter';
+              let inferredModel = 'WSM 1.6 Flash';
+              if (textLower.includes('pro')) inferredModel = 'WSM 1.6 Pro';
               modelCounts[inferredModel]++;
 
               // Check if message is an error
@@ -565,10 +561,8 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
       // Format model usage data
       const totalInferredModelRequests = Object.values(modelCounts).reduce((a, b) => a + b, 0);
       const formattedModels = [
-        { name: 'WSM 1.6 Mercúrio', value: totalInferredModelRequests > 0 ? Math.round((modelCounts['WSM 1.6 Mercúrio'] / totalInferredModelRequests) * 100) : 100, requests: modelCounts['WSM 1.6 Mercúrio'], label: 'Standard/Equilibrado' },
-        { name: 'WSM 1.6 Marte', value: totalInferredModelRequests > 0 ? Math.round((modelCounts['WSM 1.6 Marte'] / totalInferredModelRequests) * 100) : 0, requests: modelCounts['WSM 1.6 Marte'], label: 'Pesquisa Concorrente' },
-        { name: 'WSM 1.6 Saturno', value: totalInferredModelRequests > 0 ? Math.round((modelCounts['WSM 1.6 Saturno'] / totalInferredModelRequests) * 100) : 0, requests: modelCounts['WSM 1.6 Saturno'], label: 'Super-Raciocínio' },
-        { name: 'WSM 1.6 Júpiter', value: totalInferredModelRequests > 0 ? Math.round((modelCounts['WSM 1.6 Júpiter'] / totalInferredModelRequests) * 100) : 0, requests: modelCounts['WSM 1.6 Júpiter'], label: 'Criatividade & Escrita' }
+        { name: 'WSM 1.6 Flash', value: totalInferredModelRequests > 0 ? Math.round((modelCounts['WSM 1.6 Flash'] / totalInferredModelRequests) * 100) : 100, requests: modelCounts['WSM 1.6 Flash'], label: 'Standard/Equilibrado' },
+        { name: 'WSM 1.6 Pro', value: totalInferredModelRequests > 0 ? Math.round((modelCounts['WSM 1.6 Pro'] / totalInferredModelRequests) * 100) : 0, requests: modelCounts['WSM 1.6 Pro'], label: 'Agêntico/Multitarefas' }
       ];
 
       // Format errors breakdown
@@ -974,7 +968,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
         
         let latestMsgTimestamp = 0;
         let latestMsgText = '';
-        let latestMsgModel = 'WSM 1.6 Mercúrio';
+        let latestMsgModel = 'WSM 1.6 Flash';
         let latestSessionTitle = 'Nenhuma sessão';
         let isUserLastAction = false;
 
@@ -1001,9 +995,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
             
             if (latestMsg.sender === 'ai' || latestMsg.sender === 'model') {
               const textLower = (latestMsg.text || '').toLowerCase();
-              if (textLower.includes('marte')) latestMsgModel = 'WSM 1.6 Marte';
-              else if (textLower.includes('saturno')) latestMsgModel = 'WSM 1.6 Saturno';
-              else if (textLower.includes('júpiter') || textLower.includes('jupiter')) latestMsgModel = 'WSM 1.6 Júpiter';
+              if (textLower.includes('pro')) latestMsgModel = 'WSM 1.6 Pro';
             }
           } else {
             latestMsgTimestamp = convertToDate(latestSession.timestamp).getTime();
@@ -1063,9 +1055,9 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
       // If we don't have enough users, add a few realistic ones to fill the workspace
       if (activeUsersList.length < 3) {
         const fallbackUsers = [
-          { email: 'gestao_rh@wsm.ai', sessionTitle: 'Análise de Desempenho 2026', model: 'WSM 1.6 Marte', text: 'Resuma os pontos fortes do feedback de liderança' },
-          { email: 'maria.souza@yahoo.com.br', sessionTitle: 'Coprodução de Romance', model: 'WSM 1.6 Júpiter', text: 'Escreva um parágrafo dramático sobre a descoberta do segredo' },
-          { email: 'dev_tech@gmail.com', sessionTitle: 'Refatoração Express Router', model: 'WSM 1.6 Saturno', text: 'Otimize essa query assíncrona do firebase' }
+          { email: 'gestao_rh@wsm.ai', sessionTitle: 'Análise de Desempenho 2026', model: 'WSM 1.6 Pro', text: 'Resuma os pontos fortes do feedback de liderança' },
+          { email: 'maria.souza@yahoo.com.br', sessionTitle: 'Coprodução de Romance', model: 'WSM 1.6 Flash', text: 'Escreva um parágrafo dramático sobre a descoberta do segredo' },
+          { email: 'dev_tech@gmail.com', sessionTitle: 'Refatoração Express Router', model: 'WSM 1.6 Pro', text: 'Otimize essa query assíncrona do firebase' }
         ];
 
         fallbackUsers.forEach((f, idx) => {
@@ -1252,7 +1244,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
 
   const mostUsedModel = stats.modelUsage.length > 0 
     ? stats.modelUsage.reduce((max, model) => model.requests > max.requests ? model : max, stats.modelUsage[0])
-    : { name: 'WSM 1.6 Mercúrio', requests: 0, value: 100 };
+    : { name: 'WSM 1.6 Flash', requests: 0, value: 100 };
 
   const mostCommonError = stats.errorsBreakdown.length > 0
     ? stats.errorsBreakdown.reduce((max, err) => err.count > max.count ? err : max, stats.errorsBreakdown[0])
@@ -3204,9 +3196,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                         </td>
                         <td className="py-3 px-2 text-center">
                           <span className={`px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase ${
-                            user.model.includes('Marte') ? 'bg-orange-50 text-orange-600 border border-orange-100' :
-                            user.model.includes('Saturno') ? 'bg-purple-50 text-purple-600 border border-purple-100' :
-                            user.model.includes('Júpiter') ? 'bg-red-50 text-red-600 border border-red-100' :
+                            user.model.includes('Pro') ? 'bg-orange-50 text-orange-600 border border-orange-100' :
                             'bg-blue-50 text-blue-600 border border-blue-100'
                           }`}>
                             {user.model}

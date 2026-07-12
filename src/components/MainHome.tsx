@@ -162,7 +162,7 @@ export default function MainHome({
     const val = e.target.value;
     setInputValue(val);
 
-    if (selectedModel !== 'WSM 1.6 Marte') {
+    if (selectedModel !== 'WSM 1.6 Pro') {
       if (slashMenuOpen) setSlashMenuOpen(false);
       return;
     }
@@ -209,17 +209,13 @@ export default function MainHome({
   };
 
   const modelsList = [
-    'WSM 1.6 Mercúrio',
-    'WSM 1.6 Marte',
-    'WSM 1.6 Saturno',
-    'WSM 1.6 Júpiter'
+    'WSM 1.6 Flash',
+    'WSM 1.6 Pro'
   ];
 
   const modelDescriptions: Record<string, string> = {
-    'WSM 1.6 Mercúrio': 'Modelo para o dia-a-dia, rápido, eficiente, e inteligente',
-    'WSM 1.6 Marte': 'Modelo intermediário agêntico, para tarefas mais complexas',
-    'WSM 1.6 Saturno': 'Modelo para tarefas pesadas, porém com limites de uso',
-    'WSM 1.6 Júpiter': 'Modelo mais inteligente, para tarefas ultra-complexas e pesadas, mas com uso controlado'
+    'WSM 1.6 Flash': 'Modelo para o dia-a-dia, rápido, eficiente e inteligente',
+    'WSM 1.6 Pro': 'Modelo intermediário agêntico, com planejamento de tarefas em etapas'
   };
 
   const getFileType = (file: File) => {
@@ -470,7 +466,7 @@ export default function MainHome({
                 </div>
                 <div className="flex flex-col gap-0.5">
                   {modelsList.map((model) => {
-                    const isClickable = model === 'WSM 1.6 Mercúrio' || model === 'WSM 1.6 Marte';
+                    const isClickable = model === 'WSM 1.6 Flash' || model === 'WSM 1.6 Pro';
                     if (!isClickable) return null;
                     const isActive = selectedModel === model;
                     return (
@@ -489,12 +485,12 @@ export default function MainHome({
                             <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-[#5c53e5]' : 'bg-transparent'}`} />
                             <span>{model}</span>
                           </div>
-                          {model === 'WSM 1.6 Mercúrio' && (
+                          {model === 'WSM 1.6 Flash' && (
                             <span className="text-[8px] bg-[#5c53e5]/10 text-[#5c53e5] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Padrão</span>
                           )}
-                          {model === 'WSM 1.6 Marte' && (
+                          {model === 'WSM 1.6 Pro' && (
                             <div className="flex items-center gap-0.5">
-                              <span className="text-[8px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Novo</span>
+                              <span className="text-[8px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Agêntico</span>
                               <span className="text-[8px] bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Beta</span>
                             </div>
                           )}

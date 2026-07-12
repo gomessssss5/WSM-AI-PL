@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2 } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2 } from 'lucide-react';
 import { Message, Draft } from '../types';
 import { saveEvaluationToDb } from '../lib/chatService';
 import MarkdownRenderer from './MarkdownRenderer';
@@ -55,6 +55,34 @@ const UiverseLoader = ({ isThinking = false }: { isThinking?: boolean }) => (
     </div>
   </div>
 );
+
+const extractRaciocinio = (text: string) => {
+  if (!text) return { cleanText: "", raciocinio: null, isFinished: false };
+  const startIndex = text.indexOf('<raciocinio>');
+  if (startIndex === -1) {
+    return { cleanText: text, raciocinio: null, isFinished: false };
+  }
+  const endIndex = text.indexOf('</raciocinio>');
+  if (endIndex !== -1) {
+    const raciocinio = text.slice(startIndex + 12, endIndex).trim();
+    const cleanText = (text.slice(0, startIndex) + text.slice(endIndex + 13)).trim();
+    return { cleanText, raciocinio, isFinished: true };
+  } else {
+    const raciocinio = text.slice(startIndex + 12).trim();
+    const cleanText = text.slice(0, startIndex).trim();
+    return { cleanText, raciocinio, isFinished: false };
+  }
+};
+
+const cleanRaciocinioTags = (text: string) => {
+  if (!text) return "";
+  let clean = text.replace(/<raciocinio>[\s\S]*?<\/raciocinio>/g, "");
+  if (clean.includes('<raciocinio>')) {
+    const idx = clean.indexOf('<raciocinio>');
+    clean = clean.slice(0, idx);
+  }
+  return clean.trim();
+};
 
 const cleanWriterUpdateTags = (text: string) => {
   if (!text) return "";
@@ -187,6 +215,7 @@ export default function ChatWindow({
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [isTasksExpanded, setIsTasksExpanded] = useState(true);
+  const [expandedRaciocinios, setExpandedRaciocinios] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (isThinking) {
@@ -581,7 +610,7 @@ export default function ChatWindow({
     const val = e.target.value;
     setInputValue(val);
 
-    if (selectedModel !== 'WSM 1.6 Marte') {
+    if (selectedModel !== 'WSM 1.6 Pro') {
       if (slashMenuOpen) setSlashMenuOpen(false);
       return;
     }
@@ -649,17 +678,13 @@ export default function ChatWindow({
   };
 
   const modelsList = [
-    'WSM 1.6 Mercúrio',
-    'WSM 1.6 Marte',
-    'WSM 1.6 Saturno',
-    'WSM 1.6 Júpiter'
+    'WSM 1.6 Flash',
+    'WSM 1.6 Pro'
   ];
 
   const modelDescriptions: Record<string, string> = {
-    'WSM 1.6 Mercúrio': 'Modelo para o dia-a-dia, rápido, eficiente, e inteligente',
-    'WSM 1.6 Marte': 'Modelo intermediário agêntico, para tarefas mais complexas',
-    'WSM 1.6 Saturno': 'Modelo para tarefas pesadas, porém com limites de uso',
-    'WSM 1.6 Júpiter': 'Modelo mais inteligente, para tarefas ultra-complexas e pesadas, mas com uso controlado'
+    'WSM 1.6 Flash': 'Modelo para o dia-a-dia, rápido, eficiente e inteligente',
+    'WSM 1.6 Pro': 'Modelo intermediário agêntico, com planejamento de tarefas em etapas'
   };
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
@@ -860,7 +885,7 @@ export default function ChatWindow({
                 />
                 <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 md:absolute md:inset-auto md:left-0 md:top-full md:mt-1.5 md:translate-y-0 w-auto max-w-[calc(100vw-2rem)] md:w-80 bg-white border border-gray-150 rounded-xl shadow-2xl md:shadow-lg z-50 p-1 animate-in fade-in zoom-in-95 duration-150">
                   {modelsList.map((model) => {
-                    const isClickable = model === 'WSM 1.6 Mercúrio' || model === 'WSM 1.6 Marte';
+                    const isClickable = model === 'WSM 1.6 Flash' || model === 'WSM 1.6 Pro';
                     if (!isClickable) return null;
                     const isActive = selectedModel === model;
                     return (
@@ -875,8 +900,8 @@ export default function ChatWindow({
                         }}
                         className={`w-full flex flex-col gap-0.5 px-3 py-2 text-left rounded-lg transition-colors ${
                           isActive 
-                            ? 'bg-[#f0ede8] text-gray-900 font-semibold' 
-                            : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
+                             ? 'bg-[#f0ede8] text-gray-900 font-semibold' 
+                             : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
                         }`}
                       >
                         <div className="flex items-center justify-between w-full">
@@ -884,12 +909,12 @@ export default function ChatWindow({
                             <div className={`w-1 h-1 rounded-full ${isActive ? 'bg-[#5c53e5]' : 'bg-transparent'}`} />
                             <span>{model}</span>
                           </div>
-                          {model === 'WSM 1.6 Mercúrio' && (
+                          {model === 'WSM 1.6 Flash' && (
                             <span className="text-[8px] bg-[#5c53e5]/10 text-[#5c53e5] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Padrão</span>
                           )}
-                          {model === 'WSM 1.6 Marte' && (
+                          {model === 'WSM 1.6 Pro' && (
                             <div className="flex items-center gap-0.5">
-                              <span className="text-[8px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Novo</span>
+                              <span className="text-[8px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Agêntico</span>
                               <span className="text-[8px] bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Beta</span>
                             </div>
                           )}
@@ -1189,13 +1214,50 @@ export default function ChatWindow({
                           </div>
                         ) : (
                           <div className="prose max-w-none text-[14px] text-gray-800 w-full">
+                            {(() => {
+                              const { cleanText, raciocinio } = extractRaciocinio(message.text);
+                              if (!raciocinio) return null;
+                              
+                              const isCurrentlyGeneratingThisMsg = isThinking && message.id === messages[messages.length - 1]?.id;
+                              const isExpanded = expandedRaciocinios[message.id] !== undefined
+                                ? expandedRaciocinios[message.id]
+                                : isCurrentlyGeneratingThisMsg;
+
+                              return (
+                                <div className="mb-3 w-full select-none" id={`raciocinio-container-${message.id}`}>
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedRaciocinios(prev => ({ ...prev, [message.id]: !isExpanded }))}
+                                    className="flex items-center gap-1.5 text-gray-400 hover:text-gray-600 font-medium text-[13px] transition-colors cursor-pointer select-none py-1 group focus:outline-none"
+                                  >
+                                    <Brain className={`w-4.5 h-4.5 text-gray-400 group-hover:text-gray-500 ${isCurrentlyGeneratingThisMsg && !message.text.includes('</raciocinio>') ? 'animate-pulse text-indigo-400' : ''}`} />
+                                    <span>Raciocínio</span>
+                                    {isExpanded ? (
+                                      <ChevronDown className="w-3.5 h-3.5 text-gray-400 group-hover:text-gray-500" />
+                                    ) : (
+                                      <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-gray-500" />
+                                    )}
+                                  </button>
+                                  
+                                  {isExpanded && (
+                                    <div className="mt-1.5 pl-3.5 ml-2 border-l border-gray-250 text-[13px] text-gray-500/90 font-sans leading-relaxed whitespace-pre-wrap select-text selection:bg-indigo-50">
+                                      {raciocinio}
+                                      {isCurrentlyGeneratingThisMsg && !message.text.includes('</raciocinio>') && (
+                                        <span className="inline-block w-1 h-3 bg-indigo-400 ml-0.5 animate-pulse" />
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                            
                             <TypewriterMarkdown
-                              content={cleanTaskTags(cleanWriterUpdateTags(message.text))}
+                              content={cleanTaskTags(cleanWriterUpdateTags(cleanRaciocinioTags(message.text)))}
                               enabled={!processedMessageIdsRef.current.has(message.id)}
                               onComplete={() => handleTypewriterComplete(message.id)}
                             />
                             {(() => {
-                              const { docObj } = extractWsmDoc(extractWsmForm(message.text).cleanText);
+                              const { docObj } = extractWsmDoc(extractWsmForm(cleanRaciocinioTags(message.text)).cleanText);
                               if (docObj) {
                                 return <DocumentCard document={docObj} />;
                               }
@@ -1384,7 +1446,7 @@ export default function ChatWindow({
 
                       {!isUser && (
                         <div className="flex items-center justify-start gap-1.5 ml-1">
-                          <button onClick={() => copyToClipboard(cleanWriterUpdateTags(message.text), message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
+                          <button onClick={() => copyToClipboard(cleanRaciocinioTags(cleanTaskTags(cleanWriterUpdateTags(message.text))), message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
                             {copiedId === message.id ? <Check size={12} /> : <Copy size={12} />}
                           </button>
                           <button onClick={() => handleEvaluate(message.id, 'up')} className={`p-0.5 transition-colors ${evaluations[message.id] === 'up' ? 'text-green-600' : 'text-gray-400 hover:text-green-600'}`} title="Boa resposta">
@@ -1460,8 +1522,8 @@ export default function ChatWindow({
         )}
         {(() => {
           const lastMessageText = messages[messages.length - 1]?.text || "";
-          const isMarte = selectedModel === 'WSM 1.6 Marte';
-          const taskProgress = (isMarte && isThinking && messages[messages.length - 1]?.sender === 'ai')
+          const isPro = selectedModel === 'WSM 1.6 Pro';
+          const taskProgress = (isPro && isThinking && messages[messages.length - 1]?.sender === 'ai')
             ? getTaskProgress(lastMessageText)
             : null;
 
