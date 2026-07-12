@@ -28,6 +28,14 @@ export default function MainHome({
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
 
+  // Preload the news card images so they load instantly from browser cache
+  useEffect(() => {
+    const preloadImg1 = new Image();
+    preloadImg1.src = "https://i.ibb.co/TMJBp2n7/38000-removebg-preview.png";
+    const preloadImg2 = new Image();
+    preloadImg2.src = "https://i.ibb.co/tw9yWNfj/38003.png";
+  }, []);
+
   // Speech Recognition States
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
@@ -872,7 +880,7 @@ export default function MainHome({
           {/* Click outside to close */}
           <div className="absolute inset-0" onClick={() => setIsNewsModalOpen(false)} />
           
-          <div className="bg-white border border-[#eae6e1] rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl relative z-10 animate-in zoom-in-95 duration-200">
+          <div className="bg-white border border-[#eae6e1] rounded-2xl max-w-3xl w-full overflow-hidden shadow-2xl relative z-10 animate-in zoom-in-95 duration-200">
             {/* Close Button */}
             <button 
               onClick={() => setIsNewsModalOpen(false)}
