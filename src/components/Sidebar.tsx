@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Image as ImageIcon, MessageSquare, Trash2, LogOut, Clock, BookOpen, Folder, MessageSquarePlus, User, X, Wrench, Menu } from 'lucide-react';
+import { Plus, Search, Image as ImageIcon, MessageSquare, Trash2, LogOut, Clock, BookOpen, Folder, MessageSquarePlus, User, X, Wrench, Menu, Download } from 'lucide-react';
 import { ChatSession } from '../types';
 
 interface SidebarProps {
@@ -39,6 +39,36 @@ export default function Sidebar(props: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   
   const [isMobile, setIsMobile] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallModal, setShowInstallModal] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) {
+      alert("Para instalar, use a opção 'Adicionar à tela inicial' no menu de opções do seu navegador.");
+      setShowInstallModal(false);
+      return;
+    }
+    
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+      setShowInstallModal(false);
+    }
+  };
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 767px)');
@@ -298,6 +328,17 @@ export default function Sidebar(props: SidebarProps) {
           </div>
         </div>
 
+        {/* Install App Button */}
+        <div className="px-3 py-2 border-t border-[#eae6e1] bg-[#fbfbfa]">
+          <button
+            onClick={() => setShowInstallModal(true)}
+            className="w-full flex items-center justify-center gap-2 bg-[#5c53e5] hover:bg-[#4d45c7] text-white py-2 px-3 rounded-lg shadow-sm transition-all duration-200 active:scale-[0.98] cursor-pointer font-semibold text-[12px]"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Instalar App
+          </button>
+        </div>
+
         {/* User Footer Profile */}
         <div className="p-3 border-t border-[#eae6e1] bg-[#f0ede8] flex items-center justify-between gap-1.5">
           <div className="flex items-center gap-2 truncate">
@@ -327,6 +368,42 @@ export default function Sidebar(props: SidebarProps) {
           )}
         </div>
       </div>
+
+      {/* Install Modal */}
+      {showInstallModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0" onClick={() => setShowInstallModal(false)} />
+          <div className="bg-white border border-[#eae6e1] rounded-2xl p-6 shadow-2xl max-w-sm w-full relative z-10 animate-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setShowInstallModal(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-gray-100 text-gray-500 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex flex-col items-center text-center gap-4">
+              <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-sm">
+                <img 
+                  src="https://i.ibb.co/Q34b6rBW/37990-removebg-preview.png" 
+                  alt="WSM AI Logo" 
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div>
+                <h3 className="font-sans font-bold text-gray-900 text-lg">Instalar WSM AI</h3>
+                <p className="text-gray-500 text-sm mt-1 leading-relaxed">
+                  Instale o WSM AI no seu celular para acessar de forma mais rápida, direto da sua tela inicial e ter uma experiência melhor.
+                </p>
+              </div>
+              <button
+                onClick={handleInstallApp}
+                className="w-full bg-[#5c53e5] hover:bg-[#4d45c7] text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all active:scale-[0.98] mt-2"
+              >
+                Instalar Agora
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </aside>
   );
