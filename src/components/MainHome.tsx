@@ -876,34 +876,41 @@ export default function MainHome({
 
       {/* Full screen news modal */}
       {isNewsModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[100] flex items-center justify-center p-4 overflow-y-auto">
           {/* Click outside to close */}
-          <div className="absolute inset-0" onClick={() => setIsNewsModalOpen(false)} />
+          <div className="fixed inset-0" onClick={() => setIsNewsModalOpen(false)} />
           
-          <div className="bg-white border border-[#eae6e1] rounded-2xl max-w-3xl w-full overflow-hidden shadow-2xl relative z-10 animate-in zoom-in-95 duration-200">
+          <div className="bg-white border border-[#eae6e1] rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl relative z-10 animate-in zoom-in-95 duration-200">
             {/* Close Button */}
             <button 
               onClick={() => setIsNewsModalOpen(false)}
-              className="absolute top-3 right-3 p-1.5 rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors z-20 cursor-pointer"
+              className="absolute top-4 right-4 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors z-20 cursor-pointer shadow-lg"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5" />
             </button>
             
-            {/* Image on top */}
-            <div className="w-full bg-gray-100 relative overflow-hidden flex items-center justify-center p-4">
-              <img 
-                src="https://i.ibb.co/tw9yWNfj/38003.png" 
-                alt="Novos modelos" 
-                className="max-w-full max-h-[350px] object-contain rounded-lg"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            
-            {/* Content below */}
-            <div className="p-6 border-t border-[#eae6e1]/60 text-center">
-              <p className="font-sans font-bold text-gray-900 text-lg">
-                Teste
-              </p>
+            {/* Scrollable Container for all content */}
+            <div className="overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-gray-200">
+              {/* Image on top */}
+              <div className="w-full bg-gray-50 flex items-center justify-center p-6 border-b border-[#eae6e1]/40">
+                <img 
+                  src="https://i.ibb.co/tw9yWNfj/38003.png" 
+                  alt="Novos modelos" 
+                  className="max-w-full h-auto max-h-[400px] object-contain rounded-xl shadow-sm"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              
+              {/* Content area */}
+              <div className="p-8 md:p-10">
+                <p className="font-sans text-gray-700 text-[15px] md:text-[16px] leading-relaxed whitespace-pre-line">
+                  Conheça os dois novos membros da família WSM 1.6, criados para acompanhar você em qualquer desafio do dia. O Flash é aquele amigo rápido e prático, sempre pronto pra te tirar de um aperto: escreve aquele e-mail urgente, resume um texto longo, traduz uma frase, dá uma ideia criativa e te ajuda a organizar a cabeça quando o tempo está correndo. Ele é leve, direto e não te deixa esperando — perfeito para o dia a dia, seja no trabalho, nos estudos ou na vida pessoal.
+                  {"\n\n"}
+                  O Pro, por outro lado, é o pensador da casa. Ele raciocina. Diante de um problema complexo, ele não solta a primeira resposta que aparece: ele estrutura o pensamento, testa caminhos, analisa variáveis e só então entrega uma solução bem fundamentada. Quer programar uma aplicação completa? Resolver uma equação difícil? Escrever um contrato jurídico? Fazer uma análise crítica de um texto? Criar uma estratégia de negócio? O Pro é o seu parceiro intelectual, e o melhor: com um clique no botão "Raciocínio", você consegue ver todo o passo a passo dele, como se estivesse ouvindo um especialista pensar em voz alta.
+                  {"\n\n"}
+                  Os dois modelos têm acesso às mesmas ferramentas poderosas: pesquisa em tempo real na web com dezenas de fontes verificáveis, leitura de PDFs e imagens com extração de texto, editor de documentos integrado com IA, memória de contexto que mantém a coerência ao longo de toda a conversa, e tudo isso em português brasileiro nativo. Escolha o Flash quando precisar de velocidade, e o Pro quando precisar de profundidade. E não se preocupe: você pode alternar entre eles quando quiser, na mesma conversa, sem perder nada do que já foi discutido.
+                </p>
+              </div>
             </div>
           </div>
         </div>
