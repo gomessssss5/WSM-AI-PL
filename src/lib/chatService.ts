@@ -65,6 +65,8 @@ const mapDocToSession = (id: string, data: any): ChatSession => {
     id,
     title: data.title || '',
     category: data.category || 'general',
+    isUnread: !!data.isUnread,
+    isScheduled: !!data.isScheduled,
     timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : new Date(data.timestamp || Date.now()),
     messages: (data.messages || []).map((msg: any) => ({
       ...msg,
@@ -87,6 +89,8 @@ const mapSessionToDoc = (session: ChatSession): any => {
   return {
     title: session.title,
     category: session.category || 'general',
+    isUnread: !!session.isUnread,
+    isScheduled: !!session.isScheduled,
     timestamp: Timestamp.fromDate(session.timestamp instanceof Date ? session.timestamp : new Date(session.timestamp)),
     messages: session.messages.map((msg) => ({
       id: msg.id,

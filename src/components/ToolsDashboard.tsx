@@ -1,76 +1,100 @@
 import React from 'react';
-import { BookOpen, ArrowRight, ChevronDown, Wrench } from 'lucide-react';
+import { 
+  Languages, 
+  ArrowRight,
+  Sparkles,
+  Bot,
+  BrainCircuit,
+  Clock
+} from 'lucide-react';
 
 interface ToolsDashboardProps {
-  onOpenWriterArea: () => void;
-  onOpenMobileHistory?: () => void;
+  onOpenTranslator: () => void;
+  onOpenTasks?: () => void;
 }
 
 export default function ToolsDashboard({
-  onOpenWriterArea,
-  onOpenMobileHistory,
+  onOpenTranslator,
+  onOpenTasks
 }: ToolsDashboardProps) {
   return (
-    <div id="wsm-tools-dashboard" className="flex-1 bg-white flex flex-col font-sans overflow-y-auto">
-      {/* Top Header / Action Bar - Mobile */}
-      <div className="md:hidden flex items-center justify-between p-4 bg-transparent w-full relative z-40 border-b border-gray-100/50 shrink-0">
-        <button onClick={onOpenMobileHistory} className="flex items-center gap-1.5 text-gray-800 text-[16px] font-normal active:opacity-70">
-          <span className="text-[20px] font-light mr-1">‹</span>
-          WSM Ferramentas <ChevronDown className="w-4 h-4 text-gray-500 ml-1" />
-        </button>
-      </div>
+    <div className="flex-1 bg-[#FAF9F6] p-6 overflow-y-auto custom-scrollbar font-sans">
+      <div className="max-w-4xl mx-auto flex flex-col gap-8 py-4">
+        {/* Header */}
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Painel de Ferramentas</h1>
+          <p className="text-sm text-gray-500 font-medium">
+            Explore as ferramentas e utilitários inteligentes disponíveis em sua área de trabalho.
+          </p>
+        </div>
 
-      <div className="flex flex-col items-center py-8 md:py-20 px- sm:px-8 max-w-5xl mx-auto w-full">
-        <div className="w-full flex flex-col gap-8 px-4 sm:px-0">
-          {/* Header section */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-[#5c53e5] font-mono text-xs font-semibold uppercase tracking-wider">
-              <Wrench size={16} />
-              <span>Painel de Produtividade</span>
+        {/* Tools Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* Translator Card */}
+          <div 
+            onClick={onOpenTranslator}
+            className="group relative bg-white border border-gray-200 hover:border-indigo-200/80 rounded-2xl p-6 flex flex-col gap-5 cursor-pointer transition-all hover:shadow-md duration-200"
+          >
+            <div className="flex items-start justify-between">
+              <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-[#5c53e5] group-hover:scale-105 transition-transform">
+                <Languages size={24} />
+              </div>
+              <span className="text-[10px] bg-indigo-50 text-[#5c53e5] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
+                Inteligência Artificial
+              </span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">
-              Ferramentas Disponíveis
-            </h1>
-            <p className="text-gray-500 text-sm md:text-base leading-relaxed">
-              Explore os módulos especializados de inteligência artificial integrados para expandir seus limites criativos e de produtividade.
-            </p>
+
+            <div className="flex flex-col gap-1.5">
+              <h3 className="text-base font-bold text-gray-900 group-hover:text-[#5c53e5] transition-colors flex items-center gap-1.5">
+                <span>Tradutor Universal</span>
+                <ArrowRight size={15} className="text-gray-400 group-hover:text-[#5c53e5] group-hover:translate-x-1 transition-all" />
+              </h3>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Traduza instantaneamente textos entre os 50 idiomas mais importantes do mundo usando modelos de IA avançados. Adapte o tom da tradução (formal, informal, profissional) e ouça as traduções pronunciadas nativamente.
+              </p>
+            </div>
+
+            <div className="border-t border-gray-100 pt-3.5 mt-auto flex items-center gap-2">
+              <Sparkles size={12} className="text-[#5c53e5]" />
+              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                50 idiomas • Leitura por voz • Tom de escrita
+              </span>
+            </div>
           </div>
 
-          {/* Tools Grid */}
-          <div className="grid grid-cols-1 max-w-lg w-full gap-6 mt-2">
-            
-            {/* Tool Card: Área do Escritor */}
+          {/* Scheduled Tasks Card (if onOpenTasks is supplied) */}
+          {onOpenTasks && (
             <div 
-              id="tool-card-writer"
-              onClick={onOpenWriterArea}
-              className="group relative flex flex-col justify-between bg-white hover:bg-zinc-50/50 border border-gray-200 hover:border-gray-300 rounded-2xl p-6 shadow-2xs hover:shadow-md transition-all duration-300 cursor-pointer overflow-hidden"
+              onClick={onOpenTasks}
+              className="group relative bg-white border border-gray-200 hover:border-[#5c53e5]/20 rounded-2xl p-6 flex flex-col gap-5 cursor-pointer transition-all hover:shadow-md duration-200"
             >
-              {/* Subtle decorative background gradient on hover */}
-              <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/10 via-transparent to-blue-50/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-              
-              <div className="space-y-4 relative z-10">
-                {/* Icon Circle */}
-                <div className="w-12 h-12 bg-indigo-50 text-[#5c53e5] rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm border border-indigo-100/30">
-                  <BookOpen size={24} />
+              <div className="flex items-start justify-between">
+                <div className="w-12 h-12 rounded-xl bg-zinc-50 flex items-center justify-center text-gray-600 group-hover:scale-105 transition-transform">
+                  <Clock size={24} />
                 </div>
-                
-                <div className="space-y-2">
-                  <h3 className="text-lg font-bold text-gray-900 group-hover:text-[#5c53e5] transition-colors font-sans">
-                    Área do Escritor
-                  </h3>
-                  <p className="text-gray-500 text-sm leading-relaxed">
-                    Ideal para redações, e-mails, artigos ou livros completos. Escreva com apoio em tempo real de uma IA revisora que sugere melhorias estruturais e continua suas ideias com fluidez.
-                  </p>
-                </div>
+                <span className="text-[10px] bg-zinc-50 text-gray-500 font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
+                  Agendamento
+                </span>
               </div>
 
-              <div className="mt-6 flex items-center gap-1.5 text-sm font-semibold text-[#5c53e5] group-hover:gap-2.5 transition-all relative z-10">
-                <span>Acessar ferramenta</span>
-                <ArrowRight size={16} />
+              <div className="flex flex-col gap-1.5">
+                <h3 className="text-base font-bold text-gray-900 group-hover:text-[#5c53e5] transition-colors flex items-center gap-1.5">
+                  <span>Tarefas Agendadas</span>
+                  <ArrowRight size={15} className="text-gray-400 group-hover:text-[#5c53e5] group-hover:translate-x-1 transition-all" />
+                </h3>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Gerencie execuções automáticas, tarefas programadas recorrentes ou disparadores que executam comandos, análises de dados e interações com IA em segundo plano.
+                </p>
+              </div>
+
+              <div className="border-t border-gray-100 pt-3.5 mt-auto flex items-center gap-2">
+                <BrainCircuit size={12} className="text-gray-400" />
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                  Automação • Cron Jobs • Notificações
+                </span>
               </div>
             </div>
-
-          </div>
+          )}
         </div>
       </div>
     </div>

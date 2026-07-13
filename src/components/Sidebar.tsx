@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Image as ImageIcon, MessageSquare, Trash2, LogOut, Clock, BookOpen, Folder, MessageSquarePlus, User, X, Wrench, Menu, Download } from 'lucide-react';
+import { Plus, Search, Image as ImageIcon, MessageSquare, Trash2, LogOut, Clock, BookOpen, Folder, MessageSquarePlus, User, X, Languages, Wrench, Menu, Download } from 'lucide-react';
 import { ChatSession } from '../types';
 
 interface SidebarProps {
@@ -13,10 +13,11 @@ interface SidebarProps {
   userEmail?: string | null;
   userName?: string | null;
   onSignOut?: () => void;
-  onOpenWriterArea?: () => void;
   onOpenTools?: () => void;
+  onOpenTasks?: () => void;
   isMobileHistoryOpen?: boolean;
   onCloseMobileHistory?: () => void;
+  onOpenSearchModal?: () => void;
 }
 
 export default function Sidebar(props: SidebarProps) {
@@ -31,12 +32,12 @@ export default function Sidebar(props: SidebarProps) {
     userEmail,
     userName,
     onSignOut,
-    onOpenWriterArea,
     onOpenTools,
+    onOpenTasks,
     isMobileHistoryOpen,
-    onCloseMobileHistory
+    onCloseMobileHistory,
+    onOpenSearchModal
   } = props;
-  const [searchQuery, setSearchQuery] = useState('');
   
   const [isMobile, setIsMobile] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -90,20 +91,8 @@ export default function Sidebar(props: SidebarProps) {
 
   const isCurrentlyCollapsed = isCollapsed && (!isMobile || !isMobileHistoryOpen);
 
-  // Filter sessions based on search
-  const normalizeString = (str: string | undefined | null) => {
-    if (!str) return '';
-    return String(str).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  };
-
-  const normalizedQuery = normalizeString(searchQuery);
-
-  const filteredSessions = sessions.filter(session => {
-    if (!normalizedQuery) return true;
-    const titleMatch = normalizeString(session.title).includes(normalizedQuery);
-    const messagesMatch = Array.isArray(session.messages) && session.messages.some(m => normalizeString(m.text).includes(normalizedQuery));
-    return titleMatch || messagesMatch;
-  });
+  // Sessions list is now filtered in the modal, here we show all sessions
+  const filteredSessions = sessions;
 
   if (isCurrentlyCollapsed) {
     return (
@@ -155,10 +144,9 @@ export default function Sidebar(props: SidebarProps) {
 
             <button
               onClick={() => {
-                handleToggleCollapse();
-                setTimeout(() => {
-                  document.getElementById('search-conversations')?.focus();
-                }, 150);
+                if (onOpenSearchModal) {
+                  onOpenSearchModal();
+                }
               }}
               className="w-9 h-9 flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-black/5 rounded-lg transition-all cursor-pointer"
               title="Buscar conversas"
@@ -227,14 +215,29 @@ export default function Sidebar(props: SidebarProps) {
             </span>
           </div>
           
-          {/* Toggle Collapse Button on Desktop */}
-          <button
-            onClick={handleToggleCollapse}
-            className="hidden md:flex w-8 h-8 items-center justify-center rounded-lg hover:bg-black/5 text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
-            title="Recolher painel"
-          >
-            <Menu className="w-4.5 h-4.5" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Search Button */}
+            <button
+              onClick={() => {
+                if (onOpenSearchModal) {
+                  onOpenSearchModal();
+                }
+              }}
+              className="flex w-8 h-8 items-center justify-center rounded-lg hover:bg-black/5 text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
+              title="Pesquisar conversas"
+            >
+              <Search className="w-4.5 h-4.5" />
+            </button>
+
+            {/* Toggle Collapse Button on Desktop */}
+            <button
+              onClick={handleToggleCollapse}
+              className="hidden md:flex w-8 h-8 items-center justify-center rounded-lg hover:bg-black/5 text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
+              title="Recolher painel"
+            >
+              <Menu className="w-4.5 h-4.5" />
+            </button>
+          </div>
           
           {onCloseMobileHistory && (
             <button 
@@ -247,40 +250,37 @@ export default function Sidebar(props: SidebarProps) {
         </div>
 
         {/* Primary Actions */}
-        <div className="px-3 py-2 flex flex-col gap-1.5">
+        <div className="px-3 py-2 flex flex-col gap-0.5">
           <button
             id="btn-new-chat"
             onClick={onNewChat}
-            className="w-full flex items-center justify-center gap-1.5 bg-white hover:bg-[#fafaf9] text-gray-800 py-2 px-3 rounded-lg border border-[#eae6e1] shadow-2xs transition-all duration-200 active:scale-[0.98] cursor-pointer font-semibold text-[12.5px]"
+            className="w-full flex items-center justify-start gap-3 bg-transparent hover:bg-black/5 text-gray-700 hover:text-gray-900 py-2 px-3.5 rounded-lg border border-transparent transition-all duration-150 cursor-pointer text-left font-medium text-[13.5px] group"
           >
-            <Plus className="w-4 h-4 text-gray-500" />
-            Nova conversa
+            <Plus className="w-4.5 h-4.5 text-gray-500 group-hover:text-gray-800 transition-colors" />
+            <span>Nova conversa</span>
           </button>
           <button
-            id="btn-writer-area"
+            id="btn-tools"
             onClick={() => {
               if (onOpenTools) onOpenTools();
             }}
-            className="flex w-full items-center justify-center gap-1.5 bg-white hover:bg-[#fafaf9] text-gray-800 py-2 px-3 rounded-lg border border-[#eae6e1] shadow-2xs transition-all duration-200 active:scale-[0.98] cursor-pointer font-semibold text-[12.5px]"
+            className="w-full flex items-center justify-start gap-3 bg-transparent hover:bg-black/5 text-gray-700 hover:text-gray-900 py-2 px-3.5 rounded-lg border border-transparent transition-all duration-150 cursor-pointer text-left font-medium text-[13.5px] group"
           >
-            <Wrench className="w-4 h-4 text-gray-500" />
-            Ferramentas
+            <Wrench className="w-4.5 h-4.5 text-gray-500 group-hover:text-gray-800 transition-colors" />
+            <span>Ferramentas</span>
           </button>
-        </div>
-
-        {/* Search Input */}
-        <div className="px-3 py-1">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-            <input
-              id="search-conversations"
-              type="text"
-              placeholder="Buscar conversas..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-[#eae6e1] rounded-lg pl-8 pr-3 py-1.5 text-[12.5px] text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#5c53e5] focus:ring-1 focus:ring-[#5c53e5]/25 transition-all"
-            />
-          </div>
+          <button
+            onClick={() => {
+              if (onOpenTasks) onOpenTasks();
+            }}
+            className="w-full flex items-center justify-start gap-3 bg-transparent hover:bg-black/5 text-gray-700 hover:text-gray-900 py-2 px-3.5 rounded-lg border border-transparent transition-all duration-150 cursor-pointer text-left font-medium text-[13.5px] relative group"
+          >
+            <Clock className="w-4.5 h-4.5 text-gray-500 group-hover:text-gray-800 transition-colors" />
+            <span>Tarefas Agendadas</span>
+            {sessions.some(s => s.isScheduled && s.isUnread) && (
+              <span className="absolute right-3.5 top-1/2 -translate-y-1/2 w-2 h-2 bg-[#5c53e5] rounded-full animate-pulse"></span>
+            )}
+          </button>
         </div>
 
         {/* Recents List */}
@@ -308,7 +308,9 @@ export default function Sidebar(props: SidebarProps) {
                     <span className="text-[12px] truncate pr-5 block flex-1">
                       {session.title}
                     </span>
-
+                    {session.isUnread && (
+                      <div className="absolute right-7 w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                    )}
                     {/* Delete Button */}
                     <button
                       onClick={(e) => onDeleteSession(session.id, e)}

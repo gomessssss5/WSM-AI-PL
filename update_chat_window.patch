@@ -1,0 +1,113 @@
+--- src/components/ChatWindow.tsx
++++ src/components/ChatWindow.tsx
+@@ -29,6 +29,8 @@
+   X,
+   Check
+ } from 'lucide-react';
++import { systemSkills, Skill } from '../lib/skills';
++import { FileBox, FileCode2 } from 'lucide-react';
+ import { ChatSession, Message, SearchResult } from '../types';
+ import { 
+   updateSessionTitle,
+@@ -587,11 +589,17 @@
+   };
+ 
++  const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
++  const [isSkillsSubMenuOpen, setIsSkillsSubMenuOpen] = useState(false);
++  const [activeSkill, setActiveSkill] = useState<Skill | null>(null);
++
+   const handleAttachClick = () => {
++    setIsAttachMenuOpen(!isAttachMenuOpen);
++    setIsSkillsSubMenuOpen(false);
++  };
++
++  const handleAttachFileDirectly = () => {
+     const hasAccepted = localStorage.getItem('wsm_accepted_file_terms') === 'true';
+     if (hasAccepted) {
+       fileInputRef.current?.click();
+     } else {
+       setShowTermsModal(true);
+     }
+   };
+@@ -604,7 +612,18 @@
+     { id: '/relogio', name: 'relogio', description: 'Relógio e Data Atual', icon: Clock, color: 'text-orange-500' }
+   ];
+ 
+-  const filteredTools = marteTools.filter(tool => tool.id.toLowerCase().includes(slashSearchTerm.toLowerCase()));
++  const slashItems = [
++    ...marteTools,
++    ...systemSkills.map(skill => ({
++      id: `/${skill.id}`,
++      name: skill.name,
++      description: skill.description,
++      icon: FileCode2,
++      color: 'text-indigo-500',
++      isSkill: true,
++      skillObj: skill
++    }))
++  ];
++
++  const filteredTools = slashItems.filter(item => item.id.toLowerCase().includes(slashSearchTerm.toLowerCase()));
+ 
+   const handleInputValueChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+     const val = e.target.value;
+@@ -630,7 +649,7 @@
+     }
+   };
+ 
+-  const handleToolSelect = (toolId: string) => {
++  const handleToolSelect = (item: any) => {
+     const textarea = document.getElementById('chat-input-textarea-floating') as HTMLTextAreaElement;
+     const cursorPosition = textarea?.selectionStart || inputValue.length;
+     
+@@ -642,11 +661,18 @@
+       const matchIndex = slashMatch.index !== undefined ? slashMatch.index : 0;
+       const spaceBefore = slashMatch[1]; // either '' or ' '
+       
+-      const newText = textBeforeCursor.slice(0, matchIndex) + spaceBefore + toolId + ' ' + textAfterCursor;
+-      setInputValue(newText);
++      if (item.isSkill) {
++        setActiveSkill(item.skillObj);
++        const newText = textBeforeCursor.slice(0, matchIndex) + spaceBefore + textAfterCursor;
++        setInputValue(newText);
++      } else {
++        const newText = textBeforeCursor.slice(0, matchIndex) + spaceBefore + item.id + ' ' + textAfterCursor;
++        setInputValue(newText);
++      }
++      
+       setSlashMenuOpen(false);
+       
+       setTimeout(() => {
+         if (textarea) {
+           textarea.focus();
+-          const newPos = matchIndex + spaceBefore.length + toolId.length + 1;
++          const newPos = item.isSkill ? matchIndex + spaceBefore.length : matchIndex + spaceBefore.length + item.id.length + 1;
+           textarea.setSelectionRange(newPos, newPos);
+         }
+       }, 0);
+@@ -719,7 +745,7 @@
+ 
+   const handleSubmit = async (e?: React.FormEvent) => {
+     e?.preventDefault();
+-    if (!inputValue.trim() && attachments.length === 0) return;
++    if (!inputValue.trim() && attachments.length === 0 && !activeSkill) return;
+     if (inputValue.length > 1500) return;
+ 
+     // Add user message locally for immediate feedback
+@@ -744,6 +770,7 @@
+     setInputValue('');
+     setAttachments([]);
+     setUploadError(null);
++    setActiveSkill(null);
+     
+     // Remove floating input wrapper on send
+     setShowFloatingInput(false);
+@@ -763,7 +790,7 @@
+       }
+       if (e.key === 'Enter') {
+         e.preventDefault();
+-        handleToolSelect(filteredTools[slashMenuIndex].id);
++        handleToolSelect(filteredTools[slashMenuIndex]);
+         return;
+       }
+       if (e.key === 'Escape') {

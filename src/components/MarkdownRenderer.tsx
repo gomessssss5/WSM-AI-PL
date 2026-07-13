@@ -1,8 +1,202 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { Copy, Check, Globe, Calculator, Clock } from 'lucide-react';
+import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode } from 'lucide-react';
 import HtmlCodeBlock from './HtmlCodeBlock';
+import { auth, db } from '../lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+
+interface AgenticSkillTagProps {
+  key?: string;
+  text: string;
+  type: string;
+}
+
+export function AgenticSkillTag({ text, type }: AgenticSkillTagProps) {
+  // Extract skill name
+  const rawName = text.includes(':') ? text.split(':')[1] : text;
+  const skillName = rawName.replace(/\]/g, '').trim();
+  const skillId = skillName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+
+  const [status, setStatus] = React.useState<'active' | 'completed'>(() => {
+    const lower = text.toLowerCase();
+    if (lower.startsWith('criou') || lower.startsWith('editou') || lower.startsWith('excluiu')) {
+      return 'completed';
+    }
+    return 'active';
+  });
+
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [skillData, setSkillData] = React.useState<any>(null);
+  const [loadingSkill, setLoadingSkill] = React.useState(false);
+  const [errorLoading, setErrorLoading] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const lower = text.toLowerCase();
+    if (lower.startsWith('criou') || lower.startsWith('editou') || lower.startsWith('excluiu')) {
+      setStatus('completed');
+      return;
+    }
+    
+    // Auto transition from active (Criando/Editando/Excluindo) to completed (Criou/Editou/Excluiu) after 2.5s
+    const timer = setTimeout(() => {
+      setStatus('completed');
+    }, 2500);
+
+    return () => clearTimeout(timer);
+  }, [text]);
+
+  const handleOpenModal = async () => {
+    if (type === 'skill_delete') return; // no content to view if deleted
+    setIsModalOpen(true);
+    setLoadingSkill(true);
+    setErrorLoading(null);
+
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        setErrorLoading("Usuário não autenticado.");
+        setLoadingSkill(false);
+        return;
+      }
+
+      const docRef = doc(db, 'users', user.uid, 'skills', skillId);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        setSkillData(docSnap.data());
+      } else {
+        setErrorLoading(`A Skill "${skillName}" ainda não foi salva no banco de dados ou não foi encontrada.`);
+      }
+    } catch (err: any) {
+      console.error("Erro ao carregar skill:", err);
+      setErrorLoading("Falha ao carregar o conteúdo da Skill.");
+    } finally {
+      setLoadingSkill(false);
+    }
+  };
+
+  // Determine label texts based on status
+  let labelText = '';
+  if (status === 'active') {
+    if (type === 'skill_create') labelText = `Criando Skill: ${skillName}`;
+    else if (type === 'skill_edit') labelText = `Editando Skill: ${skillName}`;
+    else if (type === 'skill_delete') labelText = `Excluindo Skill: ${skillName}`;
+    else labelText = text;
+  } else {
+    if (type === 'skill_create') labelText = `Criou Skill: ${skillName}`;
+    else if (type === 'skill_edit') labelText = `Editou Skill: ${skillName}`;
+    else if (type === 'skill_delete') labelText = `Excluiu Skill: ${skillName}`;
+    else labelText = text;
+  }
+
+  if (status === 'active') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-purple-700 bg-purple-50 border-purple-200 cursor-default shadow-xs mx-0 my-3">
+        <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse shrink-0" />
+        <span><strong className="font-semibold">{labelText}</strong></span>
+      </span>
+    );
+  }
+
+  // Completed style
+  const isClickable = type !== 'skill_delete';
+  return (
+    <>
+      <button
+        onClick={isClickable ? handleOpenModal : undefined}
+        disabled={!isClickable}
+        className={`inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-indigo-700 bg-indigo-50 border-indigo-200 shadow-xs mx-0 my-3 ${isClickable ? 'cursor-pointer hover:bg-indigo-100 hover:border-indigo-300 active:scale-98' : 'cursor-default opacity-80'}`}
+      >
+        <CheckCircle2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+        <span><strong className="font-semibold">{labelText}</strong></span>
+        {isClickable && (
+          <span className="text-[10px] text-indigo-400 font-normal ml-0.5">(Ver Skill)</span>
+        )}
+      </button>
+
+      {isModalOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 md:p-6 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden border border-gray-100">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                  <FileCode className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    Skill: <span className="text-indigo-600 font-mono text-base bg-indigo-50/50 px-2 py-0.5 rounded border border-indigo-100">{skillName}</span>
+                  </h3>
+                  <p className="text-xs text-gray-500">Visualização em tela cheia do conteúdo da Skill</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-white">
+              {loadingSkill ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-3">
+                  <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm text-gray-500 font-medium">Buscando informações da Skill...</p>
+                </div>
+              ) : errorLoading ? (
+                <div className="flex flex-col items-center justify-center text-center py-12 px-4 max-w-md mx-auto">
+                  <div className="p-3 bg-amber-50 text-amber-600 rounded-full mb-3">
+                    <AlertTriangle className="w-8 h-8" />
+                  </div>
+                  <h4 className="text-base font-semibold text-gray-900 mb-1">Conteúdo não disponível</h4>
+                  <p className="text-sm text-gray-500">{errorLoading}</p>
+                  <button 
+                    onClick={() => setIsModalOpen(false)}
+                    className="mt-6 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              ) : (
+                <div className="prose prose-indigo max-w-none">
+                  {skillData?.content ? (
+                    <div className="font-sans text-[15px] text-gray-800 leading-relaxed bg-slate-50/50 border border-slate-100 rounded-xl p-6 shadow-2xs">
+                      <MarkdownRenderer content={skillData.content} />
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 italic">Esta Skill não possui nenhum conteúdo registrado.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-100 bg-slate-50 flex items-center justify-between">
+              <div className="text-xs text-gray-400">
+                {skillData?.updatedAt && (
+                  <span>Última atualização: {new Date(skillData.updatedAt?.seconds ? skillData.updatedAt.seconds * 1000 : skillData.updatedAt).toLocaleString()}</span>
+                )}
+              </div>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer hover:shadow-md"
+              >
+                Concluir Visualização
+              </button>
+            </div>
+
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
 
 interface MarkdownRendererProps {
   content: string;
@@ -64,13 +258,17 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
       return space + id;
     });
 
-    // 0. Extract agentic tags: [pesquisou na web], [calculando], [verificando relógio], and active states
-    const agenticRegex = /\[(pesquisou na web|calculando|verificando relógio|pesquisando\.\.\.|calculando\.\.\.|verificando\.\.\.)\]/gi;
+    // 0. Extract agentic tags: [pesquisou na web], [calculando], [verificando relógio], and active/completed states
+    const agenticRegex = /\[(pesquisou na web|calculando|verificando relógio|pesquisando\.\.\.|calculando\.\.\.|verificando\.\.\.|Criando Skill:.*?|Editando Skill:.*?|Excluindo Skill:.*?|Criou Skill:.*?|Editou Skill:.*?|Excluiu Skill:.*?|criando skill:.*?|editando skill:.*?|excluindo skill:.*?|criou skill:.*?|editou skill:.*?|excluiu skill:.*?)\]/gi;
     currentText = currentText.replace(agenticRegex, (match, tagContent) => {
       const id = `:::AGENTICTOKEN-${agenticTokens.length}:::`;
       let type = 'web';
-      if (tagContent.toLowerCase().includes('calculando') || tagContent.toLowerCase().includes('calculando...')) type = 'calc';
-      if (tagContent.toLowerCase().includes('relógio') || tagContent.toLowerCase().includes('verificando...')) type = 'clock';
+      const lower = tagContent.toLowerCase();
+      if (lower.includes('calculando') || lower.includes('calculando...')) type = 'calc';
+      else if (lower.includes('relógio') || lower.includes('verificando...')) type = 'clock';
+      else if (lower.includes('criando skill:') || lower.includes('criou skill:')) type = 'skill_create';
+      else if (lower.includes('editando skill:') || lower.includes('editou skill:')) type = 'skill_edit';
+      else if (lower.includes('excluindo skill:') || lower.includes('excluiu skill:')) type = 'skill_delete';
       agenticTokens.push({ id, type, text: tagContent });
       return id;
     });
@@ -142,6 +340,16 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
             } else if (part.startsWith(':::AGENTICTOKEN-')) {
               const token = agenticTokens.find(t => t.id === part);
               if (token) {
+                if (token.type.startsWith('skill_')) {
+                  return (
+                    <AgenticSkillTag
+                      key={`skill-tag-${pIdx}-${keyIndex++}`}
+                      text={token.text}
+                      type={token.type}
+                    />
+                  );
+                }
+
                 let Icon = Globe;
                 let displayType = 'Pesquisou na web';
                 let isActive = false;

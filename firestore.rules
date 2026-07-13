@@ -69,6 +69,24 @@ service cloud.firestore {
         allow list: if isSignedIn();
         allow write: if isOwner(userId) && isValidId(draftId);
       }
+
+      match /skills/{skillId} {
+        allow get, delete: if isSignedIn() && isValidId(skillId);
+        allow list: if isSignedIn();
+        allow write: if isOwner(userId) && isValidId(skillId);
+      }
+
+      match /scheduledTasks/{taskId} {
+        allow list: if isOwner(userId);
+        allow get, delete: if isOwner(userId) && isValidId(taskId);
+        allow write: if isOwner(userId) && isValidId(taskId);
+      }
+
+      match /taskExecutions/{executionId} {
+        allow list: if isOwner(userId);
+        allow get, delete: if isOwner(userId) && isValidId(executionId);
+        allow write: if isOwner(userId) && isValidId(executionId);
+      }
     }
 
     // Support collection group queries for analytics & dashboards

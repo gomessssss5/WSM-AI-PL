@@ -3,6 +3,7 @@ import { WsmDocument } from '../types';
 import { FileText, MoreHorizontal, Download, Expand, Maximize2, X } from 'lucide-react';
 import MarkdownRenderer from './MarkdownRenderer';
 import html2pdf from 'html2pdf.js';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface DocumentCardProps {
   document: WsmDocument;
@@ -57,7 +58,10 @@ export default function DocumentCard({ document }: DocumentCardProps) {
 
   return (
     <>
-      <div 
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
         className="w-full border border-[#eae6e1] rounded-xl bg-white shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden mt-3 max-w-[400px]"
         onClick={() => setIsFullscreen(true)}
       >
@@ -85,11 +89,23 @@ export default function DocumentCard({ document }: DocumentCardProps) {
            </div>
            <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white to-transparent" />
         </div>
-      </div>
+      </motion.div>
 
+      <AnimatePresence>
       {isFullscreen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 md:p-8 animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-4xl h-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 md:p-8"
+        >
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0, y: 20 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="bg-white rounded-2xl w-full max-w-4xl h-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
+          >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-150 bg-white">
               <div className="flex items-center gap-3">
@@ -151,9 +167,10 @@ export default function DocumentCard({ document }: DocumentCardProps) {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { WsmForm } from '../types';
 import { ChevronLeft, ChevronRight, X, ArrowRight, ArrowUp, Edit2, CheckSquare, Square } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface InteractiveFormProps {
   form: WsmForm;
@@ -90,10 +91,27 @@ export default function InteractiveForm({ form, onSubmit, onCancel }: Interactiv
   const isMulti = question.type === 'multiple_choice';
 
   return (
-    <div className="bg-white border border-gray-150 shadow-xl rounded-2xl p-4 flex flex-col mb-4 w-full animate-fade-in relative">
+    <motion.div 
+      initial={{ opacity: 0, y: 10, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+      className="bg-white border border-gray-150 shadow-xl rounded-2xl p-4 flex flex-col mb-4 w-full relative"
+    >
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-medium text-gray-800 text-[14.5px] pr-8">{question.question}</h3>
+        <AnimatePresence mode="wait">
+          <motion.h3 
+            key={currentStep}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 10 }}
+            transition={{ duration: 0.2 }}
+            className="font-medium text-gray-800 text-[14.5px] pr-8"
+          >
+            {question.question}
+          </motion.h3>
+        </AnimatePresence>
         <div className="flex items-center gap-2 text-gray-400 text-[13px] shrink-0">
           <button 
             onClick={handlePrev} 
@@ -117,8 +135,16 @@ export default function InteractiveForm({ form, onSubmit, onCancel }: Interactiv
       </div>
 
       {/* Options */}
-      <div className="flex flex-col gap-1.5 flex-1">
-        {question.options && question.options.map((opt, idx) => {
+      <AnimatePresence mode="wait">
+        <motion.div 
+          key={currentStep}
+          initial={{ opacity: 0, x: 10 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -10 }}
+          transition={{ duration: 0.2 }}
+          className="flex flex-col gap-1.5 flex-1"
+        >
+          {question.options && question.options.map((opt, idx) => {
           if (isMulti) {
             const isSelected = (answers[currentStep] || []).includes(opt);
             return (
@@ -197,7 +223,8 @@ export default function InteractiveForm({ form, onSubmit, onCancel }: Interactiv
             )}
           </div>
         )}
-      </div>
+        </motion.div>
+      </AnimatePresence>
 
       {/* Footer controls for Multi/Text or Skip */}
       <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
@@ -221,6 +248,6 @@ export default function InteractiveForm({ form, onSubmit, onCancel }: Interactiv
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

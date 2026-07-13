@@ -1,19 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
+import SearchModal from './components/SearchModal';
 import MainHome from './components/MainHome';
 import ChatWindow from './components/ChatWindow';
 import ImagesGallery from './components/ImagesGallery';
-import WriterDashboard from './components/writer/WriterDashboard';
-import WriterWorkspace from './components/writer/WriterWorkspace';
+import Translator from './components/Translator';
+import ToolsDashboard from './components/ToolsDashboard';
 import Login from './components/Login';
 import { auth, onAuthStateChanged, signOut, User, getRedirectResult } from './lib/firebase';
 import { subscribeSessions, saveSession, deleteSessionFromDb, subscribeDrafts, saveDraft, deleteDraft, subscribeUserProfile, dismissNewsCardForUser } from './lib/chatService';
-import { WriterDocument, subscribeWriterDocuments, saveWriterDocument, deleteWriterDocument } from './lib/writerService';
-import { ChatSession, Message, Draft } from './types';
+import { ChatSession, Message, Draft, ScheduledTask, TaskExecution } from './types';
 import { Sparkles, Trash2 } from 'lucide-react';
-import ToolsDashboard from './components/ToolsDashboard';
+import ScheduledTasksDashboard from './components/ScheduledTasksDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import AdminAuthModal from './components/AdminAuthModal';
+import { Skill, subscribeSkills, saveSkill, deleteSkillFromDb } from './lib/skills';
+import { subscribeScheduledTasks, subscribeTaskExecutions, saveScheduledTask, deleteScheduledTask, saveTaskExecution, calculateNextRunAt } from './lib/scheduledTasks';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -24,10 +26,27 @@ export default function App() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isImagesView, setIsImagesView] = useState(false);
   const [isToolsView, setIsToolsView] = useState(false);
-  const [isWriterMode, setIsWriterMode] = useState(false);
-  const [activeWriterDocId, setActiveWriterDocId] = useState<string | null>(null);
-  const [writerDocs, setWriterDocs] = useState<WriterDocument[]>([]);
+  const [isScheduledTasksView, setIsScheduledTasksView] = useState(false);
+  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
+  const [taskExecutions, setTaskExecutions] = useState<TaskExecution[]>([]);
+  const [isTranslatorMode, setIsTranslatorMode] = useState(false);
+  const [skills, setSkills] = useState<Skill[]>([]);
   const [isThinking, setIsThinking] = useState(false);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+
+  // Listen to User Skills from Firestore
+  useEffect(() => {
+    if (!currentUser) {
+      setSkills([]);
+      return;
+    }
+
+    const unsubscribeSkills = subscribeSkills(currentUser.uid, (loadedSkills) => {
+      setSkills(loadedSkills);
+    });
+
+    return () => unsubscribeSkills();
+  }, [currentUser]);
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     const saved = localStorage.getItem('wsm_selected_model');
     return saved || 'WSM 1.6 Flash';
@@ -50,6 +69,7 @@ export default function App() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const isExplicitCancelRef = useRef<boolean>(false);
   const isSearchActiveRef = useRef<boolean>(false);
+  const executingTasksRef = useRef<Set<string>>(new Set());
 
   // Request Notification permission immediately when the app mounts
   useEffect(() => {
@@ -110,7 +130,6 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) {
       setSessions([]);
-      setWriterDocs([]);
       return;
     }
 
@@ -120,11 +139,11 @@ export default function App() {
         const activeLocal = prevSessions.find((s) => s.id === currentActiveId);
         const isStreamingOrSimulating = activeLocal?.messages.some((m) => m.isSimulatingSearch);
         const isLocalActivePreserved = !!activeLocal;
-        const isActiveLocalDirtyOrPreserved = activeLocal && (isDirtyRef.current || isStreamingOrSimulating);
+        const isActiveLocalDirtyOrPreserved = activeLocal && (isDirtyRef.current || isStreamingOrSimulating || isThinking);
         const isActiveInLoaded = loadedSessions.some((loaded) => loaded.id === currentActiveId);
 
         const updatedLoaded = loadedSessions.map((loaded) => {
-          if (loaded.id === currentActiveId && activeLocal) {
+          if (loaded.id === currentActiveId && activeLocal && isActiveLocalDirtyOrPreserved) {
             return {
               ...loaded,
               messages: activeLocal.messages,
@@ -141,12 +160,16 @@ export default function App() {
       });
     });
 
-    const unsubscribeWriterDocs = subscribeWriterDocuments(currentUser.uid, (docs) => {
-      setWriterDocs(docs);
-    });
-
     const unsubscribeDrafts = subscribeDrafts(currentUser.uid, (loadedDrafts) => {
       setDrafts(loadedDrafts);
+    });
+
+    const unsubscribeTasks = subscribeScheduledTasks(currentUser.uid, (loadedTasks) => {
+      setScheduledTasks(loadedTasks);
+    });
+
+    const unsubscribeExecutions = subscribeTaskExecutions(currentUser.uid, (loadedExecutions) => {
+      setTaskExecutions(loadedExecutions);
     });
 
     const unsubscribeUserProfile = subscribeUserProfile(currentUser.uid, (loadedProfile) => {
@@ -155,11 +178,12 @@ export default function App() {
 
     return () => {
       unsubscribeSessions();
-      unsubscribeWriterDocs();
       unsubscribeDrafts();
+      unsubscribeTasks();
+      unsubscribeExecutions();
       unsubscribeUserProfile();
     };
-  }, [currentUser, activeSessionId]);
+  }, [currentUser, activeSessionId, isThinking]);
 
   // Persists the specified session directly to Firestore and clears the active save timeout
   const persistSession = async (session: ChatSession) => {
@@ -220,15 +244,261 @@ export default function App() {
     };
   }, []);
 
+  // Scheduled Tasks Runner
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const runScheduledTasks = () => {
+      const now = new Date();
+      scheduledTasks.forEach(async (task) => {
+        // Safe time comparison
+        if (task.isActive && task.nextRunAt.getTime() <= now.getTime()) {
+          // Check if already executing to prevent double execution
+          if (executingTasksRef.current.has(task.id)) {
+            return;
+          }
+          executingTasksRef.current.add(task.id);
+          console.log(`Running scheduled task: ${task.title}`);
+          
+          // Calculate next run immediately to prevent double execution
+          let nextRun = calculateNextRunAt(
+            task.scheduleType,
+            task.time,
+            task.scheduleType === 'once' ? task.date : undefined,
+            task.scheduleType === 'weekly' ? task.daysOfWeek : undefined,
+            task.scheduleType === 'monthly' ? task.dayOfMonth : undefined,
+            new Date(task.nextRunAt.getTime() + 1000) // start slightly after current scheduled time
+          );
+          
+          if (task.scheduleType === 'once') {
+            task.isActive = false; // 'once'
+          }
+
+          task.lastRunAt = now;
+          task.nextRunAt = nextRun;
+          
+          try {
+            // Save task state right away
+            await saveScheduledTask(currentUser.uid, task);
+
+            // Execute task
+            const newSessionId = crypto.randomUUID();
+            const newSession: ChatSession = {
+              id: newSessionId,
+              title: task.title,
+              timestamp: now,
+              category: 'general',
+              messages: [{
+                id: crypto.randomUUID(),
+                sender: 'user',
+                text: task.prompt,
+                timestamp: now
+              }],
+              isUnread: true,
+              isScheduled: true
+            };
+
+            // Save session first
+            await saveSession(currentUser.uid, newSession);
+            
+            // Also update React state immediately so it's instantly visible in the sidebar with the blue dot
+            setSessions((prev) => {
+              const exists = prev.some(s => s.id === newSession.id);
+              if (exists) return prev;
+              return [newSession, ...prev];
+            });
+            
+            // Mark execution
+            await saveTaskExecution(currentUser.uid, {
+              id: crypto.randomUUID(),
+              taskId: task.id,
+              taskTitle: task.title,
+              executedAt: now,
+              sessionId: newSessionId,
+              status: 'success'
+            });
+
+            // Now call the AI to process it (similar to handleSendMessage)
+            fetch("/api/chat", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                text: task.prompt,
+                isSearchEnabled: true,
+                model: selectedModel,
+                skills: skills,
+                history: []
+              }),
+            })
+            .then(async (res) => {
+              let aiText = "";
+              let aiFinalSynthesis = "";
+              let aiSearchSources: any[] = [];
+              let aiSearchImages: any[] = [];
+              let aiSearchSteps: any[] = [];
+
+              if (!res.ok) {
+                aiText = `⚠️ **Erro ao executar a tarefa agendada:** ${res.statusText} (Código: ${res.status})`;
+              } else {
+                const contentType = res.headers.get("content-type") || "";
+                if (!contentType.includes("text/event-stream")) {
+                  const data = await res.json();
+                  aiText = data.text || data.error || "Nenhuma resposta gerada.";
+                  aiFinalSynthesis = data.text || data.finalSynthesis || "";
+                  aiSearchSources = data.searchSources || [];
+                  aiSearchImages = data.searchImages || [];
+                } else {
+                  if (!res.body) throw new Error("No response body");
+                  const reader = res.body.getReader();
+                  const decoder = new TextDecoder("utf-8");
+                  let buffer = "";
+                  
+                  while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split("\n");
+                    buffer = lines.pop() || "";
+                    
+                    for (const line of lines) {
+                      const cleanedLine = line.trim();
+                      if (!cleanedLine.startsWith("data: ")) continue;
+                      
+                      try {
+                        const data = JSON.parse(cleanedLine.substring(6));
+                        if (data.type === "plan") {
+                          if (data.searchSteps) {
+                            aiSearchSteps = data.searchSteps;
+                          }
+                        } else if (data.type === "step_complete") {
+                          if (aiSearchSteps[data.index]) {
+                            aiSearchSteps[data.index].sources = data.sources;
+                            aiSearchSteps[data.index].isCompleted = true;
+                          }
+                        } else if (data.type === "chunk" && data.text) {
+                          aiText += data.text;
+                        } else if (data.type === "final") {
+                          if (data.text) {
+                            aiText = data.text;
+                          }
+                          if (data.finalSynthesis) {
+                            aiFinalSynthesis = data.finalSynthesis;
+                          }
+                          if (data.searchSources) {
+                            aiSearchSources = data.searchSources;
+                          }
+                          if (data.searchImages) {
+                            aiSearchImages = data.searchImages;
+                          }
+                        } else if (data.text) {
+                          aiText += data.text;
+                        } else if (data.finalSynthesis) {
+                          aiFinalSynthesis = data.finalSynthesis;
+                        }
+                      } catch (e) {}
+                    }
+                  }
+                }
+              }
+              
+              if (!aiText && !aiFinalSynthesis) {
+                aiText = "Tarefa agendada processada, mas nenhuma resposta de texto foi retornada.";
+              }
+
+              // Update session with AI response
+              const finalSession: ChatSession = {
+                ...newSession,
+                messages: [
+                  ...newSession.messages,
+                  {
+                    id: crypto.randomUUID(),
+                    sender: 'ai',
+                    text: aiText,
+                    finalSynthesis: aiFinalSynthesis,
+                    timestamp: new Date(),
+                    isSearchMessage: true,
+                    searchSources: aiSearchSources,
+                    searchImages: aiSearchImages,
+                    searchSteps: aiSearchSteps,
+                    isSimulatingSearch: false
+                  }
+                ]
+              };
+              
+              await saveSession(currentUser.uid, finalSession);
+
+              // Update React state immediately with AI response
+              setSessions((prev) => {
+                return prev.map(s => s.id === finalSession.id ? finalSession : s);
+              });
+
+              // Send browser notification if not focused
+              if (document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
+                try {
+                  const notificationTitle = `Tarefa executada: ${task.title}`;
+                  new Notification(notificationTitle, {
+                    body: aiText.substring(0, 100) + "...",
+                    icon: '/favicon.ico'
+                  });
+                } catch (e) {
+                  console.error("Error showing execution notification:", e);
+                }
+              }
+            })
+            .catch(async (err) => {
+              console.error("Scheduled task execution failed in fetch", err);
+              const errorSession: ChatSession = {
+                ...newSession,
+                messages: [
+                  ...newSession.messages,
+                  {
+                    id: crypto.randomUUID(),
+                    sender: 'ai',
+                    text: `⚠️ **Erro de execução:** ${err.message || String(err)}`,
+                    timestamp: new Date()
+                  }
+                ]
+              };
+              await saveSession(currentUser.uid, errorSession);
+              setSessions((prev) => prev.map(s => s.id === errorSession.id ? errorSession : s));
+            })
+            .finally(() => {
+              // Remove from running set after execution is fully completed
+              executingTasksRef.current.delete(task.id);
+            });
+
+          } catch (err) {
+            console.error("Failed to start scheduled task execution:", err);
+            executingTasksRef.current.delete(task.id);
+          }
+        }
+      });
+    };
+
+    const intervalId = setInterval(runScheduledTasks, 15000); // Check every 15 seconds for more responsive execution
+    
+    return () => clearInterval(intervalId);
+  }, [currentUser, scheduledTasks, selectedModel, skills]);
+
   // Handle switching to a specific session
   const handleSelectSession = (id: string | null) => {
     if (activeSessionRef.current && isDirtyRef.current) {
       persistSession(activeSessionRef.current);
     }
+    
+    if (id && currentUser) {
+      const selectedSession = sessions.find(s => s.id === id);
+      if (selectedSession && selectedSession.isUnread) {
+        saveSession(currentUser.uid, { ...selectedSession, isUnread: false });
+        setSessions((prev) => prev.map(s => s.id === id ? { ...s, isUnread: false } : s));
+      }
+    }
+
     setIsImagesView(false);
     setIsToolsView(false);
-    setIsWriterMode(false);
-    setActiveWriterDocId(null);
+    setIsScheduledTasksView(false);
+    setIsTranslatorMode(false);
     setActiveSessionId(id);
   };
 
@@ -239,8 +509,8 @@ export default function App() {
     }
     setIsImagesView(false);
     setIsToolsView(false);
-    setIsWriterMode(false);
-    setActiveWriterDocId(null);
+    setIsScheduledTasksView(false);
+    setIsTranslatorMode(false);
     setActiveSessionId(null);
   };
 
@@ -248,73 +518,33 @@ export default function App() {
   const handleToggleImagesView = () => {
     setIsImagesView(!isImagesView);
     setIsToolsView(false);
-    setIsWriterMode(false);
-    setActiveWriterDocId(null);
+    setIsScheduledTasksView(false);
+    setIsTranslatorMode(false);
   };
   
-  // Writer Handlers
-  const handleOpenWriterArea = () => {
+  // Translator Handler
+  const handleOpenTranslator = () => {
     setIsImagesView(false);
     setIsToolsView(false);
+    setIsScheduledTasksView(false);
     setActiveSessionId(null);
-    setIsWriterMode(true);
-    setActiveWriterDocId(null);
+    setIsTranslatorMode(true);
   };
 
   const handleOpenToolsView = () => {
     setIsImagesView(false);
-    setIsWriterMode(false);
-    setActiveWriterDocId(null);
+    setIsTranslatorMode(false);
     setActiveSessionId(null);
+    setIsScheduledTasksView(false);
     setIsToolsView(true);
   };
 
-  const handleNewWriterDocument = async () => {
-    if (!currentUser) return;
-    const newDocId = `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Create an associated chat session
-    const initialSession: ChatSession = {
-      id: newSessionId,
-      title: 'Assistente do Escritor',
-      messages: [],
-      timestamp: new Date()
-    };
-    await saveSession(currentUser.uid, initialSession);
-
-    const newDoc: WriterDocument = {
-      id: newDocId,
-      title: 'Documento sem Título',
-      content: '',
-      userId: currentUser.uid,
-      updatedAt: Date.now(),
-      chatSessionId: newSessionId
-    };
-    
-    // Optimistic UI update
-    setWriterDocs(prev => [newDoc, ...prev]);
-    setActiveWriterDocId(newDocId);
-    setActiveSessionId(newSessionId);
-    
-    await saveWriterDocument(newDoc);
-  };
-
-  const handleOpenWriterDocument = (doc: WriterDocument) => {
-    setActiveWriterDocId(doc.id);
-    setActiveSessionId(doc.chatSessionId);
-  };
-
-  const handleDeleteWriterDocument = async (docId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (activeWriterDocId === docId) {
-      setActiveWriterDocId(null);
-    }
-    await deleteWriterDocument(docId);
-  };
-
-  const handleUpdateWriterDocument = (updatedDoc: WriterDocument) => {
-    setWriterDocs(prev => prev.map(d => d.id === updatedDoc.id ? updatedDoc : d));
+  const handleOpenTasksView = () => {
+    setIsImagesView(false);
+    setIsTranslatorMode(false);
+    setActiveSessionId(null);
+    setIsToolsView(false);
+    setIsScheduledTasksView(true);
   };
 
   // Delete an existing session from Firestore
@@ -569,53 +799,139 @@ Como posso ajudar você hoje?`
     };
   };
 
-  const checkAndApplyWriterUpdate = async (text: string) => {
-    if (!isWriterMode || !activeWriterDocId) return;
-    const match = text.match(/<wsm_writer_update>([\s\S]*?)<\/wsm_writer_update>/);
-    if (match && match[1]) {
-      try {
-        let jsonStr = match[1].trim();
-        // Remove possible markdown formatting if AI added it inside the tag
-        jsonStr = jsonStr.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
-        
-        let parsed: any = null;
-        try {
-          parsed = JSON.parse(jsonStr);
-        } catch (err) {
-          // Fallback: try to repair unquoted keys (e.g. {content: "..."})
-          try {
-            const repaired = jsonStr.replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
-            parsed = JSON.parse(repaired);
-          } catch (err2) {
-             console.error("Failed to parse writer update:", jsonStr);
-             return; // Stop if it's really unparseable
-          }
-        }
 
-        if (parsed && (parsed.content !== undefined || parsed.title !== undefined)) {
-          setWriterDocs(prev => prev.map(d => {
-            if (d.id === activeWriterDocId) {
-              const updated = {
-                ...d,
-                title: parsed.title !== undefined ? parsed.title : d.title,
-                content: parsed.content !== undefined ? parsed.content : d.content,
-                updatedAt: Date.now()
-              };
-              // Save to firestore asynchronously
-              saveWriterDocument(updated).catch(e => console.error("Error saving automatic writer doc update:", e));
-              return updated;
-            }
-            return d;
-          }));
-        }
-      } catch (e) {
-        // Handle unexpected outer errors gracefully
+
+  const checkAndApplySkillUpdate = async (aiText: string) => {
+    if (!currentUser) return;
+
+    // Matches tags like [Criando Skill: user] or [Editando Skill: user] or [Excluindo Skill: user] (case-insensitive)
+    const skillActionRegex = /\[(Criando|Editando|Excluindo) Skill:\s*(.*?)\]/gi;
+    const match = skillActionRegex.exec(aiText);
+    if (!match) return;
+
+    const action = match[1].toLowerCase(); // 'criando', 'editando', 'excluindo'
+    const rawSkillName = match[2].trim();
+    // Clean trailing bracket if present
+    const skillName = rawSkillName.replace(/\]/g, '').trim();
+    const skillId = skillName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+
+    let skillContent = "";
+    // Try to extract content inside <wsm_skill_content>, <skill_content>, <skill>, <[skillId]>, or <[skillName]>
+    const tags = ['wsm_skill_content', 'skill_content', 'skill', skillId, skillName.toLowerCase()];
+    for (const tag of tags) {
+      const regex = new RegExp(`<${tag}>([\\s\\S]*?)<\/${tag}>`, 'i');
+      const contentMatch = regex.exec(aiText);
+      if (contentMatch) {
+        skillContent = contentMatch[1].trim();
+        break;
       }
+    }
+
+    if (action !== 'excluindo' && !skillContent) {
+      console.log(`[skills-format-error] Skill "${skillName}" is missing explicit content tags. Injecting format error.`);
+      
+      // Update latest AI message text to append the friendly message
+      setSessions((prev) => {
+        const currentSess = prev.find((s) => s.id === activeSessionIdRef.current);
+        if (!currentSess) return prev;
+        return prev.map((s) => {
+          if (s.id !== activeSessionIdRef.current) return s;
+          return {
+            ...s,
+            messages: s.messages.map((m, idx) => {
+              if (idx === s.messages.length - 1 && m.sender === 'ai') {
+                return {
+                  ...m,
+                  text: m.text + `\n\n*(Ops! Formato de skill incorreto.)*`,
+                  finalSynthesis: (m.finalSynthesis || m.text) + `\n\n*(Ops! Formato de skill incorreto.)*`,
+                };
+              }
+              return m;
+            }),
+          };
+        });
+      });
+
+      const formatErrorMessage = `[SISTEMA: ERRO DE CONTEÚDO] Você tentou realizar a ação [${match[1]} Skill: ${skillName}], mas não forneceu o conteúdo útil da skill envelopado em tags de conteúdo válidas como <wsm_skill_content>...</wsm_skill_content>.
+Por favor, reenvie a sua resposta incluindo o conteúdo estruturado e limpo (Markdown, tópicos, etc.) estritamente dentro da tag:
+<wsm_skill_content>
+(apenas dados úteis estruturados aqui, como o perfil do usuário ou notas úteis, sem conversas normais de chat ou raciocínio)
+</wsm_skill_content>
+Sua resposta normal de chat deve ficar fora dessa tag.`;
+
+      setTimeout(() => {
+        handleSendMessage(formatErrorMessage, isSearchActiveRef.current, undefined, undefined, true);
+      }, 1200);
+      return;
+    }
+
+    if (action === 'criando') {
+      // Check for conflict: does this skill already exist?
+      const existingSkill = skills.find(s => s.id === skillId || s.name.toLowerCase() === skillName.toLowerCase());
+      if (existingSkill) {
+        console.log(`[skills-conflict] Skill "${skillName}" already exists. Injecting conflict message.`);
+        
+        // Update latest AI message text to append the friendly message
+        setSessions((prev) => {
+          const currentSess = prev.find((s) => s.id === activeSessionIdRef.current);
+          if (!currentSess) return prev;
+          return prev.map((s) => {
+            if (s.id !== activeSessionIdRef.current) return s;
+            return {
+              ...s,
+              messages: s.messages.map((m, idx) => {
+                if (idx === s.messages.length - 1 && m.sender === 'ai') {
+                  const cleanedText = m.text.replace(/\[Criando Skill:.*?\]/gi, '').trim();
+                  return {
+                    ...m,
+                    text: cleanedText + `\n\nOps, essa skill já existe!`,
+                    finalSynthesis: (m.finalSynthesis || cleanedText) + `\n\nOps, essa skill já existe!`,
+                  };
+                }
+                return m;
+              }),
+            };
+          });
+        });
+
+        // Auto-reply conflict system message (hidden from the user!)
+        const conflictMessage = `[SISTEMA: ERRO DE CONFLITO] Você tentou criar a Skill "${skillName}", mas uma Skill com o mesmo nome já existe.
+O conteúdo atual da Skill existente é:
+\`\`\`markdown
+${existingSkill.content}
+\`\`\`
+
+Por favor, se você quiser alterar o conteúdo desta Skill, utilize a tag [Editando Skill: ${skillName}] e forneça o conteúdo atualizado dentro da tag <wsm_skill_content>...</wsm_skill_content>. Se o seu objetivo era criar uma nova Skill com um nome diferente, escolha outro nome exclusivo e envie a tag adequada [Criando Skill: Novo Nome] com as devidas tags de conteúdo.
+Apresente essa resposta e opções de forma amigável para o usuário.`;
+
+        // Automatically trigger AI re-run carrying this conflict warning
+        setTimeout(() => {
+          handleSendMessage(conflictMessage, isSearchActiveRef.current, undefined, undefined, true);
+        }, 1200);
+        return;
+      }
+
+      // No conflict - save the new skill
+      await saveSkill(currentUser.uid, {
+        id: skillId,
+        name: skillName,
+        description: 'Skill personalizada criada pela IA',
+        content: skillContent
+      });
+    } else if (action === 'editando') {
+      await saveSkill(currentUser.uid, {
+        id: skillId,
+        name: skillName,
+        description: 'Skill personalizada editada pela IA',
+        content: skillContent
+      });
+    } else if (action === 'excluindo') {
+      await deleteSkillFromDb(currentUser.uid, skillId);
     }
   };
 
   // Main sendMessage routine (used by both MainHome input and ChatWindow input)
-  const handleSendMessage = async (text: string, isSearchEnabled: boolean, overrideMessages?: Message[], attachments?: any[]) => {
+  const handleSendMessage = async (text: string, isSearchEnabled: boolean, overrideMessages?: Message[], attachments?: any[], isHidden?: boolean) => {
     if (!currentUser) return;
 
     if (text.trim().toUpperCase() === 'ADM') {
@@ -631,6 +947,7 @@ Como posso ajudar você hoje?`
       text,
       timestamp: new Date(),
       attachments: attachments,
+      isHidden: isHidden,
     };
 
     let sessionToUpdate: ChatSession;
@@ -764,12 +1081,9 @@ Como posso ajudar você hoje?`
         body: JSON.stringify({
           text: requestText,
           isSearchEnabled,
-          isWriterMode,
-          writerDocument: isWriterMode && activeWriterDocId ? {
-            title: writerDocs.find(d => d.id === activeWriterDocId)?.title || "",
-            content: writerDocs.find(d => d.id === activeWriterDocId)?.content || ""
-          } : null,
+          isTranslatorMode,
           model: selectedModel,
+          skills: skills,
           history: sessionToUpdate.messages.map(m => {
             let msgText = m.text || m.finalSynthesis || "";
             if (!msgText && m.sender === 'user' && m.attachments && m.attachments.length > 0) {
@@ -810,9 +1124,6 @@ Como posso ajudar você hoje?`
           if (!contentType.includes("text/event-stream")) {
             // Fallback for non-SSE response (e.g. error JSON or missing Tavily key)
             const data = await res.json();
-            if (data.text) {
-              checkAndApplyWriterUpdate(data.text);
-            }
             setSessions((prev) => {
               const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
               if (!currentSess) return prev;
@@ -971,7 +1282,7 @@ Como posso ajudar você hoje?`
                             finalSynthesis: eventData.finalSynthesis,
                             searchImages: eventData.searchImages,
                             searchSources: eventData.searchSources,
-                            isSimulatingSearch: true,
+                            isSimulatingSearch: m.isSearchMessage ? true : false,
                           };
                         }
                         return m;
@@ -994,7 +1305,8 @@ Como posso ajudar você hoje?`
             if (currentSess) {
               const aiMsg = currentSess.messages.find(m => m.id === initialAiMsg.id);
               if (aiMsg && (aiMsg.text || aiMsg.finalSynthesis)) {
-                checkAndApplyWriterUpdate(aiMsg.text || aiMsg.finalSynthesis || "");
+                const finalMsgText = aiMsg.text || aiMsg.finalSynthesis || "";
+                checkAndApplySkillUpdate(finalMsgText);
               }
             }
             
@@ -1171,7 +1483,7 @@ Como posso ajudar você hoje?`
       {/* Sidebar Area */}
       <Sidebar
         sessions={sessions}
-        activeSessionId={isWriterMode ? null : activeSessionId}
+        activeSessionId={isTranslatorMode ? null : activeSessionId}
         onSelectSession={(id) => { handleSelectSession(id); setIsMobileHistoryOpen(false); }}
         onDeleteSession={handleDeleteSession}
         onNewChat={() => { handleNewChat(); setIsMobileHistoryOpen(false); }}
@@ -1180,10 +1492,20 @@ Como posso ajudar você hoje?`
         userEmail={currentUser.email}
         userName={currentUser.displayName}
         onSignOut={handleSignOut}
-        onOpenWriterArea={() => { handleOpenWriterArea(); setIsMobileHistoryOpen(false); }}
         onOpenTools={() => { handleOpenToolsView(); setIsMobileHistoryOpen(false); }}
+        onOpenTasks={() => { handleOpenTasksView(); setIsMobileHistoryOpen(false); }}
         isMobileHistoryOpen={isMobileHistoryOpen}
         onCloseMobileHistory={() => setIsMobileHistoryOpen(false)}
+        onOpenSearchModal={() => setIsSearchModalOpen(true)}
+      />
+
+      {/* Global Search Modal in Center of Screen */}
+      <SearchModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        sessions={sessions}
+        onSelectSession={(id) => { handleSelectSession(id); setIsMobileHistoryOpen(false); }}
+        onNewChat={() => { handleNewChat(); setIsMobileHistoryOpen(false); }}
       />
 
       {/* Main View Area (Responsive) */}
@@ -1193,31 +1515,46 @@ Como posso ajudar você hoje?`
             onBack={() => setIsAdminView(false)} 
             actualSessionsCount={sessions.length}
           />
-        ) : isWriterMode ? (
-          activeWriterDocId && writerDocs.find(d => d.id === activeWriterDocId) ? (
-            <WriterWorkspace
-              document={writerDocs.find(d => d.id === activeWriterDocId)!}
-              sessions={sessions}
-              onBack={() => setActiveWriterDocId(null)}
-              onUpdateDocument={handleUpdateWriterDocument}
-              onNewMessage={handleSendMessage}
-              isThinking={isThinking}
-              onCancelGeneration={handleCancelGeneration}
-              onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
-            />
-          ) : (
-            <WriterDashboard
-              documents={writerDocs}
-              onNewDocument={handleNewWriterDocument}
-              onOpenDocument={handleOpenWriterDocument}
-              onDeleteDocument={handleDeleteWriterDocument}
-              onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
-            />
-          )
+        ) : isTranslatorMode ? (
+          <Translator 
+            onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
+            onBack={() => {
+              setIsTranslatorMode(false);
+              setIsToolsView(true);
+            }}
+          />
         ) : isToolsView ? (
           <ToolsDashboard
-            onOpenWriterArea={() => { handleOpenWriterArea(); }}
+            onOpenTranslator={handleOpenTranslator}
+            onOpenTasks={handleOpenTasksView}
+          />
+        ) : isScheduledTasksView ? (
+          <ScheduledTasksDashboard
+            tasks={scheduledTasks}
+            executions={taskExecutions}
+            sessions={sessions}
             onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
+            onSaveTask={async (task) => {
+              if (currentUser) {
+                await saveScheduledTask(currentUser.uid, task);
+              }
+            }}
+            onDeleteTask={async (taskId) => {
+              if (currentUser) {
+                await deleteScheduledTask(currentUser.uid, taskId);
+              }
+            }}
+            onToggleTask={async (taskId, isActive) => {
+              if (currentUser) {
+                const task = scheduledTasks.find(t => t.id === taskId);
+                if (task) {
+                  await saveScheduledTask(currentUser.uid, { ...task, isActive });
+                }
+              }
+            }}
+            onOpenSession={(sessionId) => {
+              handleSelectSession(sessionId);
+            }}
           />
         ) : isImagesView ? (
           <ImagesGallery onBackToHome={() => { handleNewChat(); setIsMobileHistoryOpen(true); }} />
@@ -1243,6 +1580,7 @@ Como posso ajudar você hoje?`
             initialDraft={activeSessionId ? drafts[activeSessionId] : undefined}
             onSaveDraft={(draft) => { if (currentUser && activeSessionId) saveDraft(currentUser.uid, activeSessionId, draft) }}
             onDeleteDraft={() => { if (currentUser && activeSessionId) deleteDraft(currentUser.uid, activeSessionId) }}
+            skills={skills}
           />
         ) : (
           <MainHome
@@ -1260,6 +1598,7 @@ Como posso ajudar você hoje?`
                 dismissNewsCardForUser(currentUser.uid);
               }
             }}
+            skills={skills}
           />
         )}
       </div>

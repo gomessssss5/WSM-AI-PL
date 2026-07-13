@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Paperclip, Globe, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain, Languages, ChevronDown, Sparkles, Calculator, Clock, Video, Volume2, FileText, AlertCircle, X, Menu } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain, Languages, ChevronDown, Sparkles, Calculator, Clock, Video, Volume2, FileText, AlertCircle, X, Menu, FileCode2, Files, BookOpen } from 'lucide-react';
+import { Skill } from '../lib/skills';
 import { Draft } from '../types';
 
 interface MainHomeProps {
@@ -13,6 +14,7 @@ interface MainHomeProps {
   onDeleteDraft?: () => void;
   userProfile?: any;
   onDismissNewsCard?: () => void;
+  skills?: Skill[];
 }
 
 export default function MainHome({
@@ -25,7 +27,8 @@ export default function MainHome({
   onSaveDraft,
   onDeleteDraft,
   userProfile,
-  onDismissNewsCard
+  onDismissNewsCard,
+  skills = []
 }: MainHomeProps) {
   const [inputValue, setInputValue] = useState('');
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
@@ -34,6 +37,10 @@ export default function MainHome({
   const [isNewsCardDismissedLocal, setIsNewsCardDismissedLocal] = useState(() => {
     return localStorage.getItem('wsm_news_card_dismissed') === 'true';
   });
+
+  const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
+  const [isSkillsSubMenuOpen, setIsSkillsSubMenuOpen] = useState(false);
+  const [activeSkill, setActiveSkill] = useState<Skill | null>(null);
 
   const handleDismissNewsCard = () => {
     setIsNewsCardDismissedLocal(true);
@@ -182,7 +189,20 @@ export default function MainHome({
     { id: '/relogio', name: 'relogio', description: 'Relógio e Data Atual', icon: Clock, color: 'text-orange-500' }
   ];
 
-  const filteredTools = marteTools.filter(tool => tool.id.toLowerCase().includes(slashSearchTerm.toLowerCase()));
+  const slashItems = [
+    ...marteTools,
+    ...skills.map(skill => ({
+      id: `/${skill.id}`,
+      name: skill.name,
+      description: skill.description,
+      icon: FileCode2,
+      color: 'text-indigo-500',
+      isSkill: true,
+      skillObj: skill
+    }))
+  ];
+
+  const filteredTools = slashItems.filter(item => item.id.toLowerCase().includes(slashSearchTerm.toLowerCase()));
 
   const handleInputValueChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
@@ -208,7 +228,7 @@ export default function MainHome({
     }
   };
 
-  const handleToolSelect = (toolId: string) => {
+  const handleToolSelect = (item: any) => {
     const textarea = document.getElementById('chat-input-textarea') as HTMLTextAreaElement;
     const cursorPosition = textarea?.selectionStart || inputValue.length;
     
@@ -220,14 +240,21 @@ export default function MainHome({
       const matchIndex = slashMatch.index !== undefined ? slashMatch.index : 0;
       const spaceBefore = slashMatch[1]; // either '' or ' '
       
-      const newText = textBeforeCursor.slice(0, matchIndex) + spaceBefore + toolId + ' ' + textAfterCursor;
-      setInputValue(newText);
+      if (item.isSkill) {
+        setActiveSkill(item.skillObj);
+        const newText = textBeforeCursor.slice(0, matchIndex) + spaceBefore + textAfterCursor;
+        setInputValue(newText);
+      } else {
+        const newText = textBeforeCursor.slice(0, matchIndex) + spaceBefore + item.id + ' ' + textAfterCursor;
+        setInputValue(newText);
+      }
+      
       setSlashMenuOpen(false);
       
       setTimeout(() => {
         if (textarea) {
           textarea.focus();
-          const newPos = matchIndex + spaceBefore.length + toolId.length + 1;
+          const newPos = item.isSkill ? matchIndex + spaceBefore.length : matchIndex + spaceBefore.length + item.id.length + 1;
           textarea.setSelectionRange(newPos, newPos);
         }
       }, 0);
@@ -393,6 +420,11 @@ export default function MainHome({
   };
 
   const handleAttachClick = () => {
+    setIsAttachMenuOpen(!isAttachMenuOpen);
+    setIsSkillsSubMenuOpen(false);
+  };
+  
+  const handleAttachFileDirectly = () => {
     const hasAccepted = localStorage.getItem('wsm_accepted_file_terms') === 'true';
     if (hasAccepted) {
       fileInputRef.current?.click();
@@ -403,7 +435,7 @@ export default function MainHome({
 
   const handleSubmit = (e?: React.FormEvent | React.MouseEvent | React.TouchEvent) => {
     e?.preventDefault();
-    if (!inputValue.trim() && attachments.length === 0) return;
+    if (!inputValue.trim() && attachments.length === 0 && !activeSkill) return;
     if (inputValue.length > 1500) return;
     
     if (onDeleteDraft) onDeleteDraft();
@@ -412,6 +444,7 @@ export default function MainHome({
     setAttachments([]);
     setUploadError(null);
     setSlashMenuOpen(false);
+    setActiveSkill(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -428,7 +461,7 @@ export default function MainHome({
       }
       if (e.key === 'Enter') {
         e.preventDefault();
-        handleToolSelect(filteredTools[slashMenuIndex].id);
+        handleToolSelect(filteredTools[slashMenuIndex]);
         return;
       }
       if (e.key === 'Escape') {
@@ -619,7 +652,7 @@ export default function MainHome({
                   <button
                     key={tool.id}
                     type="button"
-                    onClick={() => handleToolSelect(tool.id)}
+                    onClick={() => handleToolSelect(tool)}
                     className={`w-full flex flex-col gap-0.5 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer ${
                       isSelected ? 'bg-gray-50' : 'hover:bg-gray-50'
                     }`}
@@ -708,6 +741,19 @@ export default function MainHome({
             </div>
           )}
 
+          {/* Active Skill Chip */}
+          {activeSkill && (
+            <div className="flex items-center mb-1">
+              <div 
+                className="flex items-center gap-1 bg-[#5c53e5]/10 text-[#5c53e5] px-2 py-0.5 rounded flex-shrink-0 cursor-pointer hover:bg-[#5c53e5]/20 transition-colors"
+                onClick={() => setActiveSkill(null)}
+              >
+                <span className="font-bold text-[13px]">/{activeSkill.name}</span>
+                <X className="w-3 h-3" />
+              </div>
+            </div>
+          )}
+
           {/* Text Area Input */}
           <textarea
             id="chat-input-textarea"
@@ -723,7 +769,78 @@ export default function MainHome({
           {/* Bottom Controls Bar */}
           <div className="flex items-center justify-between pt-1 border-t border-gray-50">
             {/* Left Controls: Paperclip & Pesquisar Button */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 relative">
+              
+              {/* Attach Menu */}
+              {isAttachMenuOpen && (
+                <div className="absolute bottom-full left-0 mb-2 w-56 bg-white border border-gray-100 rounded-xl shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 z-50">
+                  {!isSkillsSubMenuOpen ? (
+                    <div className="p-1.5 flex flex-col gap-0.5">
+                      <button
+                        onClick={() => {
+                          setIsAttachMenuOpen(false);
+                          handleAttachFileDirectly();
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Paperclip className="w-4 h-4 text-gray-500" />
+                          <span className="text-[13px] font-medium text-gray-700">Adicionar arquivos</span>
+                        </div>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsSkillsSubMenuOpen(true);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileCode2 className="w-4 h-4 text-gray-500" />
+                          <span className="text-[13px] font-medium text-gray-700">Skills</span>
+                        </div>
+                        <ChevronDown className="w-3 h-3 text-gray-400 -rotate-90" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="p-1.5">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsSkillsSubMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 text-gray-500 transition-colors mb-1 border-b border-gray-50 cursor-pointer"
+                      >
+                        <ChevronDown className="w-3.5 h-3.5 rotate-90" />
+                        <span className="text-[12px] font-medium">Voltar</span>
+                      </button>
+                      <div className="max-h-48 overflow-y-auto">
+                        {skills.length === 0 ? (
+                          <div className="px-3 py-4 text-center">
+                            <p className="text-[12px] text-gray-500">Nenhuma Skill instalada</p>
+                          </div>
+                        ) : (
+                          skills.map(skill => (
+                            <button
+                              key={skill.id}
+                              onClick={() => {
+                                setActiveSkill(skill);
+                                setIsAttachMenuOpen(false);
+                                setIsSkillsSubMenuOpen(false);
+                              }}
+                              className="w-full text-left px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 transition-colors cursor-pointer"
+                            >
+                              <FileCode2 className="w-3.5 h-3.5 text-indigo-500" />
+                              <span className="text-[13px] font-medium text-gray-700">{skill.name}</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <button
                 type="button"
                 id="btn-attach-file"

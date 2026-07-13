@@ -1,0 +1,97 @@
+--- src/components/MainHome.tsx
++++ src/components/MainHome.tsx
+@@ -10,6 +10,8 @@
+   X,
+   Menu
+ } from 'lucide-react';
++import { systemSkills, Skill } from '../lib/skills';
++import { FileBox, FileCode2 } from 'lucide-react';
+ 
+ interface MainHomeProps {
+   onSendMessage: (text: string, isSearchEnabled: boolean, overrideMessages?: any[], attachments?: any[]) => void;
+@@ -28,6 +30,10 @@
+   const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
+   const [isNewsCardDismissedLocal, setIsNewsCardDismissedLocal] = useState(() => {
+     return localStorage.getItem('wsm_news_card_dismissed') === 'true';
+   });
++
++  const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
++  const [isSkillsSubMenuOpen, setIsSkillsSubMenuOpen] = useState(false);
++  const [activeSkill, setActiveSkill] = useState<Skill | null>(null);
+ 
+   const handleDismissNewsCard = () => {
+@@ -179,15 +185,25 @@
+   const marteTools = [
+     { id: '/web', name: 'web-search', description: 'Pesquisa na Web', icon: Globe, color: 'text-blue-500' },
+     { id: '/calculadora', name: 'calculadora', description: 'Calculadora Matemática', icon: Calculator, color: 'text-emerald-500' },
+     { id: '/relogio', name: 'relogio', description: 'Relógio e Data Atual', icon: Clock, color: 'text-orange-500' }
+   ];
+ 
+-  const filteredTools = marteTools.filter(tool => tool.id.toLowerCase().includes(slashSearchTerm.toLowerCase()));
++  const slashItems = [
++    ...marteTools,
++    ...systemSkills.map(skill => ({
++      id: `/${skill.id}`,
++      name: skill.name,
++      description: skill.description,
++      icon: FileCode2,
++      color: 'text-indigo-500',
++      isSkill: true,
++      skillObj: skill
++    }))
++  ];
++
++  const filteredTools = slashItems.filter(item => item.id.toLowerCase().includes(slashSearchTerm.toLowerCase()));
+ 
+   const handleInputValueChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+     const val = e.target.value;
+@@ -210,7 +226,7 @@
+     }
+   };
+ 
+-  const handleToolSelect = (toolId: string) => {
++  const handleToolSelect = (item: any) => {
+     const textarea = document.getElementById('chat-input-textarea') as HTMLTextAreaElement;
+     const cursorPosition = textarea?.selectionStart || inputValue.length;
+     
+     const textBeforeCursor = inputValue.slice(0, cursorPosition);
+     const textAfterCursor = inputValue.slice(cursorPosition);
+     
+     const slashMatch = textBeforeCursor.match(/(^|\s)\/([a-zA-Z0-9-]*)$/);
+     if (slashMatch) {
+       const matchIndex = slashMatch.index !== undefined ? slashMatch.index : 0;
+       const spaceBefore = slashMatch[1]; // either '' or ' '
+       
+-      const newText = textBeforeCursor.slice(0, matchIndex) + spaceBefore + toolId + ' ' + textAfterCursor;
+-      setInputValue(newText);
++      if (item.isSkill) {
++        setActiveSkill(item.skillObj);
++        const newText = textBeforeCursor.slice(0, matchIndex) + spaceBefore + textAfterCursor;
++        setInputValue(newText);
++      } else {
++        const newText = textBeforeCursor.slice(0, matchIndex) + spaceBefore + item.id + ' ' + textAfterCursor;
++        setInputValue(newText);
++      }
++      
+       setSlashMenuOpen(false);
+       
+       setTimeout(() => {
+         if (textarea) {
+           textarea.focus();
+-          const newPos = matchIndex + spaceBefore.length + toolId.length + 1;
++          const newPos = item.isSkill ? matchIndex + spaceBefore.length : matchIndex + spaceBefore.length + item.id.length + 1;
+           textarea.setSelectionRange(newPos, newPos);
+         }
+       }, 0);
+     }
+   };
+@@ -279,7 +295,11 @@
+   };
+ 
+   const handleAttachClick = () => {
+-    fileInputRef.current?.click();
++    setIsAttachMenuOpen(!isAttachMenuOpen);
++    setIsSkillsSubMenuOpen(false);
+   };
+ 
+   const removeAttachment = (index: number) => {

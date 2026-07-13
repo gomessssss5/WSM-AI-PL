@@ -85,7 +85,7 @@ async function callGeminiStreamWithFallback(options: any) {
 
 // API endpoint for chatbot communication and Web Search
 app.post("/api/chat", async (req: express.Request, res: express.Response) => {
-  const { text, isSearchEnabled, model, history, isWriterMode, writerDocument } = req.body;
+  const { text, isSearchEnabled, model, history, isWriterMode, writerDocument, skills } = req.body;
 
   // Ensure valid history format
   let finalContents: any = text;
@@ -110,8 +110,8 @@ app.post("/api/chat", async (req: express.Request, res: express.Response) => {
 
     let shouldSearch = isSearchEnabled;
 
-    // Pro uses its own agentic flow, disable old auto-triage for it
-    if (model === 'WSM 1.6 Pro') {
+    // Pro uses its own agentic flow for autonomous tool use, but if search is explicitly enabled (manual toggle or scheduled task), we let it use the structured search flow!
+    if (model === 'WSM 1.6 Pro' && !isSearchEnabled) {
       shouldSearch = false;
     } else if (!shouldSearch && process.env.TAVILY_API_KEY) {
       // AI autonomously decides if it needs to search the web for this query
@@ -477,11 +477,38 @@ IMPORTANTE:
 2. Escreva as tarefas de forma clara, concisa e focada na ação.
 3. Não inclua nenhum outro texto dentro das tags <task> e </task> além das linhas de tarefa.
 
+## Gerenciamento de Skills e Skill "user" (Importante!)
+O WSM 1.6 Pro tem como objetivo criar e gerenciar "skills" para personalizar e potencializar o sistema de acordo com o contexto do usuário.
+A principal e mais vital é a skill "user". O objetivo dessa skill é pegar e guardar informações sobre o usuário (nome, idade, o que ele gosta, comida preferida, rotina, profissão, como ele faz as coisas, etc).
+REGRAS CRÍTICAS:
+1. Não faça isso "do nada" ou de forma intrusiva. Se o usuário mandar um código HTML para corrigir, corrija o erro, não vá perguntar o nome dele sem motivo. A IA deve achar o momento perfeito e contextual para obter essas informações e editar a skill.
+2. Sempre que descobrir alguma informação importante para o futuro (do usuário, ou sobre algum outro tópico geral), você DEVE anotar isso em uma skill usando comandos pré-cadastrados no sistema (tags textuais).
+3. Escreva EXATAMENTE as seguintes tags no meio ou no final do seu texto de resposta (visível) para executar a ação no Frontend:
+- [Criando Skill: NOME DA SKILL]
+- [Editando Skill: NOME DA SKILL]
+- [Excluindo Skill: NOME DA SKILL]
+4. OBRIGATÓRIO: Sempre que você usar as tags "[Criando Skill: NOME]" ou "[Editando Skill: NOME]", você DEVE fornecer o conteúdo da skill correspondente envolto estritamente pelas tags \`<wsm_skill_content>\` e \`</wsm_skill_content>\`.
+   O conteúdo dentro de \`<wsm_skill_content>\` deve conter APENAS as informações úteis, organizadas e estruturadas da skill (como uma lista em Markdown ou um resumo de dados), e NUNCA a sua resposta de chat para o usuário, nem tags de raciocínio (<raciocinio>) ou de tarefas (<task>).
+   Exemplo de formato correto:
+   ---
+   Muito prazer, Luiz Gustavo! Já salvei seu nome e sua profissão aqui comigo.
+   [Editando Skill: user]
+   <wsm_skill_content>
+   # Perfil do Usuário
+   - **Nome**: Luiz Gustavo
+   - **Profissão**: Desenvolvedor Backend
+   </wsm_skill_content>
+   ---
+   NUNCA coloque sua conversa normal de chat ou pensamentos dentro de \`<wsm_skill_content>\`. Apenas dados limpos e úteis para a skill correspondente. Se o conteúdo da skill mudar, forneça a versão mais recente e completa das informações daquela skill dentro destas tags.
+   Você também pode criar novas skills quando os dados pertencerem melhor a outra (ex: "[Criando Skill: javascript_projetos]").
+
 ## Ferramentas Agênticas e Funcionalidades (Obrigatório)
 Você possui ferramentas (tools/function calling) integradas que podem ser chamadas para cumprir tarefas: Pesquisa na Web, Calculadora, e Relógio.
 IMPORTANTE: Você deve usar o recurso de Function Calling fornecido pela API para usar essas ferramentas. 
+Sempre que usar a ferramenta \`web_search\`, você DEVE citar as fontes obtidas utilizando links Markdown \`[Domínio](URL)\` no meio do seu texto de resposta ao mencionar cada fato (ex: 'O atleta foi contratado em 2013 pelo Barcelona ([g1.globo.com](https://g1.globo.com/...))'). Use o hostname/domínio como o texto do link.
 NUNCA escreva comandos como "/web", "/calculadora" ou "/relogio" no seu texto de resposta. O usuário pode digitar isso, mas você DEVE usar a ferramenta chamando a função correspondente.
 NUNCA escreva tags como "[pesquisou na web]", "[calculando]" ou "[verificando relógio]" manualmente em seu texto. O sistema cuidará de renderizar essas tags visualmente de forma automática.
+A única exceção são as tags de Skill ([Criando Skill:...], etc), que VOCÊ DEVE digitar manualmente no texto como instruído acima.
 
 ## Padrão de Chamada e Fluxo
 Quando decidir usar uma ferramenta, você DEVE estruturar sua resposta na seguinte ordem:
@@ -569,8 +596,38 @@ Aja como um mentor literário ou editor experiente.
 Se o usuário pedir para você incluir certas letras, fonemas ou caracteres especiais (como "ção", "ñ", "ü") em um texto, você DEVE incorporá-los de forma absolutamente natural usando palavras reais do vocabulário que os contenham adequadamente (ex: "emoção", "mañana", "müller"). NUNCA insira caracteres de forma forçada, literal e sem sentido em palavras que não os possuem (como escrever "ümidade" em vez de "umidade" ou "ção de calor" em vez de "sensação"). Mantenha o texto ortograficamente e gramaticalmente perfeito sempre.
 `;
 
+    let skillsInstruction = "";
+    if (skills && Array.isArray(skills) && skills.length > 0) {
+      skillsInstruction = `
+--- SKILLS (MEMÓRIA/CONTEXTO) ATUAIS ---
+O usuário possui as seguintes skills ativas. Use essas informações para contextualizar suas respostas:
+${skills.map(s => `\n## Skill: ${s.name}\n${s.content}`).join("\n")}
+----------------------------------------
+`;
+    }
+
+    const tasksInstruction = `
+## Agendamento de Tarefas Autônomo
+Se o usuário pedir para você agendar uma tarefa, lembrete ou execução periódica (ex: "pesquise X toda segunda", "me lembre de Y amanhã às 8h"), você DEVE gerar um elemento HTML de formulário invisível no formato exato abaixo, APENAS NA SUA RESPOSTA FINAL. O sistema interceptará essa tag e agendará a tarefa.
+
+<wsm_task 
+  title="Título curto da tarefa" 
+  prompt="O prompt exato que eu (a IA) devo receber no momento da execução" 
+  scheduleType="once|daily|weekly|monthly" 
+  time="HH:MM"
+/>
+
+Exemplos:
+- Se o usuário disser: "Quero que toda segunda meio dia você pesquise na web a previsão do tempo pra Nova York", você gera:
+<wsm_task title="Previsão do tempo NY" prompt="Pesquise na web a previsão do tempo para a semana na cidade de Nova York." scheduleType="weekly" time="12:00" />
+- Se o usuário disser: "Me lembre de comprar pão amanhã de manhã":
+<wsm_task title="Comprar pão" prompt="Lembre o usuário que ele precisa comprar pão." scheduleType="once" time="08:00" />
+
+Você DEVE usar aspas duplas, formato de hora 24h, e tipos scheduleType exatos (once, daily, weekly, monthly). Continue sua resposta normalmente (ex: "Agendei a tarefa para você! Toda segunda ao meio-dia...").
+`;
+
     const basePrompt = modelSystemPrompts[model] || modelSystemPrompts['WSM 1.6 Flash'];
-    const activeSystemPrompt = basePrompt + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + writerInstruction;
+    const activeSystemPrompt = basePrompt + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + writerInstruction + "\n\n" + skillsInstruction + "\n\n" + tasksInstruction;
 
     if (model === 'WSM 1.6 Pro') {
       console.log("Starting agentic loop for Pro...");
@@ -884,6 +941,48 @@ app.post("/api/test-keys", async (req: express.Request, res: express.Response) =
   }
 
   return res.json(results);
+});
+
+// Endpoint para tradução usando Inteligência Artificial com fallback
+app.post("/api/translate", async (req: express.Request, res: express.Response) => {
+  const { text, sourceLanguage, targetLanguage, tone } = req.body;
+
+  if (!text || !targetLanguage) {
+    return res.status(400).json({ error: "Texto e idioma de destino são obrigatórios." });
+  }
+
+  try {
+    const systemPrompt = `Você é um tradutor profissional de altíssima precisão. Sua tarefa é traduzir o texto fornecido para o idioma de destino solicitado.
+- Preserve o significado exato, as nuances culturais, as gírias apropriadas (se existirem e se o tom permitir), e a formatação (parágrafos, quebras de linha).
+- Não adicione introduções, explicações ou notas adicionais. Forneça APENAS o texto traduzido.
+- Se o tom for especificado, adapte o vocabulário e a formalidade da tradução para o tom solicitado (por exemplo: formal, informal, profissional, criativo).`;
+
+    const userPrompt = `Traduzir o seguinte texto:
+---
+${text}
+---
+Idioma de Origem: ${sourceLanguage || "Detectar automaticamente"}
+Idioma de Destino: ${targetLanguage}
+${tone ? `Tom da tradução: ${tone}` : ""}
+
+Resposta (apenas o texto traduzido):`;
+
+    const response = await callGeminiWithFallback({
+      model: "gemini-3.1-flash-lite",
+      contents: userPrompt,
+      config: {
+        systemInstruction: systemPrompt,
+        temperature: 0.3,
+      }
+    });
+
+    const translatedText = response.text?.trim() || "";
+    
+    return res.json({ translatedText });
+  } catch (error: any) {
+    console.error("Erro na tradução:", error);
+    return res.status(500).json({ error: error.message || "Erro interno ao traduzir." });
+  }
 });
 
 export default app;

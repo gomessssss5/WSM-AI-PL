@@ -23,6 +23,40 @@
         "messages": { "type": "array" }
       },
       "required": ["title", "timestamp", "messages"]
+    },
+    "ScheduledTask": {
+      "title": "ScheduledTask",
+      "description": "A scheduled automation task",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "prompt": { "type": "string" },
+        "scheduleType": { "type": "string" },
+        "time": { "type": "string" },
+        "date": { "type": "string" },
+        "daysOfWeek": { "type": "array" },
+        "dayOfMonth": { "type": "number" },
+        "expirationDate": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastRunAt": { "type": "string", "format": "date-time" },
+        "nextRunAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "prompt", "scheduleType", "time", "isActive", "createdAt", "nextRunAt"]
+    },
+    "TaskExecution": {
+      "title": "TaskExecution",
+      "description": "An execution log of a scheduled task",
+      "type": "object",
+      "properties": {
+        "taskId": { "type": "string" },
+        "taskTitle": { "type": "string" },
+        "executedAt": { "type": "string", "format": "date-time" },
+        "sessionId": { "type": "string" },
+        "status": { "type": "string" },
+        "error": { "type": "string" }
+      },
+      "required": ["taskId", "taskTitle", "executedAt", "sessionId", "status"]
     }
   },
   "firestore": {
@@ -33,6 +67,14 @@
     "/users/{userId}/sessions/{sessionId}": {
       "schema": "ChatSession",
       "description": "Chat sessions for a specific user"
+    },
+    "/users/{userId}/scheduledTasks/{taskId}": {
+      "schema": "ScheduledTask",
+      "description": "Scheduled automation tasks for a specific user"
+    },
+    "/users/{userId}/taskExecutions/{executionId}": {
+      "schema": "TaskExecution",
+      "description": "Execution log history for a specific user"
     }
   }
 }

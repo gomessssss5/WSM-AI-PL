@@ -1,0 +1,2 @@
+cat src/components/MarkdownRenderer.tsx | sed "s/const agenticRegex = .*/const agenticRegex = \\/\\[(pesquisou na web|calculando|verificando relógio|pesquisando\\\\.\\\\.\\\\.|calculando\\\\.\\\\.\\\\.|verificando\\\\.\\\\.\\\\.|Criando Skill:.*?|Editando Skill:.*?|Excluindo Skill:.*?|criando skill:.*?|editando skill:.*?|excluindo skill:.*)\\]\\/gi;/" > src/components/MarkdownRenderer.tsx.tmp
+mv src/components/MarkdownRenderer.tsx.tmp src/components/MarkdownRenderer.tsx

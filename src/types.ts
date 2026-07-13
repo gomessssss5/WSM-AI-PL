@@ -32,6 +32,7 @@ export interface Message {
   sender: 'user' | 'ai';
   text: string;
   timestamp: Date;
+  isHidden?: boolean;
   imageUrl?: string;
   codeBlock?: {
     language: string;
@@ -70,12 +71,40 @@ export interface Message {
   }[];
 }
 
+export interface ScheduledTask {
+  id: string;
+  title: string;
+  prompt: string;
+  scheduleType: 'once' | 'daily' | 'weekly' | 'monthly';
+  time: string;
+  date?: string;
+  daysOfWeek?: number[];
+  dayOfMonth?: number;
+  expirationDate?: string;
+  isActive: boolean;
+  createdAt: Date;
+  lastRunAt?: Date;
+  nextRunAt: Date;
+}
+
+export interface TaskExecution {
+  id: string;
+  taskId: string;
+  taskTitle: string;
+  executedAt: Date;
+  sessionId: string;
+  status: 'success' | 'error';
+  error?: string;
+}
+
 export interface ChatSession {
   id: string;
   title: string;
   timestamp: Date;
   messages: Message[];
   category?: 'write' | 'code' | 'image' | 'analysis' | 'translate' | 'general';
+  isUnread?: boolean;
+  isScheduled?: boolean;
 }
 
 export interface Draft {
