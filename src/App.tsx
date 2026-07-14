@@ -46,15 +46,20 @@ export default function App() {
 
       // Auto-seed the official 'web-html' skill if it doesn't exist
       const hasWebHtml = loadedSkills.some(s => s.id === 'web-html' || s.name.toLowerCase() === 'web-html');
-      if (!hasWebHtml) {
-        console.log("Seeding default official 'web-html' skill for user...");
-        const defaultWebHtml: Skill = {
-          id: 'web-html',
-          name: 'web-html',
-          description: 'Use esta skill sempre que o pedido envolver gerar, criar ou redesenhar código HTML de sites, landing pages, portfólios, páginas de produto, dashboards visuais ou qualquer interface web — mesmo que o usuário não use a palavra "moderno" ou "2026" explicitamente. Garante que o resultado tenha uma direção visual própria e atual, em vez do visual genérico e "templado" que IAs costumam gerar por padrão.',
-          content: `# Web Moderno 2026 / web-html
+      
+      const skillContent = `# Web Moderno 2026 / web-html
 
 Diretrizes obrigatórias para a geração de código HTML e CSS modernos de alta fidelidade visual, com direção artística diferenciada e usabilidade de nível internacional.
+
+## ⚠️ MANDATÓRIO: COMPLETUDE DO CÓDIGO E TAMANHO GIGANTE
+Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITES COMPLETOS, NUNCA ESQUELETOS.
+- Se o usuário pedir um site (ex: Hamburgueria, Portfólio, Dashboard), você DEVE construir **todas as seções e subpáginas possíveis** dentro do mesmo arquivo (por exemplo, usando seções roláveis, âncoras, ou ocultando/mostrando divs com JS simples).
+- Exemplo: Pediu site de restaurante? Crie as seções: Hero, Quem Somos, Cardápio Completo (com vários itens e fotos reais em placeholder), Galeria de Fotos, e Contato. 
+- NÃO crie botões "vazios" ou links mortos (href="#") sem implementar a funcionalidade ou a visualização correspondente. TUDO EM UM ÚNICO CÓDIGO GIGANTE E COMPLETO.
+
+## 🖼️ MÍDIA: IMAGENS E MAPAS
+- **Imagens Profissionais (Unsplash):** Sempre que gerar um site, você DEVE utilizar imagens públicas e profissionais. Nunca deixe placeholders vazios como \`src=""\` ou fundos cinzas. Use \`https://source.unsplash.com/random/800x600/?[termo]\` ou URLs diretas do Unsplash relacionadas ao tema do site (ex: comida, restaurante, tecnologia).
+- **Mapas (OpenStreetMap):** Se o site tiver uma seção de Contato ou Localização, **NÃO** use \`<iframe>\` com o Google Maps quebrado. **DEVE** incorporar mapas open-source do OpenStreetMap através do Leaflet JS (basta importar o CSS/JS do Leaflet e criar a div), ou gerar um \`iframe\` direto do \`https://www.openstreetmap.org/export/embed.html\`.
 
 ## 🎨 Direção Visual e Design de Interface (UI)
 - **Paleta de Cores Refinada:** Fuja de cinzas frios padrão. Prefira tons de off-white e cinzas quentes (warm-white / cream slate) para o tema claro, ou pretos profundos e ardósias elegantes (\`bg-[#0c0a09]\` ou \`bg-[#09090b]\`) para o tema escuro. Escolha UMA cor de destaque de alto contraste (ex: azul cobalto \`#2563eb\`, violeta elétrico \`#7c3aed\`, verde esmeralda \`#10b981\` ou pêssego/laranja vibrante) e use-a em detalhes estratégicos (badges, bordas selecionadas, pontos focais), nunca de forma exagerada.
@@ -66,7 +71,18 @@ Diretrizes obrigatórias para a geração de código HTML e CSS modernos de alta
 ## 🚀 Estrutura de Código e Interatividade
 - **HTML5 Semântico:** Utilize tags corretas (\`<header>\`, \`<main>\`, \`<section>\`, \`<article>\`, \`<footer>\`) para estruturar as páginas de forma limpa.
 - **Micro-Interações e Transições:** Adicione suavidade aos elementos clicáveis. Utilize transições em hover (\`hover:scale-[1.01] hover:-translate-y-0.5 transition-all duration-300 ease-out cursor-pointer\`) para dar um aspecto físico de feedback.
-- **Design Responsivo Absoluto:** Todo site criado deve ser desenhado prioritariamente de forma adaptável, utilizando \`w-full max-w-7xl mx-auto px-4 md:px-8\` para centralizar conteúdo em telas grandes, e ajustando as colunas da grade para telas pequenas com maestria.`
+- **Design Responsivo Absoluto:** Todo site criado deve ser desenhado prioritariamente de forma adaptável, utilizando \`w-full max-w-7xl mx-auto px-4 md:px-8\` para centralizar conteúdo em telas grandes, e ajustando as colunas da grade para telas pequenas com maestria.`;
+
+      const existingWebHtml = loadedSkills.find(s => s.id === 'web-html' || s.name.toLowerCase() === 'web-html');
+      const needsUpdate = existingWebHtml && (!existingWebHtml.content.includes("COMPLETUDE DO CÓDIGO E TAMANHO GIGANTE") || !existingWebHtml.content.includes("OpenStreetMap"));
+
+      if (!hasWebHtml || needsUpdate) {
+        console.log("Seeding/Updating default official 'web-html' skill for user...");
+        const defaultWebHtml: Skill = {
+          id: existingWebHtml ? existingWebHtml.id : 'web-html',
+          name: 'web-html',
+          description: 'Use esta skill sempre que o pedido envolver gerar, criar ou redesenhar código HTML de sites, landing pages, portfólios, páginas de produto, dashboards visuais ou qualquer interface web — mesmo que o usuário não use a palavra "moderno" ou "2026" explicitamente. Garante que o resultado tenha uma direção visual própria e atual, em vez do visual genérico e "templado" que IAs costumam gerar por padrão.',
+          content: skillContent
         };
         try {
           await saveSkill(currentUser.uid, defaultWebHtml);
@@ -1301,10 +1317,16 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                         ...s,
                         messages: s.messages.map((m) => {
                           if (m.id === initialAiMsg.id) {
+                            let newText = eventData.type === "sync_text" ? eventData.text : (m.text + eventData.text);
+                            const lendoRegex = /\[Lendo Skill:\s*(.*?)\]/i;
+                            const matchText = lendoRegex.exec(newText);
+                            if (matchText) {
+                               newText = newText.substring(0, matchText.index + matchText[0].length);
+                            }
                             return {
                               ...m,
-                              text: eventData.type === "sync_text" ? eventData.text : (m.text + eventData.text),
-                              finalSynthesis: eventData.type === "sync_text" ? eventData.text : (m.text + eventData.text),
+                              text: newText,
+                              finalSynthesis: newText,
                             };
                           }
                           return m;
@@ -1352,6 +1374,25 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                 } else if (eventData.type === "final") {
                   console.log("[App.tsx] Received SSE final event:", eventData);
                   accumulatedFinalText = eventData.finalSynthesis || eventData.text || "";
+                  
+                  let textToSave = eventData.text;
+                  let finalSynthesisToSave = eventData.finalSynthesis;
+                  const lendoRegex = /\[Lendo Skill:\s*(.*?)\]/i;
+                  
+                  if (textToSave) {
+                    const matchText = lendoRegex.exec(textToSave);
+                    if (matchText) {
+                      textToSave = textToSave.substring(0, matchText.index + matchText[0].length);
+                    }
+                  }
+                  
+                  if (finalSynthesisToSave) {
+                    const matchSyn = lendoRegex.exec(finalSynthesisToSave);
+                    if (matchSyn) {
+                      finalSynthesisToSave = finalSynthesisToSave.substring(0, matchSyn.index + matchSyn[0].length);
+                    }
+                  }
+                  
                   setSessions((prev) => {
                     const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
                     if (!currentSess) {
@@ -1366,8 +1407,8 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                           matched = true;
                           return {
                             ...m,
-                            text: eventData.text,
-                            finalSynthesis: eventData.finalSynthesis,
+                            text: textToSave,
+                            finalSynthesis: finalSynthesisToSave,
                             searchImages: eventData.searchImages,
                             searchSources: eventData.searchSources,
                             isSimulatingSearch: m.isSearchMessage ? true : false,

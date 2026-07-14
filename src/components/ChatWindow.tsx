@@ -9,6 +9,7 @@ import SearchMessageView from './SearchMessageView';
 import TypewriterMarkdown from './TypewriterMarkdown';
 import InteractiveForm from './InteractiveForm';
 import DocumentCard from './DocumentCard';
+import PacmanLoadingAnimation from './PacmanLoadingAnimation';
 import { extractWsmForm } from '../utils/formParser';
 import { extractWsmDoc } from '../utils/docParser';
 import { extractWsmTask, cleanWsmTaskTags } from '../utils/taskParser';
@@ -1157,16 +1158,16 @@ export default function ChatWindow({
               >
                 {/* AI Avatar */}
                 {!isUser && (
-                  message.text === "" && isThinking && message.id === messages[messages.length - 1]?.id ? (
-                    <UiverseLoader isThinking={true} />
-                  ) : (
+                  !(message.text === "" && isThinking && message.id === messages[messages.length - 1]?.id) ? (
                     <UiverseLoader isThinking={false} />
+                  ) : (
+                    <div className="w-7 h-7 shrink-0" />
                   )
                 )}
 
                 <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-[85%]`}>
                   {/* Bubble content */}
-                  {!(message.text === "" && isThinking && message.id === messages[messages.length - 1]?.id) && (
+                  {true && (
                     <div
                       className={`rounded-xl px-3.5 py-2 text-[13.5px] leading-relaxed w-full ${
                         isUser
@@ -1315,12 +1316,7 @@ export default function ChatWindow({
                         {/* Render rich formats if present */}
                         {message.text === "" && isThinking && message.id === messages[messages.length - 1].id ? (
                           <div className="flex items-center gap-2 text-gray-500 text-xs py-1">
-                            <span className="font-medium animate-pulse">Gerando resposta...</span>
-                            <span className="flex gap-0.5 items-center">
-                              <span className="w-1 h-1 bg-[#5c53e5] rounded-full animate-bounce [animation-delay:-0.3s]" />
-                              <span className="w-1 h-1 bg-[#5c53e5] rounded-full animate-bounce [animation-delay:-0.15s]" />
-                              <span className="w-1 h-1 bg-[#5c53e5] rounded-full animate-bounce" />
-                            </span>
+                            <PacmanLoadingAnimation />
                           </div>
                         ) : message.text === "Você cancelou essa resposta" ? (
                           <div className="bg-red-50 text-red-600 border border-red-200 rounded-lg p-3 text-sm font-medium flex items-center gap-2 w-fit">
