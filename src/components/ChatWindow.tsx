@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed } from 'lucide-react';
 import { Skill } from '../lib/skills';
 import { Message, Draft } from '../types';
 import { saveEvaluationToDb } from '../lib/chatService';
@@ -220,6 +220,8 @@ interface ChatWindowProps {
   onDeleteDraft?: () => void;
   skills?: Skill[];
   onSaveTask?: (task: any) => void;
+  onStartTemporaryChat?: () => void;
+  isTemporary?: boolean;
 }
 
 const displayUserText = (text: string) => {
@@ -247,7 +249,9 @@ export default function ChatWindow({
   onSaveDraft,
   onDeleteDraft,
   skills = [],
-  onSaveTask
+  onSaveTask,
+  onStartTemporaryChat,
+  isTemporary = false
 }: ChatWindowProps) {
   const [inputValue, setInputValue] = useState('');
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
@@ -1053,27 +1057,48 @@ export default function ChatWindow({
             )}
           </div>
 
+          {isTemporary && (
+            <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-extrabold rounded-full tracking-tight shadow-3xs select-none animate-pulse shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              Chat Temporário
+            </span>
+          )}
         </div>
 
-        {/* Options Button / 3-dots menu */}
-        {messages.length === 0 ? (
+        {/* Right side controls */}
+        <div className="flex items-center gap-2 relative z-50">
           <button
-            id="btn-back-home"
-            onClick={onBackToHome}
-            className="text-[11px] font-bold text-gray-500 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 border border-[#eae6e1] px-3 py-1 rounded-full transition-all cursor-pointer active:scale-95 animate-in fade-in duration-200"
+            onClick={onStartTemporaryChat}
+            disabled={isTemporary}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer active:scale-95 border ${
+              isTemporary 
+                ? 'bg-amber-100/50 border-amber-200 text-amber-700 cursor-not-allowed opacity-80' 
+                : 'bg-[#faf9f6] hover:bg-[#f0ede8] border-[#eae6e1] text-gray-700 hover:text-gray-900 shadow-2xs'
+            }`}
+            title={isTemporary ? "Você já está em um Chat temporário" : "Iniciar Chat temporário"}
           >
-            Nova conversa
+            <MessageCircleDashed className="w-4 h-4 text-amber-600 shrink-0" />
+            <span className="hidden sm:inline">Chat temporário</span>
           </button>
-        ) : (
-          <div className="relative">
+
+          {messages.length === 0 ? (
             <button
-              id="btn-chat-options"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 border border-[#eae6e1] dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-all cursor-pointer flex items-center justify-center"
-              title="Opções do chat"
+              id="btn-back-home"
+              onClick={onBackToHome}
+              className="text-[11px] font-bold text-gray-500 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 border border-[#eae6e1] px-3 py-1 rounded-full transition-all cursor-pointer active:scale-95 animate-in fade-in duration-200"
             >
-              <MoreVertical size={16} />
+              Nova conversa
             </button>
+          ) : (
+            <div className="relative">
+              <button
+                id="btn-chat-options"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 border border-[#eae6e1] dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-all cursor-pointer flex items-center justify-center"
+                title="Opções do chat"
+              >
+                <MoreVertical size={16} />
+              </button>
             
             {isMenuOpen && (
               <>
@@ -1142,12 +1167,52 @@ export default function ChatWindow({
             )}
           </div>
         )}
+        </div>
       </header>
 
       {/* Message List */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        <div className="max-w-2xl mx-auto space-y-4">
-          {messages.map((message) => {
+      <div 
+        ref={messagesContainerRef} 
+        className={`flex-1 overflow-y-auto px-4 py-4 ${messages.length === 0 ? 'flex flex-col justify-center items-center' : 'space-y-4'}`}
+      >
+        {messages.length === 0 ? (
+          isTemporary ? (
+            <motion.div 
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+              className="text-center max-w-md mx-auto flex flex-col items-center gap-5 select-none"
+            >
+              {/* Beautiful private/security icon or indicator */}
+              <div className="relative flex items-center justify-center">
+                {/* Outer animated halo ring */}
+                <div className="absolute inset-0 rounded-full bg-amber-500/10 animate-ping" style={{ animationDuration: '3s' }} />
+                
+                {/* Icon Container */}
+                <div className="w-16 h-16 bg-amber-50/90 border border-amber-200 text-amber-600 rounded-2xl flex items-center justify-center shadow-md relative z-10">
+                  <MessageCircleDashed className="w-8 h-8 animate-pulse" style={{ animationDuration: '4s' }} />
+                </div>
+              </div>
+
+              {/* Central Title */}
+              <div className="space-y-2">
+                <h2 className="font-sans font-extrabold text-gray-900 tracking-tight text-3xl md:text-4xl">
+                  Pergunte o que quiser
+                </h2>
+                <p className="font-sans font-medium text-amber-700/90 tracking-tight text-sm md:text-base flex items-center justify-center gap-1.5">
+                  <Lock className="w-4 h-4 text-amber-600 inline shrink-0" />
+                  com 100% de privacidade
+                </p>
+              </div>
+
+              <div className="text-[11.5px] text-gray-400 font-medium max-w-xs mt-1">
+                Este chat é temporário. Nenhuma mensagem ou anexo será salvo no banco de dados ou histórico.
+              </div>
+            </motion.div>
+          ) : null
+        ) : (
+          <div className="max-w-2xl mx-auto space-y-4">
+            {messages.map((message) => {
             if (message.isHidden) return null;
             const isUser = message.sender === 'user';
             return (
@@ -1617,13 +1682,12 @@ export default function ChatWindow({
             );
           })}
 
-
-
           {/* Spacing at the bottom of the container */}
           <div className="h-24 md:h-14" />
           {/* Empty scroll target */}
           <div ref={messagesEndRef} />
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Floating Input Area */}

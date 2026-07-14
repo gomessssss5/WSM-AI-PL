@@ -200,10 +200,12 @@ Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITE
           return loaded;
         });
 
-        if (isActiveLocalDirtyOrPreserved && !isActiveInLoaded && activeLocal) {
-          return [activeLocal, ...updatedLoaded];
+        const tempSessions = prevSessions.filter((s) => s.isTemporary);
+
+        if (isActiveLocalDirtyOrPreserved && !isActiveInLoaded && activeLocal && !activeLocal.isTemporary) {
+          return [...tempSessions, activeLocal, ...updatedLoaded];
         }
-        return updatedLoaded;
+        return [...tempSessions, ...updatedLoaded];
       });
     });
 
@@ -234,6 +236,7 @@ Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITE
 
   // Persists the specified session directly to Firestore and clears the active save timeout
   const persistSession = async (session: ChatSession) => {
+    if (session.isTemporary) return;
     const user = currentUserRef.current;
     if (!user || !isDirtyRef.current) return;
 
@@ -253,12 +256,14 @@ Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITE
 
   // Triggers a debounced save 8 seconds after the user stops sending messages
   const triggerDebouncedSave = (session?: ChatSession) => {
+    const latestSession = activeSessionRef.current || session;
+    if (latestSession?.isTemporary) return;
+
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current);
     }
     autoSaveTimeoutRef.current = setTimeout(() => {
       // Always get the absolute latest state of the active session to avoid saving stale snapshot closures
-      const latestSession = activeSessionRef.current || session;
       if (latestSession) {
         persistSession(latestSession);
       }
@@ -533,6 +538,9 @@ Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITE
     if (activeSessionRef.current && isDirtyRef.current) {
       persistSession(activeSessionRef.current);
     }
+
+    // Clear all temporary sessions except the one we might be selecting (usually none)
+    setSessions((prev) => prev.filter((s) => !s.isTemporary || s.id === id));
     
     if (id && currentUser) {
       const selectedSession = sessions.find(s => s.id === id);
@@ -554,6 +562,8 @@ Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITE
     if (activeSessionRef.current && isDirtyRef.current) {
       persistSession(activeSessionRef.current);
     }
+    // Discard all temporary chats
+    setSessions((prev) => prev.filter((s) => !s.isTemporary));
     setIsImagesView(false);
     setIsToolsView(false);
     setIsScheduledTasksView(false);
@@ -561,8 +571,37 @@ Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITE
     setActiveSessionId(null);
   };
 
+  // Create a brand new temporary chat session
+  const handleNewTemporaryChat = () => {
+    if (activeSessionRef.current && isDirtyRef.current) {
+      persistSession(activeSessionRef.current);
+    }
+    
+    const tempId = `temp-session-${Date.now()}`;
+    const newSession: ChatSession = {
+      id: tempId,
+      title: "Chat temporário",
+      timestamp: new Date(),
+      messages: [],
+      category: 'general',
+      isTemporary: true
+    };
+    
+    // Set sessions with the new temporary session, discarding any old temporary sessions
+    setSessions((prev) => [newSession, ...prev.filter((s) => !s.isTemporary)]);
+    activeSessionIdRef.current = tempId;
+    setActiveSessionId(tempId);
+    
+    setIsImagesView(false);
+    setIsToolsView(false);
+    setIsScheduledTasksView(false);
+    setIsTranslatorMode(false);
+    setIsMobileHistoryOpen(false);
+  };
+
   // Toggle images gallery view
   const handleToggleImagesView = () => {
+    setSessions((prev) => prev.filter((s) => !s.isTemporary));
     setIsImagesView(!isImagesView);
     setIsToolsView(false);
     setIsScheduledTasksView(false);
@@ -571,6 +610,7 @@ Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITE
   
   // Translator Handler
   const handleOpenTranslator = () => {
+    setSessions((prev) => prev.filter((s) => !s.isTemporary));
     setIsImagesView(false);
     setIsToolsView(false);
     setIsScheduledTasksView(false);
@@ -579,6 +619,7 @@ Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITE
   };
 
   const handleOpenToolsView = () => {
+    setSessions((prev) => prev.filter((s) => !s.isTemporary));
     setIsImagesView(false);
     setIsTranslatorMode(false);
     setActiveSessionId(null);
@@ -587,6 +628,7 @@ Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITE
   };
 
   const handleOpenTasksView = () => {
+    setSessions((prev) => prev.filter((s) => !s.isTemporary));
     setIsImagesView(false);
     setIsTranslatorMode(false);
     setActiveSessionId(null);
@@ -603,6 +645,7 @@ Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITE
 
   const confirmDeleteSession = async () => {
     if (!sessionToDeleteId || !currentUser) return;
+    const isTemp = sessionToDeleteId.startsWith('temp-session-') || sessions.find(s => s.id === sessionToDeleteId)?.isTemporary;
     try {
       if (activeSessionId === sessionToDeleteId) {
         isDirtyRef.current = false;
@@ -611,12 +654,16 @@ Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITE
           autoSaveTimeoutRef.current = null;
         }
       }
-      await deleteSessionFromDb(currentUser.uid, sessionToDeleteId);
+      if (isTemp) {
+        setSessions((prev) => prev.filter((s) => s.id !== sessionToDeleteId));
+      } else {
+        await deleteSessionFromDb(currentUser.uid, sessionToDeleteId);
+      }
       if (activeSessionId === sessionToDeleteId) {
         setActiveSessionId(null);
       }
     } catch (err) {
-      console.error('Erro ao excluir sessão do banco de dados:', err);
+      console.error('Erro ao excluir sessão:', err);
     } finally {
       setSessionToDeleteId(null);
     }
@@ -1080,15 +1127,31 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         return;
       }
       
+      const isFirstMessage = currentSession.messages.length === 0;
+      let titleText = currentSession.title;
+      if (isFirstMessage) {
+        let textForTitle = text;
+        if (!textForTitle && attachments && attachments.length > 0) {
+          textForTitle = `Anexo: ${attachments[0].name}`;
+        } else if (!textForTitle) {
+          textForTitle = "Chat temporário";
+        }
+        titleText = textForTitle.length > 28 ? `${textForTitle.substring(0, 28)}...` : textForTitle;
+      }
+
       sessionToUpdate = {
         ...currentSession,
+        title: titleText,
         messages: overrideMessages ? [...overrideMessages, userMsg] : [...currentSession.messages, userMsg],
       };
       
       // Update local state immediately for smooth UI transition
       setSessions((prev) => prev.map((s) => s.id === currentActiveSessionId ? sessionToUpdate : s));
-      isDirtyRef.current = true;
-      triggerDebouncedSave(sessionToUpdate);
+      
+      if (!currentSession.isTemporary) {
+        isDirtyRef.current = true;
+        triggerDebouncedSave(sessionToUpdate);
+      }
     }
 
     // Real AI response fetch from Express backend
@@ -1240,8 +1303,10 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                     : m
                 ),
               };
-              isDirtyRef.current = true;
-              triggerDebouncedSave(finalSession);
+              if (!currentSess.isTemporary) {
+                isDirtyRef.current = true;
+                triggerDebouncedSave(finalSession);
+              }
               return prev.map((s) => s.id === sessionToUpdate.id ? finalSession : s);
             });
             setIsThinking(false);
@@ -1418,8 +1483,10 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                       }),
                     };
                     console.log(`[App.tsx] Final event applied. Matched initialAiMsg.id (${initialAiMsg.id}):`, matched);
-                    isDirtyRef.current = true;
-                    triggerDebouncedSave(finalSession);
+                    if (!currentSess.isTemporary) {
+                      isDirtyRef.current = true;
+                      triggerDebouncedSave(finalSession);
+                    }
                     return prev.map((s) => s.id === sessionToUpdate.id ? finalSession : s);
                   });
                 }
@@ -1487,8 +1554,10 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                   return m;
                 }),
               };
-              isDirtyRef.current = true;
-              triggerDebouncedSave(finalSession);
+              if (!currentSess.isTemporary) {
+                isDirtyRef.current = true;
+                triggerDebouncedSave(finalSession);
+              }
               return prev.map((s) => s.id === sessionToUpdate.id ? finalSession : s);
             });
             return;
@@ -1532,8 +1601,10 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         messages: updatedMsgs,
       };
 
-      isDirtyRef.current = true;
-      triggerDebouncedSave(finalSession);
+      if (!activeSess.isTemporary) {
+        isDirtyRef.current = true;
+        triggerDebouncedSave(finalSession);
+      }
 
       return prev.map((s) => s.id === activeSessionId ? finalSession : s);
     });
@@ -1612,7 +1683,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
     <div className="flex h-[100dvh] w-screen bg-[#faf9f6] text-gray-800 font-sans overflow-hidden">
       {/* Sidebar Area */}
       <Sidebar
-        sessions={sessions}
+        sessions={sessions.filter((s) => !s.isTemporary)}
         activeSessionId={isTranslatorMode ? null : activeSessionId}
         onSelectSession={(id) => { handleSelectSession(id); setIsMobileHistoryOpen(false); }}
         onDeleteSession={handleDeleteSession}
@@ -1633,7 +1704,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
       <SearchModal
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}
-        sessions={sessions}
+        sessions={sessions.filter((s) => !s.isTemporary)}
         onSelectSession={(id) => { handleSelectSession(id); setIsMobileHistoryOpen(false); }}
         onNewChat={() => { handleNewChat(); setIsMobileHistoryOpen(false); }}
       />
@@ -1643,7 +1714,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         {isAdminView ? (
           <AdminDashboard 
             onBack={() => setIsAdminView(false)} 
-            actualSessionsCount={sessions.length}
+            actualSessionsCount={sessions.filter((s) => !s.isTemporary).length}
           />
         ) : isTranslatorMode ? (
           <Translator 
@@ -1662,7 +1733,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           <ScheduledTasksDashboard
             tasks={scheduledTasks}
             executions={taskExecutions}
-            sessions={sessions}
+            sessions={sessions.filter((s) => !s.isTemporary)}
             onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
             onSaveTask={async (task) => {
               if (currentUser) {
@@ -1711,6 +1782,8 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
             onSaveDraft={(draft) => { if (currentUser && activeSessionId) saveDraft(currentUser.uid, activeSessionId, draft) }}
             onDeleteDraft={() => { if (currentUser && activeSessionId) deleteDraft(currentUser.uid, activeSessionId) }}
             skills={skills}
+            isTemporary={!!activeSession.isTemporary}
+            onStartTemporaryChat={handleNewTemporaryChat}
           />
         ) : (
           <MainHome
@@ -1729,6 +1802,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
               }
             }}
             skills={skills}
+            onStartTemporaryChat={handleNewTemporaryChat}
           />
         )}
       </div>
@@ -1756,7 +1830,11 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
             </div>
             
             <p className="text-xs text-gray-500 leading-relaxed font-medium">
-              Tem certeza que deseja excluir esta conversa? Esta ação é irreversível e todas as mensagens serão apagadas permanentemente do servidor.
+              {sessionToDeleteId?.startsWith('temp-session-') || sessions.find(s => s.id === sessionToDeleteId)?.isTemporary ? (
+                "Tem certeza que deseja encerrar e excluir este chat temporário? Todas as mensagens serão perdidas e não são salvas em nenhum servidor."
+              ) : (
+                "Tem certeza que deseja excluir esta conversa? Esta ação é irreversível e todas as mensagens serão apagadas permanentemente do servidor."
+              )}
             </p>
             
             <div className="flex items-center justify-end gap-2.5 mt-2">

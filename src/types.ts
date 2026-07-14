@@ -105,6 +105,7 @@ export interface ChatSession {
   category?: 'write' | 'code' | 'image' | 'analysis' | 'translate' | 'general';
   isUnread?: boolean;
   isScheduled?: boolean;
+  isTemporary?: boolean;
 }
 
 export interface Draft {

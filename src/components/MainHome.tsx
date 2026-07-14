@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Paperclip, Globe, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain, Languages, ChevronDown, Sparkles, Calculator, Clock, Video, Volume2, FileText, AlertCircle, X, Menu, FileCode2, Files, BookOpen } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain, Languages, ChevronDown, Sparkles, Calculator, Clock, Video, Volume2, FileText, AlertCircle, X, Menu, FileCode2, Files, BookOpen, MessageCircleDashed } from 'lucide-react';
 import { Skill } from '../lib/skills';
 import { Draft } from '../types';
 
@@ -15,6 +15,7 @@ interface MainHomeProps {
   userProfile?: any;
   onDismissNewsCard?: () => void;
   skills?: Skill[];
+  onStartTemporaryChat?: () => void;
 }
 
 export default function MainHome({
@@ -28,7 +29,8 @@ export default function MainHome({
   onDeleteDraft,
   userProfile,
   onDismissNewsCard,
-  skills = []
+  skills = [],
+  onStartTemporaryChat
 }: MainHomeProps) {
   const [inputValue, setInputValue] = useState('');
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
@@ -553,6 +555,18 @@ export default function MainHome({
             </>
           )}
         </div>
+        </div>
+
+        {/* Right side controls / Chat temporário */}
+        <div className="flex items-center gap-2 relative z-50">
+          <button
+            onClick={onStartTemporaryChat}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-[#faf9f6] border border-[#eae6e1] rounded-full text-xs font-bold text-gray-700 hover:text-gray-950 shadow-3xs transition-all cursor-pointer active:scale-95"
+            title="Iniciar Chat temporário"
+          >
+            <MessageCircleDashed className="w-4 h-4 text-amber-600 shrink-0 animate-pulse" />
+            <span className="hidden sm:inline">Chat temporário</span>
+          </button>
         </div>
       </header>
 
