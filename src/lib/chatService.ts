@@ -113,6 +113,7 @@ const mapSessionToDoc = (session: ChatSession): any => {
       ...(msg.searchSteps && { searchSteps: msg.searchSteps }),
       ...(msg.finalSynthesis && { finalSynthesis: msg.finalSynthesis }),
       ...(msg.isSimulatingSearch !== undefined && { isSimulatingSearch: msg.isSimulatingSearch }),
+      ...(msg.isHidden !== undefined && { isHidden: msg.isHidden }),
       ...(msg.attachments && { attachments: msg.attachments.map((a: any) => ({
         name: a.name,
         type: a.type,

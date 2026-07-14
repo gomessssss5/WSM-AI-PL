@@ -41,8 +41,39 @@ export default function App() {
       return;
     }
 
-    const unsubscribeSkills = subscribeSkills(currentUser.uid, (loadedSkills) => {
+    const unsubscribeSkills = subscribeSkills(currentUser.uid, async (loadedSkills) => {
       setSkills(loadedSkills);
+
+      // Auto-seed the official 'web-html' skill if it doesn't exist
+      const hasWebHtml = loadedSkills.some(s => s.id === 'web-html' || s.name.toLowerCase() === 'web-html');
+      if (!hasWebHtml) {
+        console.log("Seeding default official 'web-html' skill for user...");
+        const defaultWebHtml: Skill = {
+          id: 'web-html',
+          name: 'web-html',
+          description: 'Use esta skill sempre que o pedido envolver gerar, criar ou redesenhar código HTML de sites, landing pages, portfólios, páginas de produto, dashboards visuais ou qualquer interface web — mesmo que o usuário não use a palavra "moderno" ou "2026" explicitamente. Garante que o resultado tenha uma direção visual própria e atual, em vez do visual genérico e "templado" que IAs costumam gerar por padrão.',
+          content: `# Web Moderno 2026 / web-html
+
+Diretrizes obrigatórias para a geração de código HTML e CSS modernos de alta fidelidade visual, com direção artística diferenciada e usabilidade de nível internacional.
+
+## 🎨 Direção Visual e Design de Interface (UI)
+- **Paleta de Cores Refinada:** Fuja de cinzas frios padrão. Prefira tons de off-white e cinzas quentes (warm-white / cream slate) para o tema claro, ou pretos profundos e ardósias elegantes (\`bg-[#0c0a09]\` ou \`bg-[#09090b]\`) para o tema escuro. Escolha UMA cor de destaque de alto contraste (ex: azul cobalto \`#2563eb\`, violeta elétrico \`#7c3aed\`, verde esmeralda \`#10b981\` ou pêssego/laranja vibrante) e use-a em detalhes estratégicos (badges, bordas selecionadas, pontos focais), nunca de forma exagerada.
+- **Estruturas Bento Grid:** Use layouts de grade assimétricos (\`grid grid-cols-1 md:grid-cols-3 gap-6\`) para organizar informações de forma ritmada e quebrar o visual monótono de listas verticais.
+- **Tipografia com Ritmo:** Misture cabeçalhos expressivos com fontes como Space Grotesk ou Syne (\`font-sans tracking-tight font-extrabold\`) e textos corridos extremamente legíveis com fontes sans-serif clássicas (Inter, Geist). Ajuste os tamanhos de fonte de forma intencional e hierarquizada.
+- **Bordas e Vidros (Glassmorphism):** Use painéis com fundos semi-transparentes brancos ou escuros (\`bg-white/40\` ou \`bg-black/40\`), desfoque de fundo (\`backdrop-blur-md\`) e bordas ultra-finas e discretas (\`border border-white/10\`).
+- **Sombras Multicamadas & Cantos Arredondados:** Prefira cantos muito arredondados (\`rounded-2xl\` ou \`rounded-3xl\`) que deem um aspecto moderno e acolhedor à interface. Use sombras difusas e amplas (\`shadow-[0_8px_30px_rgb(0,0,0,0.04)]\`).
+
+## 🚀 Estrutura de Código e Interatividade
+- **HTML5 Semântico:** Utilize tags corretas (\`<header>\`, \`<main>\`, \`<section>\`, \`<article>\`, \`<footer>\`) para estruturar as páginas de forma limpa.
+- **Micro-Interações e Transições:** Adicione suavidade aos elementos clicáveis. Utilize transições em hover (\`hover:scale-[1.01] hover:-translate-y-0.5 transition-all duration-300 ease-out cursor-pointer\`) para dar um aspecto físico de feedback.
+- **Design Responsivo Absoluto:** Todo site criado deve ser desenhado prioritariamente de forma adaptável, utilizando \`w-full max-w-7xl mx-auto px-4 md:px-8\` para centralizar conteúdo em telas grandes, e ajustando as colunas da grade para telas pequenas com maestria.`
+        };
+        try {
+          await saveSkill(currentUser.uid, defaultWebHtml);
+        } catch (e) {
+          console.error("Error seeding default web-html skill:", e);
+        }
+      }
     });
 
     return () => unsubscribeSkills();
@@ -930,6 +961,52 @@ Apresente essa resposta e opções de forma amigável para o usuário.`;
     }
   };
 
+  const checkAndApplySkillReading = async (aiText: string): Promise<boolean> => {
+    if (!currentUser) return false;
+
+    // Match [Lendo Skill: Nome da Skill] (case-insensitive)
+    const lendoRegex = /\[Lendo Skill:\s*(.*?)\]/i;
+    const match = lendoRegex.exec(aiText);
+    if (!match) return false;
+
+    const rawSkillName = match[1].trim();
+    // Clean trailing bracket if present
+    const skillName = rawSkillName.replace(/\]/g, '').trim();
+
+    // Look up skill
+    const skill = skills.find(
+      (s) => s.name.toLowerCase() === skillName.toLowerCase() || s.id.toLowerCase() === skillName.toLowerCase()
+    );
+
+    if (skill) {
+      console.log(`[skills-loading] Loading content of Skill "${skill.name}"...`);
+      const systemMessage = `[SISTEMA: SKILL REQUISITADA] Você solicitou a leitura da Skill "${skill.name}". O conteúdo completo dela é:
+<wsm_skill_content>
+${skill.content}
+</wsm_skill_content>
+
+Por favor, prossiga e execute a solicitação do usuário utilizando os conhecimentos desta skill.`;
+
+      setTimeout(() => {
+        handleSendMessage(systemMessage, isSearchActiveRef.current, undefined, undefined, true);
+      }, 1000);
+      return true;
+    } else {
+      console.log(`[skills-loading-error] Skill "${skillName}" not found in current skills list.`);
+      const listStr = skills.map(s => `- ${s.name}`).join("\n");
+      const systemMessage = `[SISTEMA: ERRO DE SKILL] A skill "${skillName}" não foi encontrada na sua biblioteca.
+As skills disponíveis no momento são:
+${listStr || 'Nenhuma skill cadastrada.'}
+
+Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessário.`;
+
+      setTimeout(() => {
+        handleSendMessage(systemMessage, isSearchActiveRef.current, undefined, undefined, true);
+      }, 1000);
+      return true;
+    }
+  };
+
   // Main sendMessage routine (used by both MainHome input and ChatWindow input)
   const handleSendMessage = async (text: string, isSearchEnabled: boolean, overrideMessages?: Message[], attachments?: any[], isHidden?: boolean) => {
     if (!currentUser) return;
@@ -950,9 +1027,10 @@ Apresente essa resposta e opções de forma amigável para o usuário.`;
       isHidden: isHidden,
     };
 
+    const currentActiveSessionId = activeSessionIdRef.current;
     let sessionToUpdate: ChatSession;
 
-    if (!activeSessionId) {
+    if (!currentActiveSessionId) {
       // Create a brand new session locally first
       let titleText = text;
       if (!titleText && attachments && attachments.length > 0) {
@@ -980,8 +1058,11 @@ Apresente essa resposta e opções de forma amigável para o usuário.`;
       triggerDebouncedSave(newSession);
     } else {
       // Append message to existing session locally first
-      const currentSession = sessions.find((s) => s.id === activeSessionId);
-      if (!currentSession) return;
+      const currentSession = activeSessionRef.current || sessions.find((s) => s.id === currentActiveSessionId);
+      if (!currentSession) {
+        console.warn("[App.tsx] currentSession not found for active session ID:", currentActiveSessionId);
+        return;
+      }
       
       sessionToUpdate = {
         ...currentSession,
@@ -989,7 +1070,7 @@ Apresente essa resposta e opções de forma amigável para o usuário.`;
       };
       
       // Update local state immediately for smooth UI transition
-      setSessions((prev) => prev.map((s) => s.id === activeSessionId ? sessionToUpdate : s));
+      setSessions((prev) => prev.map((s) => s.id === currentActiveSessionId ? sessionToUpdate : s));
       isDirtyRef.current = true;
       triggerDebouncedSave(sessionToUpdate);
     }
@@ -1156,6 +1237,7 @@ Apresente essa resposta e opções de forma amigável para o usuário.`;
           if (!reader) throw new Error("Readable stream não suportado");
           const decoder = new TextDecoder("utf-8");
           let buffer = "";
+          let accumulatedFinalText = "";
 
           while (true) {
             const { done, value } = await reader.read();
@@ -1205,6 +1287,11 @@ Apresente essa resposta e opções de forma amigável para o usuário.`;
                     });
                   });
                 } else if (eventData.type === "chunk" || eventData.type === "sync_text") {
+                  if (eventData.type === "sync_text") {
+                     accumulatedFinalText = eventData.text || "";
+                  } else {
+                     accumulatedFinalText += eventData.text || "";
+                  }
                   setSessions((prev) => {
                     const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
                     if (!currentSess) return prev;
@@ -1264,6 +1351,7 @@ Apresente essa resposta e opções de forma amigável para o usuário.`;
                   });
                 } else if (eventData.type === "final") {
                   console.log("[App.tsx] Received SSE final event:", eventData);
+                  accumulatedFinalText = eventData.finalSynthesis || eventData.text || "";
                   setSessions((prev) => {
                     const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
                     if (!currentSess) {
@@ -1302,14 +1390,6 @@ Apresente essa resposta e opções de forma amigável para o usuário.`;
           setIsThinking(false);
           setSessions((prev) => {
             const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
-            if (currentSess) {
-              const aiMsg = currentSess.messages.find(m => m.id === initialAiMsg.id);
-              if (aiMsg && (aiMsg.text || aiMsg.finalSynthesis)) {
-                const finalMsgText = aiMsg.text || aiMsg.finalSynthesis || "";
-                checkAndApplySkillUpdate(finalMsgText);
-              }
-            }
-            
             if (!currentSess) return prev;
             return prev.map((s) => {
               if (s.id !== sessionToUpdate.id) return s;
@@ -1329,6 +1409,15 @@ Apresente essa resposta e opções de forma amigável para o usuário.`;
               return { ...s, messages: updatedMsgs };
             });
           });
+          
+          if (accumulatedFinalText) {
+             checkAndApplySkillReading(accumulatedFinalText).then((wasReading) => {
+               if (!wasReading) {
+                 checkAndApplySkillUpdate(accumulatedFinalText);
+               }
+             });
+          }
+
           if (!isSearchActiveRef.current) {
             sendCompletionNotification();
           }

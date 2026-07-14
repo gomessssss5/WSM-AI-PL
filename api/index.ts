@@ -50,16 +50,26 @@ function getFallbackGeminiClient(): GoogleGenAI {
 async function callGeminiWithFallback(options: any) {
   try {
     const client = getGeminiClient();
+    if (options && options.config) {
+      options.config.maxOutputTokens = options.config.maxOutputTokens || 8192;
+    } else if (options) {
+      options.config = { maxOutputTokens: 8192 };
+    }
     return await client.models.generateContent(options);
   } catch (error: any) {
     if (process.env.IA_API_KEY_2) {
       console.warn("First Gemini API Key failed, trying fallback key...", error.message);
       try {
         const clientFallback = getFallbackGeminiClient();
+        if (options && options.config) {
+          options.config.maxOutputTokens = options.config.maxOutputTokens || 8192;
+        } else if (options) {
+          options.config = { maxOutputTokens: 8192 };
+        }
         return await clientFallback.models.generateContent(options);
       } catch (fallbackError: any) {
          throw fallbackError;
-      }
+       }
     }
     throw error;
   }
@@ -68,16 +78,26 @@ async function callGeminiWithFallback(options: any) {
 async function callGeminiStreamWithFallback(options: any) {
   try {
     const client = getGeminiClient();
+    if (options && options.config) {
+      options.config.maxOutputTokens = options.config.maxOutputTokens || 8192;
+    } else if (options) {
+      options.config = { maxOutputTokens: 8192 };
+    }
     return await client.models.generateContentStream(options);
   } catch (error: any) {
     if (process.env.IA_API_KEY_2) {
       console.warn("First Gemini API Key failed for stream, trying fallback key...", error.message);
       try {
         const clientFallback = getFallbackGeminiClient();
+        if (options && options.config) {
+          options.config.maxOutputTokens = options.config.maxOutputTokens || 8192;
+        } else if (options) {
+          options.config = { maxOutputTokens: 8192 };
+        }
         return await clientFallback.models.generateContentStream(options);
       } catch (fallbackError: any) {
          throw fallbackError;
-      }
+       }
     }
     throw error;
   }
@@ -480,13 +500,15 @@ IMPORTANTE:
 ## Gerenciamento de Skills e Skill "user" (Importante!)
 O WSM 1.6 Pro tem como objetivo criar e gerenciar "skills" para personalizar e potencializar o sistema de acordo com o contexto do usuário.
 A principal e mais vital é a skill "user". O objetivo dessa skill é pegar e guardar informações sobre o usuário (nome, idade, o que ele gosta, comida preferida, rotina, profissão, como ele faz as coisas, etc).
+
 REGRAS CRÍTICAS:
 1. Não faça isso "do nada" ou de forma intrusiva. Se o usuário mandar um código HTML para corrigir, corrija o erro, não vá perguntar o nome dele sem motivo. A IA deve achar o momento perfeito e contextual para obter essas informações e editar a skill.
 2. Sempre que descobrir alguma informação importante para o futuro (do usuário, ou sobre algum outro tópico geral), você DEVE anotar isso em uma skill usando comandos pré-cadastrados no sistema (tags textuais).
-3. Escreva EXATAMENTE as seguintes tags no meio ou no final do seu texto de resposta (visível) para executar a ação no Frontend:
+3. Escreva EXATAMENTE as seguintes tags no meio ou no final do seu texto de resposta (visível) para executar ações no Frontend:
 - [Criando Skill: NOME DA SKILL]
 - [Editando Skill: NOME DA SKILL]
 - [Excluindo Skill: NOME DA SKILL]
+- [Lendo Skill: NOME DA SKILL] (MANDATÓRIO para ler o conteúdo de uma skill disponível!)
 4. OBRIGATÓRIO: Sempre que você usar as tags "[Criando Skill: NOME]" ou "[Editando Skill: NOME]", você DEVE fornecer o conteúdo da skill correspondente envolto estritamente pelas tags \`<wsm_skill_content>\` e \`</wsm_skill_content>\`.
    O conteúdo dentro de \`<wsm_skill_content>\` deve conter APENAS as informações úteis, organizadas e estruturadas da skill (como uma lista em Markdown ou um resumo de dados), e NUNCA a sua resposta de chat para o usuário, nem tags de raciocínio (<raciocinio>) ou de tarefas (<task>).
    Exemplo de formato correto:
@@ -501,6 +523,8 @@ REGRAS CRÍTICAS:
    ---
    NUNCA coloque sua conversa normal de chat ou pensamentos dentro de \`<wsm_skill_content>\`. Apenas dados limpos e úteis para a skill correspondente. Se o conteúdo da skill mudar, forneça a versão mais recente e completa das informações daquela skill dentro destas tags.
    Você também pode criar novas skills quando os dados pertencerem melhor a outra (ex: "[Criando Skill: javascript_projetos]").
+
+5. LEITURA DE SKILLS (Turno Inteligente do Agente): Caso precise do conteúdo completo de qualquer skill listada na seção "BIBLIOTECA DE SKILLS DISPONÍVEIS" para guiar sua resposta (como "web-html" para gerar ou melhorar um código HTML moderno com design impecável, ou "user" para lembrar dados do usuário), gere a tag exata: [Lendo Skill: NOME DA SKILL]. O sistema lerá e enviará o conteúdo da skill para você em um turno oculto automático imediato. Sempre faça isso ANTES de gerar códigos ou respostas dependentes de uma skill!
 
 ## Ferramentas Agênticas e Funcionalidades (Obrigatório)
 Você possui ferramentas (tools/function calling) integradas que podem ser chamadas para cumprir tarefas: Pesquisa na Web, Calculadora, e Relógio.
@@ -599,9 +623,17 @@ Se o usuário pedir para você incluir certas letras, fonemas ou caracteres espe
     let skillsInstruction = "";
     if (skills && Array.isArray(skills) && skills.length > 0) {
       skillsInstruction = `
---- SKILLS (MEMÓRIA/CONTEXTO) ATUAIS ---
-O usuário possui as seguintes skills ativas. Use essas informações para contextualizar suas respostas:
-${skills.map(s => `\n## Skill: ${s.name}\n${s.content}`).join("\n")}
+--- BIBLIOTECA DE SKILLS DISPONÍVEIS ---
+O usuário possui as seguintes skills salvas na biblioteca. Elas contêm diretrizes e dados contextuais importantes.
+Caso precise de detalhes ou do conteúdo completo de qualquer uma delas para responder melhor à mensagem do usuário (por exemplo, a skill "web-html" se o pedido for criar/gerar um site, ou a skill "user" para dados pessoais), você DEVE gerar o comando exato \`[Lendo Skill: NOME_DA_SKILL]\` em sua resposta (ex: \`[Lendo Skill: user]\` ou \`[Lendo Skill: web-html]\`). 
+O sistema detectará esse comando, lerá a skill e reenviará a resposta completa em um turno invisível automático para você dar continuidade!
+
+Lista de Skills disponíveis (Apenas Nomes e Descrições):
+${skills.map(s => `- **${s.name}**: ${s.description || 'Contém dados contextuais importantes.'}`).join("\n")}
+
+REGRAS DE LEITURA (MANDATÓRIO):
+1. Use \`[Lendo Skill: Nome da Skill]\` para ler e obter o conteúdo completo. Do contrário, você não terá acesso às diretrizes completas da skill!
+2. Faça isso de forma proativa sempre que identificar que um assunto se beneficia de diretrizes específicas (ex: use \`web-html\` sempre que for gerar layouts HTML, landing pages, ou sites modernos).
 ----------------------------------------
 `;
     }

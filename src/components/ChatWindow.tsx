@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2 } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen } from 'lucide-react';
 import { Skill } from '../lib/skills';
 import { Message, Draft } from '../types';
 import { saveEvaluationToDb } from '../lib/chatService';
@@ -107,6 +107,9 @@ const cleanSkillTags = (text: string) => {
   if (!text) return "";
   let clean = text;
   
+  // Clean [Lendo Skill: ...] tags
+  clean = clean.replace(/\[Lendo Skill:\s*(.*?)\]/gi, "");
+
   // Clean wsm_skill_content
   clean = clean.replace(/<wsm_skill_content>[\s\S]*?<\/wsm_skill_content>/gi, "");
   if (clean.includes('<wsm_skill_content>')) {
@@ -402,6 +405,7 @@ export default function ChatWindow({
     md += `---\n\n`;
 
     messages.forEach((msg) => {
+      if (msg.isHidden) return;
       const senderName = msg.sender === 'user' ? 'Usuário' : 'WSM AI';
       md += `### 👤 **${senderName}** (${new Date(msg.timestamp).toLocaleTimeString()})\n\n`;
       md += `${msg.text}\n\n`;
@@ -1374,6 +1378,20 @@ export default function ChatWindow({
                                   </AnimatePresence>
                                 </div>
                               );
+                            })()}
+                            
+                            {(() => {
+                              const match = /\[Lendo Skill:\s*(.*?)\]/i.exec(message.text);
+                              if (match) {
+                                const rawSkillName = match[1].replace(/\]/g, '').trim();
+                                return (
+                                  <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-medium text-[13px] bg-indigo-50/70 dark:bg-indigo-950/20 border border-indigo-150/50 dark:border-indigo-900/30 rounded-xl px-3.5 py-2 mb-3 w-fit select-none shadow-xxs">
+                                    <BookOpen className="w-4.5 h-4.5 text-indigo-500 dark:text-indigo-400 animate-pulse" />
+                                    <span>Lendo Skill: <strong className="font-semibold text-indigo-700 dark:text-indigo-300">{rawSkillName}</strong></span>
+                                  </div>
+                                );
+                              }
+                              return null;
                             })()}
                             
                             <TypewriterMarkdown
