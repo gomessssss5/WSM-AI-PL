@@ -128,15 +128,13 @@ export default function SearchModal({
       return 'Nenhuma mensagem nesta conversa';
     }
     
-    // Find the last AI message that actually has text
-    let msgWithText = [...session.messages]
-      .reverse()
+    // Find the first AI message that actually has text
+    let msgWithText = session.messages
       .find(m => m.sender === 'ai' && !m.isHidden && (m.text || m.finalSynthesis));
       
     if (!msgWithText) {
       // Fallback to user message if no AI message
-      msgWithText = [...session.messages]
-        .reverse()
+      msgWithText = session.messages
         .find(m => m.sender === 'user' && !m.isHidden && m.text);
     }
       
@@ -148,6 +146,12 @@ export default function SearchModal({
     textToUse = textToUse.replace(/<raciocinio>[\s\S]*?<\/raciocinio>/g, '');
     if (textToUse.includes('<raciocinio>')) {
       textToUse = textToUse.substring(0, textToUse.indexOf('<raciocinio>'));
+    }
+    
+    // Remove task blocks
+    textToUse = textToUse.replace(/<task>[\s\S]*?<\/task>/g, '');
+    if (textToUse.includes('<task>')) {
+      textToUse = textToUse.substring(0, textToUse.indexOf('<task>'));
     }
     
     // Clean markdown bold, lists, headers to make snippet look clean
