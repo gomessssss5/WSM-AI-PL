@@ -16,6 +16,7 @@ interface MainHomeProps {
   onDismissNewsCard?: () => void;
   skills?: Skill[];
   onStartTemporaryChat?: () => void;
+  isProfileLoading?: boolean;
 }
 
 export default function MainHome({
@@ -30,7 +31,8 @@ export default function MainHome({
   userProfile,
   onDismissNewsCard,
   skills = [],
-  onStartTemporaryChat
+  onStartTemporaryChat,
+  isProfileLoading = false
 }: MainHomeProps) {
   const [inputValue, setInputValue] = useState('');
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
@@ -52,7 +54,7 @@ export default function MainHome({
     }
   };
 
-  const shouldShowNewsCard = !isNewsCardDismissedLocal && !userProfile?.dismissedNewsCard;
+  const shouldShowNewsCard = !isProfileLoading && userProfile && userProfile.email && !isNewsCardDismissedLocal && !userProfile.dismissedNewsCard;
 
   // Preload the news card images so they load instantly from browser cache
   useEffect(() => {
@@ -776,7 +778,7 @@ export default function MainHome({
             onChange={handleInputValueChange}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            placeholder={`Pergunte qualquer coisa ao ${selectedModel}...`}
+            placeholder={`Pergunte ao ${selectedModel}...`}
             className="w-full bg-transparent outline-none resize-none text-gray-800 placeholder-gray-400 text-[13.5px] leading-relaxed pb-1.5 max-h-36"
           />
 
@@ -860,7 +862,7 @@ export default function MainHome({
                 id="btn-attach-file"
                 onClick={handleAttachClick}
                 className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
-                title="Anexar arquivos"
+                title="Anexar arquivo"
               >
                 <Paperclip className="w-3.5 h-3.5" />
               </button>
@@ -892,7 +894,7 @@ export default function MainHome({
                     ? 'text-red-500 bg-red-50 animate-pulse'
                     : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
                 }`}
-                title={isListening ? "Parar gravação" : "Digitar por voz"}
+                title={isListening ? "Parar gravação" : "Voz"}
               >
                 <Mic className="w-3.5 h-3.5" />
               </button>

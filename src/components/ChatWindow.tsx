@@ -773,10 +773,10 @@ export default function ChatWindow({
   const isInitialMountRef = useRef(true);
 
   useEffect(() => {
-    if (isInitialMountRef.current) {
+    if (isInitialMountRef.current && messages.length > 0) {
       messages.forEach((m) => {
-        // Only mark as processed if it's a historical message with actual text
-        if (m.sender === 'ai' && m.text && m.text.length > 0) {
+        // Only mark as processed if it's a historical message with actual text or final synthesis
+        if (m.sender === 'ai' && (m.text || m.finalSynthesis)) {
           processedMessageIdsRef.current.add(m.id);
         }
       });
@@ -1634,7 +1634,7 @@ export default function ChatWindow({
                   {!(message.text === "" && isThinking && message.id === messages[messages.length - 1]?.id) && (
                     <div className="flex items-center gap-2 mt-1 px-1">
                       <span className="text-[9px] text-gray-400">
-                        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
                       </span>
                       
                       {isUser && !editingMessageId && (

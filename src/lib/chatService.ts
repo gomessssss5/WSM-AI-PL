@@ -67,6 +67,7 @@ const mapDocToSession = (id: string, data: any): ChatSession => {
     category: data.category || 'general',
     isUnread: !!data.isUnread,
     isScheduled: !!data.isScheduled,
+    model: data.model,
     timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : new Date(data.timestamp || Date.now()),
     messages: (data.messages || []).map((msg: any) => ({
       ...msg,
@@ -91,6 +92,7 @@ const mapSessionToDoc = (session: ChatSession): any => {
     category: session.category || 'general',
     isUnread: !!session.isUnread,
     isScheduled: !!session.isScheduled,
+    ...(session.model && { model: session.model }),
     timestamp: Timestamp.fromDate(session.timestamp instanceof Date ? session.timestamp : new Date(session.timestamp)),
     messages: session.messages.map((msg) => ({
       id: msg.id,
@@ -112,7 +114,7 @@ const mapSessionToDoc = (session: ChatSession): any => {
       ...(msg.searchIntro && { searchIntro: msg.searchIntro }),
       ...(msg.searchSteps && { searchSteps: msg.searchSteps }),
       ...(msg.finalSynthesis && { finalSynthesis: msg.finalSynthesis }),
-      ...(msg.isSimulatingSearch !== undefined && { isSimulatingSearch: msg.isSimulatingSearch }),
+      isSimulatingSearch: false,
       ...(msg.isHidden !== undefined && { isHidden: msg.isHidden }),
       ...(msg.attachments && { attachments: msg.attachments.map((a: any) => ({
         name: a.name,

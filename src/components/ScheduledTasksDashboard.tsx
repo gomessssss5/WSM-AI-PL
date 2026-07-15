@@ -70,6 +70,13 @@ export default function ScheduledTasksDashboard({
     const cellDateString = `${yyyy}-${mm}-${dd}`;
 
     return tasks.filter(t => {
+      // Don't show task on days before it was created
+      const creationDate = new Date(t.createdAt);
+      creationDate.setHours(0, 0, 0, 0);
+      if (cellDate < creationDate) {
+        return false;
+      }
+
       if (t.expirationDate && new Date(t.expirationDate + 'T23:59:59') < cellDate) {
         return false;
       }

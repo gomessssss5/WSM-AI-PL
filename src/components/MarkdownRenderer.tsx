@@ -727,17 +727,16 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
         }
 
         blocks.push(
-          <div key={`ol-${i}`} className="my-3 space-y-1.5 text-gray-700 text-[13.5px]">
+          <ol key={`ol-${i}`} className="my-3 list-decimal space-y-1.5 text-gray-700 text-[13.5px] ml-5">
             {listItems.map((item, idx) => {
               if (!item.text) return null;
               return (
-                <div key={idx} style={{ marginLeft: `${item.indent * 0.75}rem` }} className="flex gap-2 leading-relaxed select-text">
-                  <span className="text-gray-400 font-bold shrink-0">{item.num}</span>
-                  <div>{renderInlineContent(item.text)}</div>
-                </div>
+                <li key={idx} style={{ marginLeft: `${item.indent * 0.75}rem` }} className="pl-1 leading-relaxed select-text font-medium">
+                  {renderInlineContent(item.text)}
+                </li>
               );
             })}
-          </div>
+          </ol>
         );
         continue;
       }

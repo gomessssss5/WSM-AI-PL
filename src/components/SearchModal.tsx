@@ -131,14 +131,17 @@ export default function SearchModal({
     const validMsgs = session.messages.filter(m => !m.isHidden);
     const lastMsg = validMsgs.length > 0 ? validMsgs[validMsgs.length - 1] : session.messages[session.messages.length - 1];
     
-    if (!lastMsg || !lastMsg.text) return 'Conversa vazia';
+    const textToUse = lastMsg.text || lastMsg.finalSynthesis || '';
+    if (!textToUse) return 'Conversa vazia';
     
     // Clean markdown bold, lists, headers to make snippet look clean
-    const cleaned = lastMsg.text
+    const cleaned = textToUse
       .replace(/[\*\#\`\_\-\>\[\]\(\)]/g, '')
       .replace(/\s+/g, ' ')
       .trim();
       
+    if (!cleaned) return 'Conversa vazia';
+
     if (cleaned.length > 100) {
       return cleaned.substring(0, 100) + '...';
     }
@@ -212,7 +215,7 @@ export default function SearchModal({
               <input
                 ref={inputRef}
                 type="text"
-                placeholder="Pesquisar tarefas..."
+                placeholder="Pesquisar conversas..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="flex-1 bg-transparent border-none text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-0"

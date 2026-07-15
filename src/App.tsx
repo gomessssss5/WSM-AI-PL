@@ -20,6 +20,7 @@ import { subscribeScheduledTasks, subscribeTaskExecutions, saveScheduledTask, de
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [isProfileLoaded, setIsProfileLoaded] = useState<boolean>(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -177,6 +178,8 @@ Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITE
   useEffect(() => {
     if (!currentUser) {
       setSessions([]);
+      setUserProfile(null);
+      setIsProfileLoaded(false);
       return;
     }
 
@@ -223,6 +226,7 @@ Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITE
 
     const unsubscribeUserProfile = subscribeUserProfile(currentUser.uid, (loadedProfile) => {
       setUserProfile(loadedProfile);
+      setIsProfileLoaded(true);
     });
 
     return () => {
@@ -254,8 +258,8 @@ Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITE
     }
   };
 
-  // Triggers a debounced save 8 seconds after the user stops sending messages
-  const triggerDebouncedSave = (session?: ChatSession) => {
+  // Triggers a debounced save with configurable delay (defaults to 8 seconds)
+  const triggerDebouncedSave = (session?: ChatSession, delayMs = 8000) => {
     const latestSession = activeSessionRef.current || session;
     if (latestSession?.isTemporary) return;
 
@@ -267,7 +271,7 @@ Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITE
       if (latestSession) {
         persistSession(latestSession);
       }
-    }, 8000);
+    }, delayMs);
   };
 
   // Handle unload, hide, or tab closing
@@ -1109,6 +1113,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         timestamp: new Date(),
         messages: [userMsg],
         category: 'general',
+        model: selectedModel,
       };
       
       sessionToUpdate = newSession;
@@ -1242,7 +1247,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           text: requestText,
           isSearchEnabled,
           isTranslatorMode,
-          model: selectedModel,
+          model: sessionToUpdate.model || selectedModel,
           skills: skills,
           history: sessionToUpdate.messages.map(m => {
             let msgText = m.text || m.finalSynthesis || "";
@@ -1305,7 +1310,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
               };
               if (!currentSess.isTemporary) {
                 isDirtyRef.current = true;
-                triggerDebouncedSave(finalSession);
+                triggerDebouncedSave(finalSession, 500);
               }
               return prev.map((s) => s.id === sessionToUpdate.id ? finalSession : s);
             });
@@ -1440,23 +1445,8 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                   console.log("[App.tsx] Received SSE final event:", eventData);
                   accumulatedFinalText = eventData.finalSynthesis || eventData.text || "";
                   
-                  let textToSave = eventData.text;
-                  let finalSynthesisToSave = eventData.finalSynthesis;
-                  const lendoRegex = /\[Lendo Skill:\s*(.*?)\]/i;
-                  
-                  if (textToSave) {
-                    const matchText = lendoRegex.exec(textToSave);
-                    if (matchText) {
-                      textToSave = textToSave.substring(0, matchText.index + matchText[0].length);
-                    }
-                  }
-                  
-                  if (finalSynthesisToSave) {
-                    const matchSyn = lendoRegex.exec(finalSynthesisToSave);
-                    if (matchSyn) {
-                      finalSynthesisToSave = finalSynthesisToSave.substring(0, matchSyn.index + matchSyn[0].length);
-                    }
-                  }
+                  let textToSave = eventData.text || "";
+                  let finalSynthesisToSave = eventData.finalSynthesis || "";
                   
                   setSessions((prev) => {
                     const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
@@ -1485,7 +1475,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                     console.log(`[App.tsx] Final event applied. Matched initialAiMsg.id (${initialAiMsg.id}):`, matched);
                     if (!currentSess.isTemporary) {
                       isDirtyRef.current = true;
-                      triggerDebouncedSave(finalSession);
+                      triggerDebouncedSave(finalSession, 500);
                     }
                     return prev.map((s) => s.id === sessionToUpdate.id ? finalSession : s);
                   });
@@ -1556,7 +1546,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
               };
               if (!currentSess.isTemporary) {
                 isDirtyRef.current = true;
-                triggerDebouncedSave(finalSession);
+                triggerDebouncedSave(finalSession, 500);
               }
               return prev.map((s) => s.id === sessionToUpdate.id ? finalSession : s);
             });
@@ -1603,7 +1593,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
 
       if (!activeSess.isTemporary) {
         isDirtyRef.current = true;
-        triggerDebouncedSave(finalSession);
+        triggerDebouncedSave(finalSession, 500);
       }
 
       return prev.map((s) => s.id === activeSessionId ? finalSession : s);
@@ -1767,7 +1757,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
             isThinking={isThinking}
             onSendMessage={handleSendMessage}
             onBackToHome={() => { handleNewChat(); setIsMobileHistoryOpen(true); }}
-            selectedModel={selectedModel}
+            selectedModel={activeSession.model || selectedModel}
             setSelectedModel={setSelectedModel}
             onSearchSimulationComplete={handleSearchSimulationComplete}
             onCancelGeneration={handleCancelGeneration}
@@ -1803,6 +1793,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
             }}
             skills={skills}
             onStartTemporaryChat={handleNewTemporaryChat}
+            isProfileLoading={!isProfileLoaded}
           />
         )}
       </div>

@@ -106,6 +106,7 @@ export interface ChatSession {
   isUnread?: boolean;
   isScheduled?: boolean;
   isTemporary?: boolean;
+  model?: string;
 }
 
 export interface Draft {
