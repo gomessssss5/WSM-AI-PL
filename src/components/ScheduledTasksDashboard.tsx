@@ -282,26 +282,7 @@ export default function ScheduledTasksDashboard({
                     const dd = String(cellDate.getDate()).padStart(2, '0');
                     const cellDateString = `${yyyy}-${mm}-${dd}`;
 
-                    const dayTasks = tasks.filter(t => {
-                      if (t.expirationDate && new Date(t.expirationDate + 'T23:59:59') < cellDate) {
-                        return false;
-                      }
-                      
-                      if (t.scheduleType === 'daily') return true;
-                      if (t.scheduleType === 'once') {
-                        return t.date === cellDateString;
-                      }
-                      if (t.scheduleType === 'weekly') {
-                        if (t.daysOfWeek && t.daysOfWeek.length > 0) {
-                          return t.daysOfWeek.includes(cellDate.getDay());
-                        }
-                        return cellDate.getDay() === new Date(t.createdAt).getDay();
-                      }
-                      if (t.scheduleType === 'monthly') {
-                        return cellDate.getDate() === (t.dayOfMonth || 1);
-                      }
-                      return false;
-                    });
+                    const dayTasks = getTasksForDate(cellDate);
 
                     // Active tasks for display list/count
                     const activeDayTasks = dayTasks.filter(t => t.isActive);

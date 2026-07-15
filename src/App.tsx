@@ -145,6 +145,12 @@ Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITE
     }
   };
 
+  // Sync sessions reference
+  const sessionsRef = useRef<ChatSession[]>([]);
+  useEffect(() => {
+    sessionsRef.current = sessions;
+  }, [sessions]);
+
   // Sync activeSessionId reference
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId;
@@ -260,15 +266,16 @@ Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITE
 
   // Triggers a debounced save with configurable delay (defaults to 8 seconds)
   const triggerDebouncedSave = (session?: ChatSession, delayMs = 8000) => {
-    const latestSession = activeSessionRef.current || session;
-    if (latestSession?.isTemporary) return;
+    const targetSessionId = session?.id || activeSessionIdRef.current;
+    if (!targetSessionId) return;
 
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current);
     }
     autoSaveTimeoutRef.current = setTimeout(() => {
-      // Always get the absolute latest state of the active session to avoid saving stale snapshot closures
-      if (latestSession) {
+      // Always get the absolute latest state of the target session to avoid saving stale snapshot closures
+      const latestSession = sessionsRef.current.find(s => s.id === targetSessionId);
+      if (latestSession && !latestSession.isTemporary) {
         persistSession(latestSession);
       }
     }, delayMs);
@@ -1717,7 +1724,6 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         ) : isToolsView ? (
           <ToolsDashboard
             onOpenTranslator={handleOpenTranslator}
-            onOpenTasks={handleOpenTasksView}
           />
         ) : isScheduledTasksView ? (
           <ScheduledTasksDashboard

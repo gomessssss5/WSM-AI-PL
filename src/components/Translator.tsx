@@ -697,7 +697,7 @@ export default function Translator({ onOpenMobileHistory, onBack }: TranslatorPr
                       
                       <div className="flex items-center gap-2">
                         <span className="text-[9.5px] text-gray-400 font-medium font-mono">
-                          {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
                         </span>
                         <button
                           onClick={(e) => handleDeleteHistoryItem(item.id, e)}

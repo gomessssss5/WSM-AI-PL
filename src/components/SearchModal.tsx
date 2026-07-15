@@ -127,12 +127,15 @@ export default function SearchModal({
     if (!session.messages || session.messages.length === 0) {
       return 'Nenhuma mensagem nesta conversa';
     }
-    // Try to find the first non-hidden message from user/ai, or just use last message
-    const validMsgs = session.messages.filter(m => !m.isHidden);
-    const lastMsg = validMsgs.length > 0 ? validMsgs[validMsgs.length - 1] : session.messages[session.messages.length - 1];
     
-    const textToUse = lastMsg.text || lastMsg.finalSynthesis || '';
-    if (!textToUse) return 'Conversa vazia';
+    // Find the last message that actually has text
+    const msgWithText = [...session.messages]
+      .reverse()
+      .find(m => !m.isHidden && (m.text || m.finalSynthesis));
+      
+    if (!msgWithText) return 'Conversa vazia';
+    
+    const textToUse = msgWithText.text || msgWithText.finalSynthesis || '';
     
     // Clean markdown bold, lists, headers to make snippet look clean
     const cleaned = textToUse
