@@ -128,17 +128,30 @@ export default function SearchModal({
       return 'Nenhuma mensagem nesta conversa';
     }
     
-    // Find the last message that actually has text
-    const msgWithText = [...session.messages]
+    // Find the last AI message that actually has text
+    let msgWithText = [...session.messages]
       .reverse()
-      .find(m => !m.isHidden && (m.text || m.finalSynthesis));
+      .find(m => m.sender === 'ai' && !m.isHidden && (m.text || m.finalSynthesis));
+      
+    if (!msgWithText) {
+      // Fallback to user message if no AI message
+      msgWithText = [...session.messages]
+        .reverse()
+        .find(m => m.sender === 'user' && !m.isHidden && m.text);
+    }
       
     if (!msgWithText) return 'Conversa vazia';
     
-    const textToUse = msgWithText.text || msgWithText.finalSynthesis || '';
+    let textToUse = msgWithText.finalSynthesis || msgWithText.text || '';
+    
+    // Remove reasoning blocks
+    textToUse = textToUse.replace(/<raciocinio>[\s\S]*?<\/raciocinio>/g, '');
+    if (textToUse.includes('<raciocinio>')) {
+      textToUse = textToUse.substring(0, textToUse.indexOf('<raciocinio>'));
+    }
     
     // Clean markdown bold, lists, headers to make snippet look clean
-    const cleaned = textToUse
+    let cleaned = textToUse
       .replace(/[\*\#\`\_\-\>\[\]\(\)]/g, '')
       .replace(/\s+/g, ' ')
       .trim();

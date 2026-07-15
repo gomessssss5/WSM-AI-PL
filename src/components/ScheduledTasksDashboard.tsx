@@ -282,7 +282,7 @@ export default function ScheduledTasksDashboard({
                     const dd = String(cellDate.getDate()).padStart(2, '0');
                     const cellDateString = `${yyyy}-${mm}-${dd}`;
 
-                    const dayTasks = getTasksForDate(cellDate);
+                    const dayTasks = getTasksForDay(day);
 
                     // Active tasks for display list/count
                     const activeDayTasks = dayTasks.filter(t => t.isActive);
