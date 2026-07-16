@@ -198,6 +198,139 @@ export function AgenticSkillTag({ text, type }: AgenticSkillTagProps) {
   );
 }
 
+interface ListItem {
+  rawLine: string;
+  indent: number;
+  markerType: 'ordered' | 'unordered';
+  markerText: string;
+  text: string;
+}
+
+interface ListNode {
+  item: ListItem;
+  children: ListNode[];
+}
+
+const isListItem = (str: string): boolean => {
+  const t = str.trim();
+  return t.startsWith('- ') || t.startsWith('* ') || t.startsWith('+ ') || t.startsWith('• ') || /^\d+\.\s+/.test(t);
+};
+
+const buildListTree = (items: ListItem[]): ListNode[] => {
+  const roots: ListNode[] = [];
+  const stack: { node: ListNode; indent: number }[] = [];
+
+  for (const item of items) {
+    const node: ListNode = { item, children: [] };
+    
+    while (stack.length > 0 && stack[stack.length - 1].indent >= item.indent) {
+      stack.pop();
+    }
+
+    if (stack.length === 0) {
+      roots.push(node);
+    } else {
+      stack[stack.length - 1].node.children.push(node);
+    }
+
+    stack.push({ node, indent: item.indent });
+  }
+
+  return roots;
+};
+
+const renderNodes = (
+  nodes: ListNode[],
+  renderInlineContent: (text: string) => React.ReactNode,
+  depth: number = 0
+): React.ReactNode => {
+  if (nodes.length === 0) return null;
+
+  const groups: { type: 'ordered' | 'unordered'; items: ListNode[] }[] = [];
+  let currentGroup: { type: 'ordered' | 'unordered'; items: ListNode[] } | null = null;
+
+  for (const node of nodes) {
+    const type = node.item.markerType;
+    if (!currentGroup || currentGroup.type !== type) {
+      currentGroup = { type, items: [node] };
+      groups.push(currentGroup);
+    } else {
+      currentGroup.items.push(node);
+    }
+  }
+
+  return (
+    <div className={`space-y-1.5 ${depth > 0 ? 'mt-1 ml-5' : ''}`}>
+      {groups.map((group, groupIdx) => {
+        if (group.type === 'ordered') {
+          return (
+            <ol key={`ol-${depth}-${groupIdx}`} className="list-none space-y-1 text-gray-700 text-[13.5px]">
+              {group.items.map((node, nodeIdx) => {
+                let markerColor = 'text-[#5c53e5]';
+                if (depth === 1) {
+                  markerColor = 'text-purple-600';
+                } else if (depth === 2) {
+                  markerColor = 'text-indigo-600';
+                } else if (depth >= 3) {
+                  markerColor = 'text-gray-500';
+                }
+
+                return (
+                  <li key={nodeIdx} className="leading-relaxed">
+                    <div className="flex items-start gap-2 select-text">
+                      <span className={`${markerColor} font-semibold shrink-0 min-w-[1.25rem] text-right text-xs mt-[2px]`}>
+                        {node.item.markerText}
+                      </span>
+                      <div className="flex-1 select-text">
+                        {renderInlineContent(node.item.text)}
+                        {renderNodes(node.children, renderInlineContent, depth + 1)}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          );
+        } else {
+          return (
+            <ul key={`ul-${depth}-${groupIdx}`} className="list-none space-y-1 text-gray-700 text-[13.5px]">
+              {group.items.map((node, nodeIdx) => {
+                let bullet = '•';
+                let bulletColor = 'text-[#5c53e5]';
+                
+                if (depth === 1) {
+                  bullet = '◦';
+                  bulletColor = 'text-purple-600';
+                } else if (depth === 2) {
+                  bullet = '▪';
+                  bulletColor = 'text-indigo-600';
+                } else if (depth >= 3) {
+                  bullet = '▫';
+                  bulletColor = 'text-gray-500';
+                }
+
+                return (
+                  <li key={nodeIdx} className="leading-relaxed">
+                    <div className="flex items-start gap-2 select-text">
+                      <span className={`${bulletColor} font-bold shrink-0 text-sm align-middle w-5 text-center`}>
+                        {bullet}
+                      </span>
+                      <div className="flex-1 select-text">
+                        {renderInlineContent(node.item.text)}
+                        {renderNodes(node.children, renderInlineContent, depth + 1)}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          );
+        }
+      })}
+    </div>
+  );
+};
+
 interface MarkdownRendererProps {
   content: string;
   isTyping?: boolean;
@@ -686,9 +819,9 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
         }
       }
 
-      // 7. Unordered Lists: - item or * item
-      if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('• ')) {
-        const listItems: { text: string, indent: number }[] = [];
+      // 7. Lists (Hierarchical: both Unordered & Ordered handled as a single block)
+      if (isListItem(trimmed)) {
+        const listLines: string[] = [];
         
         while (i < lines.length) {
           const currentLine = lines[i];
@@ -700,12 +833,7 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
             while (peekIdx < lines.length && lines[peekIdx].trim() === '') {
               peekIdx++;
             }
-            if (
-              peekIdx < lines.length &&
-              (lines[peekIdx].trim().startsWith('- ') ||
-                lines[peekIdx].trim().startsWith('* ') ||
-                lines[peekIdx].trim().startsWith('• '))
-            ) {
+            if (peekIdx < lines.length && isListItem(lines[peekIdx])) {
               i = peekIdx;
               continue;
             } else {
@@ -713,129 +841,50 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
             }
           }
           
-          if (
-            currentTrimmed.startsWith('- ') ||
-            currentTrimmed.startsWith('* ') ||
-            currentTrimmed.startsWith('• ')
-          ) {
-            const indent = currentLine.match(/^\s*/)?.[0].length || 0;
-            listItems.push({ text: currentTrimmed.replace(/^[-*•]\s*/, ''), indent });
+          if (isListItem(currentLine)) {
+            listLines.push(currentLine);
             i++;
           } else {
             break;
           }
         }
 
-        const uniqueIndents = Array.from(new Set(listItems.map(item => item.indent))).sort((a, b) => a - b);
+        const listItems: ListItem[] = listLines.map((lineStr) => {
+          const indent = lineStr.match(/^\s*/)?.[0].length || 0;
+          const trimmedLine = lineStr.trim();
+          let markerType: 'ordered' | 'unordered' = 'unordered';
+          let markerText = '•';
+          let text = trimmedLine;
 
-        blocks.push(
-          <ul key={`ul-${i}`} className="my-3 list-none space-y-2 text-gray-700 text-[13.5px]">
-            {listItems.map((item, idx) => {
-              if (!item.text) return null;
-              
-              const level = uniqueIndents.indexOf(item.indent);
-              
-              let bullet = '•';
-              let bulletColor = 'text-[#5c53e5]'; // Level 0: WSM Brand
-              let marginClass = 'pl-0';
-              
-              if (level === 1) {
-                bullet = '◦';
-                bulletColor = 'text-purple-600';
-                marginClass = 'pl-5';
-              } else if (level === 2) {
-                bullet = '▪';
-                bulletColor = 'text-indigo-600';
-                marginClass = 'pl-10';
-              } else if (level >= 3) {
-                bullet = '▫';
-                bulletColor = 'text-gray-500';
-                marginClass = 'pl-14';
-              }
-              
-              return (
-                <li 
-                  key={idx} 
-                  className={`flex gap-2 leading-relaxed select-text ${marginClass}`}
-                >
-                  <span className={`${bulletColor} font-bold shrink-0 text-sm align-middle`}>{bullet}</span>
-                  <div className="flex-1">{renderInlineContent(item.text)}</div>
-                </li>
-              );
-            })}
-          </ul>
-        );
-        continue;
-      }
-
-      // 8. Ordered Lists: 1. item
-      if (/^\d+\.\s+/.test(trimmed)) {
-        const listItems: { text: string, indent: number, num: string }[] = [];
-        
-        while (i < lines.length) {
-          const currentLine = lines[i];
-          const currentTrimmed = currentLine.trim();
-          
-          if (currentTrimmed === '') {
-            // Peek ahead to see if there is another ordered list item
-            let peekIdx = i + 1;
-            while (peekIdx < lines.length && lines[peekIdx].trim() === '') {
-              peekIdx++;
-            }
-            if (peekIdx < lines.length && /^\d+\.\s+/.test(lines[peekIdx].trim())) {
-              i = peekIdx;
-              continue;
-            } else {
-              break;
-            }
-          }
-          
-          if (/^\d+\.\s+/.test(currentTrimmed)) {
-            const indent = currentLine.match(/^\s*/)?.[0].length || 0;
-            const num = currentTrimmed.match(/^(\d+\.)\s+/)?.[1] || '1.';
-            listItems.push({ text: currentTrimmed.replace(/^\d+\.\s+/, ''), indent, num });
-            i++;
+          const orderedMatch = trimmedLine.match(/^(\d+\.)\s+(.*)$/);
+          if (orderedMatch) {
+            markerType = 'ordered';
+            markerText = orderedMatch[1];
+            text = orderedMatch[2];
           } else {
-            break;
+            const unorderedMatch = trimmedLine.match(/^([-*+•])\s+(.*)$/);
+            if (unorderedMatch) {
+              markerType = 'unordered';
+              markerText = unorderedMatch[1];
+              text = unorderedMatch[2];
+            }
           }
-        }
 
-        const uniqueIndents = Array.from(new Set(listItems.map(item => item.indent))).sort((a, b) => a - b);
+          return {
+            rawLine: lineStr,
+            indent,
+            markerType,
+            markerText,
+            text,
+          };
+        });
+
+        const roots = buildListTree(listItems);
 
         blocks.push(
-          <ol key={`ol-${i}`} className="my-3 list-none space-y-2 text-gray-700 text-[13.5px]">
-            {listItems.map((item, idx) => {
-              if (!item.text) return null;
-              
-              const level = uniqueIndents.indexOf(item.indent);
-              
-              let marginClass = 'pl-0';
-              let markerColor = 'text-[#5c53e5]';
-              
-              if (level === 1) {
-                marginClass = 'pl-5';
-                markerColor = 'text-purple-600';
-              } else if (level === 2) {
-                marginClass = 'pl-10';
-                markerColor = 'text-indigo-600';
-              } else if (level >= 3) {
-                marginClass = 'pl-14';
-                markerColor = 'text-gray-500';
-              }
-              
-              return (
-                <li 
-                  key={idx} 
-                  className={`flex gap-2 leading-relaxed select-text ${marginClass}`}
-                >
-                  <span className={`${markerColor} font-semibold shrink-0 min-w-[1.25rem] text-right`}>
-                    {item.num}
-                  </span>
-                  <div className="flex-1">{renderInlineContent(item.text)}</div>
-                </li>
-              );
-            })}
-          </ol>
+          <div key={`list-block-${i}`} className="my-3 select-text">
+            {renderNodes(roots, renderInlineContent)}
+          </div>
         );
         continue;
       }

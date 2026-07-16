@@ -26,7 +26,12 @@ export default function TypewriterMarkdown({
       const segmenter = new Intl.Segmenter('en', { granularity: 'grapheme' });
       return Array.from(segmenter.segment(text)).map(s => s.segment);
     } catch (e) {
-      return text.split('');
+      try {
+        const regex = /(\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?|\p{Emoji_Presentation}|\p{Emoji}\uFE0F|[\s\S])(\u200D(\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?|\p{Emoji_Presentation}|\p{Emoji}\uFE0F|[\s\S]))*/gu;
+        return text.match(regex) || [];
+      } catch (innerError) {
+        return text.split('');
+      }
     }
   };
 
