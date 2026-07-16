@@ -1171,7 +1171,6 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
 
     if (abortControllerRef.current) {
       isExplicitCancelRef.current = false;
-      abortControllerRef.current.abort();
     }
     abortControllerRef.current = new AbortController();
 
