@@ -284,6 +284,8 @@ export default function MainHome({
   };
 
   const [isDragging, setIsDragging] = useState(false);
+  const [isSucking, setIsSucking] = useState(false);
+  const [suckingFiles, setSuckingFiles] = useState<{ id: string; url: string; isImage: boolean; name: string }[]>([]);
 
   const processFiles = (fileList: File[]) => {
     const hasAccepted = localStorage.getItem('wsm_accepted_file_terms') === 'true';
@@ -419,7 +421,36 @@ export default function MainHome({
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
       const droppedFiles = Array.from(files) as File[];
-      processFiles(droppedFiles);
+      
+      const hasAccepted = localStorage.getItem('wsm_accepted_file_terms') === 'true';
+      if (!hasAccepted) {
+        setShowTermsModal(true);
+        return;
+      }
+
+      const tempFiles = droppedFiles.map((file) => {
+        const isImage = file.type.startsWith('image/');
+        return {
+          id: Math.random().toString(36).substring(7),
+          url: isImage ? URL.createObjectURL(file) : '',
+          isImage,
+          name: file.name
+        };
+      });
+
+      setSuckingFiles(tempFiles);
+      setIsSucking(true);
+
+      setTimeout(() => {
+        processFiles(droppedFiles);
+        setIsSucking(false);
+        tempFiles.forEach(tf => {
+          if (tf.url) {
+            URL.revokeObjectURL(tf.url);
+          }
+        });
+        setSuckingFiles([]);
+      }, 800);
     }
   };
 
@@ -931,12 +962,34 @@ export default function MainHome({
             </div>
           )}
 
-          {isDragging && (
-            <div 
-              className="absolute inset-0 bg-[#fbfbfa]/95 border-2 border-dashed border-[#5c53e5] rounded-[28px] md:rounded-2xl z-50 flex flex-col items-center justify-center gap-2 animate-in fade-in duration-150 pointer-events-none"
-            >
-              <Paperclip className="w-6 h-6 text-[#5c53e5] animate-bounce" />
-              <span className="text-xs font-semibold text-[#5c53e5]">Solte os arquivos aqui</span>
+          {(isDragging || isSucking) && (
+            <div className="wsm-drop-overlay">
+              <div className="wsm-folder-container">
+                <div className="wsm-folder-back"></div>
+                <div className="wsm-folder-inside"></div>
+                
+                {suckingFiles.map((file) => (
+                  <div key={file.id} className="wsm-dropped-file wsm-animate-drop">
+                    {file.isImage ? (
+                      <img 
+                        src={file.url} 
+                        alt="" 
+                        className="w-full h-full object-cover rounded-xl"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center p-2 text-center select-none">
+                        <Paperclip className="w-8 h-8 text-[#168a8c]" />
+                        <span className="text-[9px] text-gray-500 font-bold truncate max-w-[64px] mt-1">{file.name}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                
+                <div className={`wsm-folder-front ${(isDragging || isSucking) ? 'open' : ''}`}></div>
+              </div>
+              <span className="wsm-folder-instructions">
+                {isSucking ? 'Enviando arquivos...' : 'Solte arquivos para dentro da pasta'}
+              </span>
             </div>
           )}
           </form>
