@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, ChevronLeft, ChevronRight, Plus, List, X, MoreHorizontal, Settings, RefreshCw, RefreshCcw, Pencil } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, Plus, List, X, MoreHorizontal, Settings, RefreshCw, RefreshCcw, Pencil } from 'lucide-react';
 import { ScheduledTask, TaskExecution, ChatSession } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { calculateNextRunAt } from '../lib/scheduledTasks';
@@ -29,6 +29,7 @@ export default function ScheduledTasksDashboard({
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
+  const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
   
   // New task form state
   const [title, setTitle] = useState('');
@@ -176,6 +177,7 @@ export default function ScheduledTasksDashboard({
     setSelectedDayOfMonth(new Date().getDate());
     setHasExpiration(false);
     setExpirationDate('');
+    setIsTypeDropdownOpen(false);
   };
 
   const formatShortTime = (d: Date | string | number) => {
@@ -587,16 +589,62 @@ export default function ScheduledTasksDashboard({
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-gray-900">Agendamento</label>
                   <div className="flex gap-4">
-                    <select 
-                      value={scheduleType}
-                      onChange={(e) => setScheduleType(e.target.value as any)}
-                      className="flex-1 bg-[#f4f3f1] border border-[#eae6e1] rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all appearance-none"
-                    >
-                      <option value="once">Uma vez</option>
-                      <option value="daily">Diariamente</option>
-                      <option value="weekly">Semanalmente</option>
-                      <option value="monthly">Mensalmente</option>
-                    </select>
+                    <div className="relative flex-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
+                        className="w-full flex items-center justify-between bg-[#f4f3f1] border border-[#eae6e1] rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all cursor-pointer text-left h-full min-h-[46px]"
+                      >
+                        <span className="text-gray-900 font-medium">
+                          {scheduleType === 'once' && 'Uma vez'}
+                          {scheduleType === 'daily' && 'Diariamente'}
+                          {scheduleType === 'weekly' && 'Semanalmente'}
+                          {scheduleType === 'monthly' && 'Mensalmente'}
+                        </span>
+                        <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isTypeDropdownOpen ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      <AnimatePresence>
+                        {isTypeDropdownOpen && (
+                          <>
+                            {/* Overlay backdrop to capture outside click */}
+                            <div 
+                              className="fixed inset-0 z-10" 
+                              onClick={() => setIsTypeDropdownOpen(false)}
+                            />
+                            
+                            <motion.div
+                              initial={{ opacity: 0, y: 5 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: 5 }}
+                              transition={{ duration: 0.12 }}
+                              className="absolute left-0 right-0 mt-1.5 bg-white border border-[#eae6e1] rounded-xl shadow-lg overflow-hidden z-20 py-1"
+                            >
+                              {[
+                                { value: 'once', label: 'Uma vez' },
+                                { value: 'daily', label: 'Diariamente' },
+                                { value: 'weekly', label: 'Semanalmente' },
+                                { value: 'monthly', label: 'Mensalmente' }
+                              ].map((option) => (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  onClick={() => {
+                                    setScheduleType(option.value as any);
+                                    setIsTypeDropdownOpen(false);
+                                  }}
+                                  className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors cursor-pointer ${
+                                    scheduleType === option.value ? 'bg-gray-50 font-semibold text-[#5c53e5]' : 'text-gray-700'
+                                  }`}
+                                >
+                                  {option.label}
+                                </button>
+                              ))}
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
+                    </div>
                     <input 
                       type="time"
                       value={time}

@@ -689,25 +689,77 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
       // 7. Unordered Lists: - item or * item
       if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('• ')) {
         const listItems: { text: string, indent: number }[] = [];
-        while (
-          i < lines.length &&
-          (lines[i].trim().startsWith('- ') ||
-            lines[i].trim().startsWith('* ') ||
-            lines[i].trim().startsWith('• '))
-        ) {
-          const indent = lines[i].match(/^\s*/)?.[0].length || 0;
-          listItems.push({ text: lines[i].trim().replace(/^[-*•]\s*/, ''), indent });
-          i++;
+        
+        while (i < lines.length) {
+          const currentLine = lines[i];
+          const currentTrimmed = currentLine.trim();
+          
+          if (currentTrimmed === '') {
+            // Peek ahead to see if there is another list item after the empty line(s)
+            let peekIdx = i + 1;
+            while (peekIdx < lines.length && lines[peekIdx].trim() === '') {
+              peekIdx++;
+            }
+            if (
+              peekIdx < lines.length &&
+              (lines[peekIdx].trim().startsWith('- ') ||
+                lines[peekIdx].trim().startsWith('* ') ||
+                lines[peekIdx].trim().startsWith('• '))
+            ) {
+              i = peekIdx;
+              continue;
+            } else {
+              break;
+            }
+          }
+          
+          if (
+            currentTrimmed.startsWith('- ') ||
+            currentTrimmed.startsWith('* ') ||
+            currentTrimmed.startsWith('• ')
+          ) {
+            const indent = currentLine.match(/^\s*/)?.[0].length || 0;
+            listItems.push({ text: currentTrimmed.replace(/^[-*•]\s*/, ''), indent });
+            i++;
+          } else {
+            break;
+          }
         }
 
+        const uniqueIndents = Array.from(new Set(listItems.map(item => item.indent))).sort((a, b) => a - b);
+
         blocks.push(
-          <ul key={`ul-${i}`} className="my-3 list-none space-y-1.5 text-gray-700 text-[13.5px]">
+          <ul key={`ul-${i}`} className="my-3 list-none space-y-2 text-gray-700 text-[13.5px]">
             {listItems.map((item, idx) => {
-              if (!item.text) return null; // Skip empty bullets
+              if (!item.text) return null;
+              
+              const level = uniqueIndents.indexOf(item.indent);
+              
+              let bullet = '•';
+              let bulletColor = 'text-[#5c53e5]'; // Level 0: WSM Brand
+              let marginClass = 'pl-0';
+              
+              if (level === 1) {
+                bullet = '◦';
+                bulletColor = 'text-purple-600';
+                marginClass = 'pl-5';
+              } else if (level === 2) {
+                bullet = '▪';
+                bulletColor = 'text-indigo-600';
+                marginClass = 'pl-10';
+              } else if (level >= 3) {
+                bullet = '▫';
+                bulletColor = 'text-gray-500';
+                marginClass = 'pl-14';
+              }
+              
               return (
-                <li key={idx} style={{ marginLeft: `${item.indent * 0.75}rem` }} className="flex gap-2 leading-relaxed select-text">
-                  <span className="text-[#5c53e5] font-bold shrink-0">•</span>
-                  <div>{renderInlineContent(item.text)}</div>
+                <li 
+                  key={idx} 
+                  className={`flex gap-2 leading-relaxed select-text ${marginClass}`}
+                >
+                  <span className={`${bulletColor} font-bold shrink-0 text-sm align-middle`}>{bullet}</span>
+                  <div className="flex-1">{renderInlineContent(item.text)}</div>
                 </li>
               );
             })}
@@ -719,20 +771,67 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
       // 8. Ordered Lists: 1. item
       if (/^\d+\.\s+/.test(trimmed)) {
         const listItems: { text: string, indent: number, num: string }[] = [];
-        while (i < lines.length && /^\d+\.\s+/.test(lines[i].trim())) {
-          const indent = lines[i].match(/^\s*/)?.[0].length || 0;
-          const num = lines[i].trim().match(/^(\d+\.)\s+/)?.[1] || '1.';
-          listItems.push({ text: lines[i].trim().replace(/^\d+\.\s+/, ''), indent, num });
-          i++;
+        
+        while (i < lines.length) {
+          const currentLine = lines[i];
+          const currentTrimmed = currentLine.trim();
+          
+          if (currentTrimmed === '') {
+            // Peek ahead to see if there is another ordered list item
+            let peekIdx = i + 1;
+            while (peekIdx < lines.length && lines[peekIdx].trim() === '') {
+              peekIdx++;
+            }
+            if (peekIdx < lines.length && /^\d+\.\s+/.test(lines[peekIdx].trim())) {
+              i = peekIdx;
+              continue;
+            } else {
+              break;
+            }
+          }
+          
+          if (/^\d+\.\s+/.test(currentTrimmed)) {
+            const indent = currentLine.match(/^\s*/)?.[0].length || 0;
+            const num = currentTrimmed.match(/^(\d+\.)\s+/)?.[1] || '1.';
+            listItems.push({ text: currentTrimmed.replace(/^\d+\.\s+/, ''), indent, num });
+            i++;
+          } else {
+            break;
+          }
         }
 
+        const uniqueIndents = Array.from(new Set(listItems.map(item => item.indent))).sort((a, b) => a - b);
+
         blocks.push(
-          <ol key={`ol-${i}`} className="my-3 list-decimal space-y-1.5 text-gray-700 text-[13.5px] ml-5">
+          <ol key={`ol-${i}`} className="my-3 list-none space-y-2 text-gray-700 text-[13.5px]">
             {listItems.map((item, idx) => {
               if (!item.text) return null;
+              
+              const level = uniqueIndents.indexOf(item.indent);
+              
+              let marginClass = 'pl-0';
+              let markerColor = 'text-[#5c53e5]';
+              
+              if (level === 1) {
+                marginClass = 'pl-5';
+                markerColor = 'text-purple-600';
+              } else if (level === 2) {
+                marginClass = 'pl-10';
+                markerColor = 'text-indigo-600';
+              } else if (level >= 3) {
+                marginClass = 'pl-14';
+                markerColor = 'text-gray-500';
+              }
+              
               return (
-                <li key={idx} style={{ marginLeft: `${item.indent * 0.75}rem` }} className="pl-1 leading-relaxed select-text font-medium">
-                  {renderInlineContent(item.text)}
+                <li 
+                  key={idx} 
+                  className={`flex gap-2 leading-relaxed select-text ${marginClass}`}
+                >
+                  <span className={`${markerColor} font-semibold shrink-0 min-w-[1.25rem] text-right`}>
+                    {item.num}
+                  </span>
+                  <div className="flex-1">{renderInlineContent(item.text)}</div>
                 </li>
               );
             })}

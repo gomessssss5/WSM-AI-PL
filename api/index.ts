@@ -51,22 +51,42 @@ async function callGeminiWithFallback(options: any) {
   try {
     const client = getGeminiClient();
     if (options && options.config) {
-      options.config.maxOutputTokens = options.config.maxOutputTokens || 8192;
+      options.config.maxOutputTokens = options.config.maxOutputTokens || 20000;
     } else if (options) {
-      options.config = { maxOutputTokens: 8192 };
+      options.config = { maxOutputTokens: 20000 };
     }
-    return await client.models.generateContent(options);
+    try {
+      return await client.models.generateContent(options);
+    } catch (apiError: any) {
+      const errMsg = apiError.message || String(apiError);
+      if (errMsg.includes("max_output_tokens") || errMsg.includes("maxOutputTokens") || errMsg.includes("out of range") || errMsg.includes("limit") || errMsg.includes("Value")) {
+        console.warn("maxOutputTokens of 20000 failed, falling back to 8192...", apiError.message);
+        options.config.maxOutputTokens = 8192;
+        return await client.models.generateContent(options);
+      }
+      throw apiError;
+    }
   } catch (error: any) {
     if (process.env.IA_API_KEY_2) {
       console.warn("First Gemini API Key failed, trying fallback key...", error.message);
       try {
         const clientFallback = getFallbackGeminiClient();
         if (options && options.config) {
-          options.config.maxOutputTokens = options.config.maxOutputTokens || 8192;
+          options.config.maxOutputTokens = options.config.maxOutputTokens || 20000;
         } else if (options) {
-          options.config = { maxOutputTokens: 8192 };
+          options.config = { maxOutputTokens: 20000 };
         }
-        return await clientFallback.models.generateContent(options);
+        try {
+          return await clientFallback.models.generateContent(options);
+        } catch (apiError: any) {
+          const errMsg = apiError.message || String(apiError);
+          if (errMsg.includes("max_output_tokens") || errMsg.includes("maxOutputTokens") || errMsg.includes("out of range") || errMsg.includes("limit") || errMsg.includes("Value")) {
+            console.warn("Fallback client maxOutputTokens of 20000 failed, falling back to 8192...", apiError.message);
+            options.config.maxOutputTokens = 8192;
+            return await clientFallback.models.generateContent(options);
+          }
+          throw apiError;
+        }
       } catch (fallbackError: any) {
          throw fallbackError;
        }
@@ -79,22 +99,42 @@ async function callGeminiStreamWithFallback(options: any) {
   try {
     const client = getGeminiClient();
     if (options && options.config) {
-      options.config.maxOutputTokens = options.config.maxOutputTokens || 8192;
+      options.config.maxOutputTokens = options.config.maxOutputTokens || 20000;
     } else if (options) {
-      options.config = { maxOutputTokens: 8192 };
+      options.config = { maxOutputTokens: 20000 };
     }
-    return await client.models.generateContentStream(options);
+    try {
+      return await client.models.generateContentStream(options);
+    } catch (apiError: any) {
+      const errMsg = apiError.message || String(apiError);
+      if (errMsg.includes("max_output_tokens") || errMsg.includes("maxOutputTokens") || errMsg.includes("out of range") || errMsg.includes("limit") || errMsg.includes("Value")) {
+        console.warn("Stream maxOutputTokens of 20000 failed, falling back to 8192...", apiError.message);
+        options.config.maxOutputTokens = 8192;
+        return await client.models.generateContentStream(options);
+      }
+      throw apiError;
+    }
   } catch (error: any) {
     if (process.env.IA_API_KEY_2) {
       console.warn("First Gemini API Key failed for stream, trying fallback key...", error.message);
       try {
         const clientFallback = getFallbackGeminiClient();
         if (options && options.config) {
-          options.config.maxOutputTokens = options.config.maxOutputTokens || 8192;
+          options.config.maxOutputTokens = options.config.maxOutputTokens || 20000;
         } else if (options) {
-          options.config = { maxOutputTokens: 8192 };
+          options.config = { maxOutputTokens: 20000 };
         }
-        return await clientFallback.models.generateContentStream(options);
+        try {
+          return await clientFallback.models.generateContentStream(options);
+        } catch (apiError: any) {
+          const errMsg = apiError.message || String(apiError);
+          if (errMsg.includes("max_output_tokens") || errMsg.includes("maxOutputTokens") || errMsg.includes("out of range") || errMsg.includes("limit") || errMsg.includes("Value")) {
+            console.warn("Fallback stream maxOutputTokens of 20000 failed, falling back to 8192...", apiError.message);
+            options.config.maxOutputTokens = 8192;
+            return await clientFallback.models.generateContentStream(options);
+          }
+          throw apiError;
+        }
       } catch (fallbackError: any) {
          throw fallbackError;
        }
@@ -881,10 +921,12 @@ Você DEVE usar aspas duplas, formato de hora 24h, e tipos scheduleType exatos (
         } catch { return false; }
       });
 
+      const fallbackEmptyResponse = "⚠️ **Nenhuma resposta foi gerada pelo modelo.** O pedido pode ter sido longo demais ou complexo demais (por favor, tente dividir seu pedido em partes menores).";
+
       sendEvent({
         type: "final",
-        text: fullOutput.trim() || "Nenhuma resposta gerada.",
-        finalSynthesis: fullOutput.trim() || "Nenhuma resposta gerada.",
+        text: fullOutput.trim() || fallbackEmptyResponse,
+        finalSynthesis: fullOutput.trim() || fallbackEmptyResponse,
         searchSources: uniqueSources,
         searchImages: filteredImages.slice(0, 15)
       });
@@ -900,17 +942,28 @@ Você DEVE usar aspas duplas, formato de hora 24h, e tipos scheduleType exatos (
       },
     });
 
+    const textToReturn = normalResponse.text?.trim() || "";
+    if (!textToReturn) {
+      return res.json({
+        text: "⚠️ **Nenhuma resposta foi gerada pelo modelo.** O pedido pode ter sido longo demais ou complexo demais (por favor, tente dividir seu pedido em partes menores).",
+      });
+    }
+
     return res.json({
-      text: normalResponse.text || "",
+      text: textToReturn,
     });
   } catch (error: any) {
     console.error("Chat API Error:", error);
     
     const errorMessage = error.message || String(error);
     const isPermissionError = errorMessage.includes("PERMISSION_DENIED") || errorMessage.includes("API_KEY_INVALID") || errorMessage.includes("API key");
-    const errorText = isPermissionError 
+    let errorText = isPermissionError 
       ? "⚠️ **Erro de Permissão na API.**\n\nA chave de API fornecida foi recusada (pode estar sem cota, revogada ou projeto restrito).\nPor favor, verifique a chave `IA_API_KEY` em **Settings > Secrets**."
       : "⚠️ **Erro no servidor:** " + (error.message || "Falha ao processar o chat");
+
+    if (errorMessage.includes("No content returned") || errorMessage.includes("empty response") || errorMessage.includes("blocked") || errorMessage.includes("finishReason")) {
+      errorText = "⚠️ **Nenhuma resposta foi gerada pelo modelo.** O pedido pode ter sido longo demais ou complexo demais (por favor, tente dividir seu pedido em partes menores).";
+    }
 
     if (res.headersSent) {
       res.write(`data: ${JSON.stringify({ type: "chunk", text: "\n\n" + errorText })}\n\n`);
