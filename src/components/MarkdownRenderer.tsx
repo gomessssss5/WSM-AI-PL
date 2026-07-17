@@ -2,8 +2,9 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode } from 'lucide-react';
+import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin } from 'lucide-react';
 import HtmlCodeBlock from './HtmlCodeBlock';
+import WsmMapComponent from './WsmMapComponent';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -887,6 +888,57 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
           </div>
         );
         continue;
+      }
+
+      // 8. Custom Map Tag: <wsm_map ... />
+      if (trimmed.startsWith('<wsm_map') || trimmed.includes('<wsm_map')) {
+        let mapLine = line;
+        // If it doesn't close on this line, gather lines
+        while (i < lines.length && !mapLine.includes('/>') && !mapLine.includes('</wsm_map>')) {
+          i++;
+          if (i < lines.length) {
+            mapLine += '\n' + lines[i];
+          }
+        }
+
+        const parseAttr = (str: string, attr: string): string => {
+          const regex = new RegExp(`${attr}\\s*=\\s*["']([^"']*)["']`, 'i');
+          const match = str.match(regex);
+          return match ? match[1] : '';
+        };
+
+        const latVal = parseFloat(parseAttr(mapLine, 'lat'));
+        const lonVal = parseFloat(parseAttr(mapLine, 'lon'));
+        const zoomVal = parseInt(parseAttr(mapLine, 'zoom')) || 15;
+        const placeVal = parseAttr(mapLine, 'place');
+        const wikiVal = parseAttr(mapLine, 'wiki');
+        const textVal = parseAttr(mapLine, 'text');
+
+        if (!isNaN(latVal) && !isNaN(lonVal)) {
+          blocks.push(
+            <WsmMapComponent
+              key={`map-${i}`}
+              lat={latVal}
+              lon={lonVal}
+              zoom={zoomVal}
+              place={placeVal}
+              wiki={wikiVal}
+              text={textVal}
+            />
+          );
+          i++;
+          continue;
+        } else {
+          // If we are typing the map tag and coordinates are not fully typed yet, render a beautiful placeholder
+          blocks.push(
+            <div key={`map-skeleton-${i}`} className="my-3 w-full h-[350px] bg-gray-100 rounded-2xl flex flex-col items-center justify-center border border-gray-200 shadow-xs animate-pulse">
+              <MapPin className="w-8 h-8 text-[#5c53e5] animate-bounce mb-2" />
+              <span className="text-xs text-gray-500 font-medium">Renderizando mapa interativo do WSM Pro...</span>
+            </div>
+          );
+          i++;
+          continue;
+        }
       }
 
       // 9. Paragraph default
