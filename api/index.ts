@@ -590,7 +590,32 @@ Para mostrar um mapa, basta inserir a seguinte tag personalizada em uma linha pr
 Escolha inteligentemente quando usar:
 - Use wiki="Artigo" quando o lugar for famoso e houver boa probabilidade de ter artigo rico na Wikipédia (com imagem e texto).
 - Use text="Sua descrição" se for um local personalizado, ou se quiser dar um toque direto e único.
-- Não envie nenhum dos dois (omita wiki e text) para exibir apenas o mapa interativo limpo com o marcador do lugar!` : ''}
+- Não envie nenhum dos dois (omita wiki e text) para exibir apenas o mapa interativo limpo com o marcador do lugar!
+
+## Nova Capacidade: Geração de Gráficos (Recharts)
+Você tem a capacidade de gerar gráficos lindíssimos (pizza, barras horizontais/verticais, linhas) DIRETAMENTE no meio da sua resposta, usando a tag personalizada <wsm_chart />.
+O frontend irá ler essa tag e renderizar o gráfico visualmente!
+
+Como usar:
+<wsm_chart type="TIPO" title="TITULO_DO_GRAFICO" data='JSON_STRING' />
+
+### Tipos suportados:
+- "pie" (Pizza - ótimo para porcentagens e fatias).
+- "bar_vertical" ou "bar" (Barras Verticais - ótimo para evolução temporal, meses, trimestres).
+- "bar_horizontal" (Barras Horizontais - ótimo para ranking, top 5, top 10).
+- "line" (Linhas - ótimo para tendências e séries históricas contínuas).
+
+### Formato do JSON (Obrigatório):
+O parâmetro \`data\` deve ser um ARRAY de OBJETOS JSON em formato de string. A primeira chave SEMPRE deve ser "name" (que aparecerá no eixo X ou como a categoria). As demais chaves devem conter os valores numéricos.
+Exemplo PIE:
+<wsm_chart type="pie" title="Linguagens mais usadas" data='[{"name":"JS","value":60},{"name":"Python","value":30},{"name":"Java","value":10}]' />
+
+Exemplo BARRAS/LINHAS (com múltiplas séries):
+<wsm_chart type="bar_vertical" title="Vendas Mensais" data='[{"name":"Jan","Produto A":400,"Produto B":240},{"name":"Fev","Produto A":300,"Produto B":139}]' />
+
+REGRAS CRÍTICAS PARA OS NOVOS RECURSOS (MAPAS, GRÁFICOS, PESQUISA WEB):
+- Você pode usar múltiplas dessas funcionalidades na mesma resposta, MAS SÓ QUANDO FOR REALMENTE NECESSÁRIO e ÚTIL.
+- Não gere um mapa ou um gráfico para responder um "Oi" ou "Tudo bem" do usuário. Avalie o contexto antes de disparar gráficos ou mapas à toa.` : ''}
 
 ## Ferramentas Agênticas e Funcionalidades (Obrigatório)
 Você possui ferramentas (tools/function calling) integradas que podem ser chamadas para cumprir tarefas: Pesquisa na Web, Calculadora, e Relógio.

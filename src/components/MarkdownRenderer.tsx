@@ -5,6 +5,7 @@ import 'katex/dist/katex.min.css';
 import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin } from 'lucide-react';
 import HtmlCodeBlock from './HtmlCodeBlock';
 import WsmMapComponent from './WsmMapComponent';
+import WsmChartComponent from './WsmChartComponent';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -902,9 +903,16 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
         }
 
         const parseAttr = (str: string, attr: string): string => {
-          const regex = new RegExp(`${attr}\\s*=\\s*["']([^"']*)["']`, 'i');
-          const match = str.match(regex);
-          return match ? match[1] : '';
+          const regexSingle = new RegExp(`${attr}\\s*=\\s*'([^']*)'`, 'i');
+          const regexDouble = new RegExp(`${attr}\\s*=\\s*"([^"]*)"`, 'i');
+          
+          const matchSingle = str.match(regexSingle);
+          if (matchSingle) return matchSingle[1];
+          
+          const matchDouble = str.match(regexDouble);
+          if (matchDouble) return matchDouble[1];
+          
+          return '';
         };
 
         const latVal = parseFloat(parseAttr(mapLine, 'lat'));
@@ -941,7 +949,56 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
         }
       }
 
-      // 9. Paragraph default
+      // 9. Custom Chart Tag: <wsm_chart ... />
+      if (trimmed.startsWith('<wsm_chart') || trimmed.includes('<wsm_chart')) {
+        let chartLine = line;
+        while (i < lines.length && !chartLine.includes('/>') && !chartLine.includes('</wsm_chart>')) {
+          i++;
+          if (i < lines.length) {
+            chartLine += '\n' + lines[i];
+          }
+        }
+
+        const parseAttr = (str: string, attr: string): string => {
+          const regexSingle = new RegExp(`${attr}\\s*=\\s*'([^']*)'`, 'i');
+          const regexDouble = new RegExp(`${attr}\\s*=\\s*"([^"]*)"`, 'i');
+          
+          const matchSingle = str.match(regexSingle);
+          if (matchSingle) return matchSingle[1];
+          
+          const matchDouble = str.match(regexDouble);
+          if (matchDouble) return matchDouble[1];
+          
+          return '';
+        };
+
+        const typeVal = parseAttr(chartLine, 'type');
+        const titleVal = parseAttr(chartLine, 'title');
+        const dataVal = parseAttr(chartLine, 'data');
+
+        if (typeVal && dataVal) {
+          blocks.push(
+            <WsmChartComponent
+              key={`chart-${i}`}
+              type={typeVal}
+              title={titleVal}
+              data={dataVal}
+            />
+          );
+          i++;
+          continue;
+        } else {
+          blocks.push(
+            <div key={`chart-skeleton-${i}`} className="my-3 w-full h-[350px] bg-gray-100 rounded-2xl flex flex-col items-center justify-center border border-gray-200 shadow-xs animate-pulse">
+              <span className="text-xs text-gray-500 font-medium">Renderizando gráfico do WSM Pro...</span>
+            </div>
+          );
+          i++;
+          continue;
+        }
+      }
+
+      // 10. Paragraph default
       blocks.push(
         <p key={`p-${i}`} className="text-gray-700 leading-relaxed text-[13.5px] mb-3 select-text">
           {renderInlineContent(line)}
