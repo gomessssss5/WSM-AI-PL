@@ -727,7 +727,14 @@ export default function MainHome({
                       <Icon className={`w-3.5 h-3.5 ${tool.color}`} />
                       <span className="text-[12px] font-semibold text-gray-800">{tool.id}</span>
                     </div>
-                    <span className="text-[10px] text-gray-500 pl-5.5">{tool.description}</span>
+                    <span 
+                      className="text-[10px] text-gray-500 pl-5.5 line-clamp-1 truncate" 
+                      title={tool.description}
+                    >
+                      {tool.description && tool.description.length > 75 
+                        ? tool.description.slice(0, 75) + '...' 
+                        : tool.description}
+                    </span>
                   </button>
                 );
               })}

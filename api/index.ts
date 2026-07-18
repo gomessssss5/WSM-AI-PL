@@ -753,13 +753,21 @@ Exemplos:
 Você DEVE usar aspas duplas, formato de hora 24h, e tipos scheduleType exatos (once, daily, weekly, monthly). Continue sua resposta normalmente (ex: "Agendei a tarefa para você! Toda segunda ao meio-dia...").
 `;
 
-    const basePrompt = modelSystemPrompts[model] || modelSystemPrompts['WSM 1.6 Flash'];
+    let basePrompt = modelSystemPrompts[model] || modelSystemPrompts['WSM 1.6 Flash'];
     let reasoningInstruction = "";
     if (model === 'WSM 1.6 Pro') {
       const level = reasoningLevel || 'Mínimo';
       console.log(`[Reasoning Level] WSM 1.6 Pro requested with level: ${level}`);
       if (level === 'Nenhum') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Desativado)\nO usuário desativou o raciocínio profundo para esta mensagem. Responda de forma absolutamente direta, resumida, simplificada e sem planejar etapas complexas de execução no início da resposta.`;
+        // Strip out the internal reasoning and planning sections completely to avoid conflicting prompts
+        basePrompt = basePrompt
+          .replace(/## Processo de Raciocínio Interno \(OBRIGATÓRIO\)[\s\S]*?3\. Não inclua nenhum outro texto dentro das tags <task> e <\/task> além das linhas de tarefa\./g, "");
+
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Desativado)
+Você está no modo sem raciocínio / esforço Nenhum. 
+Você está ABSOLUTAMENTE PROIBIDO de gerar qualquer tag de raciocínio como <raciocinio>, </raciocinio>, <task> ou </task>. 
+Não faça nenhuma etapa de planejamento mental, nem mostre tarefas em colchetes. 
+Você deve responder diretamente ao usuário. Comece sua resposta imediatamente com a resposta final.`;
       } else if (level === 'Mínimo') {
         reasoningInstruction = `\n\n## Modo de Raciocínio (Mínimo)\nUtilize um nível básico e simples de raciocínio passo a passo se necessário.`;
       } else if (level === 'Baixo') {
