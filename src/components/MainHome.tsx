@@ -8,6 +8,8 @@ interface MainHomeProps {
   onSuggestionClick: (suggestionType: 'write' | 'code' | 'image' | 'analysis' | 'translate') => void;
   selectedModel: string;
   setSelectedModel: (model: string) => void;
+  reasoningLevel?: string;
+  setReasoningLevel?: (level: string) => void;
   onOpenMobileHistory?: () => void;
   initialDraft?: Draft;
   onSaveDraft?: (draft: Partial<Draft>) => void;
@@ -24,6 +26,8 @@ export default function MainHome({
   onSuggestionClick,
   selectedModel,
   setSelectedModel,
+  reasoningLevel = 'Mínimo',
+  setReasoningLevel,
   onOpenMobileHistory,
   initialDraft,
   onSaveDraft,
@@ -37,6 +41,7 @@ export default function MainHome({
   const [inputValue, setInputValue] = useState('');
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const [isEffortDropdownOpen, setIsEffortDropdownOpen] = useState(false);
   const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
   const [isNewsCardDismissedLocal, setIsNewsCardDismissedLocal] = useState(() => {
     return localStorage.getItem('wsm_news_card_dismissed') === 'true';
@@ -548,7 +553,16 @@ export default function MainHome({
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#eae6e1] hover:border-gray-300 rounded-full text-[13px] font-semibold text-gray-700 shadow-2xs cursor-pointer transition-all duration-150 active:scale-[0.98]"
           >
             <Sparkles className="w-3 h-3 text-[#5c53e5] fill-[#5c53e5]/20 animate-pulse" />
-            <span>{selectedModel}</span>
+            {selectedModel === 'WSM 1.6 Pro' ? (
+              <>
+                <span className="font-bold text-gray-900">WSM 1.6 Pro</span>
+                {reasoningLevel !== 'Nenhum' && (
+                  <span className="text-gray-400 font-normal ml-0.5">{reasoningLevel}</span>
+                )}
+              </>
+            ) : (
+              <span>{selectedModel}</span>
+            )}
             <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
           </button>
 
@@ -922,6 +936,52 @@ export default function MainHome({
 
             {/* Right Controls: Mic & Send Circular Button */}
             <div className="flex items-center gap-1.5">
+              {/* Esforço Dropdown/Pill Selector (shows up only for WSM 1.6 Pro) */}
+              {selectedModel === 'WSM 1.6 Pro' && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsEffortDropdownOpen(!isEffortDropdownOpen)}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-[#eae7e2] hover:bg-[#e1ded9] rounded-full text-[11px] font-bold text-gray-700 transition-all cursor-pointer"
+                    title="Seletor de esforço de raciocínio"
+                  >
+                    <span>Esforço</span>
+                    <span className="text-gray-500 font-normal ml-0.5">{reasoningLevel}</span>
+                    <ChevronDown className="w-3 h-3 text-gray-500" />
+                  </button>
+
+                  {isEffortDropdownOpen && (
+                    <>
+                      {/* Backdrop to close the dropdown */}
+                      <div className="fixed inset-0 z-40" onClick={() => setIsEffortDropdownOpen(false)} />
+                      <div className="absolute bottom-full right-0 mb-2 w-44 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                        <div className="flex flex-col gap-0.5">
+                          {['Nenhum', 'Mínimo', 'Baixo', 'Médio', 'Alto'].map((level) => (
+                            <button
+                              key={level}
+                              type="button"
+                              onClick={() => {
+                                if (setReasoningLevel) {
+                                  setReasoningLevel(level);
+                                }
+                                setIsEffortDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors cursor-pointer ${
+                                reasoningLevel === level
+                                  ? 'bg-gray-50 text-[#5c53e5] font-semibold'
+                                  : 'text-gray-700 hover:bg-gray-50'
+                              }`}
+                            >
+                              {level}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
               <button
                 type="button"
                                 onClick={toggleListening}

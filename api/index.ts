@@ -145,7 +145,7 @@ async function callGeminiStreamWithFallback(options: any) {
 
 // API endpoint for chatbot communication and Web Search
 app.post("/api/chat", async (req: express.Request, res: express.Response) => {
-  const { text, isSearchEnabled, model, history, isWriterMode, writerDocument, skills } = req.body;
+  const { text, isSearchEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills } = req.body;
 
   // Ensure valid history format
   let finalContents: any = text;
@@ -754,7 +754,23 @@ Você DEVE usar aspas duplas, formato de hora 24h, e tipos scheduleType exatos (
 `;
 
     const basePrompt = modelSystemPrompts[model] || modelSystemPrompts['WSM 1.6 Flash'];
-    const activeSystemPrompt = basePrompt + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + writerInstruction + "\n\n" + skillsInstruction + "\n\n" + tasksInstruction;
+    let reasoningInstruction = "";
+    if (model === 'WSM 1.6 Pro') {
+      const level = reasoningLevel || 'Mínimo';
+      console.log(`[Reasoning Level] WSM 1.6 Pro requested with level: ${level}`);
+      if (level === 'Nenhum') {
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Desativado)\nO usuário desativou o raciocínio profundo para esta mensagem. Responda de forma absolutamente direta, resumida, simplificada e sem planejar etapas complexas de execução no início da resposta.`;
+      } else if (level === 'Mínimo') {
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Mínimo)\nUtilize um nível básico e simples de raciocínio passo a passo se necessário.`;
+      } else if (level === 'Baixo') {
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Baixo)\nDedique esforço baixo a moderado para planejar os passos logicamente de maneira curta.`;
+      } else if (level === 'Médio') {
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Médio)\nExecute um raciocínio intermediário passo a passo de forma clara e estruturada no início da resposta antes de entregar a solução final.`;
+      } else if (level === 'Alto') {
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Alto)\nUtilize a capacidade máxima de raciocínio analítico avançado. Crie uma estrutura minuciosamente detalhada e robusta de etapas de planejamento mental, listando cada tarefa crítica com extrema precisão.`;
+      }
+    }
+    const activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + writerInstruction + "\n\n" + skillsInstruction + "\n\n" + tasksInstruction;
 
     if (model === 'WSM 1.6 Pro') {
       console.log("Starting agentic loop for Pro...");

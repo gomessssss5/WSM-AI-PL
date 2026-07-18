@@ -207,6 +207,8 @@ interface ChatWindowProps {
   onBackToHome?: () => void;
   selectedModel: string;
   setSelectedModel?: (model: string) => void;
+  reasoningLevel?: string;
+  setReasoningLevel?: (level: string) => void;
   onSearchSimulationComplete?: (messageId: string) => void;
   onCancelGeneration?: () => void;
   onEditMessage?: (messageId: string, newText: string) => void;
@@ -237,6 +239,8 @@ export default function ChatWindow({
   onBackToHome,
   selectedModel,
   setSelectedModel,
+  reasoningLevel = 'Mínimo',
+  setReasoningLevel,
   onSearchSimulationComplete,
   onCancelGeneration,
   onEditMessage,
@@ -257,6 +261,7 @@ export default function ChatWindow({
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const [isEffortDropdownOpen, setIsEffortDropdownOpen] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [isTasksExpanded, setIsTasksExpanded] = useState(true);
   const [expandedRaciocinios, setExpandedRaciocinios] = useState<Record<string, boolean>>({});
@@ -1022,7 +1027,16 @@ export default function ChatWindow({
               if (hasMessages) {
                 return (
                   <div className="flex items-center px-1.5 py-1.5 text-[13px] font-extrabold text-gray-600 select-none tracking-tight">
-                    <span>{selectedModel}</span>
+                    {selectedModel === 'WSM 1.6 Pro' ? (
+                      <>
+                        <span className="font-extrabold text-gray-900">WSM 1.6 Pro</span>
+                        {reasoningLevel !== 'Nenhum' && (
+                          <span className="text-gray-400 font-normal ml-1">{reasoningLevel}</span>
+                        )}
+                      </>
+                    ) : (
+                      <span>{selectedModel}</span>
+                    )}
                   </div>
                 );
               }
@@ -1037,7 +1051,12 @@ export default function ChatWindow({
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
                     </svg>
                   </div>
-                  <span className="font-bold tracking-tight text-gray-900">{selectedModel}</span>
+                  <span className="font-bold tracking-tight text-gray-900">
+                    {selectedModel === 'WSM 1.6 Pro' ? 'WSM 1.6 Pro' : selectedModel}
+                  </span>
+                  {selectedModel === 'WSM 1.6 Pro' && reasoningLevel !== 'Nenhum' && (
+                    <span className="text-gray-400 font-normal ml-0.5">{reasoningLevel}</span>
+                  )}
                   <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
                 </button>
               );
@@ -2110,6 +2129,52 @@ export default function ChatWindow({
 
             {/* Right Controls */}
             <div className="flex items-center gap-1.5">
+              {/* Esforço Dropdown/Pill Selector (shows up only for WSM 1.6 Pro) */}
+              {selectedModel === 'WSM 1.6 Pro' && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsEffortDropdownOpen(!isEffortDropdownOpen)}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-[#eae7e2] hover:bg-[#e1ded9] rounded-full text-[11px] font-bold text-gray-700 transition-all cursor-pointer"
+                    title="Seletor de esforço de raciocínio"
+                  >
+                    <span>Esforço</span>
+                    <span className="text-gray-500 font-normal ml-0.5">{reasoningLevel}</span>
+                    <ChevronDown className="w-3 h-3 text-gray-500" />
+                  </button>
+
+                  {isEffortDropdownOpen && (
+                    <>
+                      {/* Backdrop to close the dropdown */}
+                      <div className="fixed inset-0 z-40" onClick={() => setIsEffortDropdownOpen(false)} />
+                      <div className="absolute bottom-full right-0 mb-2 w-44 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                        <div className="flex flex-col gap-0.5">
+                          {['Nenhum', 'Mínimo', 'Baixo', 'Médio', 'Alto'].map((level) => (
+                            <button
+                              key={level}
+                              type="button"
+                              onClick={() => {
+                                if (setReasoningLevel) {
+                                  setReasoningLevel(level);
+                                }
+                                setIsEffortDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors cursor-pointer ${
+                                reasoningLevel === level
+                                  ? 'bg-gray-50 text-[#5c53e5] font-semibold'
+                                  : 'text-gray-700 hover:bg-gray-50'
+                              }`}
+                            >
+                              {level}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
               <button
                 type="button"
                 onClick={toggleListening}

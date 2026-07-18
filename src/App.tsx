@@ -101,9 +101,18 @@ Você tem LIBERDADE 1000% para gerar códigos gigantes. VOCÊ DEVE ENTREGAR SITE
     return saved || 'WSM 1.6 Flash';
   });
 
+  const [reasoningLevel, setReasoningLevel] = useState<string>(() => {
+    const saved = localStorage.getItem('wsm_reasoning_level');
+    return saved || 'Mínimo';
+  });
+
   useEffect(() => {
     localStorage.setItem('wsm_selected_model', selectedModel);
   }, [selectedModel]);
+
+  useEffect(() => {
+    localStorage.setItem('wsm_reasoning_level', reasoningLevel);
+  }, [reasoningLevel]);
   const [isMobileHistoryOpen, setIsMobileHistoryOpen] = useState(true); // Default to true on initial load (only applies to mobile)
   const [sessionToDeleteId, setSessionToDeleteId] = useState<string | null>(null);
   const [isAdminView, setIsAdminView] = useState(false);
@@ -1255,6 +1264,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           isSearchEnabled,
           isTranslatorMode,
           model: sessionToUpdate.model || selectedModel,
+          reasoningLevel: reasoningLevel,
           skills: skills,
           history: sessionToUpdate.messages.map(m => {
             let msgText = m.text || m.finalSynthesis || "";
@@ -1771,6 +1781,8 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
             onBackToHome={() => { handleNewChat(); setIsMobileHistoryOpen(true); }}
             selectedModel={activeSession.model || selectedModel}
             setSelectedModel={setSelectedModel}
+            reasoningLevel={reasoningLevel}
+            setReasoningLevel={setReasoningLevel}
             onSearchSimulationComplete={handleSearchSimulationComplete}
             onCancelGeneration={handleCancelGeneration}
             onEditMessage={handleEditMessage}
@@ -1793,6 +1805,8 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
             onSuggestionClick={handleSuggestionClick}
             selectedModel={selectedModel}
             setSelectedModel={setSelectedModel}
+            reasoningLevel={reasoningLevel}
+            setReasoningLevel={setReasoningLevel}
             onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
             initialDraft={drafts['new_chat']}
             onSaveDraft={(draft) => currentUser && saveDraft(currentUser.uid, 'new_chat', draft)}
