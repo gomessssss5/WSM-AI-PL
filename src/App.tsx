@@ -14,6 +14,7 @@ import { Sparkles, Trash2 } from 'lucide-react';
 import ScheduledTasksDashboard from './components/ScheduledTasksDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import AdminAuthModal from './components/AdminAuthModal';
+import BenchmarkPage from './components/BenchmarkPage';
 import { Skill, subscribeSkills, saveSkill, deleteSkillFromDb } from './lib/skills';
 import { subscribeScheduledTasks, subscribeTaskExecutions, saveScheduledTask, deleteScheduledTask, saveTaskExecution, calculateNextRunAt } from './lib/scheduledTasks';
 
@@ -1649,6 +1650,12 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
   };
 
   // Render authentic loading screen
+  const isBenchmarkRoute = typeof window !== 'undefined' && (window.location.pathname === '/benchmark' || window.location.pathname === '/benchmark/');
+
+  if (isBenchmarkRoute) {
+    return <BenchmarkPage />;
+  }
+
   if (authLoading) {
     return (
       <div id="wsm-loading-screen" className="flex h-[100dvh] w-screen flex-col items-center justify-center bg-[#fcfbfa] select-none dot-grid">
