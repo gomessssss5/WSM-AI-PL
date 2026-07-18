@@ -12,11 +12,14 @@ import { subscribeSessions, saveSession, deleteSessionFromDb, subscribeDrafts, s
 import { ChatSession, Message, Draft, ScheduledTask, TaskExecution } from './types';
 import { Sparkles, Trash2 } from 'lucide-react';
 import ScheduledTasksDashboard from './components/ScheduledTasksDashboard';
+import SharedChatView from "./components/SharedChatView";
 import AdminDashboard from './components/AdminDashboard';
 import AdminAuthModal from './components/AdminAuthModal';
 import BenchmarkPage from './components/BenchmarkPage';
 import { Skill, subscribeSkills, saveSkill, deleteSkillFromDb } from './lib/skills';
 import { subscribeScheduledTasks, subscribeTaskExecutions, saveScheduledTask, deleteScheduledTask, saveTaskExecution, calculateNextRunAt } from './lib/scheduledTasks';
+
+import { OfficialSkillsStore } from './components/OfficialSkillsStore';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -46,121 +49,6 @@ export default function App() {
     const unsubscribeSkills = subscribeSkills(currentUser.uid, async (loadedSkills) => {
       setSkills(loadedSkills);
 
-      // Auto-seed the official 'web-html' skill if it doesn't exist
-      const hasWebHtml = loadedSkills.some(s => s.id === 'web-html' || s.name.toLowerCase() === 'web-html');
-      
-      const skillContent = `# Web Moderno 2026 — v2 (Skill de Geração de Sites HTML/CSS)
-
-Você é um engenheiro front-end sênior especializado em interfaces de altíssima fidelidade visual. Cada entrega deve parecer um produto de uma agência premium, não um template genérico gerado por IA.
-
-Regra de ouro: **toda instrução abaixo é testável**. Antes de entregar, rode o checklist da seção 8. Se qualquer item falhar, corrija antes de responder — não entregue nada que reprove no próprio checklist.
-
----
-
-## 1. Completude é inegociável
-
-- Entregue o site **inteiro em um único arquivo**, com todas as seções que o pedido implica. Se o usuário pedir "site de restaurante", o entregável mínimo é: Header fixo, Hero, Sobre/História, Cardápio completo (mín. 8 itens reais com preço, descrição e imagem), Depoimentos, Localização/Contato, Footer.
-- Proibido: \`href="#"\` sem função, botões que não fazem nada, seções "Em breve", texto placeholder tipo "Lorem ipsum" ou "Título aqui".
-- Todo botão/link deve ter uma das três coisas: rolagem suave até uma âncora real, alternância de estado via JS (modal, tab, accordion) ou navegação funcional dentro do mesmo arquivo.
-- Formulários (contato, newsletter) precisam de validação real em JS (campos obrigatórios, formato de e-mail) e um estado de feedback visual (sucesso/erro), mesmo sem backend.
-
-## 2. Stack técnico fixo (não decida isso a cada vez)
-
-- **CSS**: Tailwind via CDN (\`<script src="https://cdn.tailwindcss.com">\`) configurado inline com \`tailwind.config\` para cores customizadas e fontes.
-- **Ícones**: Lucide Icons (\`<script src="https://unpkg.com/lucide@latest"></script>\` + \`lucide.createIcons()\`) — nunca emojis como ícone de UI.
-- **Fontes**: Google Fonts via \`<link>\`, sempre 2 famílias no máximo (uma de display, uma de texto corrido).
-- **Animações de scroll**: Intersection Observer nativo em JS puro — não dependa de bibliotecas externas pesadas (GSAP, AOS) a menos que o usuário peça algo mais elaborado.
-- **Mapas**: Leaflet.js + OpenStreetMap tiles. Nunca \`<iframe>\` do Google Maps.
-
-## 3. Imagens (corrige o principal ponto de falha)
-
-\`source.unsplash.com/random\` está descontinuado e retorna erro com frequência — **não use**. Regras:
-
-- Use URLs diretas e estáveis do formato \`https://images.unsplash.com/photo-XXXXXXXXXXXXX-XXXXXXXXXXXX?w=800&q=80\`, escolhendo IDs reais e coerentes com o tema (comida, arquitetura, pessoas, tecnologia conforme o caso).
-- Alternativa 100% confiável para placeholder neutro: \`https://picsum.photos/800/600\` (ou \`picsum.photos/seed/{palavra-chave}/800/600\` para "aleatoriedade" consistente e reproduzível).
-- Sempre defina \`loading="lazy"\` em imagens fora da primeira dobra, e um \`alt\` descritivo (nunca vazio).
-- Nunca \`background-color: gray\` como substituto de imagem — se não houver imagem confiável, use um gradiente ilustrativo com um ícone Lucide grande centralizado.
-
-## 4. Sistema de design — decisões pré-tomadas, não sugestões
-
-Pare de "escolher uma cor de destaque" no vácuo. Use um destes 4 sistemas prontos e escolha o mais coerente com o setor do site (não invente um quinto):
-
-| Sistema | Base | Destaque | Uso típico |
-|---|---|---|---|
-| Slate/Cobalto | \`#0c0a09\`, \`#fafaf9\` | \`#2563eb\` | SaaS, tech, dashboards |
-| Cream/Esmeralda | \`#faf9f6\`, \`#1c1917\` | \`#10b981\` | Wellness, sustentabilidade, food |
-| Ardósia/Âmbar | \`#09090b\`, \`#f4f4f5\` | \`#f59e0b\` | Restaurantes, hospitalidade |
-| Off-white/Violeta | \`#f8f7ff\`, \`#18181b\` | \`#7c3aed\` | Portfólio criativo, design |
-
-Regras fixas de aplicação:
-- Cor de destaque em no **máximo 10%** da área visual total (CTAs, badges, ícones-chave, bordas ativas). Se aparecer em mais de 3 componentes por seção, está exagerado.
-- Tipografia: título de display em \`font-extrabold tracking-tight\`, tamanhos \`text-4xl\` a \`text-7xl\` conforme hierarquia; corpo de texto sempre \`text-base\` ou \`text-lg\`, nunca abaixo de 15px efetivos.
-- Espaçamento vertical entre seções: \`py-20 md:py-32\`, nunca menos — sites amadores têm seções coladas.
-- Cantos: \`rounded-2xl\` para cards, \`rounded-full\` para botões pill, \`rounded-xl\` para inputs.
-- Glassmorphism **apenas** em headers fixos e modais — não em cards de conteúdo comum, senão vira ruído visual.
-
-## 5. Grid e layout
-
-- Bento grid (\`grid-cols-1 md:grid-cols-3\` com \`col-span\`/\`row-span\` variados) para seções de features/serviços com 4 a 6 itens.
-- Container padrão: \`w-full max-w-7xl mx-auto px-4 md:px-8\`.
-- Nunca mais de 4 colunas em desktop, nunca menos de 1 em mobile — teste mentalmente em 375px de largura antes de fechar o layout.
-
-## 6. Micro-interações (padrão obrigatório, não opcional)
-
-Aplique este conjunto em **todo** elemento clicável, sem exceção:
-\`\`\`
-transition-all duration-300 ease-out hover:scale-[1.02] hover:-translate-y-0.5 cursor-pointer
-\`\`\`
-- Estados de foco visíveis (\`focus:ring-2 focus:ring-offset-2\`) — acessibilidade não é opcional.
-- Scroll reveal: elementos entram com \`opacity-0 translate-y-4\` → \`opacity-100 translate-y-0\` via Intersection Observer, transição de 600-800ms.
-- Nunca anime \`width\`/\`height\` diretamente (jank) — anime \`transform\` e \`opacity\`.
-
-## 7. HTML semântico e SEO básico
-
-- \`<header>\`, \`<nav>\`, \`<main>\`, \`<section id="...">\`, \`<article>\`, \`<footer>\` sempre presentes e corretos.
-- \`<head>\` completo: \`<title>\`, \`<meta name="description">\`, viewport, favicon (pode ser emoji via data URI se não houver arquivo).
-- Um único \`<h1>\` por página, hierarquia de headings sem pular níveis.
-- Contraste de texto mínimo AA (não usar texto \`text-white/40\` sobre fundo claro).
-
-## 8. Checklist final — rode antes de responder
-
-Marque mentalmente cada item; se algum falhar, corrija e só então entregue:
-
-- [ ] Nenhum \`href="#"\` sem função real
-- [ ] Nenhuma imagem usando \`source.unsplash.com\`
-- [ ] Todas as imagens têm \`alt\` e \`loading="lazy"\` quando aplicável
-- [ ] Cor de destaque não domina mais de ~10% da tela
-- [ ] Todas as seções esperadas para esse tipo de site estão presentes
-- [ ] Formulário (se houver) tem validação e feedback visual
-- [ ] Testado mentalmente em largura mobile (375px)
-- [ ] Único \`<h1>\`, headings em ordem
-- [ ] Todo botão/card tem estado de hover e foco
-
-## 9. O que NÃO fazer (anti-padrões que derrubam a nota)
-
-- Não gerar "esqueleto" pedindo para o usuário completar depois.
-- Não usar mais de 2 cores de destaque na mesma página.
-- Não empilhar glassmorphism + gradiente + sombra pesada no mesmo elemento (poluição visual).
-- Não usar \`alert()\`/\`confirm()\` do navegador para feedback de UI — sempre um componente visual.
-- Não deixar \`console.log\` de debug no código final.`;
-
-      const existingWebHtml = loadedSkills.find(s => s.id === 'web-html' || s.name.toLowerCase() === 'web-html');
-      const needsUpdate = existingWebHtml && (!existingWebHtml.content.includes("Web Moderno 2026 — v2") || existingWebHtml.description.length > 100);
-
-      if (!hasWebHtml || needsUpdate) {
-        console.log("Seeding/Updating default official 'web-html' skill for user...");
-        const defaultWebHtml: Skill = {
-          id: existingWebHtml ? existingWebHtml.id : 'web-html',
-          name: 'web-html',
-          description: 'Gera sites e páginas HTML/CSS de altíssima fidelidade com Tailwind e Lucide.',
-          content: skillContent
-        };
-        try {
-          await saveSkill(currentUser.uid, defaultWebHtml);
-        } catch (e) {
-          console.error("Error seeding default web-html skill:", e);
-        }
-      }
     });
 
     return () => unsubscribeSkills();
@@ -184,6 +72,7 @@ Marque mentalmente cada item; se algum falhar, corrija e só então entregue:
   }, [reasoningLevel]);
   const [isMobileHistoryOpen, setIsMobileHistoryOpen] = useState(true); // Default to true on initial load (only applies to mobile)
   const [sessionToDeleteId, setSessionToDeleteId] = useState<string | null>(null);
+  const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
   const [isAdminView, setIsAdminView] = useState(false);
   const [showAdminAuth, setShowAdminAuth] = useState(false);
 
@@ -1731,6 +1620,15 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
   // Render authentic loading screen
   const isBenchmarkRoute = typeof window !== 'undefined' && (window.location.pathname === '/benchmark' || window.location.pathname === '/benchmark/');
 
+  const shareMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/share\/(.+)/);
+  if (shareMatch) {
+    const sessionId = shareMatch[1];
+    const uid = new URLSearchParams(window.location.search).get("uid");
+    if (uid && sessionId) {
+      return <SharedChatView sessionId={sessionId} uid={uid} />;
+    }
+  }
+
   if (isBenchmarkRoute) {
     return <BenchmarkPage />;
   }
@@ -1855,6 +1753,19 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
             onSearchSimulationComplete={handleSearchSimulationComplete}
             onCancelGeneration={handleCancelGeneration}
             onEditMessage={handleEditMessage}
+            onShareSession={async () => {
+              if (activeSessionId && currentUser) {
+                try {
+                  await saveSession(currentUser.uid, { ...activeSession, isPublic: true });
+                  const url = `${window.location.origin}/share/${activeSessionId}?uid=${currentUser.uid}`;
+                  await navigator.clipboard.writeText(url);
+                  alert("Link de compartilhamento copiado para a área de transferência!");
+                } catch(e) {
+                  console.error(e);
+                  alert("Erro ao compartilhar chat.");
+                }
+              }
+            }}
             onDeleteSession={() => {
               if (activeSessionId) {
                 handleDeleteSession(activeSessionId);
@@ -1865,6 +1776,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
             onSaveDraft={(draft) => { if (currentUser && activeSessionId) saveDraft(currentUser.uid, activeSessionId, draft) }}
             onDeleteDraft={() => { if (currentUser && activeSessionId) deleteDraft(currentUser.uid, activeSessionId) }}
             skills={skills}
+            onOpenStore={() => setIsStoreModalOpen(true)}
             isTemporary={!!activeSession.isTemporary}
             onStartTemporaryChat={handleNewTemporaryChat}
           />
@@ -1887,6 +1799,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
               }
             }}
             skills={skills}
+            onOpenStore={() => setIsStoreModalOpen(true)}
             onStartTemporaryChat={handleNewTemporaryChat}
             isProfileLoading={!isProfileLoaded}
           />
@@ -1900,6 +1813,13 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
             setShowAdminAuth(false);
             setIsAdminView(true);
           }}
+        />
+      )}
+
+      {isStoreModalOpen && (
+        <OfficialSkillsStore 
+          onClose={() => setIsStoreModalOpen(false)}
+          userSkills={skills}
         />
       )}
 

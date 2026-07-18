@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share } from 'lucide-react';
 import { Skill } from '../lib/skills';
 import { Message, Draft } from '../types';
 import { saveEvaluationToDb } from '../lib/chatService';
@@ -213,6 +213,7 @@ interface ChatWindowProps {
   onCancelGeneration?: () => void;
   onEditMessage?: (messageId: string, newText: string) => void;
   onDeleteSession?: () => void;
+  onShareSession?: () => void;
   isEmbedded?: boolean;
   attachedText?: string;
   onClearAttachedText?: () => void;
@@ -221,6 +222,7 @@ interface ChatWindowProps {
   onSaveDraft?: (draft: Partial<Draft>) => void;
   onDeleteDraft?: () => void;
   skills?: Skill[];
+  onOpenStore?: () => void;
   onSaveTask?: (task: any) => void;
   onStartTemporaryChat?: () => void;
   isTemporary?: boolean;
@@ -245,6 +247,7 @@ export default function ChatWindow({
   onCancelGeneration,
   onEditMessage,
   onDeleteSession,
+  onShareSession,
   isEmbedded = false,
   attachedText = '',
   onClearAttachedText,
@@ -253,6 +256,7 @@ export default function ChatWindow({
   onSaveDraft,
   onDeleteDraft,
   skills = [],
+  onOpenStore,
   onSaveTask,
   onStartTemporaryChat,
   isTemporary = false
@@ -667,7 +671,7 @@ export default function ChatWindow({
 
   const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
   const [isSkillsSubMenuOpen, setIsSkillsSubMenuOpen] = useState(false);
-  const [activeSkill, setActiveSkill] = useState<Skill | null>(null);
+  const [activeSkills, setActiveSkills] = useState<Skill[]>([]);
 
   const handleAttachClick = () => {
     setIsAttachMenuOpen(!isAttachMenuOpen);
@@ -687,6 +691,20 @@ export default function ChatWindow({
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [slashSearchTerm, setSlashSearchTerm] = useState('');
   const [slashMenuIndex, setSlashMenuIndex] = useState(0);
+  const [isSkillsHovered, setIsSkillsHovered] = useState(false);
+  const skillsTimeoutRef = useRef<any>(null);
+
+  const handleSkillsMouseEnter = () => {
+    if (skillsTimeoutRef.current) clearTimeout(skillsTimeoutRef.current);
+    setIsSkillsHovered(true);
+  };
+
+  const handleSkillsMouseLeave = () => {
+    if (skillsTimeoutRef.current) clearTimeout(skillsTimeoutRef.current);
+    skillsTimeoutRef.current = setTimeout(() => {
+      setIsSkillsHovered(false);
+    }, 400);
+  };
 
   const marteTools = [
     { id: '/web', name: 'web-search', description: 'Pesquisa na Web', icon: Globe, color: 'text-blue-500' },
@@ -746,7 +764,12 @@ export default function ChatWindow({
       const spaceBefore = slashMatch[1]; // either '' or ' '
       
       if (item.isSkill) {
-        setActiveSkill(item.skillObj);
+        setActiveSkills(prev => {
+          if (!prev.find(s => s.id === item.skillObj.id)) {
+            return [...prev, item.skillObj];
+          }
+          return prev;
+        });
         const newText = textBeforeCursor.slice(0, matchIndex) + spaceBefore + textAfterCursor;
         setInputValue(newText);
       } else {
@@ -857,7 +880,7 @@ export default function ChatWindow({
     const textarea = document.getElementById('chat-input-textarea-floating') as HTMLTextAreaElement;
     const currentText = textarea ? textarea.value : inputValue;
     
-    if (!currentText.trim() && !attachedText && attachments.length === 0 && !activeSkill) return;
+    if (!currentText.trim() && !attachedText && attachments.length === 0 && activeSkills.length === 0) return;
     if (currentText.length > 1500) return;
     
     let textToSend = '';
@@ -867,6 +890,11 @@ export default function ChatWindow({
       textToSend = `[Texto Anexado do Editor:\n"${attachedText}"]\n\nPor favor, analise ou revise o texto anexado acima.`;
     } else {
       textToSend = currentText;
+    }
+
+    if (activeSkills.length > 0) {
+      const skillsText = activeSkills.map(s => '/' + s.name).join(', ');
+      textToSend = `[Utilize as seguintes skills: ${skillsText}]\n\n${textToSend}`;
     }
     
     if (onDeleteDraft) onDeleteDraft();
@@ -879,7 +907,7 @@ export default function ChatWindow({
     setInputValue('');
     setAttachments([]);
     setUploadError(null);
-    setActiveSkill(null);
+    setActiveSkills([]);
     setIsSearchEnabled(false);
     setSlashMenuOpen(false);
     if (onClearAttachedText) {
@@ -1196,6 +1224,16 @@ export default function ChatWindow({
                   >
                     <Star className="w-4 h-4 text-gray-400" />
                     <span>Avaliar chat (Estrelas)</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      if (onShareSession) onShareSession();
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Share className="w-4 h-4 text-gray-400" />
+                    <span>Compartilhar chat</span>
                   </button>
 
                   <div className="h-px bg-gray-100 dark:bg-gray-800 my-1" />
@@ -1906,35 +1944,234 @@ export default function ChatWindow({
 
           {/* Slash Menu */}
           {slashMenuOpen && filteredTools.length > 0 && (
-            <div className="absolute bottom-[calc(100%+8px)] left-0 w-64 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
-              {filteredTools.map((tool, index) => {
-                const isSelected = index === slashMenuIndex;
-                const Icon = tool.icon;
-                return (
-                  <button
-                    key={tool.id}
-                    type="button"
-                    onClick={() => handleToolSelect(tool.id)}
-                    className={`w-full flex flex-col gap-0.5 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer ${
-                      isSelected ? 'bg-gray-50' : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Icon className={`w-3.5 h-3.5 ${tool.color}`} />
-                      <span className="text-[12px] font-semibold text-gray-800">{tool.id}</span>
-                    </div>
-                    <span 
-                      className="text-[10px] text-gray-500 pl-5.5 line-clamp-1 truncate" 
-                      title={tool.description}
-                    >
-                      {tool.description && tool.description.length > 75 
-                        ? tool.description.slice(0, 75) + '...' 
-                        : tool.description}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            <>
+              {/* MOBILE SLASH MENU */}
+              <div className="md:hidden absolute bottom-[calc(100%+8px)] left-0 w-64 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1 flex flex-col max-h-72 overflow-y-auto animate-in fade-in slide-in-from-bottom-2 duration-200 scrollbar-thin">
+                {(() => {
+                  const toolsSection = filteredTools.filter(t => !('isSkill' in t));
+                  const skillsSection = filteredTools.filter(t => 'isSkill' in t);
+                  return (
+                    <>
+                      {toolsSection.length > 0 && (
+                        <div className="flex flex-col">
+                          <div className="text-[10px] font-bold text-gray-400 tracking-wider px-3 py-1.5 uppercase select-none">
+                            Funcionalidades
+                          </div>
+                          {toolsSection.map((tool) => {
+                            const globalIndex = filteredTools.indexOf(tool);
+                            const isSelected = globalIndex === slashMenuIndex;
+                            const Icon = tool.icon;
+                            return (
+                              <button
+                                key={tool.id}
+                                type="button"
+                                onClick={() => handleToolSelect(tool)}
+                                className={`w-full flex flex-col gap-0.5 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer ${
+                                  isSelected ? 'bg-gray-50' : 'hover:bg-gray-50'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Icon className={`w-3.5 h-3.5 ${tool.color}`} />
+                                  <span className="text-[12px] font-semibold text-gray-800">{tool.id}</span>
+                                </div>
+                                <span 
+                                  className="text-[10px] text-gray-500 pl-5.5 line-clamp-1 truncate" 
+                                  title={tool.description}
+                                >
+                                  {tool.description && tool.description.length > 75 
+                                    ? tool.description.slice(0, 75) + '...' 
+                                    : tool.description}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {toolsSection.length > 0 && skillsSection.length > 0 && (
+                        <div className="h-px bg-gray-150 my-1 mx-2 shrink-0" />
+                      )}
+
+                      {skillsSection.length > 0 && (
+                        <div className="flex flex-col">
+                          <div className="text-[10px] font-bold text-gray-400 tracking-wider px-3 py-1.5 uppercase select-none">
+                            Biblioteca de Skills
+                          </div>
+                          {skillsSection.map((tool) => {
+                            const globalIndex = filteredTools.indexOf(tool);
+                            const isSelected = globalIndex === slashMenuIndex;
+                            const Icon = tool.icon;
+                            return (
+                              <button
+                                key={tool.id}
+                                type="button"
+                                onClick={() => handleToolSelect(tool)}
+                                className={`w-full flex flex-col gap-0.5 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer ${
+                                  isSelected ? 'bg-gray-50' : 'hover:bg-gray-50'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Icon className={`w-3.5 h-3.5 ${tool.color}`} />
+                                  <span className="text-[12px] font-semibold text-gray-800">{tool.id}</span>
+                                </div>
+                                <span 
+                                  className="text-[10px] text-gray-500 pl-5.5 line-clamp-1 truncate" 
+                                  title={tool.description}
+                                >
+                                  {tool.description && tool.description.length > 75 
+                                    ? tool.description.slice(0, 75) + '...' 
+                                    : tool.description}
+                                </span>
+                              </button>
+                            );
+                          })}
+                          {onOpenStore && (
+                            <>
+                              <div className="h-px bg-gray-150 my-1 mx-2 shrink-0" />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSlashMenuOpen(false);
+                                  onOpenStore();
+                                }}
+                                className="w-full flex items-center justify-center gap-2 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer hover:bg-brand-50 text-brand-600 font-medium text-xs mt-1"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                Buscar skills novas
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+
+              {/* DESKTOP SLASH MENU */}
+              <div className="hidden md:flex absolute bottom-[calc(100%+8px)] left-0 w-64 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1 flex-col overflow-visible animate-in fade-in slide-in-from-bottom-2 duration-200">
+                {(() => {
+                  const toolsSection = filteredTools.filter(t => !('isSkill' in t));
+                  const skillsSection = filteredTools.filter(t => 'isSkill' in t);
+                  return (
+                    <>
+                      {toolsSection.length > 0 && (
+                        <div className="flex flex-col">
+                          <div className="text-[10px] font-bold text-gray-400 tracking-wider px-3 py-1.5 uppercase select-none">
+                            Funcionalidades
+                          </div>
+                          {toolsSection.map((tool) => {
+                            const globalIndex = filteredTools.indexOf(tool);
+                            const isSelected = globalIndex === slashMenuIndex;
+                            const Icon = tool.icon;
+                            return (
+                              <button
+                                key={tool.id}
+                                type="button"
+                                onClick={() => handleToolSelect(tool)}
+                                className={`w-full flex flex-col gap-0.5 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer ${
+                                  isSelected ? 'bg-gray-50' : 'hover:bg-gray-50'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Icon className={`w-3.5 h-3.5 ${tool.color}`} />
+                                  <span className="text-[12px] font-semibold text-gray-800">{tool.id}</span>
+                                </div>
+                                <span 
+                                  className="text-[10px] text-gray-500 pl-5.5 line-clamp-1 truncate" 
+                                  title={tool.description}
+                                >
+                                  {tool.description && tool.description.length > 75 
+                                    ? tool.description.slice(0, 75) + '...' 
+                                    : tool.description}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {skillsSection.length > 0 && (
+                        <>
+                          <div className="h-px bg-gray-150 my-1 mx-2 shrink-0" />
+                          <div 
+                            className="relative"
+                            onMouseEnter={handleSkillsMouseEnter}
+                            onMouseLeave={handleSkillsMouseLeave}
+                          >
+                            <button
+                              type="button"
+                              className="w-full flex items-center justify-between text-left px-3 py-2 rounded-lg transition-colors cursor-pointer hover:bg-gray-50"
+                            >
+                              <div className="flex items-center gap-2">
+                                <BookOpen className="w-3.5 h-3.5 text-indigo-500" />
+                                <span className="text-[12px] font-semibold text-gray-800">Habilidades</span>
+                              </div>
+                              <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+                            </button>
+
+                            {/* Submenu de Habilidades no hover */}
+                            {isSkillsHovered && (
+                              <div className="absolute left-[100%] bottom-0 pl-2 z-50 animate-in fade-in slide-in-from-left-2 duration-150">
+                                <div className="w-64 bg-white border border-gray-150 rounded-xl shadow-lg p-1 flex flex-col max-h-72 overflow-y-auto scrollbar-thin select-none">
+                                  <div className="text-[10px] font-bold text-gray-400 tracking-wider px-3 py-1.5 uppercase select-none">
+                                    Biblioteca de Skills
+                                  </div>
+                                  {skillsSection.map((tool) => {
+                                    const Icon = tool.icon;
+                                    return (
+                                      <button
+                                        key={tool.id}
+                                        type="button"
+                                        onClick={() => {
+                                          handleToolSelect(tool);
+                                          setIsSkillsHovered(false);
+                                        }}
+                                        className="w-full flex flex-col gap-0.5 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer hover:bg-gray-50"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <Icon className={`w-3.5 h-3.5 ${tool.color}`} />
+                                          <span className="text-[12px] font-semibold text-gray-800">{tool.id}</span>
+                                        </div>
+                                        <span 
+                                          className="text-[10px] text-gray-500 pl-5.5 line-clamp-1 truncate" 
+                                          title={tool.description}
+                                        >
+                                          {tool.description && tool.description.length > 75 
+                                            ? tool.description.slice(0, 75) + '...' 
+                                            : tool.description}
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                  {onOpenStore && (
+                                    <>
+                                      <div className="h-px bg-gray-150 my-1 mx-2 shrink-0" />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSlashMenuOpen(false);
+                                          setIsSkillsHovered(false);
+                                          onOpenStore();
+                                        }}
+                                        className="w-full flex items-center justify-center gap-2 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer hover:bg-brand-50 text-brand-600 font-medium text-xs mt-1"
+                                      >
+                                        <Plus className="w-3.5 h-3.5" />
+                                        Buscar skills novas
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </>
           )}
 
           {/* Upload Error Banner */}
@@ -2010,16 +2247,19 @@ export default function ChatWindow({
             </div>
           )}
 
-          {/* Active Skill Chip */}
-          {activeSkill && (
-            <div className="flex items-center mb-1 px-1">
-              <div 
-                className="flex items-center gap-1 bg-[#5c53e5]/10 text-[#5c53e5] px-2 py-0.5 rounded flex-shrink-0 cursor-pointer hover:bg-[#5c53e5]/20 transition-colors"
-                onClick={() => setActiveSkill(null)}
-              >
-                <span className="font-bold text-[13px]">/{activeSkill.name}</span>
-                <X className="w-3 h-3" />
-              </div>
+          {/* Active Skills Chips */}
+          {activeSkills.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 mb-1 px-1">
+              {activeSkills.map(skill => (
+                <div 
+                  key={skill.id}
+                  className="flex items-center gap-1 bg-[#5c53e5]/10 text-[#5c53e5] px-2 py-0.5 rounded flex-shrink-0 cursor-pointer hover:bg-[#5c53e5]/20 transition-colors"
+                  onClick={() => setActiveSkills(prev => prev.filter(s => s.id !== skill.id))}
+                >
+                  <span className="font-bold text-[13px]">/{skill.name}</span>
+                  <X className="w-3 h-3" />
+                </div>
+              ))}
             </div>
           )}
 
@@ -2093,7 +2333,7 @@ export default function ChatWindow({
                             <button
                               key={skill.id}
                               onClick={() => {
-                                setActiveSkill(skill);
+                                setActiveSkills(prev => { if(!prev.find(s=>s.id===skill.id)) return [...prev, skill]; return prev; });
                                 setIsAttachMenuOpen(false);
                                 setIsSkillsSubMenuOpen(false);
                               }}

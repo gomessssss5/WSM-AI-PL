@@ -15,6 +15,7 @@ export interface Skill {
   description: string;
   content: string;
   updatedAt?: any;
+  isOfficial?: boolean;
 }
 
 enum OperationType {
@@ -71,6 +72,7 @@ export const subscribeSkills = (
         name: data.name || docSnap.id,
         description: data.description || '',
         content: data.content || '',
+        isOfficial: data.isOfficial || false,
         updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : (data.updatedAt ? new Date(data.updatedAt) : new Date())
       });
     });
@@ -89,6 +91,7 @@ export const saveSkill = async (userId: string, skill: Skill): Promise<void> => 
       name: skill.name,
       description: skill.description,
       content: skill.content,
+      isOfficial: skill.isOfficial || false,
       updatedAt: Timestamp.now()
     }, { merge: true });
     console.log(`[skills.ts] Saved skill ${skill.name} successfully.`);
