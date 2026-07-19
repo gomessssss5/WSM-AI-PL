@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share } from 'lucide-react';
 import { Skill } from '../lib/skills';
 import { Message, Draft } from '../types';
 import { saveEvaluationToDb } from '../lib/chatService';
@@ -1543,11 +1543,23 @@ export default function ChatWindow({
                               return null;
                             })()}
                             
-                            <TypewriterMarkdown
-                              content={cleanSkillTags(cleanTaskTags(cleanWriterUpdateTags(cleanRaciocinioTags(message.text))))}
-                              enabled={!processedMessageIdsRef.current.has(message.id)}
-                              onComplete={() => handleTypewriterComplete(message.id)}
-                            />
+                            {message.text.includes("WSM 1.6 está muito sobrecarregado") ? (
+                              <div className="bg-amber-50/90 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 p-5 rounded-2xl flex items-start gap-3.5 shadow-xs my-1 animate-in fade-in duration-300">
+                                <AlertTriangle className="text-amber-500 dark:text-amber-400 mt-0.5 shrink-0" size={20} />
+                                <div className="space-y-1">
+                                  <p className="font-extrabold text-amber-900 dark:text-amber-100 text-[14px]">Alerta de Sobrecarga</p>
+                                  <p className="text-[13px] text-amber-800 dark:text-amber-200 leading-relaxed font-semibold">
+                                    WSM 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              <TypewriterMarkdown
+                                content={cleanSkillTags(cleanTaskTags(cleanWriterUpdateTags(cleanRaciocinioTags(message.text))))}
+                                enabled={!processedMessageIdsRef.current.has(message.id)}
+                                onComplete={() => handleTypewriterComplete(message.id)}
+                              />
+                            )}
                             {(() => {
                               const { docObj } = extractWsmDoc(extractWsmForm(cleanRaciocinioTags(message.text)).cleanText);
                               if (docObj) {

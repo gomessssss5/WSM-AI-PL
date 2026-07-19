@@ -47,100 +47,108 @@ function getFallbackGeminiClient(): GoogleGenAI {
   return fallbackAiClient;
 }
 
-async function callGeminiWithFallback(options: any) {
+let fallback2AiClient: GoogleGenAI | null = null;
+function getFallback2GeminiClient(): GoogleGenAI {
+  const key = process.env.IA_API_KEY_3;
+  if (!key) {
+    throw new Error("IA_API_KEY_3 environment variable is not configured.");
+  }
+  if (!fallback2AiClient) {
+    fallback2AiClient = new GoogleGenAI({
+      apiKey: key,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
+  }
+  return fallback2AiClient;
+}
+
+async function executeWithAllFallbacks(options: any, isStream: boolean) {
+  if (options && options.config) {
+    options.config.maxOutputTokens = options.config.maxOutputTokens || 20000;
+  } else if (options) {
+    options.config = { maxOutputTokens: 20000 };
+  }
+
+  const clientsToTry = [];
+
+  // Client 1 (Primary)
   try {
-    const client = getGeminiClient();
-    if (options && options.config) {
-      options.config.maxOutputTokens = options.config.maxOutputTokens || 20000;
-    } else if (options) {
-      options.config = { maxOutputTokens: 20000 };
-    }
+    clientsToTry.push({ name: "IA_API_KEY", client: getGeminiClient() });
+  } catch (e: any) {
+    console.warn("Could not load primary client:", e.message || String(e));
+  }
+
+  // Client 2 (Fallback 1)
+  if (process.env.IA_API_KEY_2) {
     try {
-      return await client.models.generateContent(options);
-    } catch (apiError: any) {
-      const errMsg = apiError.message || String(apiError);
-      if (errMsg.includes("max_output_tokens") || errMsg.includes("maxOutputTokens") || errMsg.includes("out of range") || errMsg.includes("limit") || errMsg.includes("Value")) {
-        console.warn("maxOutputTokens of 20000 failed, falling back to 8192...", apiError.message);
-        options.config.maxOutputTokens = 8192;
-        return await client.models.generateContent(options);
-      }
-      throw apiError;
+      clientsToTry.push({ name: "IA_API_KEY_2", client: getFallbackGeminiClient() });
+    } catch (e: any) {
+      console.warn("Could not load fallback 1 client:", e.message || String(e));
     }
-  } catch (error: any) {
-    if (process.env.IA_API_KEY_2) {
-      console.warn("First Gemini API Key failed, trying fallback key...", error.message);
-      try {
-        const clientFallback = getFallbackGeminiClient();
-        if (options && options.config) {
-          options.config.maxOutputTokens = options.config.maxOutputTokens || 20000;
-        } else if (options) {
-          options.config = { maxOutputTokens: 20000 };
-        }
+  }
+
+  // Client 3 (Fallback 2)
+  if (process.env.IA_API_KEY_3) {
+    try {
+      clientsToTry.push({ name: "IA_API_KEY_3", client: getFallback2GeminiClient() });
+    } catch (e: any) {
+      console.warn("Could not load fallback 2 client:", e.message || String(e));
+    }
+  }
+
+  if (clientsToTry.length === 0) {
+    throw new Error("WSM 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.");
+  }
+
+  let lastError: any = null;
+
+  for (let i = 0; i < clientsToTry.length; i++) {
+    const item = clientsToTry[i];
+    try {
+      if (isStream) {
         try {
-          return await clientFallback.models.generateContent(options);
+          return await item.client.models.generateContentStream(options);
         } catch (apiError: any) {
           const errMsg = apiError.message || String(apiError);
           if (errMsg.includes("max_output_tokens") || errMsg.includes("maxOutputTokens") || errMsg.includes("out of range") || errMsg.includes("limit") || errMsg.includes("Value")) {
-            console.warn("Fallback client maxOutputTokens of 20000 failed, falling back to 8192...", apiError.message);
+            console.warn(`Stream maxOutputTokens of 20000 failed for ${item.name}, falling back to 8192...`, apiError.message);
             options.config.maxOutputTokens = 8192;
-            return await clientFallback.models.generateContent(options);
+            return await item.client.models.generateContentStream(options);
           }
           throw apiError;
         }
-      } catch (fallbackError: any) {
-         throw fallbackError;
-       }
+      } else {
+        try {
+          return await item.client.models.generateContent(options);
+        } catch (apiError: any) {
+          const errMsg = apiError.message || String(apiError);
+          if (errMsg.includes("max_output_tokens") || errMsg.includes("maxOutputTokens") || errMsg.includes("out of range") || errMsg.includes("limit") || errMsg.includes("Value")) {
+            console.warn(`maxOutputTokens of 20000 failed for ${item.name}, falling back to 8192...`, apiError.message);
+            options.config.maxOutputTokens = 8192;
+            return await item.client.models.generateContent(options);
+          }
+          throw apiError;
+        }
+      }
+    } catch (error: any) {
+      console.warn(`Gemini API Client ${item.name} failed silently, attempting next fallback if available. Error:`, error.message || String(error));
+      lastError = error;
     }
-    throw error;
   }
+
+  throw new Error("WSM 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.");
+}
+
+async function callGeminiWithFallback(options: any) {
+  return executeWithAllFallbacks(options, false);
 }
 
 async function callGeminiStreamWithFallback(options: any) {
-  try {
-    const client = getGeminiClient();
-    if (options && options.config) {
-      options.config.maxOutputTokens = options.config.maxOutputTokens || 20000;
-    } else if (options) {
-      options.config = { maxOutputTokens: 20000 };
-    }
-    try {
-      return await client.models.generateContentStream(options);
-    } catch (apiError: any) {
-      const errMsg = apiError.message || String(apiError);
-      if (errMsg.includes("max_output_tokens") || errMsg.includes("maxOutputTokens") || errMsg.includes("out of range") || errMsg.includes("limit") || errMsg.includes("Value")) {
-        console.warn("Stream maxOutputTokens of 20000 failed, falling back to 8192...", apiError.message);
-        options.config.maxOutputTokens = 8192;
-        return await client.models.generateContentStream(options);
-      }
-      throw apiError;
-    }
-  } catch (error: any) {
-    if (process.env.IA_API_KEY_2) {
-      console.warn("First Gemini API Key failed for stream, trying fallback key...", error.message);
-      try {
-        const clientFallback = getFallbackGeminiClient();
-        if (options && options.config) {
-          options.config.maxOutputTokens = options.config.maxOutputTokens || 20000;
-        } else if (options) {
-          options.config = { maxOutputTokens: 20000 };
-        }
-        try {
-          return await clientFallback.models.generateContentStream(options);
-        } catch (apiError: any) {
-          const errMsg = apiError.message || String(apiError);
-          if (errMsg.includes("max_output_tokens") || errMsg.includes("maxOutputTokens") || errMsg.includes("out of range") || errMsg.includes("limit") || errMsg.includes("Value")) {
-            console.warn("Fallback stream maxOutputTokens of 20000 failed, falling back to 8192...", apiError.message);
-            options.config.maxOutputTokens = 8192;
-            return await clientFallback.models.generateContentStream(options);
-          }
-          throw apiError;
-        }
-      } catch (fallbackError: any) {
-         throw fallbackError;
-       }
-    }
-    throw error;
-  }
+  return executeWithAllFallbacks(options, true);
 }
 
 // API endpoint for chatbot communication and Web Search
@@ -780,13 +788,13 @@ Você está ABSOLUTAMENTE PROIBIDO de gerar qualquer tag de raciocínio como <ra
 Não faça nenhuma etapa de planejamento mental, nem mostre tarefas em colchetes. 
 Você deve responder diretamente ao usuário. Comece sua resposta imediatamente com a resposta final.`;
       } else if (level === 'Mínimo') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Mínimo)\nUtilize um nível básico e simples de raciocínio passo a passo se necessário.`;
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Mínimo)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta, ANTES de qualquer texto final ao usuário. Lá dentro, descreva os passos rápidos que vai tomar para chegar à resposta. NUNCA responda diretamente sem pensar.`;
       } else if (level === 'Baixo') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Baixo)\nDedique esforço baixo a moderado para planejar os passos logicamente de maneira curta.`;
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Baixo)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta, ANTES de qualquer texto final ao usuário. Planeje os passos logicamente de maneira estruturada. Pense passo-a-passo. NUNCA responda diretamente sem pensar.`;
       } else if (level === 'Médio') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Médio)\nExecute um raciocínio intermediário passo a passo de forma clara e estruturada no início da resposta antes de entregar a solução final.`;
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Médio)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta, ANTES de qualquer texto final ao usuário. Você DEVE realizar o raciocínio detalhado com estrutura em tópicos, explorando hipóteses, prós e contras, realizando cálculos passo a passo antes de chegar ao fim. NUNCA responda diretamente sem pensar.`;
       } else if (level === 'Alto') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Alto)\nUtilize a capacidade máxima de raciocínio analítico avançado. Crie uma estrutura minuciosamente detalhada e robusta de etapas de planejamento mental, listando cada tarefa crítica com extrema precisão.`;
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Alto)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta, ANTES de qualquer texto final ao usuário. Utilize a capacidade máxima de raciocínio analítico. Pense profundamente passo-a-passo no estilo 'o1' (Cadeia de Pensamentos). Questione suas próprias premissas, repasse por cada etapa com rigor e encontre falhas lógicas antes de montar o resultado. NUNCA responda diretamente sem pensar de forma exaustiva.`;
       }
     }
     const activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + writerInstruction + "\n\n" + skillsInstruction + "\n\n" + tasksInstruction;
@@ -1034,10 +1042,7 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
     console.error("Chat API Error:", error);
     
     const errorMessage = error.message || String(error);
-    const isPermissionError = errorMessage.includes("PERMISSION_DENIED") || errorMessage.includes("API_KEY_INVALID") || errorMessage.includes("API key");
-    let errorText = isPermissionError 
-      ? "⚠️ **Erro de Permissão na API.**\n\nA chave de API fornecida foi recusada (pode estar sem cota, revogada ou projeto restrito).\nPor favor, verifique a chave `IA_API_KEY` em **Settings > Secrets**."
-      : "⚠️ **Erro no servidor:** " + (error.message || "Falha ao processar o chat");
+    let errorText = "WSM 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.";
 
     if (errorMessage.includes("No content returned") || errorMessage.includes("empty response") || errorMessage.includes("blocked") || errorMessage.includes("finishReason")) {
       errorText = "⚠️ **Nenhuma resposta foi gerada pelo modelo.** O pedido pode ter sido longo demais ou complexo demais (por favor, tente dividir seu pedido em partes menores).";
@@ -1050,23 +1055,18 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
       return;
     }
 
-    if (isPermissionError) {
-      return res.json({
-        text: errorText,
-      });
-    }
-
-    return res.status(500).json({
-      error: error.message || "Erro interno do servidor ao processar o chat",
+    return res.json({
+      text: errorText,
     });
   }
 });
 
-// Endpoint secreto para testar se ambas as chaves IA_API_KEY e IA_API_KEY_2 estão funcionando
+// Endpoint secreto para testar se as chaves IA_API_KEY, IA_API_KEY_2 e IA_API_KEY_3 estão funcionando
 app.post("/api/test-keys", async (req: express.Request, res: express.Response) => {
   const results = {
     key1: { success: false, message: "" },
-    key2: { success: false, message: "" }
+    key2: { success: false, message: "" },
+    key3: { success: false, message: "" }
   };
 
   const modelName = "gemini-3.1-flash-lite";
@@ -1112,6 +1112,28 @@ app.post("/api/test-keys", async (req: express.Request, res: express.Response) =
       }
     } catch (err: any) {
       results.key2.message = err.message || String(err);
+    }
+  }
+
+  // Teste da chave 3 (IA_API_KEY_3)
+  const key3 = process.env.IA_API_KEY_3;
+  if (!key3) {
+    results.key3.message = "IA_API_KEY_3 não está configurada.";
+  } else {
+    try {
+      const client = new GoogleGenAI({ apiKey: key3 });
+      const resp = await client.models.generateContent({
+        model: modelName,
+        contents: "Responda apenas 'OK' se você puder ler isso."
+      });
+      if (resp.text) {
+        results.key3.success = true;
+        results.key3.message = `Funcionando perfeitamente! Resposta do modelo: "${resp.text.trim()}"`;
+      } else {
+        results.key3.message = "O modelo respondeu com sucesso, mas o texto veio vazio.";
+      }
+    } catch (err: any) {
+      results.key3.message = err.message || String(err);
     }
   }
 

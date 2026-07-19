@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  TrendingUp, Users, MessageSquare, AlertTriangle, Cpu, Clock, 
+  TrendingUp, Users, User, MessageSquare, AlertTriangle, Cpu, Clock, 
   Coins, Terminal, ArrowLeft, Activity, Play, Pause, RefreshCw, 
   Sliders, Shield, Zap, Database, Search, Sparkles, AlertCircle,
   FileText, Globe, CheckCircle, Check, HelpCircle, Server, FileCheck, Paperclip, BarChart2, Star, Flag, ThumbsUp, ThumbsDown, ShieldCheck, X, ChevronRight, PlayCircle
@@ -58,7 +58,7 @@ interface ProcessedStats {
   responseTimeHistory: { time: string; delay: number }[];
   categoryUsage: { subject: string; A: number; fullMark: number }[];
   recentActivityLogs: any[];
-  userSessionsList: { email: string; sessionsCount: number; messagesCount: number; draftsCount: number; isReturning?: boolean; lastActive?: Date }[];
+  userSessionsList: { id?: string; email: string; sessionsCount: number; messagesCount: number; draftsCount: number; isReturning?: boolean; lastActive?: Date; sessions?: any[] }[];
   projectedCostSeries: { day: string; cost: number; cumulative: number }[];
   satisfactionRates: { label: string; positive: number; negative: number }[];
   errorAlerts: { id: string; time: string; type: string; message: string; severity: 'high' | 'medium' | 'low' }[];
@@ -115,11 +115,15 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
   const [apiResults, setApiResults] = useState<{
     key1?: { success: boolean; message: string };
     key2?: { success: boolean; message: string };
+    key3?: { success: boolean; message: string };
   } | null>(null);
 
   // Selected Evaluation state
   const [selectedEval, setSelectedEval] = useState<EvaluationData | null>(null);
   const [evaluationsList, setEvaluationsList] = useState<EvaluationData[]>([]);
+  
+  // Selected user detail for modal
+  const [selectedUserDetail, setSelectedUserDetail] = useState<any | null>(null);
 
   // Fluctuating active users
   const [activeUsersNow, setActiveUsersNow] = useState(1);
@@ -535,12 +539,14 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
         if (isReturning) returningUsersCount++;
 
         userSessionsList.push({
+          id: uId,
           email: uEmail,
           sessionsCount: userSessions.length,
           messagesCount: userMsgsCount,
           draftsCount: userDrafts.length,
           isReturning,
-          lastActive: latestActiveDate
+          lastActive: latestActiveDate,
+          sessions: userSessions
         });
       }
 
@@ -1205,6 +1211,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
       setApiResults({
         key1: { success: false, message: `Erro ao conectar com o servidor: ${err.message}` },
         key2: { success: false, message: `Erro ao conectar com o servidor: ${err.message}` },
+        key3: { success: false, message: `Erro ao conectar com o servidor: ${err.message}` },
       });
     } finally {
       setTestingApis(false);
@@ -1684,7 +1691,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       </thead>
                       <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
                         {stats.userSessionsList.map((usr) => (
-                          <tr key={usr.email} className="hover:bg-gray-50 transition-colors">
+                          <tr key={usr.email} onClick={() => setSelectedUserDetail(usr)} className="hover:bg-gray-50 transition-colors cursor-pointer">
                             <td className="py-2.5 font-bold text-gray-900 max-w-[200px] truncate">{usr.email}</td>
                             <td className="py-2.5 text-center font-bold text-gray-600">{usr.sessionsCount}</td>
                             <td className="py-2.5 text-center font-bold text-gray-600">{usr.messagesCount}</td>
@@ -1897,7 +1904,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                     </thead>
                     <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
                       {stats.userSessionsList.sort((a, b) => b.messagesCount - a.messagesCount).map((usr) => (
-                        <tr key={usr.email} className="hover:bg-gray-50 transition-colors">
+                        <tr key={usr.email} onClick={() => setSelectedUserDetail(usr)} className="hover:bg-gray-50 transition-colors cursor-pointer">
                           <td className="py-3 px-2 font-bold text-gray-900">{usr.email}</td>
                           <td className="py-3 px-2 text-center">
                             {usr.isReturning ? (
@@ -2627,10 +2634,10 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                     <ShieldCheck className="w-4 h-4 text-emerald-500" />
                     Gerenciador de Diagnósticos
                   </h3>
-                  <p className="text-[10px] text-gray-400">Teste de funcionamento em tempo real das duas chaves de API secretas configuradas no servidor.</p>
+                  <p className="text-[10px] text-gray-400">Teste de funcionamento em tempo real das três chaves de API secretas configuradas no servidor.</p>
                 </div>
 
-                <div className="my-6 space-y-4 text-xs font-medium">
+                <div className="my-5 space-y-4 text-xs font-medium">
                   <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl leading-normal text-indigo-700">
                     O painel dispara requisições diretas leves com o modelo <span className="font-mono bg-white border px-1.5 py-0.5 rounded">gemini-3.1-flash-lite</span> para validar cota, validade e permissões do Google GenAI.
                   </div>
@@ -2652,14 +2659,33 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       </>
                     )}
                   </button>
+
+                  {/* Visual Preview of Overload Card */}
+                  <div className="pt-4 border-t border-gray-150 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                        Preview: Card de Sobrecarga (Painel ADM)
+                      </span>
+                    </div>
+                    <div className="bg-amber-50/90 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 p-4.5 rounded-2xl flex items-start gap-3 shadow-xs">
+                      <AlertTriangle className="text-amber-500 mt-0.5 shrink-0" size={18} />
+                      <div className="space-y-1">
+                        <p className="font-extrabold text-amber-900 dark:text-amber-100 text-xs">Alerta de Sobrecarga</p>
+                        <p className="text-[11.5px] text-amber-800 dark:text-amber-200 leading-relaxed font-semibold">
+                          WSM 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="border-t border-gray-100 pt-3 text-[10px] text-gray-400 leading-normal">
+                <div className="border-t border-[#eae6e1] pt-3 text-[10px] text-gray-400 leading-normal">
                   Este procedimento simula uma requisição simples e não afeta o histórico de conversação do usuário.
                 </div>
               </div>
 
-              {/* API 1 & 2 Results Blocks */}
+              {/* API Results Blocks */}
               <div className="bg-white p-5 rounded-3xl border border-[#eae6e1] shadow-sm lg:col-span-2 space-y-4">
                 <div>
                   <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Status das Chaves de API</h3>
@@ -2703,7 +2729,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                 {/* Key 2 Block */}
                 <div className="border border-gray-200 rounded-2xl p-4.5 space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-gray-900 text-xs">CHAVE RESERVA (IA_API_KEY_2)</span>
+                    <span className="font-bold text-gray-900 text-xs">CHAVE RESERVA 1 (IA_API_KEY_2)</span>
                     <span className="px-2 py-0.5 bg-gray-100 text-gray-500 border rounded text-[9px] font-mono">IA_API_KEY_2</span>
                   </div>
 
@@ -2724,6 +2750,40 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                         </p>
                         <p className="text-[10.5px] font-mono break-words leading-relaxed text-gray-600">
                           {apiResults.key2.message}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-4 text-center border border-dashed border-gray-200 rounded-xl text-gray-400 text-[10px] font-mono">
+                      Aguardando execução do teste...
+                    </div>
+                  )}
+                </div>
+
+                {/* Key 3 Block */}
+                <div className="border border-gray-200 rounded-2xl p-4.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-gray-900 text-xs">CHAVE RESERVA 2 (IA_API_KEY_3)</span>
+                    <span className="px-2 py-0.5 bg-gray-100 text-gray-500 border rounded text-[9px] font-mono">IA_API_KEY_3</span>
+                  </div>
+
+                  {apiResults?.key3 ? (
+                    <div className={`p-3.5 rounded-xl flex items-start gap-3 border ${
+                      apiResults.key3.success 
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                        : 'bg-red-50 border-red-200 text-red-800'
+                    }`}>
+                      {apiResults.key3.success ? (
+                        <CheckCircle className="shrink-0 text-emerald-500 mt-0.5" size={18} />
+                      ) : (
+                        <AlertCircle className="shrink-0 text-red-500 mt-0.5" size={18} />
+                      )}
+                      <div className="space-y-0.5">
+                        <p className="text-xs font-bold">
+                          {apiResults.key3.success ? 'Conexão Estabelecida' : 'Erro de Autenticação'}
+                        </p>
+                        <p className="text-[10.5px] font-mono break-words leading-relaxed text-gray-600">
+                          {apiResults.key3.message}
                         </p>
                       </div>
                     </div>
@@ -3377,7 +3437,101 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
         )}
 
         </AnimatePresence>
+              {/* User Detail Overlay Modal */}
+              {selectedUserDetail && (
+                <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4 backdrop-blur-xs">
+                  <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
+                    <div className="flex items-center justify-between p-4 border-b border-[#eae6e1] bg-gray-50">
+                      <h2 className="font-bold text-gray-800 flex items-center gap-2 text-sm">
+                        <span className="bg-blue-100 text-blue-700 p-1.5 rounded-xl"><User size={16} /></span>
+                        <span>Detalhes da Conta: {selectedUserDetail.email}</span>
+                      </h2>
+                      <button onClick={() => setSelectedUserDetail(null)} className="p-2 text-gray-400 hover:text-gray-800 hover:bg-gray-200 rounded-full transition-colors cursor-pointer">
+                        <X size={18} />
+                      </button>
+                    </div>
 
+                    <div className="flex-1 overflow-y-auto p-5 space-y-6 text-xs font-sans">
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100 text-center">
+                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Total de Sessões</p>
+                          <p className="text-xl font-black text-gray-800">{selectedUserDetail.sessionsCount}</p>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100 text-center">
+                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Total de Mensagens</p>
+                          <p className="text-xl font-black text-gray-800">{selectedUserDetail.messagesCount}</p>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100 text-center">
+                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Status</p>
+                          <p className="text-sm font-black text-emerald-600 mt-1">{selectedUserDetail.isReturning ? 'Recorrente' : 'Novo'}</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2 border-b border-gray-100 pb-2">
+                          <MessageSquare size={16} className="text-gray-400" /> Histórico de Conversas
+                        </h3>
+                        
+                        {!selectedUserDetail.sessions || selectedUserDetail.sessions.length === 0 ? (
+                          <div className="text-center py-8 text-gray-400 font-medium">Nenhuma conversa encontrada para este usuário.</div>
+                        ) : (
+                          <div className="space-y-6">
+                            {selectedUserDetail.sessions
+                              .sort((a: any, b: any) => {
+                                const tA = (a.timestamp && a.timestamp.seconds) ? a.timestamp.seconds : (a.timestamp ? new Date(a.timestamp).getTime() / 1000 : 0);
+                                const tB = (b.timestamp && b.timestamp.seconds) ? b.timestamp.seconds : (b.timestamp ? new Date(b.timestamp).getTime() / 1000 : 0);
+                                return tB - tA;
+                              })
+                              .map((session: any, idx: number) => (
+                              <div key={session.id || idx} className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                                <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex justify-between items-center">
+                                  <span className="font-bold text-gray-700">{session.title || 'Sessão Sem Título'}</span>
+                                  <span className="text-[10px] text-gray-500 font-medium">
+                                    {session.timestamp ? (session.timestamp.toDate ? session.timestamp.toDate().toLocaleString() : new Date(session.timestamp.seconds ? session.timestamp.seconds * 1000 : session.timestamp).toLocaleString()) : ''}
+                                  </span>
+                                </div>
+                                <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
+                                  {(!session.messages || session.messages.length === 0) ? (
+                                    <div className="p-4 text-center text-gray-400">Nenhuma mensagem nesta sessão.</div>
+                                  ) : (
+                                    [...session.messages]
+                                      .sort((a: any, b: any) => {
+                                        const tA = (a.timestamp && a.timestamp.seconds) ? a.timestamp.seconds : (a.timestamp ? new Date(a.timestamp).getTime() / 1000 : 0);
+                                        const tB = (b.timestamp && b.timestamp.seconds) ? b.timestamp.seconds : (b.timestamp ? new Date(b.timestamp).getTime() / 1000 : 0);
+                                        return tA - tB;
+                                      })
+                                      .map((msg: any, mIdx: number) => (
+                                      <div key={msg.id || mIdx} className={`p-4 ${msg.sender === 'user' ? 'bg-[#faf9f6]' : 'bg-white'}`}>
+                                        <p className="text-[10px] font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                                          {msg.sender === 'user' ? (
+                                            <>
+                                              <span className="w-1.5 h-1.5 bg-gray-500 rounded-full" />
+                                              <span className="text-gray-600">Usuário</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <span className="w-1.5 h-1.5 bg-[#5c53e5] rounded-full" />
+                                              <span className="text-[#5c53e5]">WSM AI</span>
+                                            </>
+                                          )}
+                                          <span className="text-[9px] text-gray-400 font-medium">
+                                            ({msg.timestamp ? (msg.timestamp.toDate ? msg.timestamp.toDate().toLocaleTimeString() : new Date(msg.timestamp.seconds ? msg.timestamp.seconds * 1000 : msg.timestamp).toLocaleTimeString()) : ''})
+                                          </span>
+                                        </p>
+                                        <p className="text-xs text-gray-800 font-medium leading-relaxed break-words whitespace-pre-wrap">{msg.text || msg.finalSynthesis}</p>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
         {/* Real-time System Terminal Log Streamer */}
         <div className="bg-gray-950 rounded-2xl border border-gray-800 shadow-2xl overflow-hidden font-mono text-[10.5px]">
           
