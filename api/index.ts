@@ -852,7 +852,7 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
           model: "gemini-3.1-flash-lite", // using flash lite as requested
           contents: currentContents,
           config: {
-            systemInstruction: activeSystemPrompt + "\nIMPORTANTE: Quando usar uma ferramenta, chame a função ANTES. NUNCA gere as tags [pesquisou na web], [calculando] ou [verificando relógio] ANTES de chamar a função. Gere a tag APENAS na sua resposta final de texto, APÓS receber o resultado da função.",
+            systemInstruction: activeSystemPrompt + "\nIMPORTANTE: Quando usar uma ferramenta, chame a função ANTES. NUNCA gere as tags [pesquisou na web], [calculando] ou [verificando relógio] ANTES de chamar a função. Gere a tag APENAS na sua resposta final de texto, APÓS receber o resultado da função.\nREGRA DA CALCULADORA: SEMPRE que precisar resolver QUALQUER expressão matemática (ex: v² = 20² + 2×(-10)×(-5)), VOCÊ DEVE OBRIGATORIAMENTE chamar a ferramenta 'calculadora'. NUNCA calcule de cabeça ou deduza o valor (ex: alucinar 24.49 em vez de 22.36). Após receber o resultado exato da calculadora, escreva sua resposta final conferindo o valor retornado.\nREGRA DA WEB SEARCH (HISTÓRIA E FATOS REAIS): SEMPRE que o usuário perguntar sobre FATOS HISTÓRICOS (ex: história do Brasil, primeira rainha da Inglaterra, revoluções, etc) ou dados do mundo real, VOCÊ DEVE OBRIGATORIAMENTE pesquisar na web ('web_search') antes para verificar e validar a informação, em vez de recorrer apenas à memória interna (para evitar alucinações).",
             tools: marteTools,
             temperature: 0.7
           }
