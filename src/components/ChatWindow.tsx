@@ -1489,23 +1489,32 @@ export default function ChatWindow({
                               const isCurrentlyGeneratingThisMsg = isThinking && message.id === messages[messages.length - 1]?.id;
                               const isExpanded = expandedRaciocinios[message.id] !== undefined
                                 ? expandedRaciocinios[message.id]
-                                : isCurrentlyGeneratingThisMsg;
+                                : true; // Default to true so it stays visible and open!
 
                               return (
-                                <div className="mb-3 w-full select-none" id={`raciocinio-container-${message.id}`}>
-                                  <button
-                                    type="button"
-                                    onClick={() => setExpandedRaciocinios(prev => ({ ...prev, [message.id]: !isExpanded }))}
-                                    className="flex items-center gap-1.5 text-gray-400 hover:text-gray-600 font-medium text-[13px] transition-colors cursor-pointer select-none py-1 group focus:outline-none"
-                                  >
-                                    <Brain className={`w-4.5 h-4.5 text-gray-400 group-hover:text-gray-500 ${isCurrentlyGeneratingThisMsg && !message.text.includes('</raciocinio>') ? 'animate-pulse text-indigo-400' : ''}`} />
-                                    <span>Raciocínio</span>
-                                    {isExpanded ? (
-                                      <ChevronDown className="w-3.5 h-3.5 text-gray-400 group-hover:text-gray-500" />
-                                    ) : (
-                                      <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-gray-500" />
+                                <div className="mb-4 w-full select-none rounded-xl border border-gray-200 bg-gray-50/40 p-3 shadow-xs dark:border-gray-800/40 dark:bg-gray-900/20" id={`raciocinio-container-${message.id}`}>
+                                  <div className="flex items-center justify-between">
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedRaciocinios(prev => ({ ...prev, [message.id]: !isExpanded }))}
+                                      className="flex items-center gap-2 text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 font-semibold text-[13px] transition-colors cursor-pointer select-none py-1 group focus:outline-none"
+                                    >
+                                      <Brain className={`w-4.5 h-4.5 text-indigo-500 dark:text-indigo-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-300 ${isCurrentlyGeneratingThisMsg && !message.text.includes('</raciocinio>') ? 'animate-pulse text-indigo-600' : ''}`} />
+                                      <span>
+                                        {isCurrentlyGeneratingThisMsg && !message.text.includes('</raciocinio>') 
+                                          ? "Pensando passo a passo..." 
+                                          : "Raciocínio"}
+                                      </span>
+                                      {isExpanded ? (
+                                        <ChevronDown className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-500" />
+                                      ) : (
+                                        <ChevronRight className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-500" />
+                                      )}
+                                    </button>
+                                    {isCurrentlyGeneratingThisMsg && !message.text.includes('</raciocinio>') && (
+                                      <span className="text-[11px] text-indigo-400 dark:text-indigo-300 font-mono animate-pulse">analisando...</span>
                                     )}
-                                  </button>
+                                  </div>
                                   
                                   <AnimatePresence initial={false}>
                                   {isExpanded && (
@@ -1516,10 +1525,10 @@ export default function ChatWindow({
                                       transition={{ duration: 0.2 }}
                                       className="overflow-hidden"
                                     >
-                                      <div className="mt-1.5 pl-3.5 ml-2 border-l border-gray-250 text-[13px] text-gray-500/90 font-sans leading-relaxed whitespace-pre-wrap select-text selection:bg-indigo-50">
+                                      <div className="mt-2.5 pl-3 ml-1 border-l border-indigo-200 dark:border-indigo-800 text-[13px] text-gray-600 dark:text-gray-300 font-sans leading-relaxed whitespace-pre-wrap select-text selection:bg-indigo-50/50">
                                         {raciocinio}
                                         {isCurrentlyGeneratingThisMsg && !message.text.includes('</raciocinio>') && (
-                                          <span className="inline-block w-1 h-3 bg-indigo-400 ml-0.5 animate-pulse" />
+                                          <span className="inline-block w-1.5 h-3.5 bg-indigo-500 ml-1 animate-pulse" />
                                         )}
                                       </div>
                                     </motion.div>
