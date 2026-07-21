@@ -75,6 +75,11 @@ export default function UpdateModal({ isOpen, onClose }: UpdateModalProps) {
               <p className="text-sm text-gray-600 leading-relaxed">
                 A <strong>WSM 1.6 Pro</strong> está mais apta para geração de códigos. Agora, na criação de sites, ela analisa o próprio site que criou, encontra bugs, erros, e analisa se está de acordo com o que o usuário pediu de forma autônoma e iterativa.
               </p>
+
+              <h3 className="text-md font-bold text-gray-900 pt-2">Melhora do conhecimento do WSM 1.6</h3>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                WSM 1.6 agora tem conhecimento de até março de 2026, além de conseguir fazer buscas na web pra aprimorar seus conhecimentos.
+              </p>
             </div>
 
             {/* Separator */}

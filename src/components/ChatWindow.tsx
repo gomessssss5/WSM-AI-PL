@@ -303,7 +303,6 @@ export default function ChatWindow({
   // Attachments States
   const [attachments, setAttachments] = useState<any[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [showTermsModal, setShowTermsModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const hasInitializedRef = useRef(false);
@@ -527,12 +526,6 @@ export default function ChatWindow({
   const [suckingFiles, setSuckingFiles] = useState<{ id: string; url: string; isImage: boolean; name: string }[]>([]);
 
   const processFiles = (fileList: File[]) => {
-    const hasAccepted = localStorage.getItem('wsm_accepted_file_terms') === 'true';
-    if (!hasAccepted) {
-      setShowTermsModal(true);
-      return;
-    }
-
     let videoCount = 0;
     let imgDocCount = 0;
     let audioCount = 0;
@@ -609,20 +602,42 @@ export default function ChatWindow({
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData?.items;
-    if (!items) return;
-    const pastedFiles: File[] = [];
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.kind === 'file') {
-        const file = item.getAsFile();
-        if (file) {
-          pastedFiles.push(file);
+    if (items) {
+      const pastedFiles: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file') {
+          const file = item.getAsFile();
+          if (file) {
+            pastedFiles.push(file);
+          }
         }
       }
+      if (pastedFiles.length > 0) {
+        e.preventDefault();
+        processFiles(pastedFiles);
+        return;
+      }
     }
-    if (pastedFiles.length > 0) {
+
+    // Check if pasted text exceeds 5000 characters
+    const pastedText = e.clipboardData?.getData('text/plain');
+    if (pastedText && pastedText.length > 5000) {
       e.preventDefault();
-      processFiles(pastedFiles);
+      const isCode = /[{};()</>=\[\]]/.test(pastedText) || 
+                     pastedText.includes('function') || 
+                     pastedText.includes('import') || 
+                     pastedText.includes('const') || 
+                     pastedText.includes('class') || 
+                     pastedText.includes('def ') || 
+                     pastedText.includes('return');
+      
+      const fileName = isCode 
+        ? `codigo_anexado_${Date.now().toString().slice(-4)}.txt` 
+        : `texto_colado_${Date.now().toString().slice(-4)}.txt`;
+      
+      const file = new File([pastedText], fileName, { type: 'text/plain' });
+      processFiles([file]);
     }
   };
 
@@ -660,12 +675,6 @@ export default function ChatWindow({
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
       const droppedFiles = Array.from(files) as File[];
-      
-      const hasAccepted = localStorage.getItem('wsm_accepted_file_terms') === 'true';
-      if (!hasAccepted) {
-        setShowTermsModal(true);
-        return;
-      }
 
       const tempFiles = droppedFiles.map((file) => {
         const isImage = file.type.startsWith('image/');
@@ -703,12 +712,7 @@ export default function ChatWindow({
   };
 
   const handleAttachFileDirectly = () => {
-    const hasAccepted = localStorage.getItem('wsm_accepted_file_terms') === 'true';
-    if (hasAccepted) {
-      fileInputRef.current?.click();
-    } else {
-      setShowTermsModal(true);
-    }
+    fileInputRef.current?.click();
   };
 
   // Slash Menu State
@@ -943,7 +947,7 @@ export default function ChatWindow({
     const currentText = textarea ? textarea.value : inputValue;
     
     if (!currentText.trim() && !attachedText && attachments.length === 0 && activeSkills.length === 0) return;
-    if (currentText.length > 1500) return;
+    if (currentText.length > 5000) return;
     
     let textToSend = '';
     if (attachedText && currentText.trim()) {
@@ -2536,9 +2540,9 @@ export default function ChatWindow({
                 <Mic className="w-3.5 h-3.5" />
               </button>
 
-              {inputValue.length >= 1300 && (
-                <span className={`text-[10px] font-medium ${inputValue.length > 1500 ? 'text-red-500' : 'text-gray-400'} flex items-center`}>
-                  {inputValue.length} / 1500
+              {inputValue.length >= 4500 && (
+                <span className={`text-[10px] font-medium ${inputValue.length > 5000 ? 'text-red-500' : 'text-gray-400'} flex items-center`}>
+                  {inputValue.length} / 5000
                 </span>
               )}
 
@@ -2549,11 +2553,11 @@ export default function ChatWindow({
                     onCancelGeneration?.();
                   }
                 }}
-                disabled={((!inputValue.trim() && !attachedText && attachments.length === 0) || inputValue.length > 1500) && !isThinking}
+                disabled={((!inputValue.trim() && !attachedText && attachments.length === 0) || inputValue.length > 5000) && !isThinking}
                 className={`w-6.5 h-6.5 rounded-full flex items-center justify-center transition-all ${
                   isThinking
                     ? 'bg-[#ff4d4d] hover:bg-[#ff3333] cursor-pointer'
-                    : ((inputValue.trim() || attachedText || attachments.length > 0) && inputValue.length <= 1500)
+                    : ((inputValue.trim() || attachedText || attachments.length > 0) && inputValue.length <= 5000)
                     ? 'bg-[#1f1e1d] text-white hover:bg-[#343230] cursor-pointer'
                     : 'bg-[#faf9f6] text-gray-300 border border-[#eae6e1]'
                 }`}
@@ -2567,10 +2571,10 @@ export default function ChatWindow({
             </div>
           </div>
 
-          {inputValue.length > 1500 && (
+          {inputValue.length > 5000 && (
             <div className="absolute -bottom-8 left-0 right-0 flex justify-center animate-in fade-in slide-in-from-top-2">
               <span className="bg-red-50 text-red-600 border border-red-100 px-3 py-1 rounded-full text-[10px] font-bold tracking-wide shadow-sm">
-                O limite de caracteres é 1500. Você ultrapassou esse limite.
+                O limite de caracteres é 5000. Você ultrapassou esse limite.
               </span>
             </div>
           )}
@@ -2615,54 +2619,6 @@ export default function ChatWindow({
           {selectedModel} pode cometer erros. Verifique informações importantes.
         </div>
       </footer>
-
-      {/* Terms of Attachment Consent Modal */}
-      {showTermsModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 border border-[#eae6e1] dark:border-gray-800 rounded-2xl p-6 shadow-2xl max-w-md w-full animate-in zoom-in-95 duration-200">
-            <div className="flex items-start gap-3 mb-4">
-              <div className="p-2 bg-amber-50 dark:bg-amber-950/20 rounded-xl text-amber-500">
-                <Paperclip className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 font-sans">
-                  Termos de Anexo de Arquivos
-                </h3>
-                <p className="text-xs text-gray-400 dark:text-gray-500 font-mono mt-0.5">
-                  IMPORTANTE • CONSENTIMENTO
-                </p>
-              </div>
-            </div>
-            
-            <p className="text-[12.5px] leading-relaxed text-gray-600 dark:text-gray-300 font-sans mb-6">
-              Antes de anexar arquivos, você concorda que é o único responsável pelo conteúdo enviado, garantindo que ele não possui dados pessoais sensíveis, imagens protegidas por direitos autorais, nudez ou conteúdos ofensivos. Você também aceita que seus arquivos serão processados pela inteligência artificial para gerar as respostas do chat, estando em conformidade com as regras de segurança e privacidade da plataforma.
-            </p>
-            
-            <div className="flex items-center justify-end gap-3 font-sans">
-              <button
-                type="button"
-                onClick={() => setShowTermsModal(false)}
-                className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors cursor-pointer"
-              >
-                Voltar
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  localStorage.setItem('wsm_accepted_file_terms', 'true');
-                  setShowTermsModal(false);
-                  setTimeout(() => {
-                    fileInputRef.current?.click();
-                  }, 100);
-                }}
-                className="px-4 py-2 text-xs font-semibold bg-[#5c53e5] hover:bg-[#4b43c6] text-white rounded-xl shadow-sm transition-colors cursor-pointer"
-              >
-                Concordo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Sliding Lateral Sources Drawer */}
       {drawerSources && (

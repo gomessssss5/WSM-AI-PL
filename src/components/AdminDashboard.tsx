@@ -2568,7 +2568,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                           </div>
                         </td>
                         <td className="py-3.5 px-3 font-mono text-[10px] text-indigo-600 bg-indigo-50/30 rounded-md">
-                          gemini-3.1-flash-lite
+                          gemini-3.5-flash-lite
                         </td>
                         <td className="py-3.5 px-3 text-center text-gray-900 font-bold">15 RPM</td>
                         <td className="py-3.5 px-3 text-center text-gray-900 font-bold">1,500 requisições / dia</td>
@@ -2639,7 +2639,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
 
                 <div className="my-5 space-y-4 text-xs font-medium">
                   <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl leading-normal text-indigo-700">
-                    O painel dispara requisições diretas leves com o modelo <span className="font-mono bg-white border px-1.5 py-0.5 rounded">gemini-3.1-flash-lite</span> para validar cota, validade e permissões do Google GenAI.
+                    O painel dispara requisições diretas leves com o modelo <span className="font-mono bg-white border px-1.5 py-0.5 rounded">gemini-3.5-flash-lite</span> para validar cota, validade e permissões do Google GenAI.
                   </div>
 
                   <button

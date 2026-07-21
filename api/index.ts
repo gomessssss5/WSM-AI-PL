@@ -191,7 +191,7 @@ Se sim, responda EXCLUSIVAMENTE com a palavra "SIM". Se puder responder sem pesq
 
       try {
         const triageResponse = await callGeminiWithFallback({
-          model: "gemini-3.1-flash-lite",
+          model: "gemini-3.5-flash-lite",
           contents: triagePrompt,
         });
         const triageDecision = triageResponse.text?.trim().toUpperCase() || "";
@@ -218,7 +218,7 @@ Se sim, responda EXCLUSIVAMENTE com a palavra "SIM". Se puder responder sem pesq
       
       // Step 1: Use Gemini to generate a research plan (intro and up to 4 search steps with transitions)
       const planResponse = await callGeminiWithFallback({
-        model: "gemini-3.1-flash-lite",
+        model: "gemini-3.5-flash-lite",
         contents: `Você é um planejador de pesquisa web em tempo real de alta precisão em português do assistente WSM AI.
 O usuário enviou a seguinte solicitação de pesquisa: "${text}".
 
@@ -467,7 +467,7 @@ Com base nessas informações, responda à última pergunta do usuário de forma
       
       try {
         const aiResponse = await callGeminiWithFallback({
-          model: "gemini-3.1-flash-lite",
+          model: "gemini-3.5-flash-lite",
           contents: finalContents,
           config: {
             systemInstruction: systemPrompt
@@ -907,7 +907,7 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
         }
 
         const response = await callGeminiWithFallback({
-          model: "gemini-3.1-flash-lite", // using flash lite as requested
+          model: "gemini-3.5-flash-lite", // using flash lite as requested
           contents: currentContents,
           config: {
             systemInstruction: activeSystemPrompt + 
@@ -1090,7 +1090,7 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
 Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delimitadores de código.`;
 
                 const evalResponse = await callGeminiWithFallback({
-                  model: "gemini-3.1-flash-lite",
+                  model: "gemini-3.5-flash-lite",
                   contents: `Código HTML a ser analisado e renderizado:\n\n${args.html}`,
                   config: {
                     systemInstruction: evaluatorPrompt,
@@ -1179,7 +1179,7 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
     }
 
     const normalResponse = await callGeminiWithFallback({
-      model: "gemini-3.1-flash-lite",
+      model: "gemini-3.5-flash-lite",
       contents: finalContents,
       config: {
         systemInstruction: activeSystemPrompt,
@@ -1227,7 +1227,7 @@ app.post("/api/test-keys", async (req: express.Request, res: express.Response) =
     key3: { success: false, message: "" }
   };
 
-  const modelName = "gemini-3.1-flash-lite";
+  const modelName = "gemini-3.5-flash-lite";
 
   // Teste da chave 1 (IA_API_KEY)
   const key1 = process.env.IA_API_KEY;
@@ -1323,7 +1323,7 @@ ${tone ? `Tom da tradução: ${tone}` : ""}
 Resposta (apenas o texto traduzido):`;
 
     const response = await callGeminiWithFallback({
-      model: "gemini-3.1-flash-lite",
+      model: "gemini-3.5-flash-lite",
       contents: userPrompt,
       config: {
         systemInstruction: systemPrompt,
