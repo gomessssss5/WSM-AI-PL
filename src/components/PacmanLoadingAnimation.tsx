@@ -1,8 +1,8 @@
 import React from 'react';
 
-export default function PacmanLoadingAnimation() {
+export default function PacmanLoadingAnimation({ className }: { className?: string } = {}) {
   return (
-    <div className="flex items-center justify-center my-1 h-10 w-[140px] overflow-hidden select-none relative mx-auto">
+    <div className={`flex items-center justify-center my-1 h-10 w-[140px] overflow-hidden select-none relative ${className || 'ml-0 mr-auto'}`}>
       <style>{`
         .pacman-scene {
           position: absolute;

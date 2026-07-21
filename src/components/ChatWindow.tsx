@@ -101,6 +101,12 @@ const cleanTaskTags = (text: string) => {
     const idx = clean.indexOf('<task>');
     clean = clean.slice(0, idx);
   }
+  
+  // Remove agentic step tags
+  clean = clean.replace(/\[nova tarefa:[\s\S]*?\]/gi, "");
+  clean = clean.replace(/\[tarefa removida:[\s\S]*?\]/gi, "");
+  clean = clean.replace(/\[passo concluído\]/gi, "");
+  
   return clean.trim();
 };
 
@@ -156,7 +162,7 @@ const getTaskProgress = (text: string): TaskProgress | null => {
   }
 
   const lines = taskBlock.split('\n');
-  const tasks = lines
+  let tasks = lines
     .map(line => {
       const m = line.match(/\[(.*?)\]/);
       return m ? m[1].trim() : null;
@@ -167,28 +173,35 @@ const getTaskProgress = (text: string): TaskProgress | null => {
 
   const textAfterTask = taskEndIndex !== -1 ? text.slice(taskEndIndex + 7) : '';
 
-  // Count tool call completions in the streamed text
-  const searchCompletions = (textAfterTask.match(/\[pesquisou na web\]/g) || []).length;
-  const calcCompletions = (textAfterTask.match(/\[calculando\]/g) || []).length;
-  const clockCompletions = (textAfterTask.match(/\[verificando relógio\]/g) || []).length;
-  const totalCompletions = searchCompletions + calcCompletions + clockCompletions;
-
-  // Check if any tool call is actively running
-  const isSearchActive = textAfterTask.includes('[pesquisando...]');
-  const isCalcActive = textAfterTask.includes('[calculando...]');
-  const isClockActive = textAfterTask.includes('[verificando...]');
-  const isAnyToolActive = isSearchActive || isCalcActive || isClockActive;
-
-  let activeIndex = totalCompletions;
-
-  // If there are no active tools and there is some text after tasks, we estimate progress based on text length
-  if (!isAnyToolActive && textAfterTask.length > 0) {
-    // Estimating about 350 characters of response per task item
-    const estimatedIndex = Math.floor(textAfterTask.length / 350);
-    activeIndex = Math.max(activeIndex, estimatedIndex);
+  // Dynamic parsing of new tags
+  const newTasksMatches = [...textAfterTask.matchAll(/\[nova tarefa:\s*([\s\S]*?)\]/gi)];
+  const removedTasksMatches = [...textAfterTask.matchAll(/\[tarefa removida:\s*([\s\S]*?)\]/gi)];
+  
+  for (const match of newTasksMatches) {
+    if (match[1]) tasks.push(match[1].trim());
+  }
+  
+  for (const match of removedTasksMatches) {
+     if (match[1]) {
+        const toRemove = match[1].trim().toLowerCase();
+        tasks = tasks.filter(t => !t.toLowerCase().includes(toRemove));
+     }
   }
 
-  activeIndex = Math.min(tasks.length - 1, activeIndex);
+  if (tasks.length === 0) return null;
+
+  const stepCompletions = (textAfterTask.match(/\[passo concluído\]/gi) || []).length;
+  
+  const legacySearchCompletions = (textAfterTask.match(/\[pesquisou na web\]/g) || []).length;
+  const legacyCalcCompletions = (textAfterTask.match(/\[calculando\]/g) || []).length;
+  const legacyClockCompletions = (textAfterTask.match(/\[verificando relógio\]/g) || []).length;
+  const legacyDebugCompletions = (textAfterTask.match(/\[código 100% verificado: sem erros\]/gi) || []).length;
+  const legacyCompletions = legacySearchCompletions + legacyCalcCompletions + legacyClockCompletions + legacyDebugCompletions;
+
+  let activeIndex = Math.max(stepCompletions, legacyCompletions);
+
+  // We allow activeIndex to go up to tasks.length, which means ALL tasks are completed.
+  activeIndex = Math.min(tasks.length, activeIndex);
 
   return {
     tasks,
@@ -269,6 +282,15 @@ export default function ChatWindow({
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [isTasksExpanded, setIsTasksExpanded] = useState(true);
   const [expandedRaciocinios, setExpandedRaciocinios] = useState<Record<string, boolean>>({});
+
+  const lastVisibleUserIndex = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].sender === 'user' && !messages[i].isHidden) {
+        return i;
+      }
+    }
+    return -1;
+  })();
 
   useEffect(() => {
     if (isThinking) {
@@ -858,21 +880,59 @@ export default function ChatWindow({
     'WSM 1.6 Pro': 'Para tarefas complexas'
   };
 
+  const isUserScrollingRef = useRef(false);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleScroll = () => {
+    if (messagesContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+      const isScrolledUp = scrollHeight - scrollTop - clientHeight > 150;
+      isUserScrollingRef.current = isScrolledUp;
+    }
+  };
+
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
-    setTimeout(() => {
+    if (isUserScrollingRef.current) return;
+    
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    
+    scrollTimeoutRef.current = setTimeout(() => {
       if (messagesContainerRef.current) {
+        // If we are getting called rapidly (e.g. streaming), smooth scroll can cause bouncing.
+        // We will use auto if the distance is small, or just trust 'auto' for stream updates.
         messagesContainerRef.current.scrollTo({
           top: messagesContainerRef.current.scrollHeight,
-          behavior
+          behavior: 'auto'
         });
       }
     }, 50);
   };
 
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, []);
+
   // Auto-scroll to bottom of messages
   useEffect(() => {
-    scrollToBottom('smooth');
+    scrollToBottom('auto');
   }, [messages, isThinking]);
+
+  // Auto-focus input on mount, when thinking stops, when switching conversations, or when sending/receiving messages
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const textarea = document.getElementById('chat-input-textarea-floating') as HTMLTextAreaElement;
+      if (textarea) {
+        textarea.focus();
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [isThinking, title, messages.length]);
 
   const handleSubmit = (e?: React.FormEvent | React.MouseEvent | React.TouchEvent) => {
     e?.preventDefault();
@@ -903,6 +963,7 @@ export default function ChatWindow({
     // Synchronously clear the DOM value to prevent race conditions during rapid consecutive sends
     if (textarea) {
       textarea.value = '';
+      textarea.focus();
     }
     setInputValue('');
     setAttachments([]);
@@ -913,6 +974,12 @@ export default function ChatWindow({
     if (onClearAttachedText) {
       onClearAttachedText();
     }
+    setTimeout(() => {
+      const ta = document.getElementById('chat-input-textarea-floating') as HTMLTextAreaElement;
+      if (ta) {
+        ta.focus();
+      }
+    }, 50);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1145,6 +1212,14 @@ export default function ChatWindow({
 
         {/* Right side controls */}
         <div className="flex items-center gap-2 relative z-50">
+          {/* Tag WSM 1.6.1 - Desktop Only */}
+          <div
+            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#eae6e1] rounded-full text-xs font-bold text-gray-700 select-none shadow-3xs"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+            <span>WSM 1.6.1</span>
+          </div>
+
           <button
             onClick={onStartTemporaryChat}
             disabled={isTemporary}
@@ -1300,7 +1375,7 @@ export default function ChatWindow({
           ) : null
         ) : (
           <div className="max-w-2xl mx-auto space-y-4">
-            {messages.map((message) => {
+            {messages.map((message, index) => {
             if (message.isHidden) return null;
             const isUser = message.sender === 'user';
             return (
@@ -1576,6 +1651,11 @@ export default function ChatWindow({
                               }
                               return null;
                             })()}
+                            {isThinking && message.id === messages[messages.length - 1]?.id && (
+                              <div className="flex items-center gap-2 text-gray-500 text-xs py-2 mt-2">
+                                <PacmanLoadingAnimation />
+                              </div>
+                            )}
                           </div>
                         )}
                       </>
@@ -1740,7 +1820,7 @@ export default function ChatWindow({
                   </div>
                   )}
                   
-                  {!(message.text === "" && isThinking && message.id === messages[messages.length - 1]?.id) && (
+                  {!(isThinking && index > lastVisibleUserIndex) && (
                     <div className="flex items-center gap-2 mt-1 px-1">
                       <span className="text-[9px] text-gray-400">
                         {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}

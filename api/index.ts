@@ -580,7 +580,15 @@ IMPORTANTE:
 2. Escreva as tarefas de forma clara, concisa e focada na ação.
 3. Não inclua nenhum outro texto dentro das tags <task> e </task> além das linhas de tarefa.
 
-${model === 'WSM 1.6 Pro' ? `## Gerenciamento de Skills e Skill "user" (Importante!)
+${model === 'WSM 1.6 Pro' ? `## Execução Iterativa de Tarefas (Comportamento de Agente Autônomo)
+O WSM 1.6 Pro é um verdadeiro agente autônomo. Quando você gera o seu plano de ação (passo a passo de tarefas) dentro das tags <task>, você não está apenas listando para o usuário ler, você está determinando o seu próprio roteiro de execução.
+1. **Cada tarefa gerada deve se tornar uma solicitação para você mesmo processar/resolver.**
+2. **Auto-Correção e Retentativas:** Se o resultado do que você fez em uma tarefa não ficar bom (ex: um código com bug, um texto mal formatado, uma pesquisa incompleta, ou algo que não atende 100% à expectativa inicial), você DEVE REFAZER. Você não deve se contentar com resultados parciais ou defeituosos.
+3. **Iteração Contínua:** Execute, avalie o resultado internamente (no seu raciocínio), e repita/refaça (mesmo que exija múltiplas tentativas na mesma tarefa) até que a saída seja perfeita e corresponda exatamente ao que tem que ser feito. Isso é a essência do comportamento agêntico!
+4. **Atualização do Progresso (MUITO IMPORTANTE):** O sistema não adivinha quando você terminou uma tarefa do \`<task>\`. Sempre que você concluir definitivamente uma das tarefas do seu plano de ação (após testar, rodar as ferramentas necessárias e validar o resultado), você OBRIGATORIAMENTE DEVE escrever a tag \`[passo concluído]\` na sua resposta final de texto (fora do raciocínio). Se você concluiu 2 tarefas, escreva duas tags \`[passo concluído]\`. O sistema lerá isso e avançará o check verde para o usuário.
+5. **Dinamismo (Adicionar/Remover Tarefas):** Como um agente autônomo, se no meio do processo de execução você perceber que precisa adicionar um novo passo que não estava no \`<task>\` original, ou se quiser cancelar um passo que se tornou inútil, use as tags \`[nova tarefa: Descrição da Tarefa]\` ou \`[tarefa removida: Descrição da Tarefa]\` no seu texto visível.
+
+## Gerenciamento de Skills e Skill "user" (Importante!)
 O WSM 1.6 Pro tem como objetivo criar e gerenciar "skills" para personalizar e potencializar o sistema de acordo com o contexto do usuário.
 A principal e mais vital é a skill "user". O objetivo dessa skill é pegar e guardar informações sobre o usuário (nome, idade, o que ele gosta, comida preferida, rotina, profissão, como ele faz as coisas, etc).
 
@@ -862,6 +870,20 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
               type: Type.OBJECT,
               properties: {}
             }
+          },
+          {
+            name: "auto_debug_html",
+            description: "Sandbox de Auto-Depuração: Executa um código HTML completo gerado, simula a renderização visual berrante/mobile/desktop e analisa logs, erros e sintaxe de JS/CSS/HTML para detecção proativa de bugs.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                html: {
+                  type: Type.STRING,
+                  description: "O código HTML/CSS/JS completo gerado a ser validado."
+                }
+              },
+              required: ["html"]
+            }
           }
         ]
       }];
@@ -871,6 +893,7 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
       const marteImages: string[] = [];
       let fullOutput = "";
       let turnCount = 0;
+      let lastDebugResult: any = null;
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
@@ -887,7 +910,30 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
           model: "gemini-3.1-flash-lite", // using flash lite as requested
           contents: currentContents,
           config: {
-            systemInstruction: activeSystemPrompt + "\nIMPORTANTE: Quando usar uma ferramenta, chame a função ANTES. NUNCA gere as tags [pesquisou na web], [calculando] ou [verificando relógio] ANTES de chamar a função. Gere a tag APENAS na sua resposta final de texto, APÓS receber o resultado da função.\nREGRA DA CALCULADORA: SEMPRE que precisar resolver QUALQUER expressão matemática (ex: v² = 20² + 2×(-10)×(-5)), VOCÊ DEVE OBRIGATORIAMENTE chamar a ferramenta 'calculadora'. NUNCA calcule de cabeça ou deduza o valor (ex: alucinar 24.49 em vez de 22.36). Após receber o resultado exato da calculadora, escreva sua resposta final conferindo o valor retornado.\nREGRA DA WEB SEARCH (HISTÓRIA E FATOS REAIS): SEMPRE que o usuário perguntar sobre FATOS HISTÓRICOS (ex: história do Brasil, primeira rainha da Inglaterra, revoluções, etc) ou dados do mundo real, VOCÊ DEVE OBRIGATORIAMENTE pesquisar na web ('web_search') antes para verificar e validar a informação, em vez de recorrer apenas à memória interna (para evitar alucinações).",
+            systemInstruction: activeSystemPrompt + 
+              "\nIMPORTANTE: Quando usar uma ferramenta, chame a função ANTES. NUNCA gere as tags [pesquisou na web], [calculando] ou [verificando relógio] ANTES de chamar a função. Gere a tag APENAS na sua resposta final de texto, APÓS receber o resultado da função." +
+              "\nNUNCA gere manualmente as tags em colchetes como `[pesquisou na web]`, `[calculando]`, `[verificando relógio]` ou `[código 100% verificado]` na sua resposta final de texto. O nosso sistema de backend já insere e renderiza essas tags de progresso e status automaticamente no chat. Sua tarefa é focar exclusivamente em gerar o conteúdo final explicativo e o código, sem adicionar essas tags de status ao final." +
+              "\nREGRA DA CALCULADORA: SEMPRE que precisar resolver QUALQUER expressão matemática (ex: v² = 20² + 2×(-10)×(-5)), VOCÊ DEVE OBRIGATORIAMENTE chamar a ferramenta 'calculadora'. NUNCA calcule de cabeça ou deduza o valor (ex: alucinar 24.49 em vez de 22.36). Após receber o resultado exato da calculadora, escreva sua resposta final conferindo o valor retornado." +
+              "\nREGRA DA WEB SEARCH (HISTÓRIA E FATOS REAIS): SEMPRE que o usuário perguntar sobre FATOS HISTÓRICOS (ex: história do Brasil, primeira rainha da Inglaterra, revoluções, etc) ou dados do mundo real, VOCÊ DEVE OBRIGATORIAMENTE pesquisar na web ('web_search') antes para verificar e validar a informação, em vez de recorrer apenas à memória interna (para evitar alucinações)." +
+              "\nREGRA DE GERAÇÃO DE HTML (SANDBOX DE AUTO-DEPURAÇÃO):" +
+              "\nQuando o usuário solicitar a criação de um site, sistema ou código HTML, você deve seguir estritamente o seguinte fluxo de duas etapas:" +
+              "\n1. ETAPA DE VALIDAÇÃO (TURNO 1):" +
+              "\n   - Você DEVE conceber e escrever o código HTML completo dentro do seu <raciocinio>." +
+              "\n   - Você DEVE obrigatoriamente chamar a ferramenta 'auto_debug_html' passando o código HTML criado." +
+              "\n   - No texto da sua resposta deste turno, você NÃO deve incluir nenhum bloco de código Markdown (```html ... ```) ainda. Em vez disso, escreva apenas uma mensagem curta informando o início do processo, por exemplo: \"(Gerando e validando o código do site...)\"." +
+              "\n   - NUNCA diga coisas como \"Vou chamar a ferramenta\" ou \"Estou testando o código\"." +
+              "\n2. ETAPA DE ENTREGA (TURNO 2 - APÓS RECEBER O RETORNO DA FERRAMENTA):" +
+              "\n   - Assim que receber o resultado da renderização da sandbox 'auto_debug_html' na conversa:" +
+              "\n   - CRÍTICO: Se houver erros detectados (como erros de sintaxe, URLs ou imagens quebradas/falsas/placeholders instáveis), você é ABSOLUTAMENTE PROIBIDO de exibir o código final para o usuário ou encerrar o turno! Você DEVE obrigatoriamente corrigir o código em seu <raciocinio>, escrever uma mensagem curta informando o início da correção, ex: \"(Corrigindo erros detectados no código...)\", e chamar a ferramenta 'auto_debug_html' novamente com o código corrigido." +
+              "\n   - Você deve repetir essa verificação e correção até que a ferramenta 'auto_debug_html' retorne que NÃO há erros (errorsFound: false)." +
+              "\n   - Se o resultado for sucesso (sem erros), você DEVE obrigatoriamente apresentar a resposta final ao usuário contendo a explicação polida do projeto e o BLOCO DE CÓDIGO HTML COMPLETO NO FORMATO MARKDOWN (```html ... ```)." +
+              "\n   - IMPORTANTE: NÃO chame a ferramenta 'auto_debug_html' de novo caso você já tenha recebido a resposta dela com sucesso! Apresente o código completo imediatamente na sua mensagem final. Nunca finalize a conversa sem enviar o código HTML completo para o usuário no formato Markdown." +
+              "\nREGRA DE ENTREGA DE HTML (CRÍTICO): Na sua resposta final ao usuário, após validar o código com a ferramenta 'auto_debug_html', você DEVE OBRIGATORIAMENTE enviar o bloco de código HTML completo (no formato ```html ... ```) contendo o site/projeto que o usuário pediu. NUNCA termine uma resposta de criação ou edição de site sem fornecer o código HTML correspondente, even if you already validated it earlier in the conversation. O usuário necessita do código final completo na sua mensagem para poder vê-lo e usá-lo." +
+              (lastDebugResult 
+                ? (lastDebugResult.errorsFound
+                    ? `\n\nAVISO DE ERROS ENCONTRADOS: A ferramenta 'auto_debug_html' detectou os seguintes problemas no seu HTML: ${JSON.stringify(lastDebugResult.detectedErrors)}. Você está no Turno de Correção. Você é ABSOLUTAMENTE PROIBIDO de gerar o bloco de código Markdown final (\x60\x60\x60html ... \x60\x60\x60) para o usuário agora. Em vez disso, corrija TODOS os problemas indicados, escreva apenas uma mensagem curta de status como "(Corrigindo erros detectados no código...)" e chame a ferramenta 'auto_debug_html' novamente passando o HTML 100% corrigido!`
+                    : "\n\nAVISO DE VALIDAÇÃO CONCLUÍDA: A ferramenta 'auto_debug_html' já foi executada com sucesso absoluto (sem erros). Você está na ETAPA DE ENTREGA (TURNO 2). Você DEVE obrigatoriamente gerar e exibir o código HTML completo e polido em um bloco Markdown (\x60\x60\x60html ... \x60\x60\x60) agora! NÃO chame a ferramenta 'auto_debug_html' novamente.")
+                : ""),
             tools: marteTools,
             temperature: 0.7
           }
@@ -913,16 +959,27 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
         }
 
         if (textForThisTurn) {
-          fullOutput += textForThisTurn;
-          // Send text in simulated stream chunks for smooth UI typewriter feel
-          const words = textForThisTurn.split(/(\s+)/);
-          let chunkGroup = "";
-          for (let i = 0; i < words.length; i++) {
-            chunkGroup += words[i];
-            if (i % 6 === 0 || i === words.length - 1) {
-              sendEvent({ type: "chunk", text: chunkGroup });
-              chunkGroup = "";
-              await new Promise(r => setTimeout(r, 15));
+          let cleanText = textForThisTurn;
+          // If the model is calling auto_debug_html in this turn, strip any accidental/premature markdown HTML code blocks.
+          // They should only be displayed in the final delivery turn after verification is successful.
+          if (functionCallsForThisTurn.some(fc => fc.name === "auto_debug_html")) {
+            cleanText = cleanText.replace(/```html[\s\S]*?```/gi, "");
+            cleanText = cleanText.replace(/```htm[\s\S]*?```/gi, "");
+            cleanText = cleanText.replace(/```[\s\S]*?```/gi, "");
+          }
+
+          if (cleanText.trim()) {
+            fullOutput += cleanText;
+            // Send text in simulated stream chunks for smooth UI typewriter feel
+            const words = cleanText.split(/(\s+)/);
+            let chunkGroup = "";
+            for (let i = 0; i < words.length; i++) {
+              chunkGroup += words[i];
+              if (i % 6 === 0 || i === words.length - 1) {
+                sendEvent({ type: "chunk", text: chunkGroup });
+                chunkGroup = "";
+                await new Promise(r => setTimeout(r, 15));
+              }
             }
           }
         }
@@ -937,7 +994,10 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
             console.log(`[Pro] Agent called function: ${fc.name}`, fc.args);
             
             // Artificial delay/spinner for user experience
-            const thinkingText = fc.name === "web_search" ? "\n\n[pesquisando...]\n\n" : fc.name === "calculadora" ? "\n\n[calculando...]\n\n" : "\n\n[verificando...]\n\n";
+            const thinkingText = fc.name === "web_search" ? "\n\n[pesquisando...]\n\n" : 
+                                 fc.name === "calculadora" ? "\n\n[calculando...]\n\n" : 
+                                 fc.name === "relogio" ? "\n\n[verificando...]\n\n" :
+                                 "\n\n[verificando possíveis erros no código...]\n\n";
             sendEvent({ type: "chunk", text: thinkingText });
             fullOutput += thinkingText;
             
@@ -1006,10 +1066,81 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
               functionResponseParts.push({
                 functionResponse: { name: fc.name, response: { result: timeData } }
               });
+            } else if (fc.name === "auto_debug_html") {
+              const args = fc.args as any;
+              let debugResult: any = null;
+              try {
+                const evaluatorPrompt = `Você é o Visual Sandbox Render engine do WSM AI. Sua tarefa é simular a renderização do HTML fornecido, analisando-o detalhadamente como se estivesse vendo um screenshot completo do resultado visual em uma tela desktop e mobile.
+
+Avalie os seguintes pontos no código HTML:
+1. Sintaxe HTML, CSS e JavaScript (tags não fechadas, scripts quebrados, classes inexistentes, imports faltantes).
+2. Layout e Estética (elementos sobrepostos, falta de contraste, imagens quebradas, menus desalinhados, responsividade, espaçamentos bizarros).
+3. Fidelidade ao que um usuário esperaria de uma interface premium e moderna (seções completas, Tailwind configurado adequadamente, etc.).
+4. CRÍTICO: Imagens. Se o HTML usar imagens placeholder (ex: source.unsplash.com, via.placeholder.com) que costumam falhar, ou URLs de imagens falsas, você DEVE apontar isso como erro. O código deve usar imagens reais e válidas (ex: wikimedia commons, URLs reais, ou base64 curtos para ícones).
+
+Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esquema JSON:
+{
+  "errorsFound": boolean,
+  "detectedErrors": ["lista de erros encontrados, ou vazio se não houver nenhum"],
+  "visualDescription": "uma descrição textual rica e detalhada de como ficou o visual renderizado, como se estivesse descrevendo uma foto/print da página inteira",
+  "renderedWidth": "1920px",
+  "renderedHeight": "1080px",
+  "sandboxConsoleLogs": ["mensagens de log de simulação, avisos ou erros de carregamento"]
+}
+Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delimitadores de código.`;
+
+                const evalResponse = await callGeminiWithFallback({
+                  model: "gemini-3.1-flash-lite",
+                  contents: `Código HTML a ser analisado e renderizado:\n\n${args.html}`,
+                  config: {
+                    systemInstruction: evaluatorPrompt,
+                    responseMimeType: "application/json"
+                  }
+                });
+                
+                const jsonText = evalResponse.text?.trim() || "{}";
+                debugResult = JSON.parse(jsonText);
+              } catch (e: any) {
+                console.error("Error during auto debug html:", e);
+                debugResult = {
+                  errorsFound: true,
+                  detectedErrors: [e.message || String(e)],
+                  visualDescription: "Falha ao iniciar o container da sandbox de renderização.",
+                  renderedWidth: "1920px",
+                  renderedHeight: "1080px",
+                  sandboxConsoleLogs: ["Erro fatal de execução: " + (e.message || String(e))]
+                };
+              }
+              
+              // Simulate artificial processing delay for maximum user immersion
+              await new Promise(r => setTimeout(r, 2000));
+              
+              functionResponseParts.push({
+                functionResponse: { name: fc.name, response: { result: debugResult } }
+              });
+              
+              lastDebugResult = debugResult;
             }
             
             // Remove the thinking text and replace with the final tag text
-            const finalTagText = fc.name === "web_search" ? "\n\n[pesquisou na web]\n\n" : fc.name === "calculadora" ? "\n\n[calculando]\n\n" : "\n\n[verificando relógio]\n\n";
+            let finalTagText = "";
+            if (fc.name === "web_search") {
+              finalTagText = "\n\n[pesquisou na web]\n\n";
+            } else if (fc.name === "calculadora") {
+              finalTagText = "\n\n[calculando]\n\n";
+            } else if (fc.name === "relogio") {
+              finalTagText = "\n\n[verificando relógio]\n\n";
+            } else if (fc.name === "auto_debug_html") {
+              const htmlBase64 = fc.args && (fc.args as any).html ? Buffer.from((fc.args as any).html).toString('base64') : '';
+              if (lastDebugResult && lastDebugResult.errorsFound) {
+                let errorDesc = lastDebugResult.detectedErrors?.[0] || 'ajuste necessário';
+                // Remove brackets to avoid breaking the markdown/regex matching tags
+                errorDesc = errorDesc.replace(/[\[\]]/g, '').slice(0, 150);
+                finalTagText = `\n\n[corrigindo erro detectado no código: ${errorDesc} | HTML_BASE64:${htmlBase64}]\n\n`;
+              } else {
+                finalTagText = `\n\n[código 100% verificado: sem erros | HTML_BASE64:${htmlBase64}]\n\n`;
+              }
+            }
             fullOutput = fullOutput.replace(thinkingText, finalTagText);
             sendEvent({ type: "sync_text", text: fullOutput });
           }

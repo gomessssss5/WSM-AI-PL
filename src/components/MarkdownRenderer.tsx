@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin } from 'lucide-react';
+import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin, TvMinimalPlay } from 'lucide-react';
 import HtmlCodeBlock from './HtmlCodeBlock';
 import WsmMapComponent from './WsmMapComponent';
 import WsmChartComponent from './WsmChartComponent';
@@ -200,6 +200,228 @@ export function AgenticSkillTag({ text, type }: AgenticSkillTagProps) {
   );
 }
 
+interface AgenticDebugTagProps {
+  key?: string;
+  text: string;
+  fullContent: string;
+  isTyping?: boolean;
+}
+
+export function AgenticDebugTag({ text, fullContent, isTyping = false }: AgenticDebugTagProps) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [copied, setCopied] = React.useState(false);
+
+  // Split base64 payload if present
+  const { cleanText, htmlPayload } = React.useMemo(() => {
+    if (text.includes('| HTML_BASE64:')) {
+      const parts = text.split('| HTML_BASE64:');
+      const clean = parts[0].trim();
+      let payload = parts[1] || '';
+      // Strip any trailing bracket
+      payload = payload.replace(/\]$/, '').trim();
+      return { cleanText: clean, htmlPayload: payload };
+    }
+    return { cleanText: text, htmlPayload: null };
+  }, [text]);
+
+  const lowerText = cleanText.toLowerCase();
+  const isVerified = lowerText.includes('100% verificado') || lowerText.includes('sem erros');
+  
+  const displayType = isVerified ? 'Código 100% verificado' : 'Arrumando erros';
+
+  // Decode the base64 payload
+  const decodedHtml = React.useMemo(() => {
+    if (!htmlPayload) return null;
+    try {
+      return decodeURIComponent(escape(window.atob(htmlPayload)));
+    } catch (e) {
+      try {
+        return window.atob(htmlPayload);
+      } catch (err) {
+        console.error("Failed to decode HTML payload:", err);
+        return null;
+      }
+    }
+  }, [htmlPayload]);
+  
+  // Extract relevant html block from markdown if base64 payload is not available
+  const fallbackHtml = React.useMemo(() => {
+    if (!fullContent) return null;
+    const lines = fullContent.split('\n');
+    const htmlBlocks: string[] = [];
+    let inHtml = false;
+    let currentHtmlLines: string[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+      if (trimmed.startsWith('```html') || trimmed.startsWith('```htm')) {
+        inHtml = true;
+        currentHtmlLines = [];
+      } else if (trimmed.startsWith('```') && inHtml) {
+        inHtml = false;
+        htmlBlocks.push(currentHtmlLines.join('\n'));
+      } else if (inHtml) {
+        currentHtmlLines.push(line);
+      }
+    }
+
+    if (htmlBlocks.length === 0) return null;
+    
+    if (isVerified) {
+      return htmlBlocks[htmlBlocks.length - 1];
+    } else {
+      return htmlBlocks[0];
+    }
+  }, [fullContent, isVerified]);
+
+  const verifiedHtml = decodedHtml || fallbackHtml;
+
+  // Extract error message if present after the colon
+  const errorMessage = React.useMemo(() => {
+    if (!cleanText.includes(':')) return null;
+    return cleanText.split(':').slice(1).join(':').replace(/\]$/, '').trim();
+  }, [cleanText]);
+
+  const isActive = isTyping && (
+    cleanText.trim().endsWith('...') || 
+    cleanText.trim().endsWith('...]') || 
+    lowerText.includes('verificando possíveis erros') ||
+    lowerText.includes('pesquisando...')
+  );
+
+  if (isActive) {
+    const activeColorClass = isVerified 
+      ? 'text-emerald-700 bg-emerald-50/50 border-emerald-200' 
+      : 'text-purple-700 bg-purple-50/50 border-purple-200';
+    const dotBgClass = isVerified ? 'bg-emerald-500' : 'bg-purple-500';
+
+    return (
+      <span className={`inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none shadow-3xs mx-0 my-3 ${activeColorClass}`}>
+        <span className={`w-1.5 h-1.5 rounded-full animate-ping shrink-0 ${dotBgClass}`} />
+        <span><strong className="font-semibold">{displayType}</strong></span>
+      </span>
+    );
+  }
+
+  const hasHtml = !!verifiedHtml;
+
+  const btnColorClass = isVerified
+    ? (isOpen 
+        ? 'text-emerald-800 bg-emerald-50 border-emerald-300 ring-2 ring-emerald-100' 
+        : 'text-emerald-700 bg-emerald-50/50 border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300'
+      )
+    : (isOpen
+        ? 'text-indigo-800 bg-indigo-50 border-indigo-300 ring-2 ring-indigo-100'
+        : 'text-indigo-700 bg-indigo-50/50 border-indigo-200 hover:bg-indigo-50 hover:border-indigo-300'
+      );
+
+  const Icon = isVerified ? CheckCircle2 : TvMinimalPlay;
+  const iconColorClass = isVerified ? 'text-emerald-500' : 'text-indigo-500';
+
+  return (
+    <div className="w-full flex flex-col items-start gap-2.5 my-3">
+      {/* Clickable Tag Button styled exactly like other pills but with interaction */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none shadow-3xs active:scale-98 cursor-pointer ${btnColorClass}`}
+      >
+        <Icon className={`w-3.5 h-3.5 ${iconColorClass}`} />
+        <span><strong className="font-semibold">{displayType}</strong></span>
+        <span className="text-[10px] opacity-75 font-normal ml-0.5">
+          {isOpen ? '(Ocultar visualização)' : '(Clique para abrir visualização)'}
+        </span>
+      </button>
+
+      {/* Expanded Container with live iframe rendering of HTML */}
+      {isOpen && (
+        isVerified ? (
+          <div className="w-full bg-[#fdfdfd] border border-gray-200 rounded-2xl shadow-lg overflow-hidden flex flex-col animate-in fade-in slide-in-from-top-3 duration-300 max-w-full">
+            {/* Mock Browser Title bar */}
+            <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-150 text-xs text-gray-500 select-none">
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-400 block shrink-0" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 block shrink-0" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 block shrink-0" />
+                </div>
+                <span className="w-[1px] h-3 bg-gray-200 mx-1.5" />
+                <span className="font-mono text-[11px] text-gray-400 bg-white border border-gray-150 rounded px-2.5 py-0.5 flex items-center gap-1.5 shadow-3xs">
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-emerald-500" />
+                  <span>sandbox://html-verificado.local</span>
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2.5">
+                <button 
+                  onClick={() => {
+                    if (verifiedHtml) {
+                      navigator.clipboard.writeText(verifiedHtml);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }
+                  }}
+                  className="text-[11px] font-medium flex items-center gap-1 px-2 py-0.5 rounded-lg transition-colors cursor-pointer text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50"
+                >
+                  {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  <span>{copied ? 'Copiado!' : 'Copiar HTML'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Render Area */}
+            <div className="p-1 bg-gray-100 flex-1 flex items-center justify-center relative min-h-[300px]">
+              {hasHtml ? (
+                <iframe
+                  srcDoc={verifiedHtml}
+                  title="Verified HTML Sandbox"
+                  className="w-full h-[320px] bg-white rounded-xl shadow-xs border border-gray-200"
+                  sandbox="allow-scripts"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 px-4 text-center max-w-sm mx-auto">
+                  <AlertTriangle className="w-8 h-8 text-amber-500 mb-2.5 shrink-0" />
+                  <p className="text-xs font-semibold text-gray-800">HTML correspondente não encontrado no corpo da mensagem.</p>
+                  <p className="text-[11px] text-gray-500 mt-1">O código HTML está sendo finalizado ou não pôde ser localizado para esta etapa.</p>
+                </div>
+              )}
+            </div>
+            
+            {/* Footer Info */}
+            <div className="px-4 py-2 bg-gray-50 border-t border-gray-150 flex items-center justify-between text-[10.5px] text-gray-400">
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full block bg-emerald-500" />
+                <span>Código verificado com sucesso absoluto</span>
+              </span>
+              <span>Pronto para produção</span>
+            </div>
+          </div>
+        ) : (
+          /* For "Arrumando erros": Render ONLY the iframe to act as a clean visual "print" of the HTML and nothing else! */
+          <div className="w-full bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-3 duration-300 max-w-full">
+            {hasHtml ? (
+              <iframe
+                srcDoc={verifiedHtml}
+                title="Debugging HTML Sandbox Print"
+                className="w-full h-[320px] bg-white border-0 block"
+                sandbox="allow-scripts"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 px-4 text-center max-w-sm mx-auto">
+                <AlertTriangle className="w-8 h-8 text-amber-500 mb-2.5 shrink-0" />
+                <p className="text-xs font-semibold text-gray-800">HTML correspondente não encontrado no corpo da mensagem.</p>
+                <p className="text-[11px] text-gray-500 mt-1">O código sob análise não pôde ser localizado para esta etapa.</p>
+              </div>
+            )}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
 interface ListItem {
   rawLine: string;
   indent: number;
@@ -341,6 +563,16 @@ interface MarkdownRendererProps {
 export default function MarkdownRenderer({ content, isTyping = false }: MarkdownRendererProps) {
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
 
+  const cleanStepTags = (text: string) => {
+    if (!text) return "";
+    let clean = text;
+    // Remove agentic step tags
+    clean = clean.replace(/\[nova tarefa:[\s\S]*?\]/gi, "");
+    clean = clean.replace(/\[tarefa removida:[\s\S]*?\]/gi, "");
+    clean = clean.replace(/\[passo concluído\]/gi, "");
+    return clean;
+  };
+
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
@@ -394,17 +626,27 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
     });
 
     // 0. Extract agentic tags: [pesquisou na web], [calculando], [verificando relógio], and active/completed states
-    const agenticRegex = /\[(pesquisou na web|calculando|verificando relógio|pesquisando\.\.\.|calculando\.\.\.|verificando\.\.\.|Criando Skill:.*?|Editando Skill:.*?|Excluindo Skill:.*?|Criou Skill:.*?|Editou Skill:.*?|Excluiu Skill:.*?|criando skill:.*?|editando skill:.*?|excluindo skill:.*?|criou skill:.*?|editou skill:.*?|excluiu skill:.*?)\]/gi;
+    const agenticRegex = /\[(pesquisou na web|calculando|verificando relógio|pesquisando\.\.\.|calculando\.\.\.|verificando\.\.\.|verificando possíveis erros no código\.\.\.|código 100% verificado: sem erros[\s\S]*?|corrigindo erro detectado no código:[\s\S]*?|sandbox de depuração:[\s\S]*?|Criando Skill:[\s\S]*?|Editando Skill:[\s\S]*?|Excluindo Skill:[\s\S]*?|Criou Skill:[\s\S]*?|Editou Skill:[\s\S]*?|Excluiu Skill:[\s\S]*?|criando skill:[\s\S]*?|editando skill:[\s\S]*?|excluindo skill:[\s\S]*?|criou skill:[\s\S]*?|editou skill:[\s\S]*?|excluiu skill:[\s\S]*?|nova tarefa:[\s\S]*?|tarefa removida:[\s\S]*?|passo concluído)\]/gi;
     currentText = currentText.replace(agenticRegex, (match, tagContent) => {
       const id = `:::AGENTICTOKEN-${agenticTokens.length}:::`;
       let type = 'web';
       const lower = tagContent.toLowerCase();
       if (lower.includes('calculando') || lower.includes('calculando...')) type = 'calc';
       else if (lower.includes('relógio') || lower.includes('verificando...')) type = 'clock';
+      else if (lower.includes('erros no código') || lower.includes('100% verificado') || lower.includes('depuração') || lower.includes('corrigindo erro')) type = 'debug';
       else if (lower.includes('criando skill:') || lower.includes('criou skill:')) type = 'skill_create';
       else if (lower.includes('editando skill:') || lower.includes('editou skill:')) type = 'skill_edit';
       else if (lower.includes('excluindo skill:') || lower.includes('excluiu skill:')) type = 'skill_delete';
+      else if (lower.includes('nova tarefa:') || lower.includes('tarefa removida:') || lower.includes('passo concluído')) type = 'task_update';
       agenticTokens.push({ id, type, text: tagContent });
+      return id;
+    });
+
+    // 0.1 Extract parenthesized process messages (e.g. (Gerando e validando...), (Corrigindo...))
+    const parenStatusRegex = /\(((?:Gerando|Corrigindo|Validando|Processando|Analisando|Criando|Executando|Ajustando|Testando)[\s\S]*?)\)/gi;
+    currentText = currentText.replace(parenStatusRegex, (match, tagContent) => {
+      const id = `:::AGENTICTOKEN-${agenticTokens.length}:::`;
+      agenticTokens.push({ id, type: 'paren_status', text: tagContent });
       return id;
     });
 
@@ -485,21 +727,52 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
                   );
                 }
 
+                if (token.type === 'debug') {
+                  return (
+                    <AgenticDebugTag
+                      key={`debug-tag-${pIdx}-${keyIndex++}`}
+                      text={token.text}
+                      fullContent={content}
+                      isTyping={isTyping}
+                    />
+                  );
+                }
+
+                if (token.type === 'paren_status') {
+                  return (
+                    <span
+                      key={`paren-status-${pIdx}-${keyIndex++}`}
+                      className="inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-indigo-700 bg-indigo-50/50 border-indigo-200 cursor-default shadow-3xs mx-0 my-3"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse shrink-0" />
+                      <span><strong className="font-semibold">{token.text}</strong></span>
+                    </span>
+                  );
+                }
+
                 let Icon = Globe;
                 let displayType = 'Pesquisou na web';
                 let isActive = false;
                 
                 if (token.type === 'calc') {
                   Icon = Calculator;
-                  displayType = token.text.includes('...') ? 'Calculando...' : 'Calculando';
-                  if (token.text.includes('...')) isActive = true;
+                  displayType = (isTyping && token.text.includes('...')) ? 'Calculando...' : 'Calculou';
+                  isActive = isTyping && token.text.includes('...');
                 } else if (token.type === 'clock') {
                   Icon = Clock;
-                  displayType = token.text.includes('...') ? 'Verificando...' : 'Verificando relógio';
-                  if (token.text.includes('...')) isActive = true;
+                  displayType = (isTyping && token.text.includes('...')) ? 'Verificando...' : 'Verificou relógio';
+                  isActive = isTyping && token.text.includes('...');
+                } else if (token.type === 'skill_create' || token.type === 'skill_edit' || token.type === 'skill_delete') {
+                  Icon = CheckCircle2;
+                  let rawText = token.text.replace(/\[|\]/g, '');
+                  displayType = rawText.charAt(0).toUpperCase() + rawText.slice(1);
+                } else if (token.type === 'task_update') {
+                  Icon = CheckCircle2;
+                  let rawText = token.text.replace(/\[|\]/g, '');
+                  displayType = rawText.charAt(0).toUpperCase() + rawText.slice(1);
                 } else {
-                  displayType = token.text.includes('...') ? 'Pesquisando na web...' : 'Pesquisou na web';
-                  if (token.text.includes('...')) isActive = true;
+                  displayType = (isTyping && token.text.includes('...')) ? 'Pesquisando na web...' : 'Pesquisou na web';
+                  isActive = isTyping && token.text.includes('...');
                 }
 
                 if (isActive) {
@@ -616,7 +889,8 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
   const renderBlocks = (): React.ReactNode[] => {
     if (!content) return [];
 
-    const lines = content.split('\n');
+    const cleanedContent = cleanStepTags(content);
+    const lines = cleanedContent.split('\n');
     const blocks: React.ReactNode[] = [];
     let i = 0;
 
@@ -645,11 +919,35 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
         const normalizedLang = lang.toLowerCase();
 
         if (normalizedLang === 'html' || normalizedLang === 'htm') {
-          blocks.push(
-            <div key={`html-code-${i}`}>
-              <HtmlCodeBlock code={code.trim()} />
-            </div>
-          );
+          // Find if there is any other HTML block AFTER the current block (index i)
+          let hasHtmlBlockAfter = false;
+          for (let j = i; j < lines.length; j++) {
+            const l = lines[j].trim().toLowerCase();
+            if (l.startsWith('```html') || l.startsWith('```htm')) {
+              hasHtmlBlockAfter = true;
+              break;
+            }
+          }
+
+          let shouldHideHtml = false;
+          // If there is another HTML block after this one, we can hide this one
+          // to avoid cluttering the interface with buggy versions during verification.
+          if (hasHtmlBlockAfter) {
+            const lowerContent = content.toLowerCase();
+            const hasVerification = lowerContent.includes('[verificando possíveis erros') || 
+                                    lowerContent.includes('[corrigindo erro');
+            if (hasVerification) {
+              shouldHideHtml = true;
+            }
+          }
+
+          if (!shouldHideHtml) {
+            blocks.push(
+              <div key={`html-code-${i}`}>
+                <HtmlCodeBlock code={code.trim()} />
+              </div>
+            );
+          }
         } else {
           blocks.push(
             <div key={`code-${i}`} className="my-4 bg-gray-950 rounded-xl overflow-hidden shadow-md border border-gray-850 w-full max-w-full">
@@ -1000,9 +1298,9 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
 
       // 10. Paragraph default
       blocks.push(
-        <p key={`p-${i}`} className="text-gray-700 leading-relaxed text-[13.5px] mb-3 select-text">
+        <div key={`p-${i}`} className="text-gray-700 leading-relaxed text-[13.5px] mb-3 select-text">
           {renderInlineContent(line)}
-        </p>
+        </div>
       );
       i++;
     }

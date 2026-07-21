@@ -80,6 +80,77 @@ export default function TypewriterMarkdown({
 
       if (currentIndexRef.current < currentTotalLen) {
         currentIndexRef.current += Math.max(1, Math.floor(delta * charsPerMs));
+        
+        const slicedTextForCheck = currentSegments.slice(0, currentIndexRef.current).join('');
+        const codeBlockMatch = slicedTextForCheck.match(/```/g) || [];
+        const isInsideCodeBlock = codeBlockMatch.length % 2 !== 0;
+        
+        if (isInsideCodeBlock) {
+          // Pause the typing exactly at the start of the code block
+          // until the closing triple backticks are available in the stream
+          let foundClosing = false;
+          let closingIndex = -1;
+          for (let i = currentIndexRef.current; i < currentTotalLen - 2; i++) {
+            if (currentSegments[i] === '`' && currentSegments[i+1] === '`' && currentSegments[i+2] === '`') {
+              closingIndex = i + 3;
+              foundClosing = true;
+              break;
+            }
+          }
+          
+          if (foundClosing) {
+            // Instantly reveal the entire code block
+            currentIndexRef.current = closingIndex;
+          } else {
+            // Keep the index right before the opening backticks so the block doesn't render partially
+            const lastBacktickStart = slicedTextForCheck.lastIndexOf('```');
+            if (lastBacktickStart !== -1) {
+              currentIndexRef.current = lastBacktickStart;
+            }
+          }
+        }
+
+        // Check for agentic tags to buffer them
+        let lastOpenBracketIndex = -1;
+        for (let i = currentIndexRef.current - 1; i >= 0; i--) {
+          if (currentSegments[i] === '[') {
+            lastOpenBracketIndex = i;
+            break;
+          } else if (currentSegments[i] === ']') {
+            break; 
+          }
+        }
+
+        if (lastOpenBracketIndex !== -1) {
+           const textInside = currentSegments.slice(lastOpenBracketIndex + 1).join('').toLowerCase();
+           const prefixes = [
+              "pesquisou na web", "calculando", "verificando",
+              "código 100% verificado", "corrigindo erro",
+              "sandbox de depuração", "criando skill", "editando skill",
+              "excluindo skill", "criou skill", "editou skill", "excluiu skill",
+              "nova tarefa", "tarefa removida", "passo concluído"
+           ];
+           const isAgentic = prefixes.some(p => p.startsWith(textInside) || textInside.startsWith(p));
+           
+           if (isAgentic) {
+              let foundClosing = false;
+              let closingIndex = -1;
+              for (let i = lastOpenBracketIndex; i < currentTotalLen; i++) {
+                if (currentSegments[i] === ']') {
+                  closingIndex = i + 1;
+                  foundClosing = true;
+                  break;
+                }
+              }
+
+              if (foundClosing) {
+                 currentIndexRef.current = Math.max(currentIndexRef.current, closingIndex);
+              } else {
+                 currentIndexRef.current = lastOpenBracketIndex;
+              }
+           }
+        }
+
         if (currentIndexRef.current > currentTotalLen) {
           currentIndexRef.current = currentTotalLen;
         }

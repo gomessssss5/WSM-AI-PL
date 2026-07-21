@@ -139,6 +139,17 @@ export default function MainHome({
     };
   }, [inputValue]);
 
+  // Auto-focus the textarea on mount and whenever selectedModel changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const textarea = document.getElementById('chat-input-textarea') as HTMLTextAreaElement;
+      if (textarea) {
+        textarea.focus();
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [selectedModel]);
+
   const toggleListening = () => {
     if (!recognitionRef.current) {
       alert("Reconhecimento de voz não suportado neste navegador.");
@@ -639,6 +650,14 @@ export default function MainHome({
 
         {/* Right side controls / Chat temporário */}
         <div className="flex items-center gap-2 relative z-50">
+          {/* Tag WSM 1.6.1 - Desktop Only */}
+          <div
+            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#eae6e1] rounded-full text-xs font-bold text-gray-700 select-none shadow-3xs"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+            <span>WSM 1.6.1</span>
+          </div>
+
           <button
             onClick={onStartTemporaryChat}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-[#faf9f6] border border-[#eae6e1] rounded-full text-xs font-bold text-gray-700 hover:text-gray-950 shadow-3xs transition-all cursor-pointer active:scale-95"
