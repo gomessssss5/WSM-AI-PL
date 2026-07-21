@@ -215,15 +215,15 @@ export default function Sidebar(props: SidebarProps) {
             </span>
           </div>
           
-          <div className="flex items-center gap-1 shrink-0">
-            {/* Search Button */}
+          <div className="hidden md:flex items-center gap-1 shrink-0">
+            {/* Search Button - Desktop Only */}
             <button
               onClick={() => {
                 if (onOpenSearchModal) {
                   onOpenSearchModal();
                 }
               }}
-              className="flex w-8 h-8 items-center justify-center rounded-lg hover:bg-black/5 text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/5 text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
               title="Pesquisar conversas"
             >
               <Search className="w-4.5 h-4.5" />
@@ -232,21 +232,35 @@ export default function Sidebar(props: SidebarProps) {
             {/* Toggle Collapse Button on Desktop */}
             <button
               onClick={handleToggleCollapse}
-              className="hidden md:flex w-8 h-8 items-center justify-center rounded-lg hover:bg-black/5 text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/5 text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
               title="Recolher painel"
             >
               <Menu className="w-4.5 h-4.5" />
             </button>
           </div>
           
-          {onCloseMobileHistory && (
-            <button 
-              onClick={onCloseMobileHistory}
-              className="md:hidden w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 active:opacity-70 transition-colors"
+          {/* Mobile Only Header Actions: Search next to X */}
+          <div className="flex md:hidden items-center gap-1 shrink-0">
+            <button
+              onClick={() => {
+                if (onOpenSearchModal) {
+                  onOpenSearchModal();
+                }
+              }}
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/5 text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
+              title="Pesquisar conversas"
             >
-              <X className="w-5 h-5 text-gray-700" strokeWidth={2} />
+              <Search className="w-4.5 h-4.5" />
             </button>
-          )}
+            {onCloseMobileHistory && (
+              <button 
+                onClick={onCloseMobileHistory}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 active:opacity-70 transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-700" strokeWidth={2} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Primary Actions */}
