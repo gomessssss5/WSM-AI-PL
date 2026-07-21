@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar';
 import SearchModal from './components/SearchModal';
 import MainHome from './components/MainHome';
 import ChatWindow from './components/ChatWindow';
+import UpdateModal from './components/UpdateModal';
 import ImagesGallery from './components/ImagesGallery';
 import Translator from './components/Translator';
 import ToolsDashboard from './components/ToolsDashboard';
@@ -38,6 +39,7 @@ export default function App() {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
 
   // Listen to User Skills from Firestore
   useEffect(() => {
@@ -1779,6 +1781,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
             onOpenStore={() => setIsStoreModalOpen(true)}
             isTemporary={!!activeSession.isTemporary}
             onStartTemporaryChat={handleNewTemporaryChat}
+            onOpenUpdateModal={() => setIsUpdateModalOpen(true)}
           />
         ) : (
           <MainHome
@@ -1802,6 +1805,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
             onOpenStore={() => setIsStoreModalOpen(true)}
             onStartTemporaryChat={handleNewTemporaryChat}
             isProfileLoading={!isProfileLoaded}
+            onOpenUpdateModal={() => setIsUpdateModalOpen(true)}
           />
         )}
       </div>
@@ -1822,6 +1826,11 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           userSkills={skills}
         />
       )}
+
+      <UpdateModal 
+        isOpen={isUpdateModalOpen} 
+        onClose={() => setIsUpdateModalOpen(false)} 
+      />
 
       {sessionToDeleteId && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200">

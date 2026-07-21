@@ -20,6 +20,7 @@ interface MainHomeProps {
   onOpenStore?: () => void;
   onStartTemporaryChat?: () => void;
   isProfileLoading?: boolean;
+  onOpenUpdateModal?: () => void;
 }
 
 export default function MainHome({
@@ -38,7 +39,8 @@ export default function MainHome({
   skills = [],
   onOpenStore,
   onStartTemporaryChat,
-  isProfileLoading = false
+  isProfileLoading = false,
+  onOpenUpdateModal
 }: MainHomeProps) {
   const [inputValue, setInputValue] = useState('');
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
@@ -651,12 +653,14 @@ export default function MainHome({
         {/* Right side controls / Chat temporário */}
         <div className="flex items-center gap-2 relative z-50">
           {/* Tag WSM 1.6.1 - Desktop Only */}
-          <div
-            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#eae6e1] rounded-full text-xs font-bold text-gray-700 select-none shadow-3xs"
+          <button
+            onClick={onOpenUpdateModal}
+            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-indigo-50/25 border border-[#eae6e1] rounded-full text-xs font-bold text-gray-700 hover:text-indigo-600 transition-colors cursor-pointer shadow-3xs active:scale-95"
+            title="Ver novidades da versão 1.6.1"
           >
             <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-            <span>WSM 1.6.1</span>
-          </div>
+            <span>Atualização: WSM 1.6.1</span>
+          </button>
 
           <button
             onClick={onStartTemporaryChat}
