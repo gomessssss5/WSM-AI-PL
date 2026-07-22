@@ -63,8 +63,15 @@ export default function TypewriterMarkdown({
     }
 
     if (!cleanText.startsWith(prevContentRef.current) && prevContentRef.current !== "") {
-      currentIndexRef.current = 0;
-      setDisplayedText("");
+      if (cleanText.length > 0 && prevContentRef.current.length > 0 && cleanText[0] === prevContentRef.current[0]) {
+        // They share a prefix (e.g. an inline tag was replaced). Adjust index instead of restarting.
+        const prevSegments = getSegments(prevContentRef.current);
+        const lenDiff = currentTotalLen - prevSegments.length;
+        currentIndexRef.current = Math.max(0, Math.min(currentTotalLen, currentIndexRef.current + lenDiff));
+      } else {
+        currentIndexRef.current = 0;
+        setDisplayedText("");
+      }
     }
 
     prevContentRef.current = cleanText;
@@ -128,7 +135,8 @@ export default function TypewriterMarkdown({
               "código 100% verificado", "corrigindo erro",
               "sandbox de depuração", "criando skill", "editando skill",
               "excluindo skill", "criou skill", "editou skill", "excluiu skill",
-              "nova tarefa", "tarefa removida", "passo concluído"
+              "nova tarefa", "tarefa removida", "passo concluído",
+              "pesquisando...", "calculando...", "verificando...", "verificando possíveis erros no código..."
            ];
            const isAgentic = prefixes.some(p => p.startsWith(textInside) || textInside.startsWith(p));
            

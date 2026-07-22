@@ -7,6 +7,7 @@ import { saveEvaluationToDb } from '../lib/chatService';
 import MarkdownRenderer from './MarkdownRenderer';
 import SearchMessageView from './SearchMessageView';
 import TypewriterMarkdown from './TypewriterMarkdown';
+import { ReasoningBlock } from './ReasoningBlock';
 import InteractiveForm from './InteractiveForm';
 import DocumentCard from './DocumentCard';
 import PacmanLoadingAnimation from './PacmanLoadingAnimation';
@@ -101,11 +102,6 @@ const cleanTaskTags = (text: string) => {
     const idx = clean.indexOf('<task>');
     clean = clean.slice(0, idx);
   }
-  
-  // Remove agentic step tags
-  clean = clean.replace(/\[nova tarefa:[\s\S]*?\]/gi, "");
-  clean = clean.replace(/\[tarefa removida:[\s\S]*?\]/gi, "");
-  clean = clean.replace(/\[passo concluído\]/gi, "");
   
   return clean.trim();
 };
@@ -283,7 +279,7 @@ export default function ChatWindow({
   const [isEffortDropdownOpen, setIsEffortDropdownOpen] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [isTasksExpanded, setIsTasksExpanded] = useState(true);
-  const [expandedRaciocinios, setExpandedRaciocinios] = useState<Record<string, boolean>>({});
+  const [completedReasoningMsgIds, setCompletedReasoningMsgIds] = useState<Set<string>>(new Set());
 
   const lastVisibleUserIndex = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -1570,54 +1566,18 @@ export default function ChatWindow({
                               if (!raciocinio) return null;
                               
                               const isCurrentlyGeneratingThisMsg = isThinking && message.id === messages[messages.length - 1]?.id;
-                              const isExpanded = expandedRaciocinios[message.id] !== undefined
-                                ? expandedRaciocinios[message.id]
-                                : true; // Default to true so it stays visible and open!
-
+                              const isHistorical = processedMessageIdsRef.current.has(message.id);
+                              
                               return (
-                                <div className="mb-4 w-full select-none rounded-xl border border-gray-200 bg-gray-50/40 p-3 shadow-xs dark:border-gray-800/40 dark:bg-gray-900/20" id={`raciocinio-container-${message.id}`}>
-                                  <div className="flex items-center justify-between">
-                                    <button
-                                      type="button"
-                                      onClick={() => setExpandedRaciocinios(prev => ({ ...prev, [message.id]: !isExpanded }))}
-                                      className="flex items-center gap-2 text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 font-semibold text-[13px] transition-colors cursor-pointer select-none py-1 group focus:outline-none"
-                                    >
-                                      <Brain className={`w-4.5 h-4.5 text-indigo-500 dark:text-indigo-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-300 ${isCurrentlyGeneratingThisMsg && !message.text.includes('</raciocinio>') ? 'animate-pulse text-indigo-600' : ''}`} />
-                                      <span>
-                                        {isCurrentlyGeneratingThisMsg && !message.text.includes('</raciocinio>') 
-                                          ? "Pensando passo a passo..." 
-                                          : "Raciocínio"}
-                                      </span>
-                                      {isExpanded ? (
-                                        <ChevronDown className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-500" />
-                                      ) : (
-                                        <ChevronRight className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-500" />
-                                      )}
-                                    </button>
-                                    {isCurrentlyGeneratingThisMsg && !message.text.includes('</raciocinio>') && (
-                                      <span className="text-[11px] text-indigo-400 dark:text-indigo-300 font-mono animate-pulse">analisando...</span>
-                                    )}
-                                  </div>
-                                  
-                                  <AnimatePresence initial={false}>
-                                  {isExpanded && (
-                                    <motion.div 
-                                      initial={{ height: 0, opacity: 0 }}
-                                      animate={{ height: "auto", opacity: 1 }}
-                                      exit={{ height: 0, opacity: 0 }}
-                                      transition={{ duration: 0.2 }}
-                                      className="overflow-hidden"
-                                    >
-                                      <div className="mt-2.5 pl-3 ml-1 border-l border-indigo-200 dark:border-indigo-800 text-[13px] text-gray-600 dark:text-gray-300 font-sans leading-relaxed whitespace-pre-wrap select-text selection:bg-indigo-50/50">
-                                        {raciocinio}
-                                        {isCurrentlyGeneratingThisMsg && !message.text.includes('</raciocinio>') && (
-                                          <span className="inline-block w-1.5 h-3.5 bg-indigo-500 ml-1 animate-pulse" />
-                                        )}
-                                      </div>
-                                    </motion.div>
-                                  )}
-                                  </AnimatePresence>
-                                </div>
+                                <ReasoningBlock
+                                  id={message.id}
+                                  raciocinio={raciocinio}
+                                  isHistorical={isHistorical}
+                                  isFinishedGeneratingAll={!isThinking}
+                                  onSequenceComplete={() => {
+                                    setCompletedReasoningMsgIds(prev => new Set(prev).add(message.id));
+                                  }}
+                                />
                               );
                             })()}
                             
@@ -1645,13 +1605,25 @@ export default function ChatWindow({
                                   </p>
                                 </div>
                               </div>
-                            ) : (
-                              <TypewriterMarkdown
-                                content={cleanSkillTags(cleanTaskTags(cleanWriterUpdateTags(cleanRaciocinioTags(message.text))))}
-                                enabled={!processedMessageIdsRef.current.has(message.id)}
-                                onComplete={() => handleTypewriterComplete(message.id)}
-                              />
-                            )}
+                            ) : (() => {
+                              const { raciocinio } = extractRaciocinio(message.text);
+                              const isCurrentlyGeneratingThisMsg = isThinking && message.id === messages[messages.length - 1]?.id;
+                              const isHistorical = processedMessageIdsRef.current.has(message.id);
+                              const isReasoningSequenceComplete = !raciocinio || isHistorical || completedReasoningMsgIds.has(message.id);
+                              
+                              if (!isReasoningSequenceComplete) {
+                                return null;
+                              }
+
+                              return (
+                                <TypewriterMarkdown
+                                  content={cleanSkillTags(cleanTaskTags(cleanWriterUpdateTags(cleanRaciocinioTags(message.text))))}
+                                  enabled={!isHistorical}
+                                  onComplete={() => handleTypewriterComplete(message.id)}
+                                />
+                              );
+                            })()}
+                            
                             {(() => {
                               const { docObj } = extractWsmDoc(extractWsmForm(cleanRaciocinioTags(message.text)).cleanText);
                               if (docObj) {

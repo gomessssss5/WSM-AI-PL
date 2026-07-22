@@ -1098,7 +1098,8 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
                   }
                 });
                 
-                const jsonText = evalResponse.text?.trim() || "{}";
+                let jsonText = evalResponse.text?.trim() || "{}";
+                jsonText = jsonText.replace(/^```(json)?\n?/i, '').replace(/\n?```$/i, '').trim();
                 debugResult = JSON.parse(jsonText);
               } catch (e: any) {
                 console.error("Error during auto debug html:", e);
@@ -1141,7 +1142,12 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
                 finalTagText = `\n\n[código 100% verificado: sem erros | HTML_BASE64:${htmlBase64}]\n\n`;
               }
             }
-            fullOutput = fullOutput.replace(thinkingText, finalTagText);
+            const lastIdx = fullOutput.lastIndexOf(thinkingText);
+            if (lastIdx !== -1) {
+              fullOutput = fullOutput.substring(0, lastIdx) + finalTagText + fullOutput.substring(lastIdx + thinkingText.length);
+            } else {
+              fullOutput = fullOutput.replace(thinkingText, finalTagText);
+            }
             sendEvent({ type: "sync_text", text: fullOutput });
           }
           currentContents.push({ role: "user", parts: functionResponseParts });
