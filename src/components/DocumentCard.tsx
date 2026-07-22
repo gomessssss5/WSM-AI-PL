@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { WsmDocument } from '../types';
-import { FileText, MoreHorizontal, Download, Expand, Maximize2, X } from 'lucide-react';
+import { FileText, Download, Maximize2, X } from 'lucide-react';
 import MarkdownRenderer from './MarkdownRenderer';
-import html2pdf from 'html2pdf.js';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface DocumentCardProps {
   document: WsmDocument;
+  key?: React.Key;
 }
 
 export default function DocumentCard({ document }: DocumentCardProps) {
@@ -24,28 +24,13 @@ export default function DocumentCard({ document }: DocumentCardProps) {
     setIsMenuOpen(false);
   };
 
-  const handleDownloadPDF = () => {
-    const element = window.document.getElementById('pdf-content-wrapper');
-    if (element) {
-      const opt = {
-        margin: 10,
-        filename: `${document.title}.pdf`,
-        image: { type: 'jpeg' as const, quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
-      };
-      html2pdf().set(opt).from(element).save();
-    }
-    setIsMenuOpen(false);
-  };
-
   const handleDownloadDOCX = () => {
     const element = window.document.getElementById('pdf-content-wrapper');
     if (element) {
       const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'></head><body>";
       const footer = "</body></html>";
       const html = header + element.innerHTML + footer;
-      const blob = new Blob(['\\ufeff', html], { type: 'application/msword' });
+      const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
       const url = URL.createObjectURL(blob);
       const link = window.document.createElement('a');
       link.href = url;
@@ -62,18 +47,18 @@ export default function DocumentCard({ document }: DocumentCardProps) {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="w-full border border-[#eae6e1] rounded-xl bg-white shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden mt-3 max-w-[400px]"
+        className="w-full border border-[#eae6e1] rounded-xl bg-white shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden"
         onClick={() => setIsFullscreen(true)}
       >
         <div className="flex items-center justify-between p-3 border-b border-[#eae6e1] bg-[#fcfbfa]">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded bg-blue-100 flex items-center justify-center text-blue-600">
+            <div className="w-8 h-8 rounded bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
               <FileText className="w-4 h-4" />
             </div>
             <span className="font-semibold text-[13px] text-gray-800 line-clamp-1">{document.title}</span>
           </div>
           <button 
-            className="p-1 hover:bg-gray-200 rounded text-gray-500 transition-colors"
+            className="p-1 hover:bg-gray-200 rounded text-gray-500 transition-colors shrink-0"
             onClick={(e) => {
               e.stopPropagation();
               setIsFullscreen(true);
@@ -133,12 +118,6 @@ export default function DocumentCard({ document }: DocumentCardProps) {
                         className="w-full text-left px-4 py-2 text-[13px] text-gray-700 hover:bg-gray-50"
                       >
                         Baixar como Markdown (.md)
-                      </button>
-                      <button 
-                        onClick={handleDownloadPDF}
-                        className="w-full text-left px-4 py-2 text-[13px] text-gray-700 hover:bg-gray-50"
-                      >
-                        Baixar como PDF (.pdf)
                       </button>
                       <button 
                         onClick={handleDownloadDOCX}

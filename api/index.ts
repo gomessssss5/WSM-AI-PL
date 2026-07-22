@@ -708,17 +708,24 @@ O formulário será preenchido pelo usuário e as respostas retornarão para voc
 `;
 
     const docInstruction = `
-Você pode gerar documentos formais para o usuário (como relatórios longos, artigos, análises, redações, resumos detalhados, etc). Quando o usuário pedir a criação de um documento assim longo, não escreva o documento inteiro solto na mensagem de chat.
-Em vez disso, diga no chat que você criou o documento (ex: "Aqui está o relatório que você pediu. Criei um documento para você:") e inclua um bloco JSON na sua resposta delimitado EXATAMENTE pelas tags <wsm_doc> e </wsm_doc>.
-O frontend irá interceptar esse bloco e renderizar um componente de documento bonito e expansível.
+Você pode gerar documentos formais para o usuário (como relatórios longos, artigos, análises, redações, resumos detalhados, etc). Quando o usuário pedir a criação de um documento assim longo, ou quando for necessário criar múltiplos documentos (1, 2, 3 ou quantos precisar para cobrir diferentes tópicos, propostas ou relatórios), não escreva o documento inteiro solto na mensagem de chat.
+Em vez disso, diga no chat que você criou o(s) documento(s) (ex: "Aqui estão os documentos que você pediu:") e inclua um bloco JSON para cada documento delimitado EXATAMENTE pelas tags <wsm_doc> e </wsm_doc>. É totalmente possível e incentivado gerar 2 ou mais blocos <wsm_doc>...</wsm_doc> em uma mesma resposta quando necessário!
+O frontend irá interceptar esses blocos e renderizar os componentes de documentos em uma grade bonita e organizada (para celulares, um embaixo do outro; para computadores, dois lado a lado).
 
 ATENÇÃO: NUNCA use a tag <wsm_doc> para gerar códigos de programação (HTML, CSS, JS, React, etc)!! O formato <wsm_doc> é ESTRITAMENTE para documentos de texto (artigos, relatórios, redações). Para Códigos, você DEVE gerar blocos de código Markdown normais (ex: \`\`\`html ... \`\`\`), pois nosso sistema possui um renderizador/preview interativo próprio para códigos que só funciona com os blocos Markdown padrão!
 
 Exemplo de formato para DOCUMENTOS TEXTUAIS:
 <wsm_doc>
 {
-  "title": "Relatório de Exemplo",
-  "content": "# Relatório\\n\\nEste é o conteúdo do documento em **Markdown**.\\n\\nVocê pode usar toda a formatação suportada..."
+  "title": "Relatório de Exemplo 1",
+  "content": "# Relatório 1\\n\\nEste é o conteúdo do primeiro documento em **Markdown**..."
+}
+</wsm_doc>
+
+<wsm_doc>
+{
+  "title": "Relatório de Exemplo 2",
+  "content": "# Relatório 2\\n\\nEste é o conteúdo do segundo documento em **Markdown**..."
 }
 </wsm_doc>
 Certifique-se de escapar corretamente as aspas e quebras de linha dentro da string \`content\` JSON (use \\n para novas linhas e \\" para aspas).

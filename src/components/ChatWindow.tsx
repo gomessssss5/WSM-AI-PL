@@ -1564,11 +1564,17 @@ export default function ChatWindow({
                                     )
                                   )}
                                   
-                                  {/* 4. Document card - only after reasoning AND typewriter complete */}
+                                  {/* 4. Document cards - only after reasoning AND typewriter complete */}
                                   {isReasoningDone && isTypewriterDone && (() => {
-                                    const { docObj } = extractWsmDoc(extractWsmForm(cleanRaciocinioTags(message.text)).cleanText);
-                                    if (docObj) {
-                                      return <DocumentCard document={docObj} />;
+                                    const { docObjs } = extractWsmDoc(extractWsmForm(cleanRaciocinioTags(message.text)).cleanText);
+                                    if (docObjs && docObjs.length > 0) {
+                                      return (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mt-3 w-full">
+                                          {docObjs.map((doc, idx) => (
+                                            <DocumentCard key={idx} document={doc} />
+                                          ))}
+                                        </div>
+                                      );
                                     }
                                     return null;
                                   })()}

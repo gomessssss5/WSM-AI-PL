@@ -8,6 +8,7 @@ import { extractWsmDoc } from '../utils/docParser';
 import { extractRaciocinio, cleanRaciocinioTags } from '../utils/raciocinioParser';
 import { ReasoningBlock } from './ReasoningBlock';
 import { SearchImageCarousel } from './SearchImageCarousel';
+import DocumentCard from './DocumentCard';
 
 interface SearchMessageViewProps {
   message: Message;
@@ -398,6 +399,21 @@ export default function SearchMessageView({
           />
         </div>
       )}
+
+      {/* 5b. Document Cards Grid */}
+      {(showFinal || !message.isSimulatingSearch) && (() => {
+        const { docObjs } = extractWsmDoc(extractWsmForm(cleanRaciocinioTags(message.finalSynthesis || message.text || "")).cleanText);
+        if (docObjs && docObjs.length > 0) {
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mt-3 w-full">
+              {docObjs.map((doc, idx) => (
+                <DocumentCard key={idx} document={doc} />
+              ))}
+            </div>
+          );
+        }
+        return null;
+      })()}
 
       {/* 6. Tavily Search Sources Pill footer */}
       {(showFinal || !message.isSimulatingSearch) && message.searchSources && message.searchSources.length > 0 && onOpenSources && (
