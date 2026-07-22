@@ -5,6 +5,8 @@ import MarkdownRenderer from './MarkdownRenderer';
 import TypewriterMarkdown from './TypewriterMarkdown';
 import { extractWsmForm } from '../utils/formParser';
 import { extractWsmDoc } from '../utils/docParser';
+import { extractRaciocinio, cleanRaciocinioTags } from '../utils/raciocinioParser';
+import { ReasoningBlock } from './ReasoningBlock';
 import { SearchImageCarousel } from './SearchImageCarousel';
 
 interface SearchMessageViewProps {
@@ -26,6 +28,13 @@ export default function SearchMessageView({
 }: SearchMessageViewProps) {
   const steps = message.searchSteps || [];
   const totalSteps = steps.length;
+
+  const rawSearchText = message.text || message.finalSynthesis || "";
+  const { cleanText, raciocinio, isFinished: isRaciocinioFinished } = extractRaciocinio(rawSearchText);
+
+  const [isReasoningDone, setIsReasoningDone] = useState<boolean>(() => {
+    return !raciocinio || !message.isSimulatingSearch;
+  });
 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<Record<number, boolean>>({});
@@ -76,6 +85,7 @@ export default function SearchMessageView({
     setCompletedSteps({});
     setShowFinal(false);
     activeStepStartTimeRef.current = Date.now();
+    setIsReasoningDone(!raciocinio || !message.isSimulatingSearch);
   }
 
   useEffect(() => {
@@ -89,6 +99,11 @@ export default function SearchMessageView({
       setCompletedSteps(allDone);
       setCurrentStepIndex(totalSteps);
       setShowFinal(true);
+      return;
+    }
+
+    if (!isReasoningDone) {
+      // Do NOT start search simulation steps until reasoning finishes and auto-closes
       return;
     }
 
@@ -194,41 +209,51 @@ export default function SearchMessageView({
     return !!completedSteps[idx];
   };
 
-  // 1. Initial Loading Placeholder before Research Plan Arrives
-  if (totalSteps === 0) {
-    if (!message.isSimulatingSearch) {
-      let cleanFallback = extractWsmForm(message.text || message.finalSynthesis || "Erro na pesquisa.").cleanText;
-      cleanFallback = extractWsmDoc(cleanFallback).cleanText;
-      return (
-        <div className="w-full flex flex-col space-y-3.5 animate-fade-in">
-          <div className="prose max-w-none text-[14px] text-gray-800 leading-relaxed w-full">
-            <MarkdownRenderer content={cleanFallback} />
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex flex-col space-y-3.5 w-full animate-fade-in py-1">
-        <div className="flex items-center gap-2.5 text-gray-500 text-[14px] font-medium select-none">
-          <Globe className="w-4.5 h-4.5 text-purple-500 animate-spin" />
-          <span className="italic">Planejando a melhor estratégia de pesquisa na web...</span>
-        </div>
-        <div className="h-14 w-full bg-gray-50/55 border border-gray-150 rounded-xl animate-pulse" />
-      </div>
-    );
-  }
-
   return (
     <div className="w-full flex flex-col space-y-3.5 animate-fade-in">
-      {/* 2. Introduction Narrative Paragraph */}
-      {message.searchIntro && (
-        <div className="prose max-w-none text-[14px] text-gray-800 leading-relaxed w-full">
-          <MarkdownRenderer content={message.searchIntro} />
-        </div>
+      {/* 0. Reasoning Block */}
+      {raciocinio && (
+        <ReasoningBlock
+          id={message.id}
+          raciocinio={raciocinio}
+          isReasoningFinished={isRaciocinioFinished || !message.isSimulatingSearch}
+          isHistorical={!message.isSimulatingSearch}
+          onSequenceComplete={() => {
+            setIsReasoningDone(true);
+          }}
+        />
       )}
 
-      {/* 3. Interactive Steps Stream */}
+      {/* Gate everything else on isReasoningDone */}
+      {isReasoningDone && (
+        <>
+          {/* 1. Initial Loading Placeholder before Research Plan Arrives */}
+          {totalSteps === 0 ? (
+            !message.isSimulatingSearch ? (
+              <div className="w-full flex flex-col space-y-3.5 animate-fade-in">
+                <div className="prose max-w-none text-[14px] text-gray-800 leading-relaxed w-full">
+                  <MarkdownRenderer content={extractWsmDoc(extractWsmForm(cleanRaciocinioTags(message.text || message.finalSynthesis || "Erro na pesquisa.")).cleanText).cleanText} />
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col space-y-3.5 w-full animate-fade-in py-1">
+                <div className="flex items-center gap-2.5 text-gray-500 text-[14px] font-medium select-none">
+                  <Globe className="w-4.5 h-4.5 text-purple-500 animate-spin" />
+                  <span className="italic">Planejando a melhor estratégia de pesquisa na web...</span>
+                </div>
+                <div className="h-14 w-full bg-gray-50/55 border border-gray-150 rounded-xl animate-pulse" />
+              </div>
+            )
+          ) : (
+            <>
+              {/* 2. Introduction Narrative Paragraph */}
+              {message.searchIntro && (
+                <div className="prose max-w-none text-[14px] text-gray-800 leading-relaxed w-full">
+                  <MarkdownRenderer content={message.searchIntro} />
+                </div>
+              )}
+
+              {/* 3. Interactive Steps Stream */}
       {steps.map((step, idx) => {
         if (!isStepVisible(idx)) return null;
 
@@ -428,6 +453,10 @@ export default function SearchMessageView({
             );
           })()}
         </div>
+      )}
+            </>
+          )}
+        </>
       )}
     </div>
   );
