@@ -14,6 +14,7 @@ import PacmanLoadingAnimation from './PacmanLoadingAnimation';
 import { extractWsmForm } from '../utils/formParser';
 import { extractWsmDoc } from '../utils/docParser';
 import { extractWsmTask, cleanWsmTaskTags } from '../utils/taskParser';
+import { SearchImageCarousel } from './SearchImageCarousel';
 
 const UiverseLoader = ({ isThinking = false }: { isThinking?: boolean }) => (
   <div 
@@ -1494,56 +1495,9 @@ export default function ChatWindow({
                     ) : (
                       <>
                         {/* Tavily Search Images Carousel */}
-                        {message.searchImages && message.searchImages.length > 0 && (() => {
-                          const displayableImages = message.searchImages.filter(img => {
-                            try {
-                              if (!img.startsWith("http://") && !img.startsWith("https://")) return false;
-                              const lower = img.toLowerCase();
-                              if (
-                                lower.includes("instagram.com") ||
-                                lower.includes("facebook.com") ||
-                                lower.includes("twitter.com") ||
-                                lower.includes("x.com") ||
-                                lower.includes("tiktok.com") ||
-                                lower.includes("youtube.com") ||
-                                lower.includes("vimeo.com")
-                              ) {
-                                return false;
-                              }
-                              return true;
-                            } catch {
-                              return false;
-                            }
-                          });
-
-                          if (displayableImages.length === 0) return null;
-
-                          return (
-                            <div className="mb-3 flex gap-2.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-200 select-none max-w-full">
-                              {displayableImages.map((imgUrl, imgIdx) => (
-                                <button
-                                  key={imgIdx}
-                                  type="button"
-                                  onClick={() => setLightboxImage(imgUrl)}
-                                  className="relative h-24 w-36 rounded-lg overflow-hidden border border-gray-150 shadow-xxs shrink-0 bg-gray-50 hover:opacity-90 transition-opacity cursor-pointer group"
-                                >
-                                  <img
-                                    src={imgUrl}
-                                    alt={`Busca ${imgIdx + 1}`}
-                                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                    referrerPolicy="no-referrer"
-                                    onError={(e) => {
-                                      (e.target as HTMLImageElement).style.display = 'none';
-                                    }}
-                                  />
-                                  <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <ZoomIn className="w-4.5 h-4.5 text-white filter drop-shadow-xs" />
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          );
-                        })()}
+                        {message.searchImages && message.searchImages.length > 0 && (
+                          <SearchImageCarousel images={message.searchImages} onImageClick={setLightboxImage} />
+                        )}
 
                         {/* Render rich formats if present */}
                         {message.text === "" && isThinking && message.id === messages[messages.length - 1].id ? (
@@ -1562,7 +1516,7 @@ export default function ChatWindow({
                         ) : (
                           <div className="prose max-w-none text-[14px] text-gray-800 w-full">
                             {(() => {
-                              const { cleanText, raciocinio } = extractRaciocinio(message.text);
+                              const { cleanText, raciocinio, isFinished: isRaciocinioFinished } = extractRaciocinio(message.text);
                               if (!raciocinio) return null;
                               
                               const isCurrentlyGeneratingThisMsg = isThinking && message.id === messages[messages.length - 1]?.id;
@@ -1572,8 +1526,8 @@ export default function ChatWindow({
                                 <ReasoningBlock
                                   id={message.id}
                                   raciocinio={raciocinio}
+                                  isReasoningFinished={isRaciocinioFinished || !isThinking}
                                   isHistorical={isHistorical}
-                                  isFinishedGeneratingAll={!isThinking}
                                   onSequenceComplete={() => {
                                     setCompletedReasoningMsgIds(prev => new Set(prev).add(message.id));
                                   }}
