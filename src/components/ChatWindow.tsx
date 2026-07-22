@@ -281,6 +281,7 @@ export default function ChatWindow({
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [isTasksExpanded, setIsTasksExpanded] = useState(true);
   const [completedReasoningMsgIds, setCompletedReasoningMsgIds] = useState<Set<string>>(new Set());
+  const [completedTypewriterMsgIds, setCompletedTypewriterMsgIds] = useState<Set<string>>(new Set());
 
   const lastVisibleUserIndex = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -821,6 +822,13 @@ export default function ChatWindow({
     if (!isThinking && messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg.sender === 'ai' && !processedTaskMessageIdsRef.current.has(lastMsg.id)) {
+        const { raciocinio } = extractRaciocinio(lastMsg.text || "");
+        const isHistorical = processedMessageIdsRef.current.has(lastMsg.id);
+        const isReasoningDone = !raciocinio || isHistorical || completedReasoningMsgIds.has(lastMsg.id);
+        const isTypewriterDone = isHistorical || completedTypewriterMsgIds.has(lastMsg.id);
+
+        if (!isReasoningDone || !isTypewriterDone) return;
+
         const textToParse = lastMsg.finalSynthesis || lastMsg.text || "";
         const { taskObj } = extractWsmTask(textToParse);
         
@@ -850,7 +858,7 @@ export default function ChatWindow({
         }
       }
     }
-  }, [messages, isThinking, onSaveTask]);
+  }, [messages, isThinking, onSaveTask, completedReasoningMsgIds, completedTypewriterMsgIds]);
 
   // Typewriter tracking logic to avoid re-triggering for historical messages
   const processedMessageIdsRef = useRef<Set<string>>(new Set());
@@ -870,6 +878,7 @@ export default function ChatWindow({
 
   const handleTypewriterComplete = (messageId: string) => {
     processedMessageIdsRef.current.add(messageId);
+    setCompletedTypewriterMsgIds(prev => new Set(prev).add(messageId));
     scrollToBottom('smooth');
   };
 
@@ -1097,6 +1106,15 @@ export default function ChatWindow({
       break; // User replied, so no form should be active anymore
     }
     if (m.sender === 'ai' && !m.isSimulatingSearch) {
+      const { raciocinio } = extractRaciocinio(m.text || "");
+      const isHistorical = processedMessageIdsRef.current.has(m.id);
+      const isReasoningDone = !raciocinio || isHistorical || completedReasoningMsgIds.has(m.id);
+      const isTypewriterDone = isHistorical || completedTypewriterMsgIds.has(m.id);
+
+      if (!isReasoningDone || !isTypewriterDone) {
+        break; // Wait until reasoning AND typewriter are finished
+      }
+
       const textToParse = m.finalSynthesis || m.text || "";
       const { formObj } = extractWsmForm(textToParse);
       if (formObj) {
@@ -1494,262 +1512,268 @@ export default function ChatWindow({
                       />
                     ) : (
                       <>
-                        {/* Tavily Search Images Carousel */}
-                        {message.searchImages && message.searchImages.length > 0 && (
-                          <SearchImageCarousel images={message.searchImages} onImageClick={setLightboxImage} />
-                        )}
-
-                        {/* Render rich formats if present */}
-                        {message.text === "" && isThinking && message.id === messages[messages.length - 1].id ? (
-                          <div className="flex items-center gap-2 text-gray-500 text-xs py-1">
-                            <PacmanLoadingAnimation />
-                          </div>
-                        ) : message.text === "Você cancelou essa resposta" ? (
-                          <div className="bg-red-50 text-red-600 border border-red-200 rounded-lg p-3 text-sm font-medium flex items-center gap-2 w-fit">
-                            <XCircle className="w-4.5 h-4.5 shrink-0" />
-                            <span>Você cancelou essa resposta</span>
-                          </div>
-                        ) : isUser ? (
-                          <div className="prose max-w-none text-[14px] text-gray-800 w-full whitespace-pre-wrap">
-                            {displayUserText(message.text)}
-                          </div>
-                        ) : (
-                          <div className="prose max-w-none text-[14px] text-gray-800 w-full">
-                            {(() => {
-                              const { cleanText, raciocinio, isFinished: isRaciocinioFinished } = extractRaciocinio(message.text);
-                              if (!raciocinio) return null;
-                              
-                              const isCurrentlyGeneratingThisMsg = isThinking && message.id === messages[messages.length - 1]?.id;
-                              const isHistorical = processedMessageIdsRef.current.has(message.id);
-                              
-                              return (
-                                <ReasoningBlock
-                                  id={message.id}
-                                  raciocinio={raciocinio}
-                                  isReasoningFinished={isRaciocinioFinished || !isThinking}
-                                  isHistorical={isHistorical}
-                                  onSequenceComplete={() => {
-                                    setCompletedReasoningMsgIds(prev => new Set(prev).add(message.id));
-                                  }}
-                                />
-                              );
-                            })()}
-                            
-                            {(() => {
-                              const match = /\[Lendo Skill:\s*(.*?)\]/i.exec(message.text);
-                              if (match) {
-                                const rawSkillName = match[1].replace(/\]/g, '').trim();
-                                return (
-                                  <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-medium text-[13px] bg-indigo-50/70 dark:bg-indigo-950/20 border border-indigo-150/50 dark:border-indigo-900/30 rounded-xl px-3.5 py-2 mb-3 w-fit select-none shadow-xxs">
-                                    <BookOpen className="w-4.5 h-4.5 text-indigo-500 dark:text-indigo-400 animate-pulse" />
-                                    <span>Lendo Skill: <strong className="font-semibold text-indigo-700 dark:text-indigo-300">{rawSkillName}</strong></span>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            })()}
-                            
-                            {message.text.includes("WSM 1.6 está muito sobrecarregado") ? (
-                              <div className="bg-amber-50/90 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 p-5 rounded-2xl flex items-start gap-3.5 shadow-xs my-1 animate-in fade-in duration-300">
-                                <AlertTriangle className="text-amber-500 dark:text-amber-400 mt-0.5 shrink-0" size={20} />
-                                <div className="space-y-1">
-                                  <p className="font-extrabold text-amber-900 dark:text-amber-100 text-[14px]">Alerta de Sobrecarga</p>
-                                  <p className="text-[13px] text-amber-800 dark:text-amber-200 leading-relaxed font-semibold">
-                                    WSM 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.
-                                  </p>
-                                </div>
-                              </div>
-                            ) : (() => {
-                              const { raciocinio } = extractRaciocinio(message.text);
-                              const isCurrentlyGeneratingThisMsg = isThinking && message.id === messages[messages.length - 1]?.id;
-                              const isHistorical = processedMessageIdsRef.current.has(message.id);
-                              const isReasoningSequenceComplete = !raciocinio || isHistorical || completedReasoningMsgIds.has(message.id);
-                              
-                              if (!isReasoningSequenceComplete) {
-                                return null;
-                              }
-
-                              return (
-                                <TypewriterMarkdown
-                                  content={cleanSkillTags(cleanTaskTags(cleanWriterUpdateTags(cleanRaciocinioTags(message.text))))}
-                                  enabled={!isHistorical}
-                                  onComplete={() => handleTypewriterComplete(message.id)}
-                                />
-                              );
-                            })()}
-                            
-                            {(() => {
-                              const { docObj } = extractWsmDoc(extractWsmForm(cleanRaciocinioTags(message.text)).cleanText);
-                              if (docObj) {
-                                return <DocumentCard document={docObj} />;
-                              }
-                              return null;
-                            })()}
-                            {isThinking && message.id === messages[messages.length - 1]?.id && (
-                              <div className="flex items-center gap-2 text-gray-500 text-xs py-2 mt-2">
-                                <PacmanLoadingAnimation />
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {/* Table Render */}
-                    {message.tableData && (
-                      <div className="mt-3 overflow-x-auto rounded-lg border border-gray-150 shadow-xxs">
-                        <table className="min-w-full divide-y divide-gray-150 bg-white">
-                          <thead className="bg-[#fcfbfa]">
-                            <tr>
-                              {message.tableData.headers.map((header, i) => (
-                                <th
-                                  key={i}
-                                  className="px-3 py-1.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider"
-                                >
-                                  {header}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-150 text-[11px]">
-                            {message.tableData.rows.map((row, i) => (
-                              <tr key={i} className="hover:bg-gray-50 transition-colors">
-                                {row.map((cell, j) => (
-                                  <td
-                                    key={j}
-                                    className="px-3 py-1.5 font-medium text-gray-600"
-                                  >
-                                    {cell}
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-
-                    {/* Image Render */}
-                    {message.imageUrl === 'cyberpunk_city' && renderCyberpunkCityIllustration()}
-
-                    {/* Translation Render */}
-                    {message.translationData && (
-                      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2.5 w-full">
-                        <div className="bg-gray-50 p-3 rounded-lg border border-gray-150">
-                          <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">
-                            {message.translationData.sourceLang}
-                          </div>
-                          <p className="text-gray-600 italic text-[12px]">
-                            "{message.translationData.original}"
-                          </p>
-                        </div>
-                        <div className="bg-[#5c53e5]/5 p-3 rounded-lg border border-[#5c53e5]/10">
-                          <div className="text-[9px] font-bold text-[#5c53e5] uppercase tracking-wider mb-1">
-                            {message.translationData.targetLang}
-                          </div>
-                          <p className="text-gray-800 font-medium text-[12px]">
-                            "{message.translationData.translated}"
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Code Block Render */}
-                    {message.codeBlock && (
-                      <div className="mt-3 bg-gray-900 rounded-lg overflow-hidden shadow-xs w-full max-w-xl border border-gray-800">
-                        <div className="bg-gray-950 px-3 py-1.5 flex items-center justify-between text-[10px] text-gray-400">
-                          <span className="font-mono text-gray-500">
-                            {message.codeBlock.language}
-                          </span>
-                          <button
-                            onClick={() =>
-                              copyToClipboard(message.codeBlock!.code, message.id)
-                            }
-                            className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer"
-                          >
-                            {copiedId === message.id ? (
-                              <>
-                                <Check className="w-3 h-3 text-emerald-400" />
-                                <span className="text-emerald-400 font-semibold">Copiado!</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3 h-3" />
-                                <span>Copiar</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
-                        <pre className="p-3 overflow-x-auto text-[11px] text-gray-200 font-mono leading-relaxed bg-gray-900/40">
-                          <code>{message.codeBlock.code}</code>
-                        </pre>
-                      </div>
-                    )}
-
-                    {/* Tavily Search Sources Pill footer */}
-                    {!message.isSearchMessage && message.searchSources && message.searchSources.length > 0 && (
-                      <div className="mt-3.5 pt-2 border-t border-gray-150 flex items-center justify-start">
                         {(() => {
-                          const uniqueSources: { hostname: string; title: string; url: string; snippet?: string }[] = [];
-                          message.searchSources.forEach(src => {
-                            let hostname = '';
-                            try {
-                              hostname = new URL(src.url).hostname.replace('www.', '');
-                            } catch {
-                              hostname = src.title;
-                            }
-                            if (!uniqueSources.some(s => s.url === src.url)) {
-                              uniqueSources.push({ hostname, title: src.title, url: src.url, snippet: src.snippet });
-                            }
-                          });
-
-                          const count = uniqueSources.length;
-                          const previewSources = uniqueSources.slice(0, 3);
+                          const { cleanText, raciocinio, isFinished: isRaciocinioFinished } = extractRaciocinio(message.text);
+                          const isCurrentlyGeneratingThisMsg = isThinking && message.id === messages[messages.length - 1]?.id;
+                          const isHistorical = processedMessageIdsRef.current.has(message.id);
+                          const isReasoningDone = !raciocinio || isHistorical || completedReasoningMsgIds.has(message.id);
+                          const isTypewriterDone = isHistorical || completedTypewriterMsgIds.has(message.id);
 
                           return (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const idx = messages.findIndex(m => m.id === message.id);
-                                let userQuery = title || "busca";
-                                if (idx > 0) {
-                                  for (let i = idx - 1; i >= 0; i--) {
-                                    if (messages[i].sender === 'user') {
-                                      userQuery = messages[i].text;
-                                      break;
+                            <>
+                              {/* Tavily Search Images Carousel - only after typewriter completes */}
+                              {isReasoningDone && isTypewriterDone && message.searchImages && message.searchImages.length > 0 && (
+                                <SearchImageCarousel images={message.searchImages} onImageClick={setLightboxImage} />
+                              )}
+
+                              {/* Render rich formats if present */}
+                              {message.text === "" && isThinking && message.id === messages[messages.length - 1].id ? (
+                                <div className="flex items-center gap-2 text-gray-500 text-xs py-1">
+                                  <PacmanLoadingAnimation />
+                                </div>
+                              ) : message.text === "Você cancelou essa resposta" ? (
+                                <div className="bg-red-50 text-red-600 border border-red-200 rounded-lg p-3 text-sm font-medium flex items-center gap-2 w-fit">
+                                  <XCircle className="w-4.5 h-4.5 shrink-0" />
+                                  <span>Você cancelou essa resposta</span>
+                                </div>
+                              ) : isUser ? (
+                                <div className="prose max-w-none text-[14px] text-gray-800 w-full whitespace-pre-wrap">
+                                  {displayUserText(message.text)}
+                                </div>
+                              ) : (
+                                <div className="prose max-w-none text-[14px] text-gray-800 w-full">
+                                  {/* 1. Reasoning Block */}
+                                  {raciocinio && (
+                                    <ReasoningBlock
+                                      id={message.id}
+                                      raciocinio={raciocinio}
+                                      isReasoningFinished={isRaciocinioFinished || !isThinking}
+                                      isHistorical={isHistorical}
+                                      onSequenceComplete={() => {
+                                        setCompletedReasoningMsgIds(prev => new Set(prev).add(message.id));
+                                      }}
+                                    />
+                                  )}
+                                  
+                                  {/* 2. Skill reading banner - only after reasoning sequence completes */}
+                                  {isReasoningDone && (() => {
+                                    const match = /\[Lendo Skill:\s*(.*?)\]/i.exec(message.text);
+                                    if (match) {
+                                      const rawSkillName = match[1].replace(/\]/g, '').trim();
+                                      return (
+                                        <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-medium text-[13px] bg-indigo-50/70 dark:bg-indigo-950/20 border border-indigo-150/50 dark:border-indigo-900/30 rounded-xl px-3.5 py-2 mb-3 w-fit select-none shadow-xxs">
+                                          <BookOpen className="w-4.5 h-4.5 text-indigo-500 dark:text-indigo-400 animate-pulse" />
+                                          <span>Lendo Skill: <strong className="font-semibold text-indigo-700 dark:text-indigo-300">{rawSkillName}</strong></span>
+                                        </div>
+                                      );
                                     }
-                                  }
-                                }
-                                setDrawerSources({ sources: uniqueSources, query: userQuery, count });
-                              }}
-                              className="flex items-center gap-2 px-2.5 py-1 bg-white hover:bg-[#f0ede8] border border-[#eae6e1] rounded-full text-xs font-semibold transition-all shadow-3xs cursor-pointer select-none active:scale-95"
-                            >
-                              {/* Overlapping Favicons */}
-                              <div className="flex items-center -space-x-1.5">
-                                {previewSources.map((src, pIdx) => {
-                                  const favUrl = `https://www.google.com/s2/favicons?domain=${src.hostname}&sz=32`;
-                                  return (
-                                    <div 
-                                      key={pIdx} 
-                                      className="w-4.5 h-4.5 rounded-full border border-white bg-white flex items-center justify-center shrink-0 overflow-hidden shadow-3xs"
-                                    >
-                                      <img
-                                        src={favUrl}
-                                        alt=""
-                                        className="w-3 h-3 rounded-full object-contain"
-                                        onError={(e) => {
-                                          (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%23666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>';
-                                        }}
+                                    return null;
+                                  })()}
+                                  
+                                  {/* 3. Main AI Text response - only after reasoning sequence completes */}
+                                  {isReasoningDone && (
+                                    message.text.includes("WSM 1.6 está muito sobrecarregado") ? (
+                                      <div className="bg-amber-50/90 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 p-5 rounded-2xl flex items-start gap-3.5 shadow-xs my-1 animate-in fade-in duration-300">
+                                        <AlertTriangle className="text-amber-500 dark:text-amber-400 mt-0.5 shrink-0" size={20} />
+                                        <div className="space-y-1">
+                                          <p className="font-extrabold text-amber-900 dark:text-amber-100 text-[14px]">Alerta de Sobrecarga</p>
+                                          <p className="text-[13px] text-amber-800 dark:text-amber-200 leading-relaxed font-semibold">
+                                            WSM 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.
+                                          </p>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <TypewriterMarkdown
+                                        content={cleanSkillTags(cleanTaskTags(cleanWriterUpdateTags(cleanRaciocinioTags(message.text))))}
+                                        enabled={!isHistorical}
+                                        onComplete={() => handleTypewriterComplete(message.id)}
                                       />
+                                    )
+                                  )}
+                                  
+                                  {/* 4. Document card - only after reasoning AND typewriter complete */}
+                                  {isReasoningDone && isTypewriterDone && (() => {
+                                    const { docObj } = extractWsmDoc(extractWsmForm(cleanRaciocinioTags(message.text)).cleanText);
+                                    if (docObj) {
+                                      return <DocumentCard document={docObj} />;
+                                    }
+                                    return null;
+                                  })()}
+
+                                  {/* 5. Thinking indicator - only while reasoning or typewriter are actively generating */}
+                                  {isThinking && message.id === messages[messages.length - 1]?.id && isReasoningDone && !isTypewriterDone && (
+                                    <div className="flex items-center gap-2 text-gray-500 text-xs py-2 mt-2">
+                                      <PacmanLoadingAnimation />
                                     </div>
-                                  );
-                                })}
-                              </div>
-                              <span className="text-[#5c53e5] font-semibold text-[11.5px] pr-0.5">{count} {count === 1 ? 'fonte' : 'fontes'}</span>
-                            </button>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* 6. Rich format cards - only after reasoning AND typewriter complete */}
+                              {isReasoningDone && isTypewriterDone && (
+                                <>
+                                  {/* Table Render */}
+                                  {message.tableData && (
+                                    <div className="mt-3 overflow-x-auto rounded-lg border border-gray-150 shadow-xxs">
+                                      <table className="min-w-full divide-y divide-gray-150 bg-white">
+                                        <thead className="bg-[#fcfbfa]">
+                                          <tr>
+                                            {message.tableData.headers.map((header, i) => (
+                                              <th
+                                                key={i}
+                                                className="px-3 py-1.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider"
+                                              >
+                                                {header}
+                                              </th>
+                                            ))}
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-150 text-[11px]">
+                                          {message.tableData.rows.map((row, i) => (
+                                            <tr key={i} className="hover:bg-gray-50 transition-colors">
+                                              {row.map((cell, j) => (
+                                                <td
+                                                  key={j}
+                                                  className="px-3 py-1.5 font-medium text-gray-600"
+                                                >
+                                                  {cell}
+                                                </td>
+                                              ))}
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
+
+                                  {/* Image Render */}
+                                  {message.imageUrl === 'cyberpunk_city' && renderCyberpunkCityIllustration()}
+
+                                  {/* Translation Render */}
+                                  {message.translationData && (
+                                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2.5 w-full">
+                                      <div className="bg-gray-50 p-3 rounded-lg border border-gray-150">
+                                        <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                                          {message.translationData.sourceLang}
+                                        </div>
+                                        <p className="text-gray-600 italic text-[12px]">
+                                          "{message.translationData.original}"
+                                        </p>
+                                      </div>
+                                      <div className="bg-[#5c53e5]/5 p-3 rounded-lg border border-[#5c53e5]/10">
+                                        <div className="text-[9px] font-bold text-[#5c53e5] uppercase tracking-wider mb-1">
+                                          {message.translationData.targetLang}
+                                        </div>
+                                        <p className="text-gray-800 font-medium text-[12px]">
+                                          "{message.translationData.translated}"
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Code Block Render */}
+                                  {message.codeBlock && (
+                                    <div className="mt-3 bg-gray-900 rounded-lg overflow-hidden shadow-xs w-full max-w-xl border border-gray-800">
+                                      <div className="bg-gray-950 px-3 py-1.5 flex items-center justify-between text-[10px] text-gray-400">
+                                        <span className="font-mono text-gray-500">
+                                          {message.codeBlock.language}
+                                        </span>
+                                        <button
+                                          onClick={() =>
+                                            copyToClipboard(message.codeBlock!.code, message.id)
+                                          }
+                                          className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer"
+                                        >
+                                          {copiedId === message.id ? (
+                                            <>
+                                              <Check className="w-3 h-3 text-emerald-400" />
+                                              <span className="text-emerald-400 font-semibold">Copiado!</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Copy className="w-3 h-3" />
+                                              <span>Copiar</span>
+                                            </>
+                                          )}
+                                        </button>
+                                      </div>
+                                      <pre className="p-3 overflow-x-auto text-[11px] text-gray-200 font-mono leading-relaxed bg-gray-900/40">
+                                        <code>{message.codeBlock.code}</code>
+                                      </pre>
+                                    </div>
+                                  )}
+
+                                  {/* Tavily Search Sources Pill footer */}
+                                  {!message.isSearchMessage && message.searchSources && message.searchSources.length > 0 && (
+                                    <div className="mt-3.5 pt-2 border-t border-gray-150 flex items-center justify-start">
+                                      {(() => {
+                                        const uniqueSources: { hostname: string; title: string; url: string; snippet?: string }[] = [];
+                                        message.searchSources.forEach(src => {
+                                          let hostname = '';
+                                          try {
+                                            hostname = new URL(src.url).hostname.replace('www.', '');
+                                          } catch {
+                                            hostname = src.title;
+                                          }
+                                          if (!uniqueSources.some(s => s.url === src.url)) {
+                                            uniqueSources.push({ hostname, title: src.title, url: src.url, snippet: src.snippet });
+                                          }
+                                        });
+
+                                        const count = uniqueSources.length;
+                                        const previewSources = uniqueSources.slice(0, 3);
+
+                                        return (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const idx = messages.findIndex(m => m.id === message.id);
+                                              let userQuery = title || "busca";
+                                              if (idx > 0) {
+                                                for (let i = idx - 1; i >= 0; i--) {
+                                                  if (messages[i].sender === 'user') {
+                                                    userQuery = messages[i].text;
+                                                    break;
+                                                  }
+                                                }
+                                              }
+                                              setDrawerSources({ sources: uniqueSources, query: userQuery, count });
+                                            }}
+                                            className="flex items-center gap-2 px-2.5 py-1 bg-white hover:bg-[#f0ede8] border border-[#eae6e1] rounded-full text-xs font-semibold transition-all shadow-3xs cursor-pointer select-none active:scale-95"
+                                          >
+                                            {/* Overlapping Favicons */}
+                                            <div className="flex items-center -space-x-1.5">
+                                              {previewSources.map((src, pIdx) => {
+                                                const favUrl = `https://www.google.com/s2/favicons?domain=${src.hostname}&sz=32`;
+                                                return (
+                                                  <div 
+                                                    key={pIdx} 
+                                                    className="w-4.5 h-4.5 rounded-full border border-white bg-white flex items-center justify-center shrink-0 overflow-hidden shadow-3xs"
+                                                  >
+                                                    <img
+                                                      src={favUrl}
+                                                      alt=""
+                                                      className="w-3 h-3 rounded-full object-contain"
+                                                      onError={(e) => {
+                                                        (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%23666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>';
+                                                      }}
+                                                    />
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                            <span className="text-[#5c53e5] font-semibold text-[11.5px] pr-0.5">{count} {count === 1 ? 'fonte' : 'fontes'}</span>
+                                          </button>
+                                        );
+                                      })()}
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </>
                           );
                         })()}
-                      </div>
+                      </>
                     )}
                   </div>
                   )}
