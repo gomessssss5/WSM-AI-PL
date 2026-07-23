@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { ChevronDown, ArrowLeft, Scale, AlertTriangle, Target } from 'lucide-react';
+import { ChevronDown, ArrowLeft, Scale, AlertTriangle, Target, Award, Trophy } from 'lucide-react';
+import BenchmarkChart from './BenchmarkChart';
+import { benchmark04CategoryData } from '../data/benchmark04Data';
 
 interface BenchmarkCategory {
   title: string;
@@ -171,7 +173,7 @@ const categories: BenchmarkCategory[] = [
 ];
 
 export default function BenchmarkPage() {
-  const [selectedBenchmark, setSelectedBenchmark] = useState('Benchmark 03');
+  const [selectedBenchmark, setSelectedBenchmark] = useState('Benchmark 04');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   return (
@@ -249,6 +251,15 @@ export default function BenchmarkPage() {
                   >
                     Benchmark 03
                   </button>
+                  <button
+                    className="w-full text-center px-4 py-2.5 text-[14px] text-orange-600 hover:bg-orange-50 font-bold transition-colors cursor-pointer"
+                    onClick={() => {
+                      setSelectedBenchmark('Benchmark 04');
+                      setIsDropdownOpen(false);
+                    }}
+                  >
+                    Benchmark 04 (v6)
+                  </button>
                 </div>
               </>
             )}
@@ -258,7 +269,9 @@ export default function BenchmarkPage() {
               ? '18 de Julho de 2026' 
               : selectedBenchmark === 'Benchmark 02' 
                 ? '19 de Julho de 2026' 
-                : '20 de Julho de 2026'}
+                : selectedBenchmark === 'Benchmark 03'
+                  ? '20 de Julho de 2026'
+                  : '21 de Julho de 2026'}
           </span>
         </div>
 
@@ -610,7 +623,347 @@ export default function BenchmarkPage() {
               );
             }
 
-            // Benchmark 03 Comparison Layout
+            if (selectedBenchmark === 'Benchmark 03') {
+              return (
+                <React.Fragment key={category.title}>
+                  {!isFirst && <div className="w-full h-px bg-[#eae6e1] mx-auto" />}
+                  <section className="w-full flex flex-col items-center animate-in fade-in duration-300">
+                    <h3 className="text-[20px] md:text-[24px] font-bold text-gray-900 text-center mb-6">
+                      {category.title}
+                    </h3>
+                    
+                    {/* Grid split layout */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
+                      {/* Left side: Benchmark 02 */}
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="text-xs font-bold text-gray-400 tracking-wider uppercase bg-gray-100 px-3 py-1 rounded-full">
+                          Benchmark 02 (19/07)
+                        </div>
+                        {category.image2 ? (
+                          <div className="w-full rounded-2xl overflow-hidden border border-[#eae6e1] shadow-sm bg-white hover:shadow-md transition-all">
+                            <img 
+                              src={category.image2} 
+                              alt={`${category.title} - Benchmark 02`}
+                              className="w-full h-auto object-contain"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-full h-full min-h-[220px] flex flex-col items-center justify-center text-center p-6 bg-white border border-[#eae6e1] rounded-2xl shadow-inner text-gray-400 select-none">
+                            <Scale className="w-8 h-8 text-gray-300 mb-3 animate-pulse" />
+                            <span className="text-[14px] font-bold text-gray-700 mb-1">Sem Alterações</span>
+                            <p className="text-[11px] text-gray-500 max-w-xs leading-relaxed">
+                              O desempenho nesta categoria permanece consistente com os resultados de 18 de Julho.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right side: Benchmark 03 */}
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="text-xs font-bold text-brand-600 tracking-wider uppercase bg-brand-50 px-3 py-1 rounded-full">
+                          Benchmark 03 (20/07)
+                        </div>
+                        {category.image3 ? (
+                          <div className="w-full rounded-2xl overflow-hidden border border-[#eae6e1] shadow-sm bg-white hover:shadow-md transition-all">
+                            <img 
+                              src={category.image3} 
+                              alt={`${category.title} - Benchmark 03`}
+                              className="w-full h-auto object-contain"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-full h-full min-h-[220px] flex flex-col items-center justify-center text-center p-6 bg-indigo-50/25 border border-indigo-100 dark:border-indigo-900/30 rounded-2xl shadow-inner text-indigo-400 select-none">
+                            <Scale className="w-8 h-8 text-indigo-300 mb-3 animate-pulse" />
+                            <span className="text-[14px] font-bold text-indigo-700 mb-1">Desempenho Consolidado</span>
+                            <p className="text-[11px] text-gray-500 max-w-xs leading-relaxed">
+                              O desempenho nesta categoria permanece estável e consolidado com as otimizações do dia 19 de Julho.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {index === 0 && (
+                      <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
+                        <ComparisonArrow
+                          leftText="88.8"
+                          rightText="89.9"
+                          centerText="+ 1,24%"
+                          color="green"
+                          bubblePosition="right"
+                          tag="Pontuação Geral"
+                        />
+                        <ComparisonArrow
+                          leftText="5ª posição"
+                          rightText="5ª posição"
+                          color="gray"
+                          bubblePosition="center"
+                          tag="Posição Geral"
+                        />
+                      </div>
+                    )}
+
+                    {index === 1 && (
+                      <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
+                        <ComparisonArrow
+                          leftText="88"
+                          rightText="89"
+                          centerText="+ 1,14%"
+                          color="green"
+                          bubblePosition="right"
+                          tag="Pontuação"
+                        />
+                        <ComparisonArrow
+                          leftText="6ª posição"
+                          rightText="6ª posição"
+                          color="gray"
+                          bubblePosition="center"
+                          tag="Posição"
+                        />
+                      </div>
+                    )}
+
+                    {index === 2 && (
+                      <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
+                        <ComparisonArrow
+                          leftText="89"
+                          rightText="90"
+                          centerText="+ 1,12%"
+                          color="green"
+                          bubblePosition="right"
+                          tag="Pontuação"
+                        />
+                        <ComparisonArrow
+                          leftText="6ª Posição"
+                          rightText="5ª Posição"
+                          color="green"
+                          bubblePosition="right"
+                          tag="Posição"
+                        />
+                      </div>
+                    )}
+
+                    {index === 3 && (
+                      <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
+                        <ComparisonArrow
+                          leftText="90"
+                          rightText="89"
+                          centerText="- 1,11%"
+                          color="red"
+                          bubblePosition="left"
+                          tag="Pontuação"
+                        />
+                        <ComparisonArrow
+                          leftText="8ª posição"
+                          rightText="8ª posição"
+                          color="gray"
+                          bubblePosition="center"
+                          tag="Posição"
+                        />
+                      </div>
+                    )}
+
+                    {index === 4 && (
+                      <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
+                        <ComparisonArrow
+                          leftText="87"
+                          rightText="88"
+                          centerText="+ 1,15%"
+                          color="green"
+                          bubblePosition="right"
+                          tag="Pontuação"
+                        />
+                        <ComparisonArrow
+                          leftText="7ª posição"
+                          rightText="6ª posição"
+                          color="green"
+                          bubblePosition="right"
+                          tag="Posição"
+                        />
+                      </div>
+                    )}
+
+                    {index === 5 && (
+                      <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
+                        <ComparisonArrow
+                          leftText="88"
+                          rightText="89"
+                          centerText="+ 1,14%"
+                          color="green"
+                          bubblePosition="right"
+                          tag="Pontuação"
+                        />
+                        <ComparisonArrow
+                          leftText="5ª posição"
+                          rightText="5ª posição"
+                          color="gray"
+                          bubblePosition="center"
+                          tag="Posição"
+                        />
+                      </div>
+                    )}
+
+                    {index === 6 && (
+                      <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
+                        <ComparisonArrow
+                          leftText="87"
+                          rightText="90"
+                          centerText="+ 3,45%"
+                          color="green"
+                          bubblePosition="right"
+                          tag="Pontuação"
+                        />
+                        <ComparisonArrow
+                          leftText="7ª posição"
+                          rightText="4ª posição"
+                          color="green"
+                          bubblePosition="right"
+                          tag="Posição"
+                        />
+                      </div>
+                    )}
+
+                    {index === 7 && (
+                      <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
+                        <ComparisonArrow
+                          leftText="93"
+                          rightText="94"
+                          centerText="+ 1,08%"
+                          color="green"
+                          bubblePosition="right"
+                          tag="Pontuação"
+                        />
+                        <ComparisonArrow
+                          leftText="5ª posição"
+                          rightText="4ª posição"
+                          color="green"
+                          bubblePosition="right"
+                          tag="Posição"
+                        />
+                      </div>
+                    )}
+
+                    {index === 8 && (
+                      <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
+                        <ComparisonArrow
+                          leftText="90"
+                          rightText="90"
+                          centerText="0,00%"
+                          color="gray"
+                          bubblePosition="center"
+                          tag="Pontuação"
+                        />
+                        <ComparisonArrow
+                          leftText="5ª posição"
+                          rightText="5ª posição"
+                          color="gray"
+                          bubblePosition="center"
+                          tag="Posição"
+                        />
+                      </div>
+                    )}
+
+                    {index === 9 && (
+                      <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
+                        <ComparisonArrow
+                          leftText="85"
+                          rightText="87"
+                          centerText="+ 2,35%"
+                          color="green"
+                          bubblePosition="right"
+                          tag="Pontuação"
+                        />
+                        <ComparisonArrow
+                          leftText="9ª posição"
+                          rightText="9ª posição"
+                          color="gray"
+                          bubblePosition="center"
+                          tag="Posição"
+                        />
+                      </div>
+                    )}
+
+                    {index === 10 && (
+                      <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
+                        <ComparisonArrow
+                          leftText="92"
+                          rightText="93"
+                          centerText="+ 1,09%"
+                          color="green"
+                          bubblePosition="right"
+                          tag="Pontuação"
+                        />
+                        <ComparisonArrow
+                          leftText="2ª posição"
+                          rightText="1ª posição"
+                          color="green"
+                          bubblePosition="right"
+                          tag="Posição"
+                        />
+                      </div>
+                    )}
+
+                    {index === 11 && (
+                      <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
+                        <ComparisonArrow
+                          leftText="88"
+                          rightText="89"
+                          centerText="+ 1,14%"
+                          color="green"
+                          bubblePosition="right"
+                          tag="Pontuação"
+                        />
+                        <ComparisonArrow
+                          leftText="4ª posição"
+                          rightText="3ª posição"
+                          color="green"
+                          bubblePosition="right"
+                          tag="Posição"
+                        />
+                      </div>
+                    )}
+
+                    {index === 12 && (
+                      <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
+                        <ComparisonArrow
+                          leftText="89"
+                          rightText="91"
+                          centerText="+ 2,25%"
+                          color="green"
+                          bubblePosition="right"
+                          tag="Pontuação"
+                        />
+                        <ComparisonArrow
+                          leftText="4ª posição"
+                          rightText="3ª posição"
+                          color="green"
+                          bubblePosition="right"
+                          tag="Posição"
+                        />
+                      </div>
+                    )}
+
+                    {index === 0 && (
+                      <div className="mt-8 w-full max-w-4xl bg-indigo-50/60 border border-indigo-150 rounded-2xl p-5 md:p-6 flex gap-4 items-start text-left shadow-xs">
+                        <div className="p-2 bg-indigo-100 rounded-xl text-indigo-800 shrink-0 mt-0.5">
+                          <Scale className="w-5 h-5 text-indigo-600 animate-pulse" />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <h4 className="text-indigo-900 font-bold text-[15px] md:text-[16px]">Estabilidade e Consolidação</h4>
+                          <p className="text-indigo-800 text-[13px] md:text-[14px] leading-relaxed font-medium">
+                            No Benchmark 03 (20 de Julho de 2026), observamos a consolidação dos ajustes introduzidos no dia anterior. Com um refinamento contínuo nas diretivas de raciocínio lógico (estilo o1) e alocação de memória, o WSM 1.6 Pro atinge novos picos de pontuação em raciocínio, lógica e matemática avançada, garantindo posições ainda mais elevadas no ranking global de IAs de alta performance.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                </React.Fragment>
+              );
+            }
+
+            // Default: Benchmark 04 Comparison Layout (Split: Benchmark 03 Image Left, Benchmark 04 Chart Right)
             return (
               <React.Fragment key={category.title}>
                 {!isFirst && <div className="w-full h-px bg-[#eae6e1] mx-auto" />}
@@ -621,34 +974,9 @@ export default function BenchmarkPage() {
                   
                   {/* Grid split layout */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
-                    {/* Left side: Benchmark 02 */}
+                    {/* Left side: Benchmark 03 (Image) */}
                     <div className="flex flex-col items-center gap-3">
-                      <div className="text-xs font-bold text-gray-400 tracking-wider uppercase bg-gray-100 px-3 py-1 rounded-full">
-                        Benchmark 02 (19/07)
-                      </div>
-                      {category.image2 ? (
-                        <div className="w-full rounded-2xl overflow-hidden border border-[#eae6e1] shadow-sm bg-white hover:shadow-md transition-all">
-                          <img 
-                            src={category.image2} 
-                            alt={`${category.title} - Benchmark 02`}
-                            className="w-full h-auto object-contain"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-full h-full min-h-[220px] flex flex-col items-center justify-center text-center p-6 bg-white border border-[#eae6e1] rounded-2xl shadow-inner text-gray-400 select-none">
-                          <Scale className="w-8 h-8 text-gray-300 mb-3 animate-pulse" />
-                          <span className="text-[14px] font-bold text-gray-700 mb-1">Sem Alterações</span>
-                          <p className="text-[11px] text-gray-500 max-w-xs leading-relaxed">
-                            O desempenho nesta categoria permanece consistente com os resultados de 18 de Julho.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Right side: Benchmark 03 */}
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="text-xs font-bold text-brand-600 tracking-wider uppercase bg-brand-50 px-3 py-1 rounded-full">
+                      <div className="text-xs font-bold text-gray-500 tracking-wider uppercase bg-gray-100 px-3 py-1 rounded-full">
                         Benchmark 03 (20/07)
                       </div>
                       {category.image3 ? (
@@ -661,32 +989,44 @@ export default function BenchmarkPage() {
                           />
                         </div>
                       ) : (
-                        <div className="w-full h-full min-h-[220px] flex flex-col items-center justify-center text-center p-6 bg-indigo-50/25 border border-indigo-100 dark:border-indigo-900/30 rounded-2xl shadow-inner text-indigo-400 select-none">
-                          <Scale className="w-8 h-8 text-indigo-300 mb-3 animate-pulse" />
-                          <span className="text-[14px] font-bold text-indigo-700 mb-1">Desempenho Consolidado</span>
+                        <div className="w-full h-full min-h-[220px] flex flex-col items-center justify-center text-center p-6 bg-white border border-[#eae6e1] rounded-2xl shadow-inner text-gray-400 select-none">
+                          <Scale className="w-8 h-8 text-gray-300 mb-3 animate-pulse" />
+                          <span className="text-[14px] font-bold text-gray-700 mb-1">Resultado Anterior</span>
                           <p className="text-[11px] text-gray-500 max-w-xs leading-relaxed">
-                            O desempenho nesta categoria permanece estável e consolidado com as otimizações do dia 19 de Julho.
+                            Dados mantidos da avaliação de 20 de Julho.
                           </p>
                         </div>
                       )}
                     </div>
+
+                    {/* Right side: Benchmark 04 (Interactive Chart with exact PDF data) */}
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="text-xs font-bold text-orange-600 tracking-wider uppercase bg-orange-50 px-3 py-1 rounded-full border border-orange-200/50">
+                        Benchmark 04 - v6 (21/07)
+                      </div>
+                      <BenchmarkChart 
+                        categoryTitle={category.title}
+                        data={benchmark04CategoryData[index] || []}
+                      />
+                    </div>
                   </div>
 
+                  {/* Comparison Indicators */}
                   {index === 0 && (
                     <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
                       <ComparisonArrow
-                        leftText="88.8"
-                        rightText="89.9"
-                        centerText="+ 1,24%"
+                        leftText="89.9"
+                        rightText="91.2"
+                        centerText="+ 1,45%"
                         color="green"
                         bubblePosition="right"
                         tag="Pontuação Geral"
                       />
                       <ComparisonArrow
                         leftText="5ª posição"
-                        rightText="5ª posição"
-                        color="gray"
-                        bubblePosition="center"
+                        rightText="4ª posição (TOP TIER!)"
+                        color="green"
+                        bubblePosition="right"
                         tag="Posição Geral"
                       />
                     </div>
@@ -695,11 +1035,11 @@ export default function BenchmarkPage() {
                   {index === 1 && (
                     <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
                       <ComparisonArrow
-                        leftText="88"
+                        leftText="89"
                         rightText="89"
-                        centerText="+ 1,14%"
-                        color="green"
-                        bubblePosition="right"
+                        centerText="0,00%"
+                        color="gray"
+                        bubblePosition="center"
                         tag="Pontuação"
                       />
                       <ComparisonArrow
@@ -715,18 +1055,18 @@ export default function BenchmarkPage() {
                   {index === 2 && (
                     <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
                       <ComparisonArrow
-                        leftText="89"
+                        leftText="90"
                         rightText="90"
-                        centerText="+ 1,12%"
-                        color="green"
-                        bubblePosition="right"
+                        centerText="0,00%"
+                        color="gray"
+                        bubblePosition="center"
                         tag="Pontuação"
                       />
                       <ComparisonArrow
-                        leftText="6ª Posição"
+                        leftText="5ª Posição"
                         rightText="5ª Posição"
-                        color="green"
-                        bubblePosition="right"
+                        color="gray"
+                        bubblePosition="center"
                         tag="Posição"
                       />
                     </div>
@@ -735,18 +1075,18 @@ export default function BenchmarkPage() {
                   {index === 3 && (
                     <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
                       <ComparisonArrow
-                        leftText="90"
-                        rightText="89"
-                        centerText="- 1,11%"
-                        color="red"
-                        bubblePosition="left"
+                        leftText="89"
+                        rightText="93"
+                        centerText="+ 4,49%"
+                        color="green"
+                        bubblePosition="right"
                         tag="Pontuação"
                       />
                       <ComparisonArrow
                         leftText="8ª posição"
-                        rightText="8ª posição"
-                        color="gray"
-                        bubblePosition="center"
+                        rightText="3ª posição"
+                        color="green"
+                        bubblePosition="right"
                         tag="Posição"
                       />
                     </div>
@@ -755,18 +1095,18 @@ export default function BenchmarkPage() {
                   {index === 4 && (
                     <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
                       <ComparisonArrow
-                        leftText="87"
-                        rightText="88"
-                        centerText="+ 1,15%"
+                        leftText="88"
+                        rightText="90"
+                        centerText="+ 2,27%"
                         color="green"
                         bubblePosition="right"
                         tag="Pontuação"
                       />
                       <ComparisonArrow
-                        leftText="7ª posição"
+                        leftText="6ª posição"
                         rightText="6ª posição"
-                        color="green"
-                        bubblePosition="right"
+                        color="gray"
+                        bubblePosition="center"
                         tag="Posição"
                       />
                     </div>
@@ -775,18 +1115,18 @@ export default function BenchmarkPage() {
                   {index === 5 && (
                     <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
                       <ComparisonArrow
-                        leftText="88"
-                        rightText="89"
-                        centerText="+ 1,14%"
+                        leftText="89"
+                        rightText="90"
+                        centerText="+ 1,12%"
                         color="green"
                         bubblePosition="right"
                         tag="Pontuação"
                       />
                       <ComparisonArrow
                         leftText="5ª posição"
-                        rightText="5ª posição"
-                        color="gray"
-                        bubblePosition="center"
+                        rightText="4ª posição"
+                        color="green"
+                        bubblePosition="right"
                         tag="Posição"
                       />
                     </div>
@@ -795,18 +1135,18 @@ export default function BenchmarkPage() {
                   {index === 6 && (
                     <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
                       <ComparisonArrow
-                        leftText="87"
+                        leftText="90"
                         rightText="90"
-                        centerText="+ 3,45%"
-                        color="green"
-                        bubblePosition="right"
+                        centerText="0,00%"
+                        color="gray"
+                        bubblePosition="center"
                         tag="Pontuação"
                       />
                       <ComparisonArrow
-                        leftText="7ª posição"
+                        leftText="4ª posição"
                         rightText="4ª posição"
-                        color="green"
-                        bubblePosition="right"
+                        color="gray"
+                        bubblePosition="center"
                         tag="Posição"
                       />
                     </div>
@@ -815,16 +1155,16 @@ export default function BenchmarkPage() {
                   {index === 7 && (
                     <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
                       <ComparisonArrow
-                        leftText="93"
-                        rightText="94"
-                        centerText="+ 1,08%"
+                        leftText="94"
+                        rightText="96"
+                        centerText="+ 2,13%"
                         color="green"
                         bubblePosition="right"
                         tag="Pontuação"
                       />
                       <ComparisonArrow
-                        leftText="5ª posição"
-                        rightText="4ª posição"
+                        leftText="4ª posição"
+                        rightText="2ª posição"
                         color="green"
                         bubblePosition="right"
                         tag="Posição"
@@ -855,18 +1195,18 @@ export default function BenchmarkPage() {
                   {index === 9 && (
                     <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
                       <ComparisonArrow
-                        leftText="85"
-                        rightText="87"
-                        centerText="+ 2,35%"
-                        color="green"
-                        bubblePosition="right"
+                        leftText="87"
+                        rightText="83"
+                        centerText="- 4,60%"
+                        color="red"
+                        bubblePosition="left"
                         tag="Pontuação"
                       />
                       <ComparisonArrow
                         leftText="9ª posição"
-                        rightText="9ª posição"
-                        color="gray"
-                        bubblePosition="center"
+                        rightText="11ª posição"
+                        color="red"
+                        bubblePosition="left"
                         tag="Posição"
                       />
                     </div>
@@ -875,44 +1215,24 @@ export default function BenchmarkPage() {
                   {index === 10 && (
                     <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
                       <ComparisonArrow
-                        leftText="92"
+                        leftText="93"
                         rightText="93"
-                        centerText="+ 1,09%"
+                        centerText="0,00%"
                         color="green"
-                        bubblePosition="right"
+                        bubblePosition="center"
                         tag="Pontuação"
                       />
                       <ComparisonArrow
-                        leftText="2ª posição"
-                        rightText="1ª posição"
+                        leftText="1ª posição"
+                        rightText="1ª posição (1º LUGAR GLOBAL)"
                         color="green"
-                        bubblePosition="right"
+                        bubblePosition="center"
                         tag="Posição"
                       />
                     </div>
                   )}
 
                   {index === 11 && (
-                    <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
-                      <ComparisonArrow
-                        leftText="88"
-                        rightText="89"
-                        centerText="+ 1,14%"
-                        color="green"
-                        bubblePosition="right"
-                        tag="Pontuação"
-                      />
-                      <ComparisonArrow
-                        leftText="4ª posição"
-                        rightText="3ª posição"
-                        color="green"
-                        bubblePosition="right"
-                        tag="Posição"
-                      />
-                    </div>
-                  )}
-
-                  {index === 12 && (
                     <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
                       <ComparisonArrow
                         leftText="89"
@@ -923,8 +1243,8 @@ export default function BenchmarkPage() {
                         tag="Pontuação"
                       />
                       <ComparisonArrow
-                        leftText="4ª posição"
-                        rightText="3ª posição"
+                        leftText="3ª posição"
+                        rightText="1ª posição (1º LUGAR GLOBAL)"
                         color="green"
                         bubblePosition="right"
                         tag="Posição"
@@ -932,15 +1252,40 @@ export default function BenchmarkPage() {
                     </div>
                   )}
 
+                  {index === 12 && (
+                    <div className="mt-8 w-full max-w-4xl flex flex-col items-center gap-3">
+                      <ComparisonArrow
+                        leftText="91"
+                        rightText="91"
+                        centerText="0,00%"
+                        color="gray"
+                        bubblePosition="center"
+                        tag="Pontuação"
+                      />
+                      <ComparisonArrow
+                        leftText="3ª posição"
+                        rightText="3ª posição"
+                        color="gray"
+                        bubblePosition="center"
+                        tag="Posição"
+                      />
+                    </div>
+                  )}
+
                   {index === 0 && (
-                    <div className="mt-8 w-full max-w-4xl bg-indigo-50/60 border border-indigo-150 rounded-2xl p-5 md:p-6 flex gap-4 items-start text-left shadow-xs">
-                      <div className="p-2 bg-indigo-100 rounded-xl text-indigo-800 shrink-0 mt-0.5">
-                        <Scale className="w-5 h-5 text-indigo-600 animate-pulse" />
+                    <div className="mt-8 w-full max-w-4xl bg-orange-50/80 border border-orange-200/80 rounded-2xl p-5 md:p-6 flex gap-4 items-start text-left shadow-xs">
+                      <div className="p-2.5 bg-orange-500 rounded-xl text-white shrink-0 mt-0.5 shadow-sm">
+                        <Trophy className="w-5 h-5" />
                       </div>
                       <div className="flex flex-col gap-1.5">
-                        <h4 className="text-indigo-900 font-bold text-[15px] md:text-[16px]">Estabilidade e Consolidação</h4>
-                        <p className="text-indigo-800 text-[13px] md:text-[14px] leading-relaxed font-medium">
-                          No Benchmark 03 (20 de Julho de 2026), observamos a consolidação dos ajustes introduzidos no dia anterior. Com um refinamento contínuo nas diretivas de raciocínio lógico (estilo o1) e alocação de memória, o WSM 1.6 Pro atinge novos picos de pontuação em raciocínio, lógica e matemática avançada, garantindo posições ainda mais elevadas no ranking global de IAs de alta performance.
+                        <h4 className="text-orange-950 font-bold text-[15px] md:text-[16px] flex items-center gap-2">
+                          <span>WSM 1.6 Pro Alto entra no TOP TIER Global (4º Lugar)</span>
+                          <span className="text-[10px] bg-orange-600 text-white font-black uppercase px-2 py-0.5 rounded-full">
+                            Novo Benchmark v6
+                          </span>
+                        </h4>
+                        <p className="text-orange-900 text-[13px] md:text-[14px] leading-relaxed font-medium">
+                          Com a nova metodologia de <strong>Scoring JUSTO (padrão indústria)</strong> de 21 de Julho de 2026, a WSM 1.6 Pro Alto alcançou <strong>91.2 pontos</strong>, garantindo formalmente o 4º lugar entre os 13 maiores modelos globais. Ela supera concorrentes diretos como GPT-5.5 (90.2), Inkling (89.2), Gemini 3.6 Flash (88.7) e conquistou o 1º lugar global em Lógica Lateral (91 pts) e Memória Multi-turno (93 pts)!
                         </p>
                       </div>
                     </div>

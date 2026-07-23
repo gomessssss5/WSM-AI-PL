@@ -1,32 +1,61 @@
 import { ScheduledTask } from '../types';
 
-export function extractWsmTask(text: string | undefined): { cleanText: string, taskObj: Partial<ScheduledTask> | null } {
-  if (!text) return { cleanText: '', taskObj: null };
+export function extractWsmTasks(text: string | undefined): { cleanText: string; taskObjs: Partial<ScheduledTask>[] } {
+  if (!text) return { cleanText: '', taskObjs: [] };
 
-  const regex = /<wsm_task\s+title="([^"]+)"\s+prompt="([^"]+)"\s+scheduleType="([^"]+)"\s+time="([^"]+)"\s*\/>/i;
-  const match = text.match(regex);
+  const taskRegex = /<wsm_task\b([^>]*)\/?>/gi;
+  const matches = [...text.matchAll(taskRegex)];
 
-  if (!match) return { cleanText: text, taskObj: null };
-
-  const cleanText = text.replace(regex, '').trim();
-  const scheduleTypeRaw = match[3].toLowerCase();
-  let scheduleType: 'once' | 'daily' | 'weekly' | 'monthly' = 'once';
-  
-  if (['once', 'daily', 'weekly', 'monthly'].includes(scheduleTypeRaw)) {
-    scheduleType = scheduleTypeRaw as any;
+  if (matches.length === 0) {
+    return { cleanText: text, taskObjs: [] };
   }
 
-  const taskObj: Partial<ScheduledTask> = {
-    title: match[1],
-    prompt: match[2],
-    scheduleType,
-    time: match[4]
-  };
+  const taskObjs: Partial<ScheduledTask>[] = [];
 
-  return { cleanText, taskObj };
+  for (const match of matches) {
+    const attrString = match[1];
+
+    const getAttr = (name: string) => {
+      const regex = new RegExp(`${name}=["']([^"']*)["']`, 'i');
+      const m = attrString.match(regex);
+      return m ? m[1] : '';
+    };
+
+    const title = getAttr('title');
+    const prompt = getAttr('prompt');
+    const scheduleTypeRaw = getAttr('scheduleType').toLowerCase();
+    const time = getAttr('time') || '09:00';
+
+    let scheduleType: 'once' | 'daily' | 'weekly' | 'monthly' = 'once';
+    if (['once', 'daily', 'weekly', 'monthly'].includes(scheduleTypeRaw)) {
+      scheduleType = scheduleTypeRaw as any;
+    }
+
+    if (title || prompt) {
+      taskObjs.push({
+        title: title || 'Nova Tarefa Agendada',
+        prompt: prompt || title || 'Executar tarefa agendada',
+        scheduleType,
+        time
+      });
+    }
+  }
+
+  const cleanText = text.replace(taskRegex, '').trim();
+
+  return { cleanText, taskObjs };
+}
+
+export function extractWsmTask(text: string | undefined): { cleanText: string; taskObj: Partial<ScheduledTask> | null; taskObjs: Partial<ScheduledTask>[] } {
+  const { cleanText, taskObjs } = extractWsmTasks(text);
+  return {
+    cleanText,
+    taskObj: taskObjs.length > 0 ? taskObjs[0] : null,
+    taskObjs
+  };
 }
 
 export function cleanWsmTaskTags(text: string | undefined): string {
   if (!text) return '';
-  return text.replace(/<wsm_task[\s\S]*?\/>/gi, '').trim();
+  return text.replace(/<wsm_task[\s\S]*?\/?>/gi, '').trim();
 }

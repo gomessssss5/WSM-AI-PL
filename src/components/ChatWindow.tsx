@@ -10,10 +10,11 @@ import TypewriterMarkdown from './TypewriterMarkdown';
 import { ReasoningBlock } from './ReasoningBlock';
 import InteractiveForm from './InteractiveForm';
 import DocumentCard from './DocumentCard';
+import ScheduledTaskCard from './ScheduledTaskCard';
 import PacmanLoadingAnimation from './PacmanLoadingAnimation';
 import { extractWsmForm } from '../utils/formParser';
 import { extractWsmDoc } from '../utils/docParser';
-import { extractWsmTask, cleanWsmTaskTags } from '../utils/taskParser';
+import { extractWsmTask, extractWsmTasks, cleanWsmTaskTags } from '../utils/taskParser';
 import { extractRaciocinio, cleanRaciocinioTags } from '../utils/raciocinioParser';
 import { SearchImageCarousel } from './SearchImageCarousel';
 
@@ -207,6 +208,7 @@ interface ChatWindowProps {
   skills?: Skill[];
   onOpenStore?: () => void;
   onSaveTask?: (task: any) => void;
+  onOpenScheduledTasks?: () => void;
   onStartTemporaryChat?: () => void;
   isTemporary?: boolean;
   onOpenUpdateModal?: () => void;
@@ -242,6 +244,7 @@ export default function ChatWindow({
   skills = [],
   onOpenStore,
   onSaveTask,
+  onOpenScheduledTasks,
   onStartTemporaryChat,
   isTemporary = false,
   onOpenUpdateModal
@@ -803,31 +806,36 @@ export default function ChatWindow({
         if (!isReasoningDone || !isTypewriterDone) return;
 
         const textToParse = lastMsg.finalSynthesis || lastMsg.text || "";
-        const { taskObj } = extractWsmTask(textToParse);
+        const { taskObjs } = extractWsmTasks(textToParse);
         
-        if (taskObj && taskObj.title && taskObj.prompt && taskObj.scheduleType && taskObj.time) {
+        if (taskObjs && taskObjs.length > 0) {
           processedTaskMessageIdsRef.current.add(lastMsg.id);
           
-          let nextRun = new Date();
-          const [hours, minutes] = taskObj.time.split(':').map(Number);
-          nextRun.setHours(hours, minutes, 0, 0);
-          
-          if (nextRun.getTime() < Date.now()) {
-            nextRun.setDate(nextRun.getDate() + 1);
-          }
+          taskObjs.forEach(taskObj => {
+            if (taskObj && taskObj.title && taskObj.prompt && taskObj.scheduleType && taskObj.time) {
+              let nextRun = new Date();
+              const [hours, minutes] = taskObj.time.split(':').map(Number);
+              if (!isNaN(hours) && !isNaN(minutes)) {
+                nextRun.setHours(hours, minutes, 0, 0);
+                if (nextRun.getTime() < Date.now()) {
+                  nextRun.setDate(nextRun.getDate() + 1);
+                }
+              }
 
-          if (onSaveTask) {
-            onSaveTask({
-              id: crypto.randomUUID(),
-              title: taskObj.title,
-              prompt: taskObj.prompt,
-              scheduleType: taskObj.scheduleType,
-              time: taskObj.time,
-              isActive: true,
-              createdAt: new Date(),
-              nextRunAt: nextRun
-            });
-          }
+              if (onSaveTask) {
+                onSaveTask({
+                  id: crypto.randomUUID(),
+                  title: taskObj.title,
+                  prompt: taskObj.prompt,
+                  scheduleType: taskObj.scheduleType,
+                  time: taskObj.time,
+                  isActive: true,
+                  createdAt: new Date(),
+                  nextRunAt: nextRun
+                });
+              }
+            }
+          });
         }
       }
     }
@@ -1572,6 +1580,21 @@ export default function ChatWindow({
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mt-3 w-full">
                                           {docObjs.map((doc, idx) => (
                                             <DocumentCard key={idx} document={doc} />
+                                          ))}
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+
+                                  {/* 4b. Scheduled Task Cards - rendered when AI schedules a task */}
+                                  {isReasoningDone && isTypewriterDone && (() => {
+                                    const { taskObjs } = extractWsmTasks(message.text || message.finalSynthesis || "");
+                                    if (taskObjs && taskObjs.length > 0) {
+                                      return (
+                                        <div className="flex flex-col gap-3 mt-3 w-full">
+                                          {taskObjs.map((task, idx) => (
+                                            <ScheduledTaskCard key={idx} task={task} onOpenScheduledTasks={onOpenScheduledTasks} />
                                           ))}
                                         </div>
                                       );

@@ -55,6 +55,38 @@ export default function App() {
 
     return () => unsubscribeSkills();
   }, [currentUser]);
+  const [userLocation, setUserLocation] = useState<string>("São Paulo, SP (Brasil)");
+
+  // Detect user city via IP Geolocation
+  useEffect(() => {
+    fetch('https://ipapi.co/json/')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.city) {
+          const cityStr = `${data.city}${data.region_code ? `, ${data.region_code}` : ''}${data.country_name ? ` (${data.country_name})` : ''}`;
+          setUserLocation(cityStr);
+        }
+      })
+      .catch(() => {
+        fetch('https://ipwho.is/')
+          .then(res => res.json())
+          .then(data => {
+            if (data && data.success !== false && data.city) {
+              const cityStr = `${data.city}${data.region_code ? `, ${data.region_code}` : ''}${data.country ? ` (${data.country})` : ''}`;
+              setUserLocation(cityStr);
+            }
+          })
+          .catch(err => console.log("Location fetch fallback error:", err));
+      });
+  }, []);
+
+  const getUserContext = () => ({
+    city: userLocation,
+    date: new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+    time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Sao_Paulo'
+  });
+
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     const saved = localStorage.getItem('wsm_selected_model');
     return saved || 'WSM 1.6 Flash';
@@ -360,6 +392,7 @@ export default function App() {
                 isSearchEnabled: true,
                 model: selectedModel,
                 skills: skills,
+                userContext: getUserContext(),
                 history: []
               }),
             })
@@ -1226,6 +1259,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           model: sessionToUpdate.model || selectedModel,
           reasoningLevel: reasoningLevel,
           skills: skills,
+          userContext: getUserContext(),
           history: sessionToUpdate.messages.map(m => {
             let msgText = m.text || m.finalSynthesis || "";
             if (!msgText && m.sender === 'user' && m.attachments && m.attachments.length > 0) {
@@ -1779,6 +1813,12 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
             onDeleteDraft={() => { if (currentUser && activeSessionId) deleteDraft(currentUser.uid, activeSessionId) }}
             skills={skills}
             onOpenStore={() => setIsStoreModalOpen(true)}
+            onSaveTask={async (task) => {
+              if (currentUser) {
+                await saveScheduledTask(currentUser.uid, task);
+              }
+            }}
+            onOpenScheduledTasks={() => setIsScheduledTasksView(true)}
             isTemporary={!!activeSession.isTemporary}
             onStartTemporaryChat={handleNewTemporaryChat}
             onOpenUpdateModal={() => setIsUpdateModalOpen(true)}

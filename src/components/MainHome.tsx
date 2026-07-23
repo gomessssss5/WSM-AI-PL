@@ -1356,10 +1356,10 @@ export default function MainHome({
               </div>
               <div className="flex flex-col text-left pr-6">
                 <h3 className="font-sans font-bold text-gray-900 text-[14px] md:text-[15px] tracking-tight leading-snug">
-                  Primeiro teste em frente de outras IAs
+                  Venha conferir WSM 1.6 Pro comparado ao GPT e Gemini
                 </h3>
                 <p className="font-sans text-gray-500 text-[12px] md:text-[12.5px] leading-relaxed mt-0.5">
-                  Venha ver como WSM 1.6 Pro se sai comparada em outras IAs
+                  Veja a avaliação completa e os benchmarks com dezenas de testes
                 </p>
               </div>
             </div>

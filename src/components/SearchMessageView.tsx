@@ -9,6 +9,8 @@ import { extractRaciocinio, cleanRaciocinioTags } from '../utils/raciocinioParse
 import { ReasoningBlock } from './ReasoningBlock';
 import { SearchImageCarousel } from './SearchImageCarousel';
 import DocumentCard from './DocumentCard';
+import ScheduledTaskCard from './ScheduledTaskCard';
+import { extractWsmTasks } from '../utils/taskParser';
 
 interface SearchMessageViewProps {
   message: Message;
@@ -17,6 +19,7 @@ interface SearchMessageViewProps {
   onSimulationComplete?: () => void;
   onStepChange?: () => void;
   onOpenSources?: (sources: { hostname: string; title: string; url: string; snippet?: string }[], query: string, count: number) => void;
+  onOpenScheduledTasks?: () => void;
 }
 
 export default function SearchMessageView({
@@ -25,7 +28,8 @@ export default function SearchMessageView({
   setLightboxImage,
   onSimulationComplete,
   onStepChange,
-  onOpenSources
+  onOpenSources,
+  onOpenScheduledTasks
 }: SearchMessageViewProps) {
   const steps = message.searchSteps || [];
   const totalSteps = steps.length;
@@ -408,6 +412,21 @@ export default function SearchMessageView({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mt-3 w-full">
               {docObjs.map((doc, idx) => (
                 <DocumentCard key={idx} document={doc} />
+              ))}
+            </div>
+          );
+        }
+        return null;
+      })()}
+
+      {/* 5c. Scheduled Task Cards */}
+      {(showFinal || !message.isSimulatingSearch) && (() => {
+        const { taskObjs } = extractWsmTasks(message.finalSynthesis || message.text || "");
+        if (taskObjs && taskObjs.length > 0) {
+          return (
+            <div className="flex flex-col gap-3 mt-3 w-full">
+              {taskObjs.map((task, idx) => (
+                <ScheduledTaskCard key={idx} task={task} onOpenScheduledTasks={onOpenScheduledTasks} />
               ))}
             </div>
           );

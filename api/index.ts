@@ -153,7 +153,26 @@ async function callGeminiStreamWithFallback(options: any) {
 
 // API endpoint for chatbot communication and Web Search
 app.post("/api/chat", async (req: express.Request, res: express.Response) => {
-  const { text, isSearchEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills } = req.body;
+  const { text, isSearchEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext } = req.body;
+
+  // Extract real-time user location (city), date, and exact time
+  const now = new Date();
+  const userCity = userContext?.city || "São Paulo, SP (Brasil)";
+  const userDate = userContext?.date || now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const userTime = userContext?.time || now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const userTimezone = userContext?.timezone || "America/Sao_Paulo";
+
+  const userLocationContextInstruction = `
+## Contexto de Localização, Data e Horário em Tempo Real do Usuário (OBRIGATÓRIO)
+Você tem acesso direto aos dados exatos de localização, dia e horário do usuário em tempo real:
+- **Localização do Usuário (Cidade)**: ${userCity}
+- **Data e Dia Atual do Usuário**: ${userDate}
+- **Horário Exato Local**: ${userTime} (Fuso Horário: ${userTimezone})
+
+Instruções Importantes:
+1. Sempre que o usuário perguntar que horas são, que dia é hoje, qual é a previsão do tempo na cidade dele, eventos ou fatos locais, utilize EXATAMENTE as informações acima (${userCity}, ${userDate}, ${userTime}).
+2. Ao realizar pesquisas ou análises temporais (como "notícias de hoje", "jogos de hoje"), tome a data (${userDate}) e a cidade do usuário (${userCity}) como referência absoluta.
+`;
 
   // Ensure valid history format
   let finalContents: any = text;
@@ -446,6 +465,11 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
       const systemPrompt = `Você é o modelo de inteligência artificial de alta performance '${model}'.
 O usuário ativou o modo de busca na web. Você pesquisou na internet e reuniu as seguintes informações relevantes para a pergunta do usuário:
 
+--- Contexto do Usuário (Localização, Data e Horário) ---
+- **Localização do Usuário (Cidade)**: ${userCity}
+- **Data e Dia Atual**: ${userDate}
+- **Horário Exato Local**: ${userTime} (${userTimezone})
+
 --- Informações de Pesquisa ---
 ${contextInfo}
 
@@ -457,7 +481,7 @@ Com base nessas informações, responda à última pergunta do usuário de forma
 3. Use tabelas para comparar dados quando fizer sentido.
 4. Use listas (- ou *) para enumerar itens de forma organizada.
 5. NÃO inclua expressões matemáticas ou LaTeX, a menos que o assunto seja estritamente matemático, estatístico, físico ou científico.
-6. Cite as fontes com links Markdown \`[Domínio](URL)\` integrados naturalmente no texto ao mencionar cada fato. Exemplo: "O atleta foi contratado em 2013 pelo Barcelona ([g1.globo.com](https://g1.globo.com/...))". Use o hostname como texto do link.
+6. Cite as fontes com links Markdown \`[Domínio](URL)\` integrados naturally no texto ao mencionar cada fato. Exemplo: "O atleta foi contratado em 2013 pelo Barcelona ([g1.globo.com](https://g1.globo.com/...))". Use o hostname como texto do link.
 7. Se as fontes trouxerem informações conflitantes entre si, aponte isso ao usuário de forma clara, sem esconder a divergência.
 8. Priorize as informações mais recentes quando o assunto for sensível ao tempo (notícias, preços, eventos).
 9. Evite jargões de IA como "com base nas pesquisas fornecidas..." — apresente os fatos como conhecimento que você acabou de adquirir pesquisando, de forma fluida e natural.
@@ -795,23 +819,39 @@ REGRAS DE LEITURA (MANDATÓRIO):
     }
 
     const tasksInstruction = `
-## Agendamento de Tarefas Autônomo
-Se o usuário pedir para você agendar uma tarefa, lembrete ou execução periódica (ex: "pesquise X toda segunda", "me lembre de Y amanhã às 8h"), você DEVE gerar um elemento HTML de formulário invisível no formato exato abaixo, APENAS NA SUA RESPOSTA FINAL. O sistema interceptará essa tag e agendará a tarefa.
+## Agendamento Autônomo de Tarefas (WSM 1.6 Pro)
+Como WSM 1.6 Pro, você possui capacidade autônoma de agendar tarefas para execução futura e periódica.
+Se o usuário solicitar que você agende uma tarefa, faça buscas recorrentes, envie lembretes ou execute algo em determinado horário (ex: "todo dia as 9 da manhã pesquise sobre o lula", "me lembre de Y amanhã às 8h", "toda segunda-feira pesquise Z"), você DEVE agendar a tarefa automaticamente gerando a tag especial <wsm_task ... /> no final da sua resposta.
 
+Estrutura OBRIGATÓRIA da tag:
 <wsm_task 
   title="Título curto da tarefa" 
-  prompt="O prompt exato que eu (a IA) devo receber no momento da execução" 
+  prompt="Instrução exata que a IA deve executar no momento do disparo" 
   scheduleType="once|daily|weekly|monthly" 
   time="HH:MM"
 />
 
-Exemplos:
-- Se o usuário disser: "Quero que toda segunda meio dia você pesquise na web a previsão do tempo pra Nova York", você gera:
-<wsm_task title="Previsão do tempo NY" prompt="Pesquise na web a previsão do tempo para a semana na cidade de Nova York." scheduleType="weekly" time="12:00" />
-- Se o usuário disser: "Me lembre de comprar pão amanhã de manhã":
-<wsm_task title="Comprar pão" prompt="Lembre o usuário que ele precisa comprar pão." scheduleType="once" time="08:00" />
+Atributos OBRIGATÓRIOS:
+1. title: Título objetivo (ex: "Pesquisa Diária: Notícias sobre Lula").
+2. prompt: O comando completo que a IA rodará no momento agendado (ex: "Pesquise na web em tempo real as últimas notícias de hoje sobre o Lula e faça um resumo executivo.").
+3. scheduleType: 
+   - "daily" para todo dia / diariamente.
+   - "weekly" para toda semana / semanalmente.
+   - "monthly" para todo mês / mensalmente.
+   - "once" para execução única / lembrete.
+4. time: Horário em formato 24h com dois dígitos (ex: "09:00", "14:30", "08:00").
 
-Você DEVE usar aspas duplas, formato de hora 24h, e tipos scheduleType exatos (once, daily, weekly, monthly). Continue sua resposta normalmente (ex: "Agendei a tarefa para você! Toda segunda ao meio-dia...").
+Exemplo 1:
+Usuário: "todo dia as 9 da manhã pesquise sobre o lula"
+Sua Resposta: Com certeza! Agendei a tarefa autônoma para você. Todos os dias às 09:00 estarei pesquisando as últimas notícias sobre o Lula na web e trazendo os destaques atualizados.
+<wsm_task title="Pesquisa Diária: Notícias sobre Lula" prompt="Pesquise na web em tempo real sobre as últimas notícias de hoje referentes ao Lula e apresente um resumo executivo dos fatos principais." scheduleType="daily" time="09:00" />
+
+Exemplo 2:
+Usuário: "me lembre amanhã às 15:00 de checar o relatório"
+Sua Resposta: Perfeito! Agendei seu lembrete para amanhã às 15:00.
+<wsm_task title="Lembrete: Checar Relatório" prompt="Lembre o usuário de checar o relatório e pergunte se precisa de ajuda com alguma análise." scheduleType="once" time="15:00" />
+
+IMPORTANTE: Sempre responda de forma prestativa confirmando o agendamento E inclua a tag <wsm_task ... /> para que o sistema registre a tarefa no dashboard do usuário.
 `;
 
     let basePrompt = modelSystemPrompts[model] || modelSystemPrompts['WSM 1.6 Flash'];
@@ -839,7 +879,7 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
         reasoningInstruction = `\n\n## Modo de Raciocínio (Alto)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta, ANTES de qualquer texto final ao usuário. Utilize a capacidade máxima de raciocínio analítico. Pense profundamente passo-a-passo no estilo 'o1' (Cadeia de Pensamentos). Questione suas próprias premissas, repasse por cada etapa com rigor e encontre falhas lógicas antes de montar o resultado. NUNCA responda diretamente sem pensar de forma exaustiva.`;
       }
     }
-    const activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + writerInstruction + "\n\n" + skillsInstruction + "\n\n" + tasksInstruction;
+    const activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + writerInstruction + "\n\n" + skillsInstruction + "\n\n" + tasksInstruction;
 
     if (model === 'WSM 1.6 Pro') {
       console.log("Starting agentic loop for Pro...");
