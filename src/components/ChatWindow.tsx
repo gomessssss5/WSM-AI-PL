@@ -434,22 +434,36 @@ export default function ChatWindow({
         if (!analyserRef.current) return;
         analyserRef.current.getByteFrequencyData(dataArray);
 
+        let maxVal = 0;
         let sum = 0;
         for (let i = 0; i < dataArray.length; i++) {
           sum += dataArray[i];
+          if (dataArray[i] > maxVal) maxVal = dataArray[i];
         }
         const avgVolume = sum / dataArray.length;
-        const normalizedVol = Math.min(1, avgVolume / 60);
+        
+        // High sensitivity scaling so speaking normally or loudly produces tall, prominent bars
+        const volumeRatio = Math.min(1, Math.max(0, (avgVolume - 2) / 18) * 2.2);
+        const maxRatio = Math.min(1, maxVal / 100);
+        const combinedVol = Math.max(volumeRatio, maxRatio);
 
         const newLevels = Array.from({ length: barCount }, (_, i) => {
-          const distFromCenter = Math.abs(i - barCount / 2) / (barCount / 2);
-          const centerMultiplier = Math.cos(distFromCenter * (Math.PI / 2.2));
-          const freqVal = (dataArray[i % dataArray.length] || 0) / 255;
-          const baseHeight = 3;
-          const maxHeight = 26;
+          const distFromCenter = Math.abs(i - (barCount - 1) / 2) / ((barCount - 1) / 2);
+          const centerMultiplier = Math.cos(distFromCenter * (Math.PI / 2.3));
           
-          const jitter = Math.random() * 4;
-          const h = baseHeight + (freqVal * 0.5 + normalizedVol * 0.5) * centerMultiplier * (maxHeight - baseHeight) + (normalizedVol > 0.05 ? jitter : 0);
+          const rawFreq = dataArray[i % dataArray.length] || 0;
+          const freqRatio = Math.min(1, (rawFreq / 80) * 2.2);
+
+          const baseHeight = 3;
+          const maxHeight = 30;
+
+          const wavePhase = Math.sin(Date.now() / 120 + i * 0.35) * 0.15;
+          const activeVol = Math.min(1, combinedVol * 1.5 + wavePhase);
+
+          const signalHeight = (freqRatio * 0.5 + activeVol * 0.5) * centerMultiplier * (maxHeight - baseHeight);
+          const jitter = (Math.random() - 0.5) * 5 * activeVol;
+
+          const h = baseHeight + signalHeight * (0.2 + activeVol * 0.8) + jitter;
           return Math.max(3, Math.min(maxHeight, h));
         });
 
@@ -459,15 +473,20 @@ export default function ChatWindow({
 
       updateWaveform();
     }).catch(() => {
+      let step = 0;
       const fallbackTimer = setInterval(() => {
+        step += 0.2;
+        const simulatedVol = 0.65 + Math.sin(step) * 0.35;
         setAudioLevels(Array.from({ length: barCount }, (_, i) => {
-          const distFromCenter = Math.abs(i - barCount / 2) / (barCount / 2);
-          const centerMultiplier = Math.cos(distFromCenter * (Math.PI / 2.2));
+          const distFromCenter = Math.abs(i - (barCount - 1) / 2) / ((barCount - 1) / 2);
+          const centerMultiplier = Math.cos(distFromCenter * (Math.PI / 2.3));
           const baseHeight = 3;
-          const rand = Math.random() * 20 * centerMultiplier;
-          return Math.max(3, baseHeight + rand);
+          const maxHeight = 30;
+          const wave = Math.sin(step * 2.5 + i * 0.35) * 0.5 + 0.5;
+          const h = baseHeight + (wave * simulatedVol) * centerMultiplier * (maxHeight - baseHeight);
+          return Math.max(3, Math.min(maxHeight, h));
         }));
-      }, 70);
+      }, 50);
       return () => clearInterval(fallbackTimer);
     });
 
