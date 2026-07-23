@@ -3,6 +3,39 @@ import { Paperclip, Globe, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain
 import { Skill } from '../lib/skills';
 import { Draft } from '../types';
 
+const RANDOM_HEADLINES = [
+  "Como posso ajudar?",
+  "Desperte ideias",
+  "Como vai?",
+  "O que criar hoje?",
+  "No que está pensando?",
+  "Vamos começar!",
+  "Qual sua próxima ideia?",
+  "Tire ideias do papel",
+  "O que te inspira?",
+  "Crie algo novo!",
+  "Solte a imaginação",
+  "O que vamos escrever?",
+  "Vamos construir algo incrível?",
+  "Em que posso ser útil?",
+  "Acelere seus resultados",
+  "Simplifique suas tarefas",
+  "Qual o foco de hoje?",
+  "Vamos resolver desafios?",
+  "Simplifique tudo!",
+  "O que você precisa agora?",
+  "Explore novas possibilidades",
+  "O que deseja descobrir?",
+  "Em que posso te acompanhar?",
+  "O que quer aprender hoje?",
+  "Pronto para a próxima aventura?",
+  "Tire suas dúvidas",
+  "Clareie suas ideias",
+  "Vamos superar expectativas?",
+  "Olá! Como posso ajudar?",
+  "Vamos transformar ideias em realidade?"
+];
+
 interface MainHomeProps {
   onSendMessage: (text: string, isSearchEnabled: boolean, overrideMessages?: any, attachments?: any[]) => void;
   onSuggestionClick: (suggestionType: 'write' | 'code' | 'image' | 'analysis' | 'translate') => void;
@@ -43,6 +76,10 @@ export default function MainHome({
   onOpenUpdateModal
 }: MainHomeProps) {
   const [inputValue, setInputValue] = useState('');
+  const [currentHeadline] = useState(() => {
+    const randomIndex = Math.floor(Math.random() * RANDOM_HEADLINES.length);
+    return RANDOM_HEADLINES[randomIndex];
+  });
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [isEffortDropdownOpen, setIsEffortDropdownOpen] = useState(false);
@@ -883,20 +920,10 @@ export default function MainHome({
         </div>
 
         {/* Brand Headline Typography */}
-        <h1 id="home-headline" className="text-center mb-5 md:mb-5 select-none absolute top-[35%] md:static left-1/2 -translate-x-1/2 -translate-y-1/2 md:translate-x-0 md:translate-y-0 w-full md:w-auto">
-          <div className="md:hidden">
-             <span className="font-serif font-medium text-gray-800 tracking-tight text-[28px]">
-                Como posso ajudar você?
-             </span>
-          </div>
-          <div className="hidden md:block">
-            <span className="font-sans font-extrabold text-gray-900 tracking-tight text-[1.95rem] md:text-[2.3rem]">
-              Como posso{' '}
-            </span>
-            <span className="font-sans font-light text-gray-400 tracking-tight text-[1.95rem] md:text-[2.3rem]">
-              ajudar?
-            </span>
-          </div>
+        <h1 id="home-headline" className="text-center mb-5 md:mb-5 select-none absolute top-[35%] md:static left-1/2 -translate-x-1/2 -translate-y-1/2 md:translate-x-0 md:translate-y-0 w-full md:w-auto px-4">
+          <span className="font-sans font-extrabold text-gray-900 tracking-tight text-[1.8rem] sm:text-[1.95rem] md:text-[2.3rem]">
+            {currentHeadline}
+          </span>
         </h1>
 
         {/* Input area & news card container */}
