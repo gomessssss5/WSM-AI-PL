@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Paperclip, Globe, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain, Languages, ChevronDown, ChevronRight, Sparkles, Calculator, Clock, Video, Volume2, FileText, AlertCircle, X, Menu, FileCode2, Files, BookOpen, MessageCircleDashed, Plus } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain, Languages, ChevronDown, ChevronRight, Sparkles, Calculator, Clock, Video, Volume2, FileText, AlertCircle, X, Check, Menu, FileCode2, Files, BookOpen, MessageCircleDashed, Plus } from 'lucide-react';
 import { Skill } from '../lib/skills';
 import { Draft } from '../types';
 
@@ -78,44 +78,170 @@ export default function MainHome({
     preloadImg2.src = "https://i.ibb.co/tw9yWNfj/38003.png";
   }, []);
 
-  // Speech Recognition States
+  // Speech Recognition States & Waveform
   const [isListening, setIsListening] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState('');
+  const [audioLevels, setAudioLevels] = useState<number[]>(Array(42).fill(3));
   const recognitionRef = useRef<any>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
         recognitionRef.current = new SpeechRecognition();
-        recognitionRef.current.continuous = false;
-        recognitionRef.current.interimResults = false;
+        recognitionRef.current.continuous = true;
+        recognitionRef.current.interimResults = true;
         recognitionRef.current.lang = 'pt-BR';
 
         recognitionRef.current.onresult = (event: any) => {
-          const transcript = event.results[0][0].transcript;
-          setInputValue(prev => {
-            const space = prev.length > 0 && !prev.endsWith(' ') ? ' ' : '';
-            return prev + space + transcript;
-          });
+          let interim = '';
+          let final = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              final += event.results[i][0].transcript;
+            } else {
+              interim += event.results[i][0].transcript;
+            }
+          }
+          if (final) {
+            setInputValue(prev => {
+              const space = prev.length > 0 && !prev.endsWith(' ') ? ' ' : '';
+              return prev + space + final;
+            });
+          }
+          setInterimTranscript(interim);
         };
 
         recognitionRef.current.onend = () => {
           setIsListening(false);
+          setInterimTranscript('');
         };
         
         recognitionRef.current.onerror = (event: any) => {
            console.error("Speech recognition error", event.error);
            setIsListening(false);
+           setInterimTranscript('');
         };
       }
     }
     
     return () => {
       if (recognitionRef.current) {
-        recognitionRef.current.abort();
+        try { recognitionRef.current.abort(); } catch {}
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!isListening) {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(t => t.stop());
+        mediaStreamRef.current = null;
+      }
+      if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+        audioCtxRef.current.close();
+        audioCtxRef.current = null;
+      }
+      setAudioLevels(Array(42).fill(3));
+      return;
+    }
+
+    let isMounted = true;
+    const barCount = 42;
+
+    navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+      if (!isMounted) {
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
+      mediaStreamRef.current = stream;
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const audioCtx = new AudioCtx();
+      audioCtxRef.current = audioCtx;
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 64;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+      const updateWaveform = () => {
+        if (!analyserRef.current) return;
+        analyserRef.current.getByteFrequencyData(dataArray);
+
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i];
+        }
+        const avgVolume = sum / dataArray.length;
+        const normalizedVol = Math.min(1, avgVolume / 60);
+
+        const newLevels = Array.from({ length: barCount }, (_, i) => {
+          const distFromCenter = Math.abs(i - barCount / 2) / (barCount / 2);
+          const centerMultiplier = Math.cos(distFromCenter * (Math.PI / 2.2));
+          const freqVal = (dataArray[i % dataArray.length] || 0) / 255;
+          const baseHeight = 3;
+          const maxHeight = 26;
+          
+          const jitter = Math.random() * 4;
+          const h = baseHeight + (freqVal * 0.5 + normalizedVol * 0.5) * centerMultiplier * (maxHeight - baseHeight) + (normalizedVol > 0.05 ? jitter : 0);
+          return Math.max(3, Math.min(maxHeight, h));
+        });
+
+        setAudioLevels(newLevels);
+        animFrameRef.current = requestAnimationFrame(updateWaveform);
+      };
+
+      updateWaveform();
+    }).catch(() => {
+      const fallbackTimer = setInterval(() => {
+        setAudioLevels(Array.from({ length: barCount }, (_, i) => {
+          const distFromCenter = Math.abs(i - barCount / 2) / (barCount / 2);
+          const centerMultiplier = Math.cos(distFromCenter * (Math.PI / 2.2));
+          const baseHeight = 3;
+          const rand = Math.random() * 20 * centerMultiplier;
+          return Math.max(3, baseHeight + rand);
+        }));
+      }, 70);
+      return () => clearInterval(fallbackTimer);
+    });
+
+    return () => {
+      isMounted = false;
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(t => t.stop());
+        mediaStreamRef.current = null;
+      }
+      if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+        audioCtxRef.current.close();
+        audioCtxRef.current = null;
+      }
+    };
+  }, [isListening]);
+
+  const cancelRecording = () => {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort(); } catch {}
+    }
+    setIsListening(false);
+    setInterimTranscript('');
+  };
+
+  const confirmRecording = () => {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch {}
+    }
+    setIsListening(false);
+    setInterimTranscript('');
+  };
 
   // Synchronize inputValue with the actual DOM value to prevent duplication from direct DOM manipulation (e.g. testing tools)
   useEffect(() => {
@@ -158,10 +284,10 @@ export default function MainHome({
       return;
     }
     if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
+      confirmRecording();
     } else {
       try {
+        setInterimTranscript('');
         recognitionRef.current.start();
         setIsListening(true);
       } catch (e) {
@@ -245,6 +371,17 @@ export default function MainHome({
   ];
 
   const filteredTools = slashItems.filter(item => item.id.toLowerCase().includes(slashSearchTerm.toLowerCase()));
+
+  useEffect(() => {
+    const textarea = document.getElementById('chat-input-textarea') as HTMLTextAreaElement;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      const maxHeight = 220;
+      const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+      textarea.style.height = `${newHeight}px`;
+      textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
+    }
+  }, [inputValue]);
 
   const handleInputValueChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
@@ -752,7 +889,7 @@ export default function MainHome({
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className="w-full bg-white border border-[#eae6e1] md:rounded-2xl rounded-[28px] shadow-lg md:shadow-[0_4px_16px_rgba(0,0,0,0.02)] p-3 md:p-2.5 focus-within:border-[#5c53e5]/50 focus-within:ring-1 focus-within:ring-[#5c53e5]/25 transition-all duration-200 order-2 md:order-1"
+            className={`w-full ${isListening ? 'bg-[#f5f6f8]' : 'bg-white'} border border-[#eae6e1] rounded-[28px] md:rounded-[26px] shadow-lg md:shadow-[0_4px_16px_rgba(0,0,0,0.02)] p-3 md:p-2.5 focus-within:border-gray-300 transition-all duration-200 order-2 md:order-1`}
           >
           {/* Hidden File Input */}
           <input 
@@ -1084,204 +1221,247 @@ export default function MainHome({
             </div>
           )}
 
-          {/* Text Area Input */}
-          <textarea
-            id="chat-input-textarea"
-            rows={2}
-            value={inputValue}
-            onChange={handleInputValueChange}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={`Pergunte ao ${selectedModel}...`}
-            className="w-full bg-transparent outline-none resize-none text-gray-800 placeholder-gray-400 text-[13.5px] leading-relaxed pb-1.5 max-h-36"
-          />
+          {/* Voice recording UI mode OR standard input area */}
+          {isListening ? (
+            <div className="w-full flex flex-col gap-2 p-1">
+              <div className="text-gray-400 text-[13.5px] font-medium px-2 pt-0.5 select-none truncate">
+                {interimTranscript || inputValue || "Estou a ouvir"}
+              </div>
+              <div className="flex items-center justify-between gap-3 pt-1">
+                {/* Cancel button */}
+                <button
+                  type="button"
+                  onClick={cancelRecording}
+                  className="w-9 h-9 rounded-full bg-white hover:bg-gray-100 border border-gray-150 shadow-sm flex items-center justify-center text-gray-700 transition-all cursor-pointer shrink-0 active:scale-95"
+                  title="Cancelar gravação"
+                >
+                  <X className="w-4 h-4" />
+                </button>
 
-          {/* Bottom Controls Bar */}
-          <div className="flex items-center justify-between pt-1 border-t border-gray-50">
-            {/* Left Controls: Paperclip & Pesquisar Button */}
-            <div className="flex items-center gap-1.5 relative">
-              
-              {/* Attach Menu */}
-              {isAttachMenuOpen && (
-                <div className="absolute bottom-full left-0 mb-2 w-56 bg-white border border-gray-100 rounded-xl shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 z-50">
-                  {!isSkillsSubMenuOpen ? (
-                    <div className="p-1.5 flex flex-col gap-0.5">
-                      <button
-                        onClick={() => {
-                          setIsAttachMenuOpen(false);
-                          handleAttachFileDirectly();
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-lg flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Paperclip className="w-4 h-4 text-gray-500" />
-                          <span className="text-[13px] font-medium text-gray-700">Adicionar arquivos</span>
+                {/* Dynamic Waveform Visualizer */}
+                <div className="flex-1 flex items-center justify-center gap-[2.5px] h-9 px-1 overflow-hidden">
+                  {audioLevels.map((height, idx) => (
+                    <div
+                      key={idx}
+                      style={{ height: `${height}px` }}
+                      className="w-[2.5px] bg-gray-800 rounded-full transition-all duration-75"
+                    />
+                  ))}
+                </div>
+
+                {/* Confirm button */}
+                <button
+                  type="button"
+                  onClick={confirmRecording}
+                  className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center justify-center transition-all cursor-pointer shrink-0 active:scale-95"
+                  title="Concluir gravação"
+                >
+                  <Check className="w-5 h-5 stroke-[2.5]" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Text Area Input */}
+              <textarea
+                id="chat-input-textarea"
+                rows={1}
+                value={inputValue}
+                onChange={handleInputValueChange}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
+                placeholder={`Pergunte ao ${selectedModel}...`}
+                className="w-full bg-transparent outline-none resize-none text-gray-800 placeholder-gray-400 text-[13.5px] leading-relaxed pb-1 min-h-[38px] max-h-[220px]"
+              />
+
+              {/* Bottom Controls Bar */}
+              <div className="flex items-center justify-between pt-1">
+                {/* Left Controls: Paperclip & Pesquisar Button */}
+                <div className="flex items-center gap-1.5 relative">
+                  
+                  {/* Attach Menu */}
+                  {isAttachMenuOpen && (
+                    <div className="absolute bottom-full left-0 mb-2 w-56 bg-white border border-gray-100 rounded-xl shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 z-50">
+                      {!isSkillsSubMenuOpen ? (
+                        <div className="p-1.5 flex flex-col gap-0.5">
+                          <button
+                            onClick={() => {
+                              setIsAttachMenuOpen(false);
+                              handleAttachFileDirectly();
+                            }}
+                            className="w-full text-left px-3 py-2 rounded-lg flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Paperclip className="w-4 h-4 text-gray-500" />
+                              <span className="text-[13px] font-medium text-gray-700">Adicionar arquivos</span>
+                            </div>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIsSkillsSubMenuOpen(true);
+                            }}
+                            className="w-full text-left px-3 py-2 rounded-lg flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2">
+                              <FileCode2 className="w-4 h-4 text-gray-500" />
+                              <span className="text-[13px] font-medium text-gray-700">Skills</span>
+                            </div>
+                            <ChevronDown className="w-3 h-3 text-gray-400 -rotate-90" />
+                          </button>
                         </div>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsSkillsSubMenuOpen(true);
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-lg flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2">
-                          <FileCode2 className="w-4 h-4 text-gray-500" />
-                          <span className="text-[13px] font-medium text-gray-700">Skills</span>
-                        </div>
-                        <ChevronDown className="w-3 h-3 text-gray-400 -rotate-90" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="p-1.5">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsSkillsSubMenuOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 text-gray-500 transition-colors mb-1 border-b border-gray-50 cursor-pointer"
-                      >
-                        <ChevronDown className="w-3.5 h-3.5 rotate-90" />
-                        <span className="text-[12px] font-medium">Voltar</span>
-                      </button>
-                      <div className="max-h-48 overflow-y-auto">
-                        {skills.length === 0 ? (
-                          <div className="px-3 py-4 text-center">
-                            <p className="text-[12px] text-gray-500">Nenhuma Skill instalada</p>
+                      ) : (
+                        <div className="p-1.5">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIsSkillsSubMenuOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 text-gray-500 transition-colors mb-1 border-b border-gray-50 cursor-pointer"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5 rotate-90" />
+                            <span className="text-[12px] font-medium">Voltar</span>
+                          </button>
+                          <div className="max-h-48 overflow-y-auto">
+                            {skills.length === 0 ? (
+                              <div className="px-3 py-4 text-center">
+                                <p className="text-[12px] text-gray-500">Nenhuma Skill instalada</p>
+                              </div>
+                            ) : (
+                              skills.map(skill => (
+                                <button
+                                  key={skill.id}
+                                  onClick={() => {
+                                    setActiveSkills(prev => { if(!prev.find(s=>s.id===skill.id)) return [...prev, skill]; return prev; });
+                                    setIsAttachMenuOpen(false);
+                                    setIsSkillsSubMenuOpen(false);
+                                  }}
+                                  className="w-full text-left px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 transition-colors cursor-pointer"
+                                >
+                                  <FileCode2 className="w-3.5 h-3.5 text-indigo-500" />
+                                  <span className="text-[13px] font-medium text-gray-700">{skill.name}</span>
+                                </button>
+                              ))
+                            )}
                           </div>
-                        ) : (
-                          skills.map(skill => (
-                            <button
-                              key={skill.id}
-                              onClick={() => {
-                                setActiveSkills(prev => { if(!prev.find(s=>s.id===skill.id)) return [...prev, skill]; return prev; });
-                                setIsAttachMenuOpen(false);
-                                setIsSkillsSubMenuOpen(false);
-                              }}
-                              className="w-full text-left px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 transition-colors cursor-pointer"
-                            >
-                              <FileCode2 className="w-3.5 h-3.5 text-indigo-500" />
-                              <span className="text-[13px] font-medium text-gray-700">{skill.name}</span>
-                            </button>
-                          ))
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
-              )}
 
-              <button
-                type="button"
-                id="btn-attach-file"
-                onClick={handleAttachClick}
-                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
-                title="Anexar arquivo"
-              >
-                <Paperclip className="w-3.5 h-3.5" />
-              </button>
-
-              {/* Toggleable Pesquisar Button */}
-              <button
-                type="button"
-                id="btn-search-toggle"
-                onClick={() => setIsSearchEnabled(!isSearchEnabled)}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer ${
-                  isSearchEnabled
-                    ? 'bg-[#5c53e5]/10 text-[#5c53e5] border border-[#5c53e5]/25 shadow-2xs'
-                    : 'bg-[#eae7e2] text-gray-700 hover:bg-[#e1ded9]'
-                }`}
-                title="Ativar busca web em tempo real"
-              >
-                <Globe className={`w-3 h-3 ${isSearchEnabled ? 'text-[#5c53e5] animate-spin-slow' : 'text-gray-500'}`} />
-                <span>Pesquisar</span>
-              </button>
-            </div>
-
-            {/* Right Controls: Mic & Send Circular Button */}
-            <div className="flex items-center gap-1.5">
-              {/* Esforço Dropdown/Pill Selector (shows up only for WSM 1.6 Pro) */}
-              {selectedModel === 'WSM 1.6 Pro' && (
-                <div className="relative">
                   <button
                     type="button"
-                    onClick={() => setIsEffortDropdownOpen(!isEffortDropdownOpen)}
-                    className="flex items-center gap-1 px-2.5 py-1 bg-[#eae7e2] hover:bg-[#e1ded9] rounded-full text-[11px] font-bold text-gray-700 transition-all cursor-pointer"
-                    title="Seletor de esforço de raciocínio"
+                    id="btn-attach-file"
+                    onClick={handleAttachClick}
+                    className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
+                    title="Anexar arquivo"
                   >
-                    <span>Esforço</span>
-                    <span className="text-gray-500 font-normal ml-0.5">{reasoningLevel}</span>
-                    <ChevronDown className="w-3 h-3 text-gray-500" />
+                    <Paperclip className="w-3.5 h-3.5" />
                   </button>
 
-                  {isEffortDropdownOpen && (
-                    <>
-                      {/* Backdrop to close the dropdown */}
-                      <div className="fixed inset-0 z-40" onClick={() => setIsEffortDropdownOpen(false)} />
-                      <div className="absolute bottom-full right-0 mb-2 w-44 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                        <div className="flex flex-col gap-0.5">
-                          {['Nenhum', 'Mínimo', 'Baixo', 'Médio', 'Alto'].map((level) => (
-                            <button
-                              key={level}
-                              type="button"
-                              onClick={() => {
-                                if (setReasoningLevel) {
-                                  setReasoningLevel(level);
-                                }
-                                setIsEffortDropdownOpen(false);
-                              }}
-                              className={`w-full text-left px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors cursor-pointer ${
-                                reasoningLevel === level
-                                  ? 'bg-gray-50 text-[#5c53e5] font-semibold'
-                                  : 'text-gray-700 hover:bg-gray-50'
-                              }`}
-                            >
-                              {level}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  )}
+                  {/* Toggleable Pesquisar Button */}
+                  <button
+                    type="button"
+                    id="btn-search-toggle"
+                    onClick={() => setIsSearchEnabled(!isSearchEnabled)}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer ${
+                      isSearchEnabled
+                        ? 'bg-[#5c53e5]/10 text-[#5c53e5] border border-[#5c53e5]/25 shadow-2xs'
+                        : 'bg-[#eae7e2] text-gray-700 hover:bg-[#e1ded9]'
+                    }`}
+                    title="Ativar busca web em tempo real"
+                  >
+                    <Globe className={`w-3 h-3 ${isSearchEnabled ? 'text-[#5c53e5] animate-spin-slow' : 'text-gray-500'}`} />
+                    <span>Pesquisar</span>
+                  </button>
                 </div>
-              )}
 
-              <button
-                type="button"
-                                onClick={toggleListening}
-                className={`p-1.5 rounded-full transition-colors cursor-pointer ${
-                  isListening
-                    ? 'text-red-500 bg-red-50 animate-pulse'
-                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                }`}
-                title={isListening ? "Parar gravação" : "Voz"}
-              >
-                <Mic className="w-3.5 h-3.5" />
-              </button>
+                {/* Right Controls: Mic & Send Circular Button */}
+                <div className="flex items-center gap-1.5">
+                  {/* Esforço Dropdown/Pill Selector (shows up only for WSM 1.6 Pro) */}
+                  {selectedModel === 'WSM 1.6 Pro' && (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setIsEffortDropdownOpen(!isEffortDropdownOpen)}
+                        className="flex items-center gap-1 px-2.5 py-1 bg-[#eae7e2] hover:bg-[#e1ded9] rounded-full text-[11px] font-bold text-gray-700 transition-all cursor-pointer"
+                        title="Seletor de esforço de raciocínio"
+                      >
+                        <span>Esforço</span>
+                        <span className="text-gray-500 font-normal ml-0.5">{reasoningLevel}</span>
+                        <ChevronDown className="w-3 h-3 text-gray-500" />
+                      </button>
 
-              {inputValue.length >= 4500 && (
-                <span className={`text-[10px] font-medium ${inputValue.length > 5000 ? 'text-red-500' : 'text-gray-400'} flex items-center`}>
-                  {inputValue.length} / 5000
-                </span>
-              )}
+                      {isEffortDropdownOpen && (
+                        <>
+                          {/* Backdrop to close the dropdown */}
+                          <div className="fixed inset-0 z-40" onClick={() => setIsEffortDropdownOpen(false)} />
+                          <div className="absolute bottom-full right-0 mb-2 w-44 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                            <div className="flex flex-col gap-0.5">
+                              {['Nenhum', 'Mínimo', 'Baixo', 'Médio', 'Alto'].map((level) => (
+                                <button
+                                  key={level}
+                                  type="button"
+                                  onClick={() => {
+                                    if (setReasoningLevel) {
+                                      setReasoningLevel(level);
+                                    }
+                                    setIsEffortDropdownOpen(false);
+                                  }}
+                                  className={`w-full text-left px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors cursor-pointer ${
+                                    reasoningLevel === level
+                                      ? 'bg-gray-50 text-[#5c53e5] font-semibold'
+                                      : 'text-gray-700 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {level}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
 
-              <button
-                type="submit"
-                id="btn-send-message"
-                onClick={(e) => {
-                  handleSubmit(e);
-                }}
-                disabled={(!inputValue.trim() && attachments.length === 0) || inputValue.length > 5000}
-                className={`w-7.5 h-7.5 rounded-full flex items-center justify-center transition-all ${
-                  (inputValue.trim() || attachments.length > 0) && inputValue.length <= 5000
-                    ? 'bg-[#1f1e1d] text-white hover:bg-[#343230] cursor-pointer shadow-xs'
-                    : 'bg-[#faf9f6] text-gray-300 cursor-not-allowed border border-[#eae6e1]'
-                }`}
-              >
-                <ArrowUp className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
+                  <button
+                    type="button"
+                    onClick={toggleListening}
+                    className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                      isListening
+                        ? 'text-red-500 bg-red-50 animate-pulse'
+                        : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                    }`}
+                    title={isListening ? "Parar gravação" : "Voz"}
+                  >
+                    <Mic className="w-3.5 h-3.5" />
+                  </button>
+
+                  {inputValue.length >= 4500 && (
+                    <span className={`text-[10px] font-medium ${inputValue.length > 5000 ? 'text-red-500' : 'text-gray-400'} flex items-center`}>
+                      {inputValue.length} / 5000
+                    </span>
+                  )}
+
+                  <button
+                    type="submit"
+                    id="btn-send-message"
+                    onClick={(e) => {
+                      handleSubmit(e);
+                    }}
+                    disabled={(!inputValue.trim() && attachments.length === 0) || inputValue.length > 5000}
+                    className={`w-7.5 h-7.5 rounded-full flex items-center justify-center transition-all ${
+                      (inputValue.trim() || attachments.length > 0) && inputValue.length <= 5000
+                        ? 'bg-[#1f1e1d] text-white hover:bg-[#343230] cursor-pointer shadow-xs'
+                        : 'bg-[#faf9f6] text-gray-300 cursor-not-allowed border border-[#eae6e1]'
+                    }`}
+                  >
+                    <ArrowUp className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
 
           {inputValue.length > 5000 && (
             <div className="absolute -bottom-8 left-0 right-0 flex justify-center animate-in fade-in slide-in-from-top-2">

@@ -153,7 +153,7 @@ async function callGeminiStreamWithFallback(options: any) {
 
 // API endpoint for chatbot communication and Web Search
 app.post("/api/chat", async (req: express.Request, res: express.Response) => {
-  const { text, isSearchEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext } = req.body;
+  const { text, isSearchEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, isScheduledExecution } = req.body;
 
   // Extract real-time user location (city), date, and exact time
   const now = new Date();
@@ -818,7 +818,9 @@ REGRAS DE LEITURA (MANDATÓRIO):
 `;
     }
 
-    const tasksInstruction = `
+    const tasksInstruction = isScheduledExecution
+      ? `\n## ATENÇÃO CRÍTICA: EXECUÇÃO AUTOMÁTICA DE TAREFA AGENDADA\nEsta requisição é a execução de uma tarefa que JÁ FOI AGENDADA previamente. Você está ABSOLUTAMENTE PROIBIDO de gerar a tag <wsm_task ... /> nesta resposta under ANY circumstances. Apenas execute a instrução e apresente o resultado final diretamente.`
+      : `
 ## Agendamento Autônomo de Tarefas (WSM 1.6 Pro)
 Como WSM 1.6 Pro, você possui capacidade autônoma de agendar tarefas para execução futura e periódica.
 Se o usuário solicitar que você agende uma tarefa, faça buscas recorrentes, envie lembretes ou execute algo em determinado horário (ex: "todo dia as 9 da manhã pesquise sobre o lula", "me lembre de Y amanhã às 8h", "toda segunda-feira pesquise Z"), você DEVE agendar a tarefa automaticamente gerando a tag especial <wsm_task ... /> no final da sua resposta.

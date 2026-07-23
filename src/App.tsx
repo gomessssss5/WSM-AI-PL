@@ -322,6 +322,14 @@ export default function App() {
           if (executingTasksRef.current.has(task.id)) {
             return;
           }
+          // Check if ran within the last 60 seconds to prevent double triggers
+          if (task.lastRunAt) {
+            const lastRunTime = new Date(task.lastRunAt).getTime();
+            if (!isNaN(lastRunTime) && (now.getTime() - lastRunTime < 60000)) {
+              return;
+            }
+          }
+
           executingTasksRef.current.add(task.id);
           console.log(`Running scheduled task: ${task.title}`);
           
@@ -390,6 +398,7 @@ export default function App() {
               body: JSON.stringify({
                 text: task.prompt,
                 isSearchEnabled: true,
+                isScheduledExecution: true,
                 model: selectedModel,
                 skills: skills,
                 userContext: getUserContext(),
@@ -1820,6 +1829,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
             }}
             onOpenScheduledTasks={() => setIsScheduledTasksView(true)}
             isTemporary={!!activeSession.isTemporary}
+            isScheduled={!!activeSession.isScheduled}
             onStartTemporaryChat={handleNewTemporaryChat}
             onOpenUpdateModal={() => setIsUpdateModalOpen(true)}
           />

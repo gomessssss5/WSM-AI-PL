@@ -63,8 +63,26 @@ export default function ScheduledTasksDashboard({
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   };
 
+  const parseDateSafely = (d: any): Date | null => {
+    if (!d) return null;
+    if (d instanceof Date) return isNaN(d.getTime()) ? null : d;
+    if (typeof d?.toDate === 'function') {
+      try { return d.toDate(); } catch { return null; }
+    }
+    if (typeof d === 'number') return new Date(d);
+    if (typeof d === 'string') {
+      const parsed = new Date(d);
+      return isNaN(parsed.getTime()) ? null : parsed;
+    }
+    if (typeof d === 'object' && typeof d.seconds === 'number') {
+      return new Date(d.seconds * 1000);
+    }
+    return null;
+  };
+
   const getTasksForDay = (dayNum: number) => {
     const cellDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), dayNum);
+    cellDate.setHours(0, 0, 0, 0);
     const yyyy = cellDate.getFullYear();
     const mm = String(cellDate.getMonth() + 1).padStart(2, '0');
     const dd = String(cellDate.getDate()).padStart(2, '0');
@@ -72,28 +90,48 @@ export default function ScheduledTasksDashboard({
 
     return tasks.filter(t => {
       // Don't show task on days before it was created
-      const creationDate = new Date(t.createdAt);
-      creationDate.setHours(0, 0, 0, 0);
-      if (cellDate < creationDate) {
-        return false;
+      const rawCreation = parseDateSafely(t.createdAt);
+      if (rawCreation) {
+        const creationDate = new Date(rawCreation);
+        creationDate.setHours(0, 0, 0, 0);
+        if (cellDate < creationDate) {
+          return false;
+        }
       }
 
-      if (t.expirationDate && new Date(t.expirationDate + 'T23:59:59') < cellDate) {
-        return false;
+      if (t.expirationDate) {
+        const expDate = new Date(t.expirationDate + 'T23:59:59');
+        if (!isNaN(expDate.getTime()) && expDate < cellDate) {
+          return false;
+        }
       }
       
       if (t.scheduleType === 'daily') return true;
       if (t.scheduleType === 'once') {
-        return t.date === cellDateString;
+        if (t.date) {
+          return t.date === cellDateString;
+        }
+        // Fallback: match nextRunAt or createdAt date if t.date is missing
+        const targetDate = parseDateSafely(t.nextRunAt) || parseDateSafely(t.createdAt);
+        if (targetDate) {
+          const ty = targetDate.getFullYear();
+          const tm = String(targetDate.getMonth() + 1).padStart(2, '0');
+          const td = String(targetDate.getDate()).padStart(2, '0');
+          return `${ty}-${tm}-${td}` === cellDateString;
+        }
+        return false;
       }
       if (t.scheduleType === 'weekly') {
         if (t.daysOfWeek && t.daysOfWeek.length > 0) {
           return t.daysOfWeek.includes(cellDate.getDay());
         }
-        return cellDate.getDay() === new Date(t.createdAt).getDay();
+        const refDate = parseDateSafely(t.nextRunAt) || parseDateSafely(t.createdAt) || new Date();
+        return cellDate.getDay() === refDate.getDay();
       }
       if (t.scheduleType === 'monthly') {
-        return cellDate.getDate() === (t.dayOfMonth || 1);
+        const refDate = parseDateSafely(t.nextRunAt) || parseDateSafely(t.createdAt) || new Date();
+        const targetDay = t.dayOfMonth || refDate.getDate();
+        return cellDate.getDate() === targetDay;
       }
       return false;
     });

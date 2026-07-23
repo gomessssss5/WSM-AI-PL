@@ -25,10 +25,23 @@ export function extractWsmTasks(text: string | undefined): { cleanText: string; 
     const prompt = getAttr('prompt');
     const scheduleTypeRaw = getAttr('scheduleType').toLowerCase();
     const time = getAttr('time') || '09:00';
+    const dateAttr = getAttr('date');
+    const daysOfWeekAttr = getAttr('daysOfWeek');
+    const dayOfMonthAttr = getAttr('dayOfMonth');
 
     let scheduleType: 'once' | 'daily' | 'weekly' | 'monthly' = 'once';
     if (['once', 'daily', 'weekly', 'monthly'].includes(scheduleTypeRaw)) {
       scheduleType = scheduleTypeRaw as any;
+    }
+
+    let daysOfWeek: number[] | undefined;
+    if (daysOfWeekAttr) {
+      daysOfWeek = daysOfWeekAttr.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n));
+    }
+
+    let dayOfMonth: number | undefined;
+    if (dayOfMonthAttr && !isNaN(Number(dayOfMonthAttr))) {
+      dayOfMonth = Number(dayOfMonthAttr);
     }
 
     if (title || prompt) {
@@ -36,7 +49,10 @@ export function extractWsmTasks(text: string | undefined): { cleanText: string; 
         title: title || 'Nova Tarefa Agendada',
         prompt: prompt || title || 'Executar tarefa agendada',
         scheduleType,
-        time
+        time,
+        date: dateAttr || undefined,
+        daysOfWeek,
+        dayOfMonth
       });
     }
   }
