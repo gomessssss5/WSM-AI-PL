@@ -1402,7 +1402,7 @@ export default function MainHome({
                     className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
                     title="Anexar arquivo"
                   >
-                    <Paperclip className="w-3.5 h-3.5" />
+                    <Paperclip className="w-4 h-4" />
                   </button>
 
                   {/* Toggleable Pesquisar Button */}
@@ -1410,14 +1410,14 @@ export default function MainHome({
                     type="button"
                     id="btn-search-toggle"
                     onClick={() => setIsSearchEnabled(!isSearchEnabled)}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold transition-all cursor-pointer ${
                       isSearchEnabled
                         ? 'bg-[#5c53e5]/10 text-[#5c53e5] border border-[#5c53e5]/25 shadow-2xs'
                         : 'bg-[#eae7e2] text-gray-700 hover:bg-[#e1ded9]'
                     }`}
                     title="Ativar busca web em tempo real"
                   >
-                    <Globe className={`w-3 h-3 ${isSearchEnabled ? 'text-[#5c53e5] animate-spin-slow' : 'text-gray-500'}`} />
+                    <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-[#5c53e5] animate-spin-slow' : 'text-gray-500'}`} />
                     <span>Pesquisar</span>
                   </button>
                 </div>
@@ -1430,19 +1430,19 @@ export default function MainHome({
                       <button
                         type="button"
                         onClick={() => setIsEffortDropdownOpen(!isEffortDropdownOpen)}
-                        className="flex items-center gap-1 px-2.5 py-1 bg-[#eae7e2] hover:bg-[#e1ded9] rounded-full text-[11px] font-bold text-gray-700 transition-all cursor-pointer"
+                        className="flex items-center gap-1 px-3 py-1 bg-[#eae7e2] hover:bg-[#e1ded9] rounded-full text-[12px] font-bold text-gray-700 transition-all cursor-pointer"
                         title="Seletor de esforço de raciocínio"
                       >
                         <span>Esforço</span>
                         <span className="text-gray-500 font-normal ml-0.5">{reasoningLevel}</span>
-                        <ChevronDown className="w-3 h-3 text-gray-500" />
+                        <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
                       </button>
 
                       {isEffortDropdownOpen && (
                         <>
                           {/* Backdrop to close the dropdown */}
                           <div className="fixed inset-0 z-40" onClick={() => setIsEffortDropdownOpen(false)} />
-                          <div className="absolute bottom-full right-0 mb-2 w-44 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                          <div className="absolute bottom-full right-0 mb-2 w-44 bg-white rounded-xl shadow-xl z-50 p-1 animate-in fade-in slide-in-from-bottom-2 duration-150">
                             <div className="flex flex-col gap-0.5">
                               {['Nenhum', 'Mínimo', 'Baixo', 'Médio', 'Alto'].map((level) => (
                                 <button
@@ -1480,7 +1480,7 @@ export default function MainHome({
                     }`}
                     title={isListening ? "Parar gravação" : "Voz"}
                   >
-                    <Mic className="w-3.5 h-3.5" />
+                    <Mic className="w-4 h-4" />
                   </button>
 
                   {inputValue.length >= 4500 && (
@@ -1496,13 +1496,13 @@ export default function MainHome({
                       handleSubmit(e);
                     }}
                     disabled={(!inputValue.trim() && attachments.length === 0) || inputValue.length > 5000}
-                    className={`w-7.5 h-7.5 rounded-full flex items-center justify-center transition-all ${
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
                       (inputValue.trim() || attachments.length > 0) && inputValue.length <= 5000
                         ? 'bg-[#1f1e1d] text-white hover:bg-[#343230] cursor-pointer shadow-xs'
                         : 'bg-[#faf9f6] text-gray-300 cursor-not-allowed border border-[#eae6e1]'
                     }`}
                   >
-                    <ArrowUp className="w-3.5 h-3.5" />
+                    <ArrowUp className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -1553,7 +1553,7 @@ export default function MainHome({
           {shouldShowNewsCard && currentCardIndex === 0 && (
             <div 
               onClick={() => setIsNewsModalOpen(true)}
-              className="w-full bg-gray-100/65 border border-[#eae6e1]/70 rounded-2xl p-4 flex items-center gap-4 select-none cursor-pointer hover:bg-gray-100/90 active:scale-[0.99] transition-all relative order-1 md:order-2 animate-in fade-in duration-500"
+              className="w-full bg-gray-100/65 rounded-2xl p-4 flex items-center gap-4 select-none cursor-pointer hover:bg-gray-100/90 active:scale-[0.99] transition-all relative order-1 md:order-2 animate-in fade-in duration-500"
             >
               <img
                 src="https://i.ibb.co/TMJBp2n7/38000-removebg-preview.png"
@@ -1575,7 +1575,7 @@ export default function MainHome({
           {shouldShowNewsCard && currentCardIndex === 1 && (
             <div 
               onClick={() => window.location.href = '/benchmark'}
-              className="w-full bg-gray-100/65 border border-[#eae6e1]/70 rounded-2xl p-4 flex items-center gap-4 select-none cursor-pointer hover:bg-gray-100/90 active:scale-[0.99] transition-all relative order-1 md:order-2 animate-in fade-in duration-500"
+              className="w-full bg-gray-100/65 rounded-2xl p-4 flex items-center gap-4 select-none cursor-pointer hover:bg-gray-100/90 active:scale-[0.99] transition-all relative order-1 md:order-2 animate-in fade-in duration-500"
             >
               <div className="w-14 h-14 md:w-16 md:h-16 shrink-0 flex items-center justify-center bg-white border border-[#eae6e1] rounded-xl shadow-sm">
                 <Sparkles className="w-7 h-7 text-[#5c53e5]" />
