@@ -117,6 +117,38 @@ export default function TypewriterMarkdown({
           }
         }
 
+        // Check for custom wsm component tags (<wsm_...) to buffer them
+        let lastOpenAngleIndex = -1;
+        for (let i = currentIndexRef.current - 1; i >= 0; i--) {
+          if (currentSegments[i] === '<') {
+            lastOpenAngleIndex = i;
+            break;
+          } else if (currentSegments[i] === '>') {
+            break;
+          }
+        }
+
+        if (lastOpenAngleIndex !== -1) {
+          const textInside = currentSegments.slice(lastOpenAngleIndex).join('').toLowerCase();
+          if (textInside.startsWith('<wsm_') || textInside.startsWith('<img') || textInside.startsWith('<svg')) {
+            let foundClosing = false;
+            let closingIndex = -1;
+            for (let i = lastOpenAngleIndex; i < currentTotalLen; i++) {
+              if (currentSegments[i] === '>') {
+                closingIndex = i + 1;
+                foundClosing = true;
+                break;
+              }
+            }
+
+            if (foundClosing) {
+              currentIndexRef.current = Math.max(currentIndexRef.current, closingIndex);
+            } else {
+              currentIndexRef.current = lastOpenAngleIndex;
+            }
+          }
+        }
+
         // Check for agentic tags to buffer them
         let lastOpenBracketIndex = -1;
         for (let i = currentIndexRef.current - 1; i >= 0; i--) {

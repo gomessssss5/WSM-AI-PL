@@ -883,8 +883,8 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
     }
     const activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + writerInstruction + "\n\n" + skillsInstruction + "\n\n" + tasksInstruction;
 
-    if (model === 'WSM 1.6 Pro') {
-      console.log("Starting agentic loop for Pro...");
+    if (model === 'WSM 1.6 Pro' || model === 'WSM 1.6 Flash') {
+      console.log(`Starting agentic loop for model: ${model}...`);
       const marteTools = [{
         functionDeclarations: [
           {
@@ -933,6 +933,20 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
               },
               required: ["html"]
             }
+          },
+          {
+            name: "gerar_imagem",
+            description: "MANDATÓRIO: Chame esta ferramenta SEMPRE que o usuário pedir para gerar, criar, desenhar ou imaginar uma imagem, foto ou ilustração. NÃO responda apenas com texto, chame a ferramenta obrigatoriamente neste turno.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                prompt: {
+                  type: Type.STRING,
+                  description: "O prompt visual em inglês (ex: 'a majestic golden retriever sitting on a mountain peak, cinematic, 8k')."
+                }
+              },
+              required: ["prompt"]
+            }
           }
         ]
       }];
@@ -956,7 +970,7 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
         }
 
         const response = await callGeminiWithFallback({
-          model: "gemini-3.5-flash-lite", // using flash lite as requested
+          model: "gemini-3.5-flash-lite",
           contents: currentContents,
           config: {
             systemInstruction: activeSystemPrompt + 
@@ -978,6 +992,7 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
               "\n   - Se o resultado for sucesso (sem erros), você DEVE obrigatoriamente apresentar a resposta final ao usuário contendo a explicação polida do projeto e o BLOCO DE CÓDIGO HTML COMPLETO NO FORMATO MARKDOWN (```html ... ```)." +
               "\n   - IMPORTANTE: NÃO chame a ferramenta 'auto_debug_html' de novo caso você já tenha recebido a resposta dela com sucesso! Apresente o código completo imediatamente na sua mensagem final. Nunca finalize a conversa sem enviar o código HTML completo para o usuário no formato Markdown." +
               "\nREGRA DE ENTREGA DE HTML (CRÍTICO): Na sua resposta final ao usuário, após validar o código com a ferramenta 'auto_debug_html', você DEVE OBRIGATORIAMENTE enviar o bloco de código HTML completo (no formato ```html ... ```) contendo o site/projeto que o usuário pediu. NUNCA termine uma resposta de criação ou edição de site sem fornecer o código HTML correspondente, even if you already validated it earlier in the conversation. O usuário necessita do código final completo na sua mensagem para poder vê-lo e usá-lo." +
+              "\nREGRA DE GERAÇÃO DE IMAGENS (AI HORDE): SEMPRE que o usuário solicitar para gerar, criar, desenhar ou pintar uma imagem, foto, ilustração ou arte visual, você DEVE OBRIGATORIAMENTE chamar a ferramenta 'gerar_imagem' IMEDIATAMENTE. IMPORTANTE: NUNCA diga 'Vou gerar a imagem' e encerre o turno sem chamar a ferramenta. Você DEVE chamar a ferramenta no MESMO turno! Ao chamar, passe o prompt descritivo detalhado em inglês (ex: 'a majestic golden retriever sitting on a mountain peak, cinematic, 8k')." +
               (lastDebugResult 
                 ? (lastDebugResult.errorsFound
                     ? `\n\nAVISO DE ERROS ENCONTRADOS: A ferramenta 'auto_debug_html' detectou os seguintes problemas no seu HTML: ${JSON.stringify(lastDebugResult.detectedErrors)}. Você está no Turno de Correção. Você é ABSOLUTAMENTE PROIBIDO de gerar o bloco de código Markdown final (\x60\x60\x60html ... \x60\x60\x60) para o usuário agora. Em vez disso, corrija TODOS os problemas indicados, escreva apenas uma mensagem curta de status como "(Corrigindo erros detectados no código...)" e chame a ferramenta 'auto_debug_html' novamente passando o HTML 100% corrigido!`
@@ -1046,6 +1061,7 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
             const thinkingText = fc.name === "web_search" ? "\n\n[pesquisando...]\n\n" : 
                                  fc.name === "calculadora" ? "\n\n[calculando...]\n\n" : 
                                  fc.name === "relogio" ? "\n\n[verificando...]\n\n" :
+                                 fc.name === "gerar_imagem" ? `\n\n<wsm_image prompt="${(fc.args as any)?.prompt || 'Imagem'}" imgUrl="" />\n\n` :
                                  "\n\n[verificando possíveis erros no código...]\n\n";
             sendEvent({ type: "chunk", text: thinkingText });
             fullOutput += thinkingText;
@@ -1170,6 +1186,105 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
               });
               
               lastDebugResult = debugResult;
+            } else if (fc.name === "gerar_imagem") {
+              const args = fc.args as any;
+              const promptStr = args.prompt || "";
+              let resultImgUrl = "";
+              let errorMsg = "";
+
+              try {
+                console.log(`[Pro] AI Horde generating image with prompt: "${promptStr}"`);
+                const responseAsync = await fetch("https://aihorde.net/api/v2/generate/async", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "apikey": "0000000000",
+                    "Client-Agent": "WSMAI:1.0:wsmai@wsm.ai"
+                  },
+                  body: JSON.stringify({
+                    prompt: promptStr,
+                    params: {
+                      sampler_name: "k_euler",
+                      cfg_scale: 7.5,
+                      height: 512,
+                      width: 512,
+                      steps: 20,
+                      n: 1
+                    },
+                    nsfw: false,
+                    censor_nsfw: true,
+                    models: ["AlbedoBase XL 3.1"]
+                  })
+                });
+
+                if (!responseAsync.ok) {
+                  throw new Error(`AI Horde API error: ${responseAsync.statusText}`);
+                }
+
+                const initData = await responseAsync.json();
+                const requestId = initData.id;
+
+                if (!requestId) {
+                  throw new Error("Não foi possível obter o ID da geração de imagem.");
+                }
+
+                // Poll status
+                let isDone = false;
+                let attempts = 0;
+                const maxAttempts = 30; // 60 seconds max
+
+                while (!isDone && attempts < maxAttempts) {
+                  await new Promise(resolve => setTimeout(resolve, 2000));
+                  attempts++;
+
+                  const statusRes = await fetch(`https://aihorde.net/api/v2/generate/status/${requestId}`);
+                  if (statusRes.ok) {
+                    const statusData = await statusRes.json();
+                    if (statusData.done) {
+                      isDone = true;
+                      if (statusData.generations && statusData.generations.length > 0) {
+                        resultImgUrl = statusData.generations[0].img;
+                      } else {
+                        throw new Error("Nenhuma imagem gerada.");
+                      }
+                    } else if (statusData.faulted) {
+                      throw new Error("Erro na geração da imagem pelo AI Horde.");
+                    }
+                  }
+                }
+
+                if (!resultImgUrl) {
+                  throw new Error("A geração de imagem expirou.");
+                }
+
+                // Convert image to Base64 data URI so it persists permanently in user's chat history/Firestore without expiring
+                if (resultImgUrl && !resultImgUrl.startsWith("data:")) {
+                  try {
+                    const imgRes = await fetch(resultImgUrl);
+                    if (imgRes.ok) {
+                      const arrayBuffer = await imgRes.arrayBuffer();
+                      const base64 = Buffer.from(arrayBuffer).toString("base64");
+                      const contentType = imgRes.headers.get("content-type") || "image/webp";
+                      resultImgUrl = `data:${contentType};base64,${base64}`;
+                    }
+                  } catch (convErr) {
+                    console.warn("[Pro] Conversion to base64 failed, keeping original URL:", convErr);
+                  }
+                }
+
+              } catch (e: any) {
+                console.error("Erro ao gerar imagem no AI Horde:", e);
+                errorMsg = e.message || String(e);
+              }
+
+              functionResponseParts.push({
+                functionResponse: { 
+                  name: fc.name, 
+                  response: { 
+                    result: resultImgUrl ? { success: true, imgUrl: resultImgUrl, prompt: promptStr } : { success: false, error: errorMsg }
+                  } 
+                }
+              });
             }
             
             // Remove the thinking text and replace with the final tag text
@@ -1189,6 +1304,13 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
                 finalTagText = `\n\n[corrigindo erro detectado no código: ${errorDesc} | HTML_BASE64:${htmlBase64}]\n\n`;
               } else {
                 finalTagText = `\n\n[código 100% verificado: sem erros | HTML_BASE64:${htmlBase64}]\n\n`;
+              }
+            } else if (fc.name === "gerar_imagem") {
+              const resObj = functionResponseParts[functionResponseParts.length - 1].functionResponse.response.result;
+              if (resObj && resObj.success) {
+                finalTagText = `\n\n<wsm_image prompt="${resObj.prompt}" imgUrl="${resObj.imgUrl}" />\n\n`;
+              } else {
+                finalTagText = `\n\n❌ Erro ao gerar imagem: ${resObj?.error || 'serviço indisponível'}\n\n`;
               }
             }
             const lastIdx = fullOutput.lastIndexOf(thinkingText);

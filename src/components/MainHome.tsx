@@ -410,7 +410,8 @@ export default function MainHome({
   const marteTools = [
     { id: '/web', name: 'web-search', description: 'Pesquisa na Web', icon: Globe, color: 'text-blue-500' },
     { id: '/calculadora', name: 'calculadora', description: 'Calculadora Matemática', icon: Calculator, color: 'text-emerald-500' },
-    { id: '/relogio', name: 'relogio', description: 'Relógio e Data Atual', icon: Clock, color: 'text-orange-500' }
+    { id: '/relogio', name: 'relogio', description: 'Relógio e Data Atual', icon: Clock, color: 'text-orange-500' },
+    { id: '/gerar-imagem', name: 'gerar-imagem', description: 'Gerador de Imagens AI', icon: ImageIcon, color: 'text-purple-500' }
   ];
 
   const slashItems = [

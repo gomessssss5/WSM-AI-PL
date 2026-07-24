@@ -2,12 +2,69 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin, TvMinimalPlay } from 'lucide-react';
+import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin, TvMinimalPlay, Image as ImageIcon, Loader2, Download, ZoomIn } from 'lucide-react';
 import HtmlCodeBlock from './HtmlCodeBlock';
 import WsmMapComponent from './WsmMapComponent';
 import WsmChartComponent from './WsmChartComponent';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+
+interface WsmImageComponentProps {
+  key?: string;
+  prompt: string;
+  imgUrl?: string;
+}
+
+export function WsmImageComponent({ prompt, imgUrl }: WsmImageComponentProps) {
+  const [showFull, setShowFull] = React.useState(false);
+
+  if (!imgUrl) {
+    return (
+      <div className="my-4 w-full max-w-[340px] aspect-square rounded-[18px] bg-[#17171a] border border-[#2a2a2e] flex flex-col items-center justify-center gap-3 p-6 shadow-sm select-none shrink-0">
+        <div className="w-12 h-12 rounded-2xl bg-[#222226] border border-[#2e2e34] flex items-center justify-center text-[#7c8cff] shadow-inner">
+          <ImageIcon className="w-6 h-6 text-[#7c8cff]" />
+        </div>
+        <div className="flex flex-col items-center gap-1 text-center">
+          <span className="text-sm font-semibold text-[#f2f2f0]">Gerando imagem...</span>
+          {prompt && (
+            <span className="text-xs text-[#9a9a9f] line-clamp-2 px-2 max-w-[260px]">
+              {prompt}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="my-4 w-full max-w-[340px] aspect-square rounded-[18px] overflow-hidden shadow-sm hover:shadow-md transition-shadow shrink-0">
+      <img
+        src={imgUrl}
+        alt={prompt}
+        referrerPolicy="no-referrer"
+        className="w-full h-full object-cover rounded-[18px] cursor-pointer transition-transform duration-300 hover:scale-[1.01]"
+        onClick={() => setShowFull(true)}
+      />
+      {showFull && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={() => setShowFull(false)}>
+          <button
+            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md transition-colors"
+            onClick={() => setShowFull(false)}
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={imgUrl}
+            alt={prompt}
+            referrerPolicy="no-referrer"
+            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface AgenticSkillTagProps {
   key?: string;
@@ -1186,6 +1243,43 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
             {renderNodes(roots, renderInlineContent)}
           </div>
         );
+        continue;
+      }
+
+      // 7.5 Custom Image Tag: <wsm_image prompt="..." imgUrl="..." />
+      if (trimmed.startsWith('<wsm_image') || trimmed.includes('<wsm_image')) {
+        let imageLine = line;
+        while (i < lines.length && !imageLine.includes('/>') && !imageLine.includes('</wsm_image>')) {
+          i++;
+          if (i < lines.length) {
+            imageLine += '\n' + lines[i];
+          }
+        }
+
+        const parseAttr = (str: string, attr: string): string => {
+          const regexSingle = new RegExp(`${attr}\\s*=\\s*\'([^\']*)\'`, 'i');
+          const regexDouble = new RegExp(`${attr}\\s*=\\s*"([^"]*)"`, 'i');
+          
+          const matchSingle = str.match(regexSingle);
+          if (matchSingle) return matchSingle[1];
+          
+          const matchDouble = str.match(regexDouble);
+          if (matchDouble) return matchDouble[1];
+          
+          return '';
+        };
+
+        const promptVal = parseAttr(imageLine, 'prompt');
+        const imgUrlVal = parseAttr(imageLine, 'imgUrl');
+
+        blocks.push(
+          <WsmImageComponent
+            key={`image-${i}`}
+            prompt={promptVal}
+            imgUrl={imgUrlVal || undefined}
+          />
+        );
+        i++;
         continue;
       }
 
