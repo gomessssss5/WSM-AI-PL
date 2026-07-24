@@ -2,34 +2,36 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getFirestore, 
   doc, 
-  setDoc, 
-  updateDoc,
-  deleteDoc
+  setDoc
 } from 'firebase/firestore';
 import fs from 'fs';
 import path from 'path';
 
-let db: any = null;
+let dbInstance: any = null;
 
-try {
-  const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
-  if (fs.existsSync(configPath)) {
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    const app = getApps().length > 0 ? getApp() : initializeApp({
-      apiKey: config.apiKey,
-      authDomain: config.authDomain,
-      projectId: config.projectId,
-      storageBucket: config.storageBucket,
-      messagingSenderId: config.messagingSenderId,
-      appId: config.appId,
-    });
-    db = config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)'
-      ? getFirestore(app, config.firestoreDatabaseId)
-      : getFirestore(app);
-    console.log('[Ranking Virtual] Firebase/Firestore inicializado com sucesso no backend.');
+function getDb() {
+  if (dbInstance) return dbInstance;
+  try {
+    const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      const app = getApps().length > 0 ? getApp() : initializeApp({
+        apiKey: config.apiKey,
+        authDomain: config.authDomain,
+        projectId: config.projectId,
+        storageBucket: config.storageBucket,
+        messagingSenderId: config.messagingSenderId,
+        appId: config.appId,
+      });
+      dbInstance = config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)'
+        ? getFirestore(app, config.firestoreDatabaseId)
+        : getFirestore(app);
+      console.log('[Ranking Virtual] Firebase/Firestore backend conectado com sucesso!');
+    }
+  } catch (err) {
+    console.warn('[Ranking Virtual] Erro ao conectar Firestore backend:', err);
   }
-} catch (err) {
-  console.warn('[Ranking Virtual] Não foi possível inicializar Firestore no backend:', err);
+  return dbInstance;
 }
 
 export interface QueueItem {
@@ -56,8 +58,9 @@ class ImageRankingQueueManager {
     this.queue.push(newItem);
 
     const position = this.getPosition(id);
-    console.log(`[Ranking Virtual] Nova solicitação de imagem adicionada ao banco: ${id} | Posição no ranking: #${position}`);
+    console.log(`[Ranking Virtual] Nova solicitação adicionada ao ranking: ${id} | Posição: #${position}`);
 
+    const db = getDb();
     if (db) {
       try {
         await setDoc(doc(db, 'image_generation_ranking', id), {
@@ -66,9 +69,10 @@ class ImageRankingQueueManager {
           status: 'queued',
           position,
           createdAt: new Date().toISOString()
-        });
+        }, { merge: true });
+        console.log(`[Ranking Virtual] Salvo no banco de dados Firestore com sucesso (${id})`);
       } catch (e) {
-        console.warn(`[Ranking Virtual] Erro ao gravar item no banco (${id}):`, e);
+        console.error(`[Ranking Virtual] Erro ao gravar item no banco (${id}):`, e);
       }
     }
 
@@ -92,21 +96,22 @@ class ImageRankingQueueManager {
           this.activeProcessingCount++;
           console.log(`[Ranking Virtual] Solicitação ${id} entrou no Top 3 (Posição #${position}). Encaminhando para geração no Horde AI... (Ativos: ${this.activeProcessingCount}/${this.maxConcurrent})`);
 
+          const db = getDb();
           if (db) {
             try {
-              await updateDoc(doc(db, 'image_generation_ranking', id), {
+              await setDoc(doc(db, 'image_generation_ranking', id), {
                 status: 'processing',
                 startedAt: new Date().toISOString()
-              });
+              }, { merge: true });
             } catch (e) {
-              console.warn(`[Ranking Virtual] Erro ao atualizar status no banco (${id}):`, e);
+              console.error(`[Ranking Virtual] Erro ao atualizar status no banco (${id}):`, e);
             }
           }
           return;
         }
       }
 
-      // If position > 3 or max concurrent reached, keep waiting in the virtual ranking
+      // Wait 300ms before checking position again
       await new Promise(resolve => setTimeout(resolve, 300));
     }
   }
@@ -118,36 +123,37 @@ class ImageRankingQueueManager {
       if (item.status === 'processing') {
         this.activeProcessingCount = Math.max(0, this.activeProcessingCount - 1);
       }
-      // Remove from active queue list so subsequent requests advance in position
       this.queue.splice(itemIndex, 1);
-      console.log(`[Ranking Virtual] Imagem gerada (${id}). Removida do ranking. Vaga liberada no Horde! (Ativos restantes: ${this.activeProcessingCount}/${this.maxConcurrent})`);
+      console.log(`[Ranking Virtual] Imagem gerada (${id}). Removida da fila ativa. (Ativos restantes: ${this.activeProcessingCount}/${this.maxConcurrent})`);
     }
 
+    const db = getDb();
     if (db) {
       try {
-        await updateDoc(doc(db, 'image_generation_ranking', id), {
+        await setDoc(doc(db, 'image_generation_ranking', id), {
           status: success ? 'completed' : 'failed',
           resultUrl: resultUrl || '',
           error: errorMsg || '',
           completedAt: new Date().toISOString()
-        });
+        }, { merge: true });
+        console.log(`[Ranking Virtual] Status final '${success ? 'completed' : 'failed'}' atualizado no Firestore para ${id}`);
       } catch (e) {
-        console.warn(`[Ranking Virtual] Erro ao atualizar conclusão no banco (${id}):`, e);
+        console.error(`[Ranking Virtual] Erro ao atualizar conclusão no banco (${id}):`, e);
       }
     }
 
-    // Update remaining items' positions in the database background
     this.updateDbPositions();
   }
 
   private async updateDbPositions() {
+    const db = getDb();
     if (!db) return;
     try {
       for (let i = 0; i < this.queue.length; i++) {
         const item = this.queue[i];
-        await updateDoc(doc(db, 'image_generation_ranking', item.id), {
+        await setDoc(doc(db, 'image_generation_ranking', item.id), {
           position: i + 1
-        }).catch(() => {});
+        }, { merge: true }).catch(() => {});
       }
     } catch (e) {
       // Ignore background position update errors

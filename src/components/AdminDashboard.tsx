@@ -118,12 +118,13 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
   useEffect(() => {
     if (!db) return;
     try {
-      const q = query(collection(db, 'image_generation_ranking'), orderBy('createdAt', 'desc'));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
+      const colRef = collection(db, 'image_generation_ranking');
+      const unsubscribe = onSnapshot(colRef, (snapshot) => {
         const list: any[] = [];
         snapshot.forEach((docSnap) => {
           list.push({ id: docSnap.id, ...docSnap.data() });
         });
+        list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
         setRankingItems(list);
       }, (error) => {
         console.warn("Erro ao escutar ranking de imagens:", error);
