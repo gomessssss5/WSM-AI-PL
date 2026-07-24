@@ -2,6 +2,7 @@ import express from "express";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import sharp from "sharp";
+import { imageRankingQueue } from "./imageQueue";
 
 dotenv.config();
 
@@ -1208,7 +1209,14 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
               let resultImgUrl = "";
               let errorMsg = "";
 
+              let queueId = "";
               try {
+                // 1. Enter Virtual Ranking Queue in Database
+                queueId = await imageRankingQueue.enqueue(promptStr);
+
+                // 2. Wait until request enters Top 3 in ranking and a slot opens
+                await imageRankingQueue.waitForTurn(queueId);
+
                 console.log(`[Pro] AI Horde generating image with prompt: "${promptStr}"`);
                 const responseAsync = await fetch("https://aihorde.net/api/v2/generate/async", {
                   method: "POST",
@@ -1326,9 +1334,15 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
                   }
                 }
 
+                // Image generated successfully -> exit ranking queue and release slot for next in line
+                await imageRankingQueue.complete(queueId, true, resultImgUrl);
+
               } catch (e: any) {
                 console.error("Erro ao gerar imagem no AI Horde:", e);
                 errorMsg = e.message || String(e);
+                if (queueId) {
+                  await imageRankingQueue.complete(queueId, false, undefined, errorMsg);
+                }
               }
 
               functionResponseParts.push({

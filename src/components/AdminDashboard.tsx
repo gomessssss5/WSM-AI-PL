@@ -3,7 +3,8 @@ import {
   TrendingUp, Users, User, MessageSquare, AlertTriangle, Cpu, Clock, 
   Coins, Terminal, ArrowLeft, Activity, Play, Pause, RefreshCw, 
   Sliders, Shield, Zap, Database, Search, Sparkles, AlertCircle,
-  FileText, Globe, CheckCircle, Check, HelpCircle, Server, FileCheck, Paperclip, BarChart2, Star, Flag, ThumbsUp, ThumbsDown, ShieldCheck, X, ChevronRight, PlayCircle
+  FileText, Globe, CheckCircle, Check, HelpCircle, Server, FileCheck, Paperclip, BarChart2, Star, Flag, ThumbsUp, ThumbsDown, ShieldCheck, X, ChevronRight, PlayCircle,
+  Image as ImageIcon, Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -13,7 +14,7 @@ import {
   LineChart, Line
 } from 'recharts';
 import { db } from '../lib/firebase';
-import { collection, getDocs, collectionGroup } from 'firebase/firestore';
+import { collection, getDocs, collectionGroup, onSnapshot, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
 import { getEvaluationsFromDb, saveEvaluationToDb } from '../lib/chatService';
 import { ChatSession, Message } from '../types';
 
@@ -106,9 +107,32 @@ interface ProcessedStats {
 }
 
 export default function AdminDashboard({ onBack }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'metrics' | 'engagement' | 'models' | 'evaluations' | 'diagnostics' | 'errors' | 'simulation' | 'users' | 'broadcast' | 'gemini'>('metrics');
+  const [activeTab, setActiveTab] = useState<'metrics' | 'engagement' | 'models' | 'evaluations' | 'diagnostics' | 'errors' | 'simulation' | 'users' | 'broadcast' | 'gemini' | 'imageRanking'>('metrics');
   const [loading, setLoading] = useState(true);
   const [realStats, setRealStats] = useState<ProcessedStats | null>(null);
+
+  // Virtual Ranking Queue for Images state
+  const [rankingItems, setRankingItems] = useState<any[]>([]);
+
+  // Real-time listener for image_generation_ranking
+  useEffect(() => {
+    if (!db) return;
+    try {
+      const q = query(collection(db, 'image_generation_ranking'), orderBy('createdAt', 'desc'));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const list: any[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        setRankingItems(list);
+      }, (error) => {
+        console.warn("Erro ao escutar ranking de imagens:", error);
+      });
+      return () => unsubscribe();
+    } catch (err) {
+      console.warn("Erro ao configurar onSnapshot para ranking de imagens:", err);
+    }
+  }, []);
 
   // API Tester State
   const [testingApis, setTestingApis] = useState(false);
@@ -1422,6 +1446,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
               { id: 'metrics', label: 'Métricas de Tráfego', icon: TrendingUp },
               { id: 'engagement', label: 'Análise de Engajamento', icon: Activity },
               { id: 'users', label: 'Gestão de Usuários', icon: Users },
+              { id: 'imageRanking', label: 'Ranking Virtual de Imagens', icon: ImageIcon },
               { id: 'models', label: 'Distribuição de Modelos', icon: Cpu },
               { id: 'gemini', label: 'Cotas Gemini & Tavily', icon: Sparkles },
               { id: 'evaluations', label: 'Avaliações & Interações', icon: Star },
@@ -3391,6 +3416,249 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'imageRanking' && (
+          <motion.div
+            key="imageRanking"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.15 }}
+            className="space-y-6"
+          >
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-2xl border border-[#eae6e1] shadow-sm flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-[#5c53e5] flex items-center justify-center border border-indigo-100 shrink-0">
+                  <ImageIcon className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Total no Banco</span>
+                  <span className="text-xl font-black text-gray-900">{rankingItems.length}</span>
+                  <span className="text-[10px] text-gray-400 block mt-0.5">Solicitações registradas</span>
+                </div>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-[#eae6e1] shadow-sm flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100 shrink-0">
+                  <Clock className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Aguardando Fila</span>
+                  <span className="text-xl font-black text-amber-600">
+                    {rankingItems.filter(i => i.status === 'queued').length}
+                  </span>
+                  <span className="text-[10px] text-gray-400 block mt-0.5">Fora do Top 3</span>
+                </div>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-[#eae6e1] shadow-sm flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 shrink-0 relative">
+                  <Sparkles className="w-6 h-6 animate-spin" style={{ animationDuration: '6s' }} />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Em Geração no Horde AI</span>
+                  <span className="text-xl font-black text-purple-600">
+                    {rankingItems.filter(i => i.status === 'processing').length} / 3
+                  </span>
+                  <span className="text-[10px] text-gray-400 block mt-0.5">Top 3 do Ranking</span>
+                </div>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-[#eae6e1] shadow-sm flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0">
+                  <CheckCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Concluídas com Sucesso</span>
+                  <span className="text-xl font-black text-emerald-600">
+                    {rankingItems.filter(i => i.status === 'completed').length}
+                  </span>
+                  <span className="text-[10px] text-gray-400 block mt-0.5">Saíram da fila</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Real-time Ranking Table / Queue Card List */}
+            <div className="bg-white rounded-3xl border border-[#eae6e1] p-6 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-gray-100">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">
+                      Fila do Ranking Virtual de Imagens (Em Tempo Real)
+                    </h3>
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    O ranking gerencia o fluxo para o Horde AI. Somente as 3 primeiras posições do ranking enviam solicitações simultâneas ao Horde. Imagens geradas saem da fila liberando a vaga.
+                  </p>
+                </div>
+
+                {rankingItems.length > 0 && (
+                  <button
+                    onClick={async () => {
+                      if (confirm('Tem certeza que deseja limpar as solicitações concluídas/falhas do banco?')) {
+                        for (const item of rankingItems) {
+                          if (item.status === 'completed' || item.status === 'failed') {
+                            await deleteDoc(doc(db, 'image_generation_ranking', item.id)).catch(() => {});
+                          }
+                        }
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Limpar Concluídas</span>
+                  </button>
+                )}
+              </div>
+
+              {rankingItems.length === 0 ? (
+                <div className="py-16 text-center bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                  <ImageIcon className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm font-bold text-gray-600">Nenhuma solicitação na fila no momento</p>
+                  <p className="text-xs text-gray-400 mt-1 max-w-md mx-auto">
+                    Assim que um usuário pedir para gerar uma imagem no chat ("Gere uma imagem de..."), a solicitação aparecerá aqui instantaneamente em tempo real.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-100">
+                    <thead>
+                      <tr className="bg-gray-50/70 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-left">
+                        <th className="py-3 px-4 rounded-l-xl">Posição no Ranking</th>
+                        <th className="py-3 px-4">Prompt da Imagem</th>
+                        <th className="py-3 px-4">Status da Geração</th>
+                        <th className="py-3 px-4">Horário / Duração</th>
+                        <th className="py-3 px-4">Resultado / Preview</th>
+                        <th className="py-3 px-4 rounded-r-xl text-right">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-xs font-medium">
+                      {rankingItems.map((item, index) => {
+                        const isProcessing = item.status === 'processing';
+                        const isQueued = item.status === 'queued';
+                        const isCompleted = item.status === 'completed';
+                        const isFailed = item.status === 'failed';
+                        const position = item.position || index + 1;
+                        const isTop3 = position <= 3 && (isQueued || isProcessing);
+
+                        return (
+                          <tr key={item.id} className="hover:bg-gray-50/80 transition-colors">
+                            {/* Position */}
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${
+                                  isTop3
+                                    ? 'bg-purple-100 text-purple-700 border border-purple-200 ring-2 ring-purple-400/30'
+                                    : isCompleted
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : 'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {position}º
+                                </span>
+                                {isTop3 && (
+                                  <span className="px-2 py-0.5 bg-purple-100 text-purple-800 text-[9px] font-extrabold rounded-full tracking-wide uppercase border border-purple-200">
+                                    Top 3 Horde
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Prompt */}
+                            <td className="py-3.5 px-4 max-w-xs">
+                              <p className="font-semibold text-gray-900 line-clamp-2" title={item.prompt}>
+                                {item.prompt}
+                              </p>
+                              <span className="text-[10px] text-gray-400 font-mono">ID: {item.id}</span>
+                            </td>
+
+                            {/* Status */}
+                            <td className="py-3.5 px-4">
+                              {isProcessing && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-full text-[11px] font-bold animate-pulse">
+                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                  Gerando no Horde AI...
+                                </span>
+                              )}
+                              {isQueued && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[11px] font-bold">
+                                  <Clock className="w-3 h-3" />
+                                  Aguardando na Fila (#{position})
+                                </span>
+                              )}
+                              {isCompleted && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[11px] font-bold">
+                                  <CheckCircle className="w-3 h-3" />
+                                  Imagem Gerada (Concluído)
+                                </span>
+                              )}
+                              {isFailed && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-50 text-red-700 border border-red-200 rounded-full text-[11px] font-bold">
+                                  <AlertCircle className="w-3 h-3" />
+                                  Falha na Geração
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Timestamp */}
+                            <td className="py-3.5 px-4 text-gray-500 text-[11px]">
+                              <div>{item.createdAt ? new Date(item.createdAt).toLocaleTimeString('pt-BR') : '-'}</div>
+                              <div className="text-[10px] text-gray-400">
+                                {item.createdAt ? new Date(item.createdAt).toLocaleDateString('pt-BR') : ''}
+                              </div>
+                            </td>
+
+                            {/* Result Preview */}
+                            <td className="py-3.5 px-4">
+                              {isCompleted && item.resultUrl ? (
+                                <a 
+                                  href={item.resultUrl} 
+                                  target="_blank" 
+                                  rel="noreferrer"
+                                  className="inline-block relative group"
+                                >
+                                  <img 
+                                    src={item.resultUrl} 
+                                    alt={item.prompt} 
+                                    className="w-12 h-12 object-cover rounded-lg border border-gray-200 shadow-2xs hover:opacity-90 transition-opacity"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                </a>
+                              ) : isFailed ? (
+                                <span className="text-[10px] text-red-500 font-mono">{item.error || 'Erro no servidor'}</span>
+                              ) : (
+                                <span className="text-[11px] text-gray-400 italic">Processando...</span>
+                              )}
+                            </td>
+
+                            {/* Actions */}
+                            <td className="py-3.5 px-4 text-right">
+                              <button
+                                onClick={async () => {
+                                  if (confirm('Deseja remover esta solicitação do banco?')) {
+                                    await deleteDoc(doc(db, 'image_generation_ranking', item.id)).catch(() => {});
+                                  }
+                                }}
+                                className="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                                title="Remover solicitação"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </motion.div>
         )}

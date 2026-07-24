@@ -89,6 +89,10 @@ service cloud.firestore {
       }
     }
 
+    match /image_generation_ranking/{queueId} {
+      allow read, write: if true;
+    }
+
     // Support collection group queries for analytics & dashboards
     match /{path=**}/sessions/{sessionId} {
       allow list, read: if isSignedIn();

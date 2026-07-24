@@ -57,9 +57,26 @@
         "error": { "type": "string" }
       },
       "required": ["taskId", "taskTitle", "executedAt", "sessionId", "status"]
+    },
+    "ImageRanking": {
+      "title": "ImageRanking",
+      "description": "Virtual ranking queue for image generation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "prompt": { "type": "string" },
+        "status": { "type": "string" },
+        "position": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "prompt", "status", "position"]
     }
   },
   "firestore": {
+    "/image_generation_ranking/{queueId}": {
+      "schema": "ImageRanking",
+      "description": "Internal image generation ranking queue"
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "User profile data"
