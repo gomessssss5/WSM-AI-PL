@@ -1,8 +1,24 @@
 import express from "express";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import sharp from "sharp";
 
 dotenv.config();
+
+let cachedLogoBuffer: Buffer | null = null;
+async function getWatermarkLogoBuffer(): Promise<Buffer | null> {
+  if (cachedLogoBuffer) return cachedLogoBuffer;
+  try {
+    const res = await fetch("https://i.ibb.co/Q34b6rBW/37990-removebg-preview.png");
+    if (res.ok) {
+      cachedLogoBuffer = Buffer.from(await res.arrayBuffer());
+      return cachedLogoBuffer;
+    }
+  } catch (err) {
+    console.warn("[Watermark] Failed to fetch watermark logo:", err);
+  }
+  return null;
+}
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -1257,18 +1273,56 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
                   throw new Error("A geração de imagem expirou.");
                 }
 
-                // Convert image to Base64 data URI so it persists permanently in user's chat history/Firestore without expiring
-                if (resultImgUrl && !resultImgUrl.startsWith("data:")) {
+                // Convert image to Base64 data URI & bake AI logo watermark into the bottom-right corner
+                if (resultImgUrl) {
                   try {
-                    const imgRes = await fetch(resultImgUrl);
-                    if (imgRes.ok) {
-                      const arrayBuffer = await imgRes.arrayBuffer();
-                      const base64 = Buffer.from(arrayBuffer).toString("base64");
-                      const contentType = imgRes.headers.get("content-type") || "image/webp";
-                      resultImgUrl = `data:${contentType};base64,${base64}`;
+                    let inputBuffer: Buffer;
+                    if (resultImgUrl.startsWith("data:")) {
+                      const commaIdx = resultImgUrl.indexOf(",");
+                      inputBuffer = Buffer.from(resultImgUrl.substring(commaIdx + 1), "base64");
+                    } else {
+                      const imgRes = await fetch(resultImgUrl);
+                      if (!imgRes.ok) throw new Error("Falha ao carregar imagem para marca d'água.");
+                      inputBuffer = Buffer.from(await imgRes.arrayBuffer());
+                    }
+
+                    const logoBuffer = await getWatermarkLogoBuffer();
+                    if (logoBuffer) {
+                      const mainImage = sharp(inputBuffer);
+                      const metadata = await mainImage.metadata();
+                      const imgWidth = metadata.width || 512;
+                      const imgHeight = metadata.height || 512;
+
+                      // Logo size: ~8% of image width (min 28px, max 80px)
+                      const logoWidth = Math.max(28, Math.min(80, Math.round(imgWidth * 0.08)));
+
+                      // Apply ~45% opacity to logo
+                      const logoResized = await sharp(logoBuffer)
+                        .resize(logoWidth, logoWidth, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+                        .ensureAlpha()
+                        .composite([{
+                          input: Buffer.from(`<svg width="${logoWidth}" height="${logoWidth}"><rect width="100%" height="100%" fill="#ffffff" fill-opacity="0.45"/></svg>`),
+                          blend: 'dest-in'
+                        }])
+                        .toBuffer();
+
+                      // Position in the bottom right corner with small margin
+                      const margin = Math.max(10, Math.round(imgWidth * 0.025));
+                      const top = Math.max(0, imgHeight - logoWidth - margin);
+                      const left = Math.max(0, imgWidth - logoWidth - margin);
+
+                      const watermarkedBuffer = await mainImage
+                        .composite([{ input: logoResized, top, left }])
+                        .webp({ quality: 92 })
+                        .toBuffer();
+
+                      resultImgUrl = `data:image/webp;base64,${watermarkedBuffer.toString("base64")}`;
+                    } else {
+                      const base64 = inputBuffer.toString("base64");
+                      resultImgUrl = `data:image/webp;base64,${base64}`;
                     }
                   } catch (convErr) {
-                    console.warn("[Pro] Conversion to base64 failed, keeping original URL:", convErr);
+                    console.warn("[Pro] Watermarking/Base64 conversion failed, keeping original URL:", convErr);
                   }
                 }
 

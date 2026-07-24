@@ -18,41 +18,67 @@ interface WsmImageComponentProps {
 export function WsmImageComponent({ prompt, imgUrl }: WsmImageComponentProps) {
   const [showFull, setShowFull] = React.useState(false);
 
+  const handleDownload = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!imgUrl) return;
+    const a = document.createElement('a');
+    a.href = imgUrl;
+    a.download = `wsm-ai-image-${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   if (!imgUrl) {
     return (
-      <div className="my-4 w-full max-w-[340px] aspect-square rounded-[18px] bg-[#17171a] border border-[#2a2a2e] flex flex-col items-center justify-center gap-3 p-6 shadow-sm select-none shrink-0">
-        <div className="w-12 h-12 rounded-2xl bg-[#222226] border border-[#2e2e34] flex items-center justify-center text-[#7c8cff] shadow-inner">
-          <ImageIcon className="w-6 h-6 text-[#7c8cff]" />
+      <div className="my-4 w-full max-w-[340px] aspect-square rounded-[18px] bg-gray-100 dark:bg-gray-800 border-2 border-blue-500 flex flex-col items-center justify-center gap-3 p-6 shadow-sm select-none shrink-0">
+        <div className="w-12 h-12 rounded-2xl bg-white dark:bg-gray-700 border border-blue-200 dark:border-blue-700 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-sm">
+          <ImageIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
         </div>
-        <div className="flex flex-col items-center gap-1 text-center">
-          <span className="text-sm font-semibold text-[#f2f2f0]">Gerando imagem...</span>
-          {prompt && (
-            <span className="text-xs text-[#9a9a9f] line-clamp-2 px-2 max-w-[260px]">
-              {prompt}
-            </span>
-          )}
+        <div className="flex flex-col items-center text-center">
+          <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">Gerando imagem...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="my-4 w-full max-w-[340px] aspect-square rounded-[18px] overflow-hidden shadow-sm hover:shadow-md transition-shadow shrink-0">
+    <div className="my-4 w-full max-w-[340px] aspect-square rounded-[18px] overflow-hidden shadow-sm hover:shadow-md transition-shadow shrink-0 relative group">
       <img
         src={imgUrl}
         alt={prompt}
         referrerPolicy="no-referrer"
-        className="w-full h-full object-cover rounded-[18px] cursor-pointer transition-transform duration-300 hover:scale-[1.01]"
+        className="w-full h-full object-cover rounded-[18px] cursor-pointer transition-transform duration-300 group-hover:scale-[1.01]"
         onClick={() => setShowFull(true)}
       />
+
+      {/* Quick Download Overlay Button */}
+      <button
+        onClick={handleDownload}
+        title="Baixar imagem com selo oficial"
+        className="absolute top-3 right-3 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full opacity-0 group-hover:opacity-100 backdrop-blur-md transition-all shadow-md cursor-pointer"
+      >
+        <Download className="w-4 h-4" />
+      </button>
+
       {showFull && (
         <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={() => setShowFull(false)}>
-          <button
-            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md transition-colors"
-            onClick={() => setShowFull(false)}
-          >
-            <X className="w-6 h-6" />
-          </button>
+          <div className="absolute top-4 right-4 flex items-center gap-2">
+            <button
+              className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md transition-colors cursor-pointer"
+              onClick={handleDownload}
+              title="Baixar imagem com selo oficial"
+            >
+              <Download className="w-5 h-5" />
+            </button>
+            <button
+              className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md transition-colors cursor-pointer"
+              onClick={() => setShowFull(false)}
+              title="Fechar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
           <img
             src={imgUrl}
             alt={prompt}
