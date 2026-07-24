@@ -1380,6 +1380,50 @@ export default function ChatWindow({
             )}
           </div>
 
+          {/* Mobile Esforço Selector Button (shows up only for WSM 1.6 Pro on mobile) */}
+          {selectedModel === 'WSM 1.6 Pro' && (
+            <div className="relative md:hidden">
+              <button
+                type="button"
+                onClick={() => setIsEffortDropdownOpen(!isEffortDropdownOpen)}
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-white border border-[#eae6e1] rounded-full text-[12px] font-semibold text-gray-700 shadow-2xs transition-all cursor-pointer active:scale-95"
+                title="Seletor de esforço de raciocínio"
+              >
+                <span>{reasoningLevel}</span>
+                <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+              </button>
+
+              {isEffortDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setIsEffortDropdownOpen(false)} />
+                  <div className="absolute top-full left-0 mt-1.5 w-44 bg-white rounded-xl shadow-xl border border-gray-150 z-50 p-1 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="flex flex-col gap-0.5">
+                      {['Nenhum', 'Mínimo', 'Baixo', 'Médio', 'Alto'].map((level) => (
+                        <button
+                          key={level}
+                          type="button"
+                          onClick={() => {
+                            if (setReasoningLevel) {
+                              setReasoningLevel(level);
+                            }
+                            setIsEffortDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors cursor-pointer ${
+                            reasoningLevel === level
+                              ? 'bg-gray-50 text-[#5c53e5] font-semibold'
+                              : 'text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          {level}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {isTemporary && (
             <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-extrabold rounded-full tracking-tight shadow-3xs select-none animate-pulse shrink-0">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
@@ -2654,9 +2698,9 @@ export default function ChatWindow({
 
                 {/* Right Controls */}
                 <div className="flex items-center gap-1.5">
-                  {/* Esforço Dropdown/Pill Selector (shows up only for WSM 1.6 Pro) */}
+                  {/* Esforço Dropdown/Pill Selector (shows up only for WSM 1.6 Pro - desktop only, mobile is in header) */}
                   {selectedModel === 'WSM 1.6 Pro' && (
-                    <div className="relative">
+                    <div className="relative hidden md:block">
                       <button
                         type="button"
                         onClick={() => setIsEffortDropdownOpen(!isEffortDropdownOpen)}
