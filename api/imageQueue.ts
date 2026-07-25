@@ -37,6 +37,9 @@ function getDb() {
 export interface QueueItem {
   id: string;
   prompt: string;
+  userEmail?: string;
+  userName?: string;
+  userId?: string;
   status: 'queued' | 'processing' | 'completed' | 'failed';
   createdAt: number;
 }
@@ -46,11 +49,18 @@ class ImageRankingQueueManager {
   private activeProcessingCount = 0;
   private maxConcurrent = 3;
 
-  async enqueue(prompt: string): Promise<string> {
+  async enqueue(prompt: string, userInfo?: { email?: string; displayName?: string; uid?: string }): Promise<string> {
     const id = `req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const userEmail = userInfo?.email || 'Anônimo';
+    const userName = userInfo?.displayName || (userInfo?.email ? userInfo.email.split('@')[0] : 'Usuário WSM');
+    const userId = userInfo?.uid || '';
+
     const newItem: QueueItem = {
       id,
       prompt,
+      userEmail,
+      userName,
+      userId,
       status: 'queued',
       createdAt: Date.now()
     };
@@ -58,7 +68,7 @@ class ImageRankingQueueManager {
     this.queue.push(newItem);
 
     const position = this.getPosition(id);
-    console.log(`[Ranking Virtual] Nova solicitação adicionada ao ranking: ${id} | Posição: #${position}`);
+    console.log(`[Ranking Virtual] Nova solicitação adicionada ao ranking: ${id} | Posição: #${position} | Usuário: ${userEmail}`);
 
     const db = getDb();
     if (db) {
@@ -66,6 +76,9 @@ class ImageRankingQueueManager {
         await setDoc(doc(db, 'image_generation_ranking', id), {
           id,
           prompt,
+          userEmail,
+          userName,
+          userId,
           status: 'queued',
           position,
           createdAt: new Date().toISOString()
@@ -84,8 +97,9 @@ class ImageRankingQueueManager {
     return index !== -1 ? index + 1 : 999;
   }
 
-  async waitForTurn(id: string): Promise<void> {
-    while (true) {
+  async waitForTurn(id: string, timeoutMs = 120000): Promise<void> {
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeoutMs) {
       const position = this.getPosition(id);
       
       // Top 3 (positions 1, 2, 3) are eligible to process if active processing < 3
@@ -114,6 +128,7 @@ class ImageRankingQueueManager {
       // Wait 300ms before checking position again
       await new Promise(resolve => setTimeout(resolve, 300));
     }
+    throw new Error("Tempo limite de espera na fila do ranking excedido.");
   }
 
   async complete(id: string, success: boolean, resultUrl?: string, errorMsg?: string): Promise<void> {

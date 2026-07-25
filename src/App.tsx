@@ -1253,7 +1253,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
             });
           });
         }
-      }, 45000);
+      }, 240000); // 4 minutes timeout for deep reasoning, image generation & web search
 
       fetch("/api/chat", {
         method: "POST",
@@ -1269,6 +1269,11 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           reasoningLevel: reasoningLevel,
           skills: skills,
           userContext: getUserContext(),
+          userInfo: currentUser ? {
+            uid: currentUser.uid,
+            email: currentUser.email,
+            displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Usuário WSM'
+          } : undefined,
           history: sessionToUpdate.messages.map(m => {
             let msgText = m.text || m.finalSynthesis || "";
             if (!msgText && m.sender === 'user' && m.attachments && m.attachments.length > 0) {

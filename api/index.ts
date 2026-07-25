@@ -170,7 +170,7 @@ async function callGeminiStreamWithFallback(options: any) {
 
 // API endpoint for chatbot communication and Web Search
 app.post("/api/chat", async (req: express.Request, res: express.Response) => {
-  const { text, isSearchEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, isScheduledExecution } = req.body;
+  const { text, isSearchEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution } = req.body;
 
   // Extract real-time user location (city), date, and exact time
   const now = new Date();
@@ -1212,7 +1212,7 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
               let queueId = "";
               try {
                 // 1. Enter Virtual Ranking Queue in Database
-                queueId = await imageRankingQueue.enqueue(promptStr);
+                queueId = await imageRankingQueue.enqueue(promptStr, userInfo);
 
                 // 2. Wait until request enters Top 3 in ranking and a slot opens
                 await imageRankingQueue.waitForTurn(queueId);

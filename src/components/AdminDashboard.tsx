@@ -3430,237 +3430,379 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
             transition={{ duration: 0.15 }}
             className="space-y-6"
           >
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-2xl border border-[#eae6e1] shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-[#5c53e5] flex items-center justify-center border border-indigo-100 shrink-0">
-                  <ImageIcon className="w-6 h-6" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Total no Banco</span>
-                  <span className="text-xl font-black text-gray-900">{rankingItems.length}</span>
-                  <span className="text-[10px] text-gray-400 block mt-0.5">Solicitações registradas</span>
-                </div>
-              </div>
+            {(() => {
+              const activeQueue = rankingItems
+                .filter(i => i.status === 'queued' || i.status === 'processing')
+                .sort((a, b) => {
+                  if (a.status === 'processing' && b.status !== 'processing') return -1;
+                  if (b.status === 'processing' && a.status !== 'processing') return 1;
+                  const posA = a.position || 999;
+                  const posB = b.position || 999;
+                  if (posA !== posB) return posA - posB;
+                  return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+                });
 
-              <div className="bg-white p-5 rounded-2xl border border-[#eae6e1] shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100 shrink-0">
-                  <Clock className="w-6 h-6" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Aguardando Fila</span>
-                  <span className="text-xl font-black text-amber-600">
-                    {rankingItems.filter(i => i.status === 'queued').length}
-                  </span>
-                  <span className="text-[10px] text-gray-400 block mt-0.5">Fora do Top 3</span>
-                </div>
-              </div>
+              const completedHistory = rankingItems
+                .filter(i => i.status === 'completed' || i.status === 'failed')
+                .sort((a, b) => {
+                  const dateA = a.completedAt ? new Date(a.completedAt).getTime() : new Date(a.createdAt || 0).getTime();
+                  const dateB = b.completedAt ? new Date(b.completedAt).getTime() : new Date(b.createdAt || 0).getTime();
+                  return dateB - dateA; // Newest completed/failed first
+                });
 
-              <div className="bg-white p-5 rounded-2xl border border-[#eae6e1] shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 shrink-0 relative">
-                  <Sparkles className="w-6 h-6 animate-spin" style={{ animationDuration: '6s' }} />
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Em Geração no Horde AI</span>
-                  <span className="text-xl font-black text-purple-600">
-                    {rankingItems.filter(i => i.status === 'processing').length} / 3
-                  </span>
-                  <span className="text-[10px] text-gray-400 block mt-0.5">Top 3 do Ranking</span>
-                </div>
-              </div>
+              return (
+                <>
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white p-5 rounded-2xl border border-[#eae6e1] shadow-sm flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-[#5c53e5] flex items-center justify-center border border-indigo-100 shrink-0">
+                        <ImageIcon className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Total no Banco</span>
+                        <span className="text-xl font-black text-gray-900">{rankingItems.length}</span>
+                        <span className="text-[10px] text-gray-400 block mt-0.5">Solicitações registradas</span>
+                      </div>
+                    </div>
 
-              <div className="bg-white p-5 rounded-2xl border border-[#eae6e1] shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0">
-                  <CheckCircle className="w-6 h-6" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Concluídas com Sucesso</span>
-                  <span className="text-xl font-black text-emerald-600">
-                    {rankingItems.filter(i => i.status === 'completed').length}
-                  </span>
-                  <span className="text-[10px] text-gray-400 block mt-0.5">Saíram da fila</span>
-                </div>
-              </div>
-            </div>
+                    <div className="bg-white p-5 rounded-2xl border border-[#eae6e1] shadow-sm flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100 shrink-0">
+                        <Clock className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Aguardando Fila</span>
+                        <span className="text-xl font-black text-amber-600">
+                          {activeQueue.filter(i => i.status === 'queued').length}
+                        </span>
+                        <span className="text-[10px] text-gray-400 block mt-0.5">Fora do Top 3</span>
+                      </div>
+                    </div>
 
-            {/* Real-time Ranking Table / Queue Card List */}
-            <div className="bg-white rounded-3xl border border-[#eae6e1] p-6 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-gray-100">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">
-                      Fila do Ranking Virtual de Imagens (Em Tempo Real)
-                    </h3>
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                    </span>
+                    <div className="bg-white p-5 rounded-2xl border border-[#eae6e1] shadow-sm flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 shrink-0 relative">
+                        <Sparkles className="w-6 h-6 animate-spin" style={{ animationDuration: '6s' }} />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Em Geração no Horde AI</span>
+                        <span className="text-xl font-black text-purple-600">
+                          {activeQueue.filter(i => i.status === 'processing').length} / 3
+                        </span>
+                        <span className="text-[10px] text-gray-400 block mt-0.5">Top 3 do Ranking</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-2xl border border-[#eae6e1] shadow-sm flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0">
+                        <CheckCircle className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Concluídas com Sucesso</span>
+                        <span className="text-xl font-black text-emerald-600">
+                          {completedHistory.filter(i => i.status === 'completed').length}
+                        </span>
+                        <span className="text-[10px] text-gray-400 block mt-0.5 font-medium text-emerald-500">Saíram da fila</span>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    O ranking gerencia o fluxo para o Horde AI. Somente as 3 primeiras posições do ranking enviam solicitações simultâneas ao Horde. Imagens geradas saem da fila liberando a vaga.
-                  </p>
-                </div>
 
-                {rankingItems.length > 0 && (
-                  <button
-                    onClick={async () => {
-                      if (confirm('Tem certeza que deseja limpar as solicitações concluídas/falhas do banco?')) {
-                        for (const item of rankingItems) {
-                          if (item.status === 'completed' || item.status === 'failed') {
-                            await deleteDoc(doc(db, 'image_generation_ranking', item.id)).catch(() => {});
-                          }
-                        }
-                      }
-                    }}
-                    className="px-3 py-1.5 bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Limpar Concluídas</span>
-                  </button>
-                )}
-              </div>
+                  {/* Real-time Active Queue Card */}
+                  <div className="bg-white rounded-3xl border border-[#eae6e1] p-6 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-gray-100">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">
+                            Fila do Ranking Virtual Ativo (Aguardando / Processando)
+                          </h3>
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          O ranking gerencia o fluxo para o Horde AI. Somente as 3 primeiras posições enviam solicitações simultâneas. Imagens geradas saem da fila imediatamente.
+                        </p>
+                      </div>
+                    </div>
 
-              {rankingItems.length === 0 ? (
-                <div className="py-16 text-center bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
-                  <ImageIcon className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                  <p className="text-sm font-bold text-gray-600">Nenhuma solicitação na fila no momento</p>
-                  <p className="text-xs text-gray-400 mt-1 max-w-md mx-auto">
-                    Assim que um usuário pedir para gerar uma imagem no chat ("Gere uma imagem de..."), a solicitação aparecerá aqui instantaneamente em tempo real.
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-100">
-                    <thead>
-                      <tr className="bg-gray-50/70 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-left">
-                        <th className="py-3 px-4 rounded-l-xl">Posição no Ranking</th>
-                        <th className="py-3 px-4">Prompt da Imagem</th>
-                        <th className="py-3 px-4">Status da Geração</th>
-                        <th className="py-3 px-4">Horário / Duração</th>
-                        <th className="py-3 px-4">Resultado / Preview</th>
-                        <th className="py-3 px-4 rounded-r-xl text-right">Ação</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 text-xs font-medium">
-                      {rankingItems.map((item, index) => {
-                        const isProcessing = item.status === 'processing';
-                        const isQueued = item.status === 'queued';
-                        const isCompleted = item.status === 'completed';
-                        const isFailed = item.status === 'failed';
-                        const position = item.position || index + 1;
-                        const isTop3 = position <= 3 && (isQueued || isProcessing);
+                    {activeQueue.length === 0 ? (
+                      <div className="py-12 text-center bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                        <ImageIcon className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                        <p className="text-sm font-bold text-gray-600">Nenhuma imagem aguardando na fila ativa</p>
+                        <p className="text-xs text-gray-400 mt-1 max-w-md mx-auto">
+                          As solicitações de geração ativas de usuários do chatbot aparecerão aqui em tempo real.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-100">
+                          <thead>
+                            <tr className="bg-gray-50/70 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-left">
+                              <th className="py-3 px-4 rounded-l-xl">Posição na Fila</th>
+                              <th className="py-3 px-4">Usuário Solicitante</th>
+                              <th className="py-3 px-4">Prompt da Imagem</th>
+                              <th className="py-3 px-4">Status da Geração</th>
+                              <th className="py-3 px-4">Horário de Envio</th>
+                              <th className="py-3 px-4 rounded-r-xl text-right">Ação</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 text-xs font-medium">
+                            {activeQueue.map((item, index) => {
+                              const isProcessing = item.status === 'processing';
+                              const position = index + 1;
+                              const isTop3 = position <= 3;
 
-                        return (
-                          <tr key={item.id} className="hover:bg-gray-50/80 transition-colors">
-                            {/* Position */}
-                            <td className="py-3.5 px-4">
-                              <div className="flex items-center gap-2">
-                                <span className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${
-                                  isTop3
-                                    ? 'bg-purple-100 text-purple-700 border border-purple-200 ring-2 ring-purple-400/30'
-                                    : isCompleted
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                    : 'bg-gray-100 text-gray-700'
-                                }`}>
-                                  {position}º
-                                </span>
-                                {isTop3 && (
-                                  <span className="px-2 py-0.5 bg-purple-100 text-purple-800 text-[9px] font-extrabold rounded-full tracking-wide uppercase border border-purple-200">
-                                    Top 3 Horde
-                                  </span>
-                                )}
-                              </div>
-                            </td>
+                              return (
+                                <tr key={item.id} className="hover:bg-gray-50/80 transition-colors">
+                                  {/* Position */}
+                                  <td className="py-3.5 px-4">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${
+                                        isTop3
+                                          ? 'bg-purple-100 text-purple-700 border border-purple-200 ring-2 ring-purple-400/30'
+                                          : 'bg-gray-100 text-gray-700'
+                                      }`}>
+                                        {position}º
+                                      </span>
+                                      {isTop3 && (
+                                        <span className="px-2 py-0.5 bg-purple-100 text-purple-800 text-[9px] font-extrabold rounded-full tracking-wide uppercase border border-purple-200">
+                                          Top 3 Horde
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
 
-                            {/* Prompt */}
-                            <td className="py-3.5 px-4 max-w-xs">
-                              <p className="font-semibold text-gray-900 line-clamp-2" title={item.prompt}>
-                                {item.prompt}
-                              </p>
-                              <span className="text-[10px] text-gray-400 font-mono">ID: {item.id}</span>
-                            </td>
+                                  {/* User */}
+                                  <td className="py-3.5 px-4">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 text-white font-black text-[10px] flex items-center justify-center shrink-0">
+                                        {(item.userName || item.userEmail || 'U').substring(0, 2).toUpperCase()}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p className="font-bold text-gray-900 text-xs truncate">
+                                          {item.userName || 'Usuário WSM'}
+                                        </p>
+                                        <p className="text-[10px] text-gray-400 truncate">
+                                          {item.userEmail || 'email@wsm.ai'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </td>
 
-                            {/* Status */}
-                            <td className="py-3.5 px-4">
-                              {isProcessing && (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-full text-[11px] font-bold animate-pulse">
-                                  <RefreshCw className="w-3 h-3 animate-spin" />
-                                  Gerando no Horde AI...
-                                </span>
-                              )}
-                              {isQueued && (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[11px] font-bold">
-                                  <Clock className="w-3 h-3" />
-                                  Aguardando na Fila (#{position})
-                                </span>
-                              )}
-                              {isCompleted && (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[11px] font-bold">
-                                  <CheckCircle className="w-3 h-3" />
-                                  Imagem Gerada (Concluído)
-                                </span>
-                              )}
-                              {isFailed && (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-50 text-red-700 border border-red-200 rounded-full text-[11px] font-bold">
-                                  <AlertCircle className="w-3 h-3" />
-                                  Falha na Geração
-                                </span>
-                              )}
-                            </td>
+                                  {/* Prompt */}
+                                  <td className="py-3.5 px-4 max-w-xs">
+                                    <p className="font-semibold text-gray-900 line-clamp-2" title={item.prompt}>
+                                      {item.prompt}
+                                    </p>
+                                    <span className="text-[10px] text-gray-400 font-mono">ID: {item.id}</span>
+                                  </td>
 
-                            {/* Timestamp */}
-                            <td className="py-3.5 px-4 text-gray-500 text-[11px]">
-                              <div>{item.createdAt ? new Date(item.createdAt).toLocaleTimeString('pt-BR') : '-'}</div>
-                              <div className="text-[10px] text-gray-400">
-                                {item.createdAt ? new Date(item.createdAt).toLocaleDateString('pt-BR') : ''}
-                              </div>
-                            </td>
+                                  {/* Status */}
+                                  <td className="py-3.5 px-4">
+                                    {isProcessing ? (
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-full text-[11px] font-bold animate-pulse">
+                                        <RefreshCw className="w-3 h-3 animate-spin" />
+                                        Gerando no Horde AI...
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[11px] font-bold">
+                                        <Clock className="w-3 h-3" />
+                                        Aguardando Fila (#{position})
+                                      </span>
+                                    )}
+                                  </td>
 
-                            {/* Result Preview */}
-                            <td className="py-3.5 px-4">
-                              {isCompleted && item.resultUrl ? (
-                                <a 
-                                  href={item.resultUrl} 
-                                  target="_blank" 
-                                  rel="noreferrer"
-                                  className="inline-block relative group"
-                                >
-                                  <img 
-                                    src={item.resultUrl} 
-                                    alt={item.prompt} 
-                                    className="w-12 h-12 object-cover rounded-lg border border-gray-200 shadow-2xs hover:opacity-90 transition-opacity"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                </a>
-                              ) : isFailed ? (
-                                <span className="text-[10px] text-red-500 font-mono">{item.error || 'Erro no servidor'}</span>
-                              ) : (
-                                <span className="text-[11px] text-gray-400 italic">Processando...</span>
-                              )}
-                            </td>
+                                  {/* Timestamp */}
+                                  <td className="py-3.5 px-4 text-gray-500 text-[11px]">
+                                    <div>{item.createdAt ? new Date(item.createdAt).toLocaleTimeString('pt-BR') : '-'}</div>
+                                    <div className="text-[10px] text-gray-400">
+                                      {item.createdAt ? new Date(item.createdAt).toLocaleDateString('pt-BR') : ''}
+                                    </div>
+                                  </td>
 
-                            {/* Actions */}
-                            <td className="py-3.5 px-4 text-right">
-                              <button
-                                onClick={async () => {
-                                  if (confirm('Deseja remover esta solicitação do banco?')) {
-                                    await deleteDoc(doc(db, 'image_generation_ranking', item.id)).catch(() => {});
-                                  }
-                                }}
-                                className="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
-                                title="Remover solicitação"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+                                  {/* Actions */}
+                                  <td className="py-3.5 px-4 text-right">
+                                    <button
+                                      onClick={async () => {
+                                        if (confirm('Deseja remover esta solicitação da fila?')) {
+                                          await deleteDoc(doc(db, 'image_generation_ranking', item.id)).catch(() => {});
+                                        }
+                                      }}
+                                      className="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                                      title="Remover da Fila"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Completed History Section */}
+                  <div className="bg-white rounded-3xl border border-[#eae6e1] p-6 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-gray-100">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">
+                            Histórico de Imagens Entregues (Sucesso / Falhas)
+                          </h3>
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Lista de solicitações que já foram geradas com sucesso ou falharam e saíram da fila do ranking ativo.
+                        </p>
+                      </div>
+
+                      {completedHistory.length > 0 && (
+                        <button
+                          onClick={async () => {
+                            if (confirm('Tem certeza que deseja limpar todo o histórico de imagens geradas do banco?')) {
+                              for (const item of completedHistory) {
+                                await deleteDoc(doc(db, 'image_generation_ranking', item.id)).catch(() => {});
+                              }
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Limpar Histórico</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {completedHistory.length === 0 ? (
+                      <div className="py-12 text-center bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                        <CheckCircle className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                        <p className="text-sm font-bold text-gray-600">Nenhuma imagem concluída no histórico</p>
+                        <p className="text-xs text-gray-400 mt-1 max-w-md mx-auto">
+                          As imagens concluídas com sucesso ou com erro aparecerão listadas nesta seção.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-100">
+                          <thead>
+                            <tr className="bg-gray-50/70 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-left">
+                              <th className="py-3 px-4 rounded-l-xl">Status</th>
+                              <th className="py-3 px-4">Usuário Solicitante</th>
+                              <th className="py-3 px-4">Prompt da Imagem</th>
+                              <th className="py-3 px-4">Horário Conclusão</th>
+                              <th className="py-3 px-4">Resultado / Preview</th>
+                              <th className="py-3 px-4 rounded-r-xl text-right">Ação</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 text-xs font-medium">
+                            {completedHistory.map((item) => {
+                              const isCompleted = item.status === 'completed';
+                              const isFailed = item.status === 'failed';
+
+                              return (
+                                <tr key={item.id} className="hover:bg-gray-50/80 transition-colors">
+                                  {/* Status Icon */}
+                                  <td className="py-3.5 px-4">
+                                    <div className="flex items-center gap-1.5">
+                                      {isCompleted ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-extrabold uppercase tracking-wide">
+                                          <Check className="w-3 h-3" />
+                                          Entregue
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-50 text-red-700 border border-red-200 rounded-full text-[10px] font-extrabold uppercase tracking-wide">
+                                          <AlertCircle className="w-3 h-3" />
+                                          Falhou
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  {/* User */}
+                                  <td className="py-3.5 px-4">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 text-white font-black text-[10px] flex items-center justify-center shrink-0">
+                                        {(item.userName || item.userEmail || 'U').substring(0, 2).toUpperCase()}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p className="font-bold text-gray-900 text-xs truncate">
+                                          {item.userName || 'Usuário WSM'}
+                                        </p>
+                                        <p className="text-[10px] text-gray-400 truncate">
+                                          {item.userEmail || 'email@wsm.ai'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  {/* Prompt */}
+                                  <td className="py-3.5 px-4 max-w-xs">
+                                    <p className="font-semibold text-gray-900 line-clamp-2" title={item.prompt}>
+                                      {item.prompt}
+                                    </p>
+                                    <span className="text-[10px] text-gray-400 font-mono">ID: {item.id}</span>
+                                  </td>
+
+                                  {/* Completion Time */}
+                                  <td className="py-3.5 px-4 text-gray-500 text-[11px]">
+                                    <div>{item.completedAt ? new Date(item.completedAt).toLocaleTimeString('pt-BR') : '-'}</div>
+                                    <div className="text-[10px] text-gray-400">
+                                      {item.completedAt ? new Date(item.completedAt).toLocaleDateString('pt-BR') : ''}
+                                    </div>
+                                  </td>
+
+                                  {/* Preview */}
+                                  <td className="py-3.5 px-4">
+                                    {isCompleted && item.resultUrl ? (
+                                      <a 
+                                        href={item.resultUrl} 
+                                        target="_blank" 
+                                        rel="noreferrer"
+                                        className="inline-block relative group"
+                                      >
+                                        <img 
+                                          src={item.resultUrl} 
+                                          alt={item.prompt} 
+                                          className="w-12 h-12 object-cover rounded-lg border border-gray-200 shadow-2xs hover:opacity-90 transition-opacity"
+                                          referrerPolicy="no-referrer"
+                                        />
+                                      </a>
+                                    ) : isFailed ? (
+                                      <span className="text-[10px] text-red-500 font-mono">{item.error || 'Erro no servidor'}</span>
+                                    ) : (
+                                      <span className="text-[11px] text-gray-400 italic">Processando...</span>
+                                    )}
+                                  </td>
+
+                                  {/* Actions */}
+                                  <td className="py-3.5 px-4 text-right">
+                                    <button
+                                      onClick={async () => {
+                                        if (confirm('Deseja remover esta imagem do histórico?')) {
+                                          await deleteDoc(doc(db, 'image_generation_ranking', item.id)).catch(() => {});
+                                        }
+                                      }}
+                                      className="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                                      title="Remover do Histórico"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </motion.div>
         )}
 
