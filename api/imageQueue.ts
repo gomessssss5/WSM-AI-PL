@@ -2,7 +2,8 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getFirestore, 
   doc, 
-  setDoc
+  setDoc,
+  deleteDoc
 } from 'firebase/firestore';
 import fs from 'fs';
 import path from 'path';
@@ -139,21 +140,16 @@ class ImageRankingQueueManager {
         this.activeProcessingCount = Math.max(0, this.activeProcessingCount - 1);
       }
       this.queue.splice(itemIndex, 1);
-      console.log(`[Ranking Virtual] Imagem gerada (${id}). Removida da fila ativa. (Ativos restantes: ${this.activeProcessingCount}/${this.maxConcurrent})`);
+      console.log(`[Ranking Virtual] Imagem processada (${id}). Removida da fila ativa. (Ativos restantes: ${this.activeProcessingCount}/${this.maxConcurrent})`);
     }
 
     const db = getDb();
     if (db) {
       try {
-        await setDoc(doc(db, 'image_generation_ranking', id), {
-          status: success ? 'completed' : 'failed',
-          resultUrl: resultUrl || '',
-          error: errorMsg || '',
-          completedAt: new Date().toISOString()
-        }, { merge: true });
-        console.log(`[Ranking Virtual] Status final '${success ? 'completed' : 'failed'}' atualizado no Firestore para ${id}`);
+        await deleteDoc(doc(db, 'image_generation_ranking', id));
+        console.log(`[Ranking Virtual] Solicitação removida do banco de dados Firestore (${id})`);
       } catch (e) {
-        console.error(`[Ranking Virtual] Erro ao atualizar conclusão no banco (${id}):`, e);
+        console.error(`[Ranking Virtual] Erro ao remover item do banco (${id}):`, e);
       }
     }
 
