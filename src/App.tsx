@@ -120,6 +120,12 @@ export default function App() {
   const isExplicitCancelRef = useRef<boolean>(false);
   const isSearchActiveRef = useRef<boolean>(false);
   const executingTasksRef = useRef<Set<string>>(new Set());
+  const isThinkingRef = useRef<boolean>(false);
+
+  // Sync isThinking reference
+  useEffect(() => {
+    isThinkingRef.current = isThinking;
+  }, [isThinking]);
 
   // Request Notification permission immediately when the app mounts
   useEffect(() => {
@@ -197,7 +203,7 @@ export default function App() {
         const activeLocal = prevSessions.find((s) => s.id === currentActiveId);
         const isStreamingOrSimulating = activeLocal?.messages.some((m) => m.isSimulatingSearch);
         const isLocalActivePreserved = !!activeLocal;
-        const isActiveLocalDirtyOrPreserved = activeLocal && (isDirtyRef.current || isStreamingOrSimulating || isThinking);
+        const isActiveLocalDirtyOrPreserved = activeLocal && (isDirtyRef.current || isStreamingOrSimulating || isThinkingRef.current);
         const isActiveInLoaded = loadedSessions.some((loaded) => loaded.id === currentActiveId);
 
         const updatedLoaded = loadedSessions.map((loaded) => {
@@ -244,7 +250,7 @@ export default function App() {
       unsubscribeExecutions();
       unsubscribeUserProfile();
     };
-  }, [currentUser, activeSessionId, isThinking]);
+  }, [currentUser]);
 
   // Persists the specified session directly to Firestore and clears the active save timeout
   const persistSession = async (session: ChatSession) => {

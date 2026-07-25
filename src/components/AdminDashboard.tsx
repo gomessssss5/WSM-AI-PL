@@ -14,7 +14,7 @@ import {
   LineChart, Line
 } from 'recharts';
 import { db } from '../lib/firebase';
-import { collection, getDocs, collectionGroup, onSnapshot, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, collectionGroup, onSnapshot, query, orderBy, deleteDoc, doc, limit } from 'firebase/firestore';
 import { getEvaluationsFromDb, saveEvaluationToDb } from '../lib/chatService';
 import { ChatSession, Message } from '../types';
 
@@ -231,17 +231,17 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
         userIdsSet.add(doc.id);
       });
 
-      // Discover users, sessions, and drafts from subcollections using collectionGroup
+      // Discover users, sessions, and drafts from subcollections using collectionGroup (limited to 150 each to optimize Firebase read quotas)
       let sessionsGroupSnapshot: any = null;
       try {
-        sessionsGroupSnapshot = await getDocs(collectionGroup(db, 'sessions'));
+        sessionsGroupSnapshot = await getDocs(query(collectionGroup(db, 'sessions'), limit(150)));
       } catch (err) {
         console.error("collectionGroup sessions error", err);
       }
 
       let draftsGroupSnapshot: any = null;
       try {
-        draftsGroupSnapshot = await getDocs(collectionGroup(db, 'drafts'));
+        draftsGroupSnapshot = await getDocs(query(collectionGroup(db, 'drafts'), limit(150)));
       } catch (err) {
         console.error("collectionGroup drafts error", err);
       }
