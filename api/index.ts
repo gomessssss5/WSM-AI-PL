@@ -2,7 +2,7 @@ import express from "express";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import sharp from "sharp";
-import { imageRankingQueue } from "./imageQueue";
+import { imageRankingQueue } from "./imageQueue.js";
 
 dotenv.config();
 
