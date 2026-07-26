@@ -1,4 +1,6 @@
-import { chromium, Browser, Page, BrowserContext } from "playwright";
+import { chromium as playwrightLocal, Browser, Page, BrowserContext } from "playwright";
+import { chromium as playwrightCore } from "playwright-core";
+import sparticuzChromium from "@sparticuz/chromium";
 
 let browser: Browser | null = null;
 let context: BrowserContext | null = null;
@@ -7,10 +9,25 @@ let page: Page | null = null;
 export async function initPlaywright() {
   if (!browser || !browser.isConnected()) {
     try {
-      browser = await chromium.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-      });
+      const isVercel = process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_VERSION;
+      
+      if (isVercel) {
+        console.log("Initializing Playwright with Sparticuz Chromium (Vercel/Lambda env)...");
+        // Required for Vercel Serverless Functions
+        const executablePath = await sparticuzChromium.executablePath();
+        browser = await playwrightCore.launch({
+          args: sparticuzChromium.args,
+          executablePath: executablePath,
+          headless: sparticuzChromium.headless,
+        });
+      } else {
+        console.log("Initializing Playwright with default chromium...");
+        browser = await playwrightLocal.launch({
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+        });
+      }
+
       context = await browser.newContext({
         viewport: { width: 1280, height: 800 },
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
