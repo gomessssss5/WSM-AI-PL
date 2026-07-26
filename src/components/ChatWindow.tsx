@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share, Columns, Pause } from 'lucide-react';
+import { Paperclip, Globe, Monitor, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share, Columns, Pause } from 'lucide-react';
 import BrowserPreviewPane from './BrowserPreviewPane';
 import { Skill } from '../lib/skills';
 import { Message, Draft } from '../types';
@@ -188,7 +188,7 @@ interface ChatWindowProps {
   messages: Message[];
   title?: string;
   isThinking: boolean;
-  onSendMessage: (text: string, isSearchEnabled: boolean, overrideMessages?: Message[], attachments?: any[]) => void;
+  onSendMessage: (text: string, isSearchEnabled: boolean, overrideMessages?: Message[], attachments?: any[], isHidden?: boolean, isComputerEnabled?: boolean) => void;
   onBackToHome?: () => void;
   selectedModel: string;
   setSelectedModel?: (model: string) => void;
@@ -254,6 +254,7 @@ export default function ChatWindow({
 }: ChatWindowProps) {
   const [inputValue, setInputValue] = useState('');
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
+  const [isComputerEnabled, setIsComputerEnabled] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [isEffortDropdownOpen, setIsEffortDropdownOpen] = useState(false);
@@ -1151,7 +1152,7 @@ export default function ChatWindow({
     
     if (onDeleteDraft) onDeleteDraft();
     isUserScrollingRef.current = false;
-    onSendMessage(textToSend, isSearchEnabled, undefined, attachments);
+    onSendMessage(textToSend, isSearchEnabled, undefined, attachments, false, isComputerEnabled);
     
     // Synchronously clear the DOM value to prevent race conditions during rapid consecutive sends
     if (textarea) {
@@ -1163,6 +1164,7 @@ export default function ChatWindow({
     setUploadError(null);
     setActiveSkills([]);
     setIsSearchEnabled(false);
+    setIsComputerEnabled(false);
     setSlashMenuOpen(false);
     if (onClearAttachedText) {
       onClearAttachedText();
@@ -2749,6 +2751,7 @@ export default function ChatWindow({
 
                   <button
                     type="button"
+                    id="btn-search-toggle"
                     onClick={() => setIsSearchEnabled(!isSearchEnabled)}
                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold transition-all cursor-pointer ${
                       isSearchEnabled
@@ -2759,6 +2762,21 @@ export default function ChatWindow({
                   >
                     <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-[#2563eb] animate-spin-slow' : 'text-gray-500'}`} />
                     <span>Pesquisar</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    id="btn-computer-toggle"
+                    onClick={() => setIsComputerEnabled(!isComputerEnabled)}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold transition-all cursor-pointer ${
+                      isComputerEnabled
+                        ? 'bg-white text-[#2563eb] border border-[#2563eb] shadow-2xs'
+                        : 'bg-white text-gray-700 border border-[#eae6e1] hover:border-gray-300 hover:bg-gray-50/50 shadow-2xs'
+                    }`}
+                    title="Dar prioridade máxima ao uso do navegador/Playwright (Agente)"
+                  >
+                    <Monitor className={`w-3.5 h-3.5 ${isComputerEnabled ? 'text-[#2563eb]' : 'text-gray-500'}`} />
+                    <span>Computador</span>
                   </button>
                 </div>
 

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Paperclip, Globe, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain, Languages, ChevronDown, ChevronRight, Sparkles, Calculator, Clock, Video, Volume2, FileText, AlertCircle, X, Check, Menu, FileCode2, Files, BookOpen, MessageCircleDashed, Plus } from 'lucide-react';
+import { Paperclip, Globe, Monitor, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain, Languages, ChevronDown, ChevronRight, Sparkles, Calculator, Clock, Video, Volume2, FileText, AlertCircle, X, Check, Menu, FileCode2, Files, BookOpen, MessageCircleDashed, Plus } from 'lucide-react';
 import { Skill } from '../lib/skills';
 import { Draft } from '../types';
 
@@ -38,7 +38,7 @@ const RANDOM_HEADLINES = [
 ];
 
 interface MainHomeProps {
-  onSendMessage: (text: string, isSearchEnabled: boolean, overrideMessages?: any, attachments?: any[]) => void;
+  onSendMessage: (text: string, isSearchEnabled: boolean, overrideMessages?: any, attachments?: any[], isHidden?: boolean, isComputerEnabled?: boolean) => void;
   onSuggestionClick: (suggestionType: 'write' | 'code' | 'image' | 'analysis' | 'translate') => void;
   selectedModel: string;
   setSelectedModel: (model: string) => void;
@@ -82,6 +82,7 @@ export default function MainHome({
     return RANDOM_HEADLINES[randomIndex];
   });
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
+  const [isComputerEnabled, setIsComputerEnabled] = useState(false);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [isEffortDropdownOpen, setIsEffortDropdownOpen] = useState(false);
   const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
@@ -726,7 +727,7 @@ export default function MainHome({
       textToSend = `[Utilize as seguintes skills: ${skillsText}]\n\n${inputValue}`;
     }
 
-    onSendMessage(textToSend, isSearchEnabled, undefined, attachments);
+    onSendMessage(textToSend, isSearchEnabled, undefined, attachments, false, isComputerEnabled);
     setInputValue('');
     setAttachments([]);
     setUploadError(null);
@@ -1467,6 +1468,22 @@ export default function MainHome({
                   >
                     <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-[#2563eb] animate-spin-slow' : 'text-gray-500'}`} />
                     <span>Pesquisar</span>
+                  </button>
+
+                  {/* Toggleable Computador Button */}
+                  <button
+                    type="button"
+                    id="btn-computer-toggle"
+                    onClick={() => setIsComputerEnabled(!isComputerEnabled)}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold transition-all cursor-pointer ${
+                      isComputerEnabled
+                        ? 'bg-white text-[#2563eb] border border-[#2563eb] shadow-2xs'
+                        : 'bg-white text-gray-700 border border-[#eae6e1] hover:border-gray-300 hover:bg-gray-50/50 shadow-2xs'
+                    }`}
+                    title="Dar prioridade máxima ao uso do navegador/Playwright (Agente)"
+                  >
+                    <Monitor className={`w-3.5 h-3.5 ${isComputerEnabled ? 'text-[#2563eb]' : 'text-gray-500'}`} />
+                    <span>Computador</span>
                   </button>
                 </div>
 

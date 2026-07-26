@@ -82,26 +82,27 @@ export default function App() {
   }, [currentUser]);
   const [userLocation, setUserLocation] = useState<string>("São Paulo, SP (Brasil)");
 
-  // Detect user city via IP Geolocation
+  // Detect user city via IP Geolocation safely
   useEffect(() => {
-    fetch('https://ipapi.co/json/')
+    fetch('https://ipwho.is/')
       .then(res => res.json())
       .then(data => {
-        if (data && data.city) {
-          const cityStr = `${data.city}${data.region_code ? `, ${data.region_code}` : ''}${data.country_name ? ` (${data.country_name})` : ''}`;
+        if (data && data.success !== false && data.city) {
+          const cityStr = `${data.city}${data.region_code ? `, ${data.region_code}` : ''}${data.country ? ` (${data.country})` : ''}`;
           setUserLocation(cityStr);
         }
       })
       .catch(() => {
-        fetch('https://ipwho.is/')
+        // Silent fallback to ipapi.co if needed
+        fetch('https://ipapi.co/json/')
           .then(res => res.json())
           .then(data => {
-            if (data && data.success !== false && data.city) {
-              const cityStr = `${data.city}${data.region_code ? `, ${data.region_code}` : ''}${data.country ? ` (${data.country})` : ''}`;
+            if (data && data.city) {
+              const cityStr = `${data.city}${data.region_code ? `, ${data.region_code}` : ''}${data.country_name ? ` (${data.country_name})` : ''}`;
               setUserLocation(cityStr);
             }
           })
-          .catch(err => console.log("Location fetch fallback error:", err));
+          .catch(() => {});
       });
   }, []);
 
@@ -1125,7 +1126,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
   };
 
   // Main sendMessage routine (used by both MainHome input and ChatWindow input)
-  const handleSendMessage = async (text: string, isSearchEnabled: boolean, overrideMessages?: Message[], attachments?: any[], isHidden?: boolean) => {
+  const handleSendMessage = async (text: string, isSearchEnabled: boolean, overrideMessages?: Message[], attachments?: any[], isHidden?: boolean, isComputerEnabled?: boolean) => {
     if (!currentUser) return;
 
     if (text.trim().toUpperCase() === 'ADM') {
@@ -1295,6 +1296,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         body: JSON.stringify({
           text: requestText,
           isSearchEnabled,
+          isComputerEnabled,
           isTranslatorMode,
           model: sessionToUpdate.model || selectedModel,
           reasoningLevel: reasoningLevel,

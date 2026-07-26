@@ -171,7 +171,7 @@ async function callGeminiStreamWithFallback(options: any) {
 
 // API endpoint for chatbot communication and Web Search
 app.post("/api/chat", async (req: express.Request, res: express.Response) => {
-  const { text, isSearchEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution } = req.body;
+  const { text, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution } = req.body;
 
   // Extract real-time user location (city), date, and exact time
   const now = new Date();
@@ -886,6 +886,15 @@ REGRAS ANTI-LOOPING:
 1. NUNCA chame a MESMA ferramenta com os mesmos argumentos repetidamente.
 2. Se a página atual não atualizar ou você precisar ver mais conteúdo abaixo, chame \`scroll_page\` ou \`extract_visible_text\` para reler os elementos.
 `;
+
+      if (isComputerEnabled) {
+        browserInstruction += `
+
+## MODO COMPUTADOR ATIVADO (PRIORIDADE MÁXIMA DE USO DO PLAYWRIGHT/NAVEGADOR)
+O usuário ativou o botão "Computador".
+Com este modo ativado, você deve ter MUITO MAIS PRIORIDADE em utilizar as ferramentas do navegador real via Playwright (\`open_url\`, \`type_text\`, \`click\`, \`scroll_page\`, \`extract_visible_text\`) para interagir diretamente com a web de forma agêntica.
+Apenas NÃO utilize o navegador se a solicitação do usuário for REALMENTE algo que não precisa de navegação em site algum (por exemplo: um cumprimento simples como "olá", uma conta matemática direta "quanto é 2+2", ou uma pergunta estritamente teórica sem necessidade de verificação online). Em todos os outros casos (pesquisa, consulta, acesso a sites, automação, cliques, buscas), USE O NAVEGADOR COM PRIORIDADE MÁXIMA.`;
+      }
     }
 
     const activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + writerInstruction + "\n\n" + skillsInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
@@ -1134,7 +1143,8 @@ REGRAS ANTI-LOOPING:
           const userStr = (typeof text === 'string' ? text : JSON.stringify(text)).toLowerCase();
           const aiStr = (textForThisTurn || "").toLowerCase();
 
-          const wantsBrowser = /\b(abrir|acesse|acessar|navegar|entrar\s+no)\s+(site|link|url|pagina|página)\b|\b(abrir|acesse|acessar|entrar\s+no)\s+(youtube|google|wikipedia|github|brave)\b|https?:\/\/|www\./i.test(userStr);
+          const isSimpleGreetingOrMath = /^(ol[áa]|oi|tudo\s+bem|boa\s+(tarde|noite|dia)|quanto\s+[ée]|calcul[ae]|1\+[123456789]|2\+2)$/i.test(userStr.trim());
+          const wantsBrowser = (Boolean(isComputerEnabled) && !isSimpleGreetingOrMath) || /\b(abrir|acesse|acessar|navegar|entrar\s+no)\s+(site|link|url|pagina|página)\b|\b(abrir|acesse|acessar|entrar\s+no)\s+(youtube|google|wikipedia|github|brave)\b|https?:\/\/|www\./i.test(userStr);
           const browserAlreadyCalled = currentContents.some((c: any) => 
             c.parts?.some((p: any) => 
               p.functionCall?.name === "open_url" || p.functionResponse?.name === "open_url" ||
@@ -1642,7 +1652,8 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
             c.parts?.some((p: any) => p.functionCall?.name === "web_search" || p.functionResponse?.name === "web_search")
           );
 
-          const wantsBrowser = /\b(abrir|acesse|acessar|navegar|entrar\s+no)\s+(site|link|url|pagina|página)\b|\b(abrir|acesse|acessar|entrar\s+no)\s+(youtube|google|wikipedia|github|brave)\b|https?:\/\/|www\./i.test(userStr);
+          const isSimpleGreetingOrMath2 = /^(ol[áa]|oi|tudo\s+bem|boa\s+(tarde|noite|dia)|quanto\s+[ée]|calcul[ae]|1\+[123456789]|2\+2)$/i.test(userStr.trim());
+          const wantsBrowser = (Boolean(isComputerEnabled) && !isSimpleGreetingOrMath2) || /\b(abrir|acesse|acessar|navegar|entrar\s+no)\s+(site|link|url|pagina|página)\b|\b(abrir|acesse|acessar|entrar\s+no)\s+(youtube|google|wikipedia|github|brave)\b|https?:\/\/|www\./i.test(userStr);
           const aiPromisedBrowser = /\b(vou|irei|estou)\s+(abrir|acessar|navegar)\s+(o|a)?\s*(site|url|página|link|navegador)\b|\b(acessando|abrirá|abrindo)\s+o\s+site\b/i.test(aiStr);
           const browserAlreadyCalled = currentContents.some((c: any) => 
             c.parts?.some((p: any) => 
