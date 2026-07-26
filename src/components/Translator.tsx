@@ -341,7 +341,7 @@ export default function Translator({ onOpenMobileHistory, onBack }: TranslatorPr
               <ArrowLeft size={18} />
             </button>
           )}
-          <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-[#5c53e5]">
+          <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-[#2563eb]">
             <Languages size={18} />
           </div>
           <div>
@@ -353,7 +353,7 @@ export default function Translator({ onOpenMobileHistory, onBack }: TranslatorPr
         {onOpenMobileHistory && (
           <button 
             onClick={onOpenMobileHistory}
-            className="md:hidden flex items-center gap-1 text-[13px] text-[#5c53e5] font-semibold"
+            className="md:hidden flex items-center gap-1 text-[13px] text-[#2563eb] font-semibold"
           >
             ‹ Histórico
           </button>
@@ -407,7 +407,7 @@ export default function Translator({ onOpenMobileHistory, onBack }: TranslatorPr
                             setSearchQuerySource('');
                           }}
                           className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold ${
-                            sourceLang === 'auto' ? 'bg-indigo-50/60 text-[#5c53e5]' : 'hover:bg-gray-50 text-gray-700'
+                            sourceLang === 'auto' ? 'bg-blue-50/60 text-[#2563eb]' : 'hover:bg-gray-50 text-gray-700'
                           }`}
                         >
                           Detectar idioma automaticamente
@@ -422,7 +422,7 @@ export default function Translator({ onOpenMobileHistory, onBack }: TranslatorPr
                               setSearchQuerySource('');
                             }}
                             className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center justify-between ${
-                              sourceLang === lang.code ? 'bg-indigo-50/60 text-[#5c53e5] font-semibold' : 'hover:bg-gray-50 text-gray-700'
+                              sourceLang === lang.code ? 'bg-blue-50/60 text-[#2563eb] font-semibold' : 'hover:bg-gray-50 text-gray-700'
                             }`}
                           >
                             <span>{lang.name}</span>
@@ -474,7 +474,7 @@ export default function Translator({ onOpenMobileHistory, onBack }: TranslatorPr
                 <select
                   value={tone}
                   onChange={(e) => setTone(e.target.value)}
-                  className="bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#5c53e5]/20 font-medium cursor-pointer"
+                  className="bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#2563eb]/20 font-medium cursor-pointer"
                 >
                   {TONES.map(t => (
                     <option key={t.id} value={t.id}>{t.label}</option>
@@ -484,7 +484,7 @@ export default function Translator({ onOpenMobileHistory, onBack }: TranslatorPr
                 <button
                   onClick={() => handleTranslate()}
                   disabled={isLoading || !sourceText.trim()}
-                  className="px-4 py-1.5 bg-[#5c53e5] hover:bg-[#4b43c4] disabled:opacity-40 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs hover:shadow-xs active:scale-98 cursor-pointer"
+                  className="px-4 py-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] disabled:opacity-40 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs hover:shadow-xs active:scale-98 cursor-pointer"
                 >
                   {isLoading ? (
                     <>
@@ -509,7 +509,7 @@ export default function Translator({ onOpenMobileHistory, onBack }: TranslatorPr
             <div className="absolute top-[32%] left-1/2 -translate-x-1/2 -translate-y-1/2 md:flex hidden z-20">
               <button
                 onClick={handleSwapLanguages}
-                className="w-8 h-8 rounded-full bg-white border border-gray-200 text-gray-500 hover:text-[#5c53e5] shadow-xs flex items-center justify-center hover:scale-115 transition-all duration-200 cursor-pointer"
+                className="w-8 h-8 rounded-full bg-white border border-gray-200 text-gray-500 hover:text-[#2563eb] shadow-xs flex items-center justify-center hover:scale-115 transition-all duration-200 cursor-pointer"
                 title="Inverter idiomas"
               >
                 <ArrowLeftRight size={13} />
@@ -524,10 +524,10 @@ export default function Translator({ onOpenMobileHistory, onBack }: TranslatorPr
                     setIsTargetDropdownOpen(!isTargetDropdownOpen);
                     setIsSourceDropdownOpen(false);
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-gray-50 text-[13px] font-semibold text-[#5c53e5] transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-gray-50 text-[13px] font-semibold text-[#2563eb] transition-colors"
                 >
                   <span>{currentTargetLangLabel}</span>
-                  <ChevronDown size={14} className="text-[#5c53e5]/60" />
+                  <ChevronDown size={14} className="text-[#2563eb]/60" />
                 </button>
 
                 {/* Dropdown list */}
@@ -559,7 +559,7 @@ export default function Translator({ onOpenMobileHistory, onBack }: TranslatorPr
                               setSearchQueryTarget('');
                             }}
                             className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center justify-between ${
-                              targetLang === lang.code ? 'bg-indigo-50/60 text-[#5c53e5] font-semibold' : 'hover:bg-gray-50 text-gray-700'
+                              targetLang === lang.code ? 'bg-blue-50/60 text-[#2563eb] font-semibold' : 'hover:bg-gray-50 text-gray-700'
                             }`}
                           >
                             <span>{lang.name}</span>
@@ -586,7 +586,7 @@ export default function Translator({ onOpenMobileHistory, onBack }: TranslatorPr
             <div className="flex-1 flex flex-col relative">
               {isLoading ? (
                 <div className="absolute inset-0 bg-white/60 backdrop-blur-3xs flex flex-col items-center justify-center gap-2">
-                  <div className="w-6 h-6 border-2 border-[#5c53e5] border-t-transparent rounded-full animate-spin" />
+                  <div className="w-6 h-6 border-2 border-[#2563eb] border-t-transparent rounded-full animate-spin" />
                   <span className="text-xs text-gray-500 font-medium font-mono">Traduzindo texto...</span>
                 </div>
               ) : null}
@@ -692,7 +692,7 @@ export default function Translator({ onOpenMobileHistory, onBack }: TranslatorPr
                       <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                         <span>{srcName}</span>
                         <CornerDownRight size={10} className="text-gray-300" />
-                        <span className="text-[#5c53e5]">{tgtName}</span>
+                        <span className="text-[#2563eb]">{tgtName}</span>
                       </div>
                       
                       <div className="flex items-center gap-2">

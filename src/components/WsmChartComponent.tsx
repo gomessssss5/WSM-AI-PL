@@ -12,7 +12,7 @@ interface WsmChartComponentProps {
   data: string; // JSON string array of objects
 }
 
-const COLORS = ['#5c53e5', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#3b82f6', '#ec4899', '#14b8a6'];
+const COLORS = ['#2563eb', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#3b82f6', '#ec4899', '#14b8a6'];
 
 export default function WsmChartComponent({ type, title, data }: WsmChartComponentProps) {
   const parsedData = useMemo(() => {

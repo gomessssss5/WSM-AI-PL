@@ -28,21 +28,21 @@ export default function ToolsDashboard({
           {/* Translator Card */}
           <div 
             onClick={onOpenTranslator}
-            className="group relative bg-white border border-gray-200 hover:border-indigo-200/80 rounded-2xl p-6 flex flex-col gap-5 cursor-pointer transition-all hover:shadow-md duration-200"
+            className="group relative bg-white border border-gray-200 hover:border-blue-200/80 rounded-2xl p-6 flex flex-col gap-5 cursor-pointer transition-all hover:shadow-md duration-200"
           >
             <div className="flex items-start justify-between">
-              <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-[#5c53e5] group-hover:scale-105 transition-transform">
+              <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-[#2563eb] group-hover:scale-105 transition-transform">
                 <Languages size={24} />
               </div>
-              <span className="text-[10px] bg-indigo-50 text-[#5c53e5] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
+              <span className="text-[10px] bg-blue-50 text-[#2563eb] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
                 Inteligência Artificial
               </span>
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <h3 className="text-base font-bold text-gray-900 group-hover:text-[#5c53e5] transition-colors flex items-center gap-1.5">
+              <h3 className="text-base font-bold text-gray-900 group-hover:text-[#2563eb] transition-colors flex items-center gap-1.5">
                 <span>Tradutor Universal</span>
-                <ArrowRight size={15} className="text-gray-400 group-hover:text-[#5c53e5] group-hover:translate-x-1 transition-all" />
+                <ArrowRight size={15} className="text-gray-400 group-hover:text-[#2563eb] group-hover:translate-x-1 transition-all" />
               </h3>
               <p className="text-xs text-gray-500 leading-relaxed">
                 Traduza instantaneamente textos entre os 50 idiomas mais importantes do mundo usando modelos de IA avançados. Adapte o tom da tradução (formal, informal, profissional) e ouça as traduções pronunciadas nativamente.
@@ -50,7 +50,7 @@ export default function ToolsDashboard({
             </div>
 
             <div className="border-t border-gray-100 pt-3.5 mt-auto flex items-center gap-2">
-              <Sparkles size={12} className="text-[#5c53e5]" />
+              <Sparkles size={12} className="text-[#2563eb]" />
               <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                 50 idiomas • Leitura por voz • Tom de escrita
               </span>

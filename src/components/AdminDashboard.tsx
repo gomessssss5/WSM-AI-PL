@@ -23,7 +23,7 @@ interface AdminDashboardProps {
   actualSessionsCount?: number;
 }
 
-const MODEL_COLORS = ['#5c53e5', '#10b981', '#f59e0b', '#ef4444'];
+const MODEL_COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444'];
 const CATEGORY_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6b7280'];
 
 interface EvaluationData {
@@ -984,7 +984,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
       const nowMs = Date.now();
       const possibleStatuses = [
         { status: 'Digitando prompt...', color: 'bg-amber-500 animate-pulse' },
-        { status: 'Recebendo resposta da IA...', color: 'bg-[#5c53e5] animate-pulse' },
+        { status: 'Recebendo resposta da IA...', color: 'bg-[#2563eb] animate-pulse' },
         { status: 'Processando arquivo...', color: 'bg-purple-500 animate-pulse' },
         { status: 'Lendo resposta...', color: 'bg-emerald-500 animate-pulse' },
         { status: 'Inativo há 1m', color: 'bg-gray-400' },
@@ -1291,8 +1291,8 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
   if (loading) {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center bg-[#FAF9F6] select-none font-sans">
-        <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center shadow-sm border border-indigo-100 animate-spin mb-4">
-          <RefreshCw className="w-6 h-6 text-[#5c53e5]" />
+        <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center shadow-sm border border-blue-100 animate-spin mb-4">
+          <RefreshCw className="w-6 h-6 text-[#2563eb]" />
         </div>
         <p className="text-[13px] text-gray-500 font-bold tracking-wide animate-pulse">
           AUDITANDO BANCO DE DADOS...
@@ -1317,11 +1317,11 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <Shield className="w-5 h-5 text-[#5c53e5]" />
+              <Shield className="w-5 h-5 text-[#2563eb]" />
               <h1 className="text-sm font-black tracking-tight text-gray-950 uppercase">
                 Painel Administrativo WSM
               </h1>
-              <span className="bg-[#5c53e5]/10 text-[#5c53e5] border border-[#5c53e5]/15 text-[9px] font-bold px-2.5 py-0.5 rounded-full tracking-wider uppercase">
+              <span className="bg-[#2563eb]/10 text-[#2563eb] border border-[#2563eb]/15 text-[9px] font-bold px-2.5 py-0.5 rounded-full tracking-wider uppercase">
                 Acesso Root
               </span>
             </div>
@@ -1358,7 +1358,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
           <div className="bg-white p-4 rounded-2xl border border-[#eae6e1] shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-gray-400 tracking-wider uppercase">Usuários Totais</span>
-              <div className="p-1.5 rounded-lg bg-[#5c53e5]/10 text-[#5c53e5]">
+              <div className="p-1.5 rounded-lg bg-[#2563eb]/10 text-[#2563eb]">
                 <Users className="w-4 h-4" />
               </div>
             </div>
@@ -1463,7 +1463,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   onClick={() => setActiveTab(tab.id as any)}
                   className={`flex items-center gap-2 py-3 px-4 text-xs font-bold border-b-2 transition-all cursor-pointer ${
                     activeTab === tab.id
-                      ? 'border-[#5c53e5] text-[#5c53e5] bg-[#5c53e5]/5 rounded-t-xl'
+                      ? 'border-[#2563eb] text-[#2563eb] bg-[#2563eb]/5 rounded-t-xl'
                       : 'border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-100/50 rounded-t-xl'
                   }`}
                 >
@@ -1498,7 +1498,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       <p className="text-[10px] text-gray-400">Relação entre usuários ativos, mensagens e erros reais</p>
                     </div>
                     <div className="flex gap-4 text-[10px] font-bold">
-                      <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#5c53e5]" /><span>Mensagens</span></div>
+                      <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#2563eb]" /><span>Mensagens</span></div>
                       <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#34d399]" /><span>Usuários</span></div>
                       <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-400" /><span>Erros</span></div>
                     </div>
@@ -1509,8 +1509,8 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                         <AreaChart data={stats.weeklyData}>
                           <defs>
                             <linearGradient id="colorMsgs" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#5c53e5" stopOpacity={0.2}/>
-                              <stop offset="95%" stopColor="#5c53e5" stopOpacity={0}/>
+                              <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2}/>
+                              <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
                             </linearGradient>
                             <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
                               <stop offset="5%" stopColor="#34d399" stopOpacity={0.2}/>
@@ -1521,7 +1521,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                           <XAxis dataKey="name" stroke="#a3a3a3" fontSize={10} tickLine={false} />
                           <YAxis stroke="#a3a3a3" fontSize={10} tickLine={false} />
                           <Tooltip />
-                          <Area type="monotone" dataKey="messages" stroke="#5c53e5" strokeWidth={2.5} fillOpacity={1} fill="url(#colorMsgs)" name="Mensagens" />
+                          <Area type="monotone" dataKey="messages" stroke="#2563eb" strokeWidth={2.5} fillOpacity={1} fill="url(#colorMsgs)" name="Mensagens" />
                           <Area type="monotone" dataKey="users" stroke="#34d399" strokeWidth={2} fillOpacity={1} fill="url(#colorUsers)" name="Usuários Ativos" />
                           <Area type="monotone" dataKey="errors" stroke="#ef4444" strokeWidth={1.5} fill="none" name="Erros" />
                         </AreaChart>
@@ -1544,7 +1544,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                         <PolarGrid stroke="#eae6e1" />
                         <PolarAngleAxis dataKey="subject" stroke="#737373" fontSize={10} />
                         <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="#a3a3a3" fontSize={8} />
-                        <Radar name="Uso (%)" dataKey="A" stroke="#5c53e5" fill="#5c53e5" fillOpacity={0.15} />
+                        <Radar name="Uso (%)" dataKey="A" stroke="#2563eb" fill="#2563eb" fillOpacity={0.15} />
                       </RadarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1647,7 +1647,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                         <span className="text-gray-900">{stats.activeUsersGauge.mau}</span>
                       </div>
                       <div className="w-full bg-gray-100 rounded-full h-2">
-                        <div className="bg-[#5c53e5] h-2 rounded-full" style={{ width: '100%' }}></div>
+                        <div className="bg-[#2563eb] h-2 rounded-full" style={{ width: '100%' }}></div>
                       </div>
                     </div>
                   </div>
@@ -1843,14 +1843,14 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                     {stats.longSessions.map(session => (
                       <div key={session.id} className="relative w-full h-5 bg-gray-50 rounded-full overflow-hidden flex items-center px-2">
                         <div
-                          className="absolute h-full bg-[#5c53e5] rounded-full opacity-20"
+                          className="absolute h-full bg-[#2563eb] rounded-full opacity-20"
                           style={{
                             left: `${Math.min(100, session.start / 2)}%`,
                             width: `${Math.min(100 - session.start / 2, session.duration / 2)}%`
                           }}
                         />
                         <div
-                          className="absolute h-full border-l-2 border-[#5c53e5]"
+                          className="absolute h-full border-l-2 border-[#2563eb]"
                           style={{ left: `${Math.min(100, session.start / 2)}%` }}
                         />
                         <span className="relative z-10 text-[9px] font-bold text-gray-700 truncate">{session.user} ({session.duration.toFixed(0)}m)</span>
@@ -1948,7 +1948,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                           <td className="py-3 px-2 text-center">
                             <div className="w-full bg-gray-100 rounded-full h-1.5 max-w-[100px] mx-auto overflow-hidden flex items-center">
                               <div 
-                                className="bg-[#5c53e5] h-1.5 rounded-full" 
+                                className="bg-[#2563eb] h-1.5 rounded-full" 
                                 style={{ width: `${Math.min(100, (usr.messagesCount / (stats.totalMessages || 1)) * 100)}%` }} 
                               />
                             </div>
@@ -2039,7 +2039,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
 
                   <div className="bg-indigo-50/50 border border-indigo-100 p-3.5 rounded-2xl flex items-center justify-between text-xs font-bold">
                     <div className="flex items-center gap-2">
-                      <Server className="w-4 h-4 text-[#5c53e5]" />
+                      <Server className="w-4 h-4 text-[#2563eb]" />
                       <span className="text-gray-500">Modelo Mais Utilizado:</span>
                       <span className="text-gray-900 uppercase font-black">{mostUsedModel.name} ({mostUsedModel.value}%)</span>
                     </div>
@@ -2277,8 +2277,8 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                                   </>
                                 ) : (
                                   <>
-                                    <span className="w-1.5 h-1.5 bg-[#5c53e5] rounded-full" />
-                                    <span className="text-[#5c53e5]">WSM AI</span>
+                                    <span className="w-1.5 h-1.5 bg-[#2563eb] rounded-full" />
+                                    <span className="text-[#2563eb]">WSM AI</span>
                                   </>
                                 )}
                                 <span className="text-[9px] text-gray-400 font-medium">({new Date(msg.timestamp).toLocaleTimeString()})</span>
@@ -2312,7 +2312,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Cota Diária Gemini</span>
-                      <span className="bg-indigo-50 text-[#5c53e5] text-[9px] font-bold px-2 py-0.5 rounded-full border border-indigo-100">
+                      <span className="bg-indigo-50 text-[#2563eb] text-[9px] font-bold px-2 py-0.5 rounded-full border border-indigo-100">
                         1.5K RPD Limit
                       </span>
                     </div>
@@ -2326,7 +2326,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                     {/* Progress Bar */}
                     <div className="w-full bg-gray-100 h-2 rounded-full mt-4 overflow-hidden">
                       <div 
-                        className="bg-[#5c53e5] h-full rounded-full transition-all duration-500"
+                        className="bg-[#2563eb] h-full rounded-full transition-all duration-500"
                         style={{ width: `${Math.min(100, stats.apiMetrics?.geminiDailyPercent ?? 0)}%` }}
                       />
                     </div>
@@ -2493,7 +2493,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                               return (
                                 <div className="bg-white p-3 border border-gray-100 rounded-xl shadow-lg text-[11px] font-bold space-y-1">
                                   <p className="text-gray-900">{data.name}</p>
-                                  <p className="text-[#5c53e5]">Consumido: {data.Usado} reqs ({data.percent}%)</p>
+                                  <p className="text-[#2563eb]">Consumido: {data.Usado} reqs ({data.percent}%)</p>
                                   <p className="text-gray-400">Limite Free Tier: {data.Limite} reqs</p>
                                 </div>
                               );
@@ -2502,7 +2502,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                           }}
                         />
                         <Legend />
-                        <Bar dataKey="Usado" fill="#5c53e5" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="Usado" fill="#2563eb" radius={[6, 6, 0, 0]} />
                         <Bar dataKey="Limite" fill="#e5e5e5" radius={[6, 6, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
@@ -2589,7 +2589,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       <tr className="hover:bg-gray-50/80 transition-colors">
                         <td className="py-3.5 px-3">
                           <div className="flex items-center gap-2">
-                            <Sparkles className="w-4 h-4 text-[#5c53e5]" />
+                            <Sparkles className="w-4 h-4 text-[#2563eb]" />
                             <span className="font-extrabold text-gray-900">Google AI Studio (Gemini)</span>
                           </div>
                         </td>
@@ -2606,7 +2606,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       <tr className="hover:bg-gray-50/80 transition-colors">
                         <td className="py-3.5 px-3">
                           <div className="flex items-center gap-2">
-                            <Sparkles className="w-4 h-4 text-[#5c53e5]" />
+                            <Sparkles className="w-4 h-4 text-[#2563eb]" />
                             <span className="font-extrabold text-gray-900">Google AI Studio (Tokens)</span>
                           </div>
                         </td>
@@ -2671,7 +2671,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   <button
                     onClick={handleTestKeys}
                     disabled={testingApis}
-                    className="w-full py-3 bg-[#5c53e5] hover:bg-[#4a41cc] text-white rounded-xl font-bold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98] disabled:opacity-50"
+                    className="w-full py-3 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-xl font-bold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98] disabled:opacity-50"
                   >
                     {testingApis ? (
                       <>
@@ -2834,7 +2834,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                 <div className="flex flex-col space-y-2">
                   <div className="flex justify-between text-xs font-bold">
                     <span className="text-gray-500">Armazenamento (Real)</span>
-                    <span className={stats.storageUse.percent > 80 ? 'text-red-500' : 'text-[#5c53e5]'}>
+                    <span className={stats.storageUse.percent > 80 ? 'text-red-500' : 'text-[#2563eb]'}>
                       {stats.storageUse.formattedUsed || `${stats.storageUse.usedGB.toFixed(6)}GB`} / {stats.storageUse.totalGB.toFixed(1)}GB ({stats.storageUse.percent < 0.0001 ? stats.storageUse.percent.toFixed(6) : stats.storageUse.percent.toFixed(4)}%)
                     </span>
                   </div>
@@ -3023,7 +3023,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                 <div className="bg-white p-5 rounded-3xl border border-[#eae6e1] shadow-sm flex flex-col justify-between">
                   <div>
                     <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
-                      <Sliders className="w-4 h-4 text-[#5c53e5]" />
+                      <Sliders className="w-4 h-4 text-[#2563eb]" />
                       Simulador Ativo
                     </h3>
                     <p className="text-[10px] text-gray-400">Controle de flutuação de atividade fictícia para auditoria visual</p>
@@ -3061,7 +3061,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                             onClick={() => setSimSpeed(speed)}
                             className={`flex-1 py-1.5 rounded-lg border text-[10px] font-bold transition-all cursor-pointer ${
                               simSpeed === speed 
-                                ? 'bg-[#5c53e5] text-white border-[#5c53e5]' 
+                                ? 'bg-[#2563eb] text-white border-[#2563eb]' 
                                 : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                             }`}
                           >
@@ -3140,10 +3140,10 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   <div>
                     <div className="flex justify-between text-[10px] font-bold mb-1">
                       <span className="text-gray-500">Taxa de Conexão Ativa</span>
-                      <span className="text-[#5c53e5]">100%</span>
+                      <span className="text-[#2563eb]">100%</span>
                     </div>
                     <div className="bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                      <div className="bg-[#5c53e5] h-full rounded-full animate-pulse" style={{ width: '100%' }} />
+                      <div className="bg-[#2563eb] h-full rounded-full animate-pulse" style={{ width: '100%' }} />
                     </div>
                   </div>
                 </div>
@@ -3244,7 +3244,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                 </div>
                 <button
                   onClick={loadAllData}
-                  className="px-2.5 py-1 bg-[#5c53e5]/5 hover:bg-[#5c53e5]/10 text-[#5c53e5] rounded-xl text-[10px] font-bold border border-[#5c53e5]/20 flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                  className="px-2.5 py-1 bg-[#2563eb]/5 hover:bg-[#2563eb]/10 text-[#2563eb] rounded-xl text-[10px] font-bold border border-[#2563eb]/20 flex items-center gap-1 cursor-pointer transition-all active:scale-95"
                 >
                   <RefreshCw className="w-3 h-3" />
                   Atualizar Lista
@@ -3288,7 +3288,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                             {user.model}
                           </span>
                         </td>
-                        <td className="py-3 px-2 text-right font-black text-[#5c53e5]">
+                        <td className="py-3 px-2 text-right font-black text-[#2563eb]">
                           {user.relativeTime}
                         </td>
                       </tr>
@@ -3455,7 +3455,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   {/* Summary Cards */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="bg-white p-5 rounded-2xl border border-[#eae6e1] shadow-sm flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-[#5c53e5] flex items-center justify-center border border-indigo-100 shrink-0">
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-[#2563eb] flex items-center justify-center border border-indigo-100 shrink-0">
                         <ImageIcon className="w-6 h-6" />
                       </div>
                       <div>
@@ -3838,7 +3838,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   <input type="text" placeholder="https://exemplo.com/imagem.png" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:border-blue-500 bg-gray-50 focus:bg-white transition-colors" />
                 </div>
                 
-                <button className="w-full bg-[#5c53e5] hover:bg-[#4b43c6] text-white font-bold py-3 rounded-xl transition-all shadow-sm active:scale-95 flex items-center justify-center gap-2 mt-4">
+                <button className="w-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold py-3 rounded-xl transition-all shadow-sm active:scale-95 flex items-center justify-center gap-2 mt-4">
                   <Zap className="w-4 h-4" />
                   Disparar Broadcast Agora
                 </button>
@@ -3921,8 +3921,8 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                                             </>
                                           ) : (
                                             <>
-                                              <span className="w-1.5 h-1.5 bg-[#5c53e5] rounded-full" />
-                                              <span className="text-[#5c53e5]">WSM AI</span>
+                                              <span className="w-1.5 h-1.5 bg-[#2563eb] rounded-full" />
+                                              <span className="text-[#2563eb]">WSM AI</span>
                                             </>
                                           )}
                                           <span className="text-[9px] text-gray-400 font-medium">
@@ -3949,7 +3949,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
           {/* Terminal Header */}
           <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between select-none">
             <div className="flex items-center gap-2">
-              <Terminal className="w-4 h-4 text-[#5c53e5]" />
+              <Terminal className="w-4 h-4 text-[#2563eb]" />
               <span className="font-bold text-gray-200 tracking-wider">TERMINAL DE AUDITORIA DE SISTEMA</span>
               <span className="animate-pulse w-2 h-2 rounded-full bg-emerald-500 ml-1.5" />
             </div>

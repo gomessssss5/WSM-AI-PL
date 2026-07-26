@@ -9,7 +9,8 @@ import Translator from './components/Translator';
 import ToolsDashboard from './components/ToolsDashboard';
 import Login from './components/Login';
 import { auth, onAuthStateChanged, signOut, User, getRedirectResult } from './lib/firebase';
-import { subscribeSessions, saveSession, deleteSessionFromDb, subscribeDrafts, saveDraft, deleteDraft, subscribeUserProfile, dismissNewsCardForUser } from './lib/chatService';
+import { subscribeSessions, saveSession, deleteSessionFromDb, subscribeDrafts, saveDraft, deleteDraft, subscribeUserProfile, dismissNewsCardForUser, dismissWelcomeCardForUser } from './lib/chatService';
+import WelcomeCardModal from './components/WelcomeCardModal';
 import { ChatSession, Message, Draft, ScheduledTask, TaskExecution } from './types';
 import { Sparkles, Trash2 } from 'lucide-react';
 import ScheduledTasksDashboard from './components/ScheduledTasksDashboard';
@@ -40,6 +41,30 @@ export default function App() {
   const [isThinking, setIsThinking] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [isWelcomeCardOpen, setIsWelcomeCardOpen] = useState(false);
+
+  // Check if welcome announcement card should be shown for the account (once per user account)
+  useEffect(() => {
+    if (currentUser && isProfileLoaded) {
+      const localSeen = localStorage.getItem(`wsm_welcome_card_seen_${currentUser.uid}`) === 'true';
+      const remoteSeen = !!userProfile?.seenWelcomeCard;
+      if (!localSeen && !remoteSeen) {
+        setIsWelcomeCardOpen(true);
+      } else {
+        setIsWelcomeCardOpen(false);
+      }
+    } else {
+      setIsWelcomeCardOpen(false);
+    }
+  }, [currentUser, userProfile, isProfileLoaded]);
+
+  const handleCloseWelcomeCard = () => {
+    setIsWelcomeCardOpen(false);
+    if (currentUser) {
+      localStorage.setItem(`wsm_welcome_card_seen_${currentUser.uid}`, 'true');
+      dismissWelcomeCardForUser(currentUser.uid);
+    }
+  };
 
   // Listen to User Skills from Firestore
   useEffect(() => {
@@ -1472,6 +1497,37 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                       };
                     });
                   });
+                } else if (eventData.type === "browser_screenshot") {
+                  console.log("[App.tsx] Received SSE browser_screenshot event:", eventData.url);
+                  setSessions((prev) => {
+                    const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
+                    if (!currentSess) return prev;
+                    return prev.map((s) => {
+                      if (s.id !== sessionToUpdate.id) return s;
+                      return {
+                        ...s,
+                        messages: s.messages.map((m) => {
+                          if (m.id === initialAiMsg.id) {
+                            const existing = m.browserScreenshots || [];
+                            return {
+                              ...m,
+                              browserScreenshots: [
+                                ...existing,
+                                {
+                                  screenshot: eventData.screenshot,
+                                  url: eventData.url,
+                                  title: eventData.title,
+                                  stepName: eventData.stepName,
+                                  timestamp: eventData.timestamp || Date.now(),
+                                }
+                              ]
+                            };
+                          }
+                          return m;
+                        })
+                      };
+                    });
+                  });
                 } else if (eventData.type === "final") {
                   console.log("[App.tsx] Received SSE final event:", eventData);
                   accumulatedFinalText = eventData.finalSynthesis || eventData.text || "";
@@ -1692,7 +1748,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
   if (authLoading) {
     return (
       <div id="wsm-loading-screen" className="flex h-[100dvh] w-screen flex-col items-center justify-center bg-[#fcfbfa] select-none dot-grid">
-        <div className="w-12 h-12 bg-gradient-to-br from-[#7c3aed] to-[#5c53e5] rounded-xl flex items-center justify-center shadow-md animate-spin mb-4">
+        <div className="w-12 h-12 bg-gradient-to-br from-[#2563eb] to-[#3b82f6] rounded-xl flex items-center justify-center shadow-md animate-spin mb-4">
           <svg 
             viewBox="0 0 24 24" 
             fill="none" 
@@ -1892,6 +1948,10 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         isOpen={isUpdateModalOpen} 
         onClose={() => setIsUpdateModalOpen(false)} 
       />
+
+      {isWelcomeCardOpen && (
+        <WelcomeCardModal onClose={handleCloseWelcomeCard} />
+      )}
 
       {sessionToDeleteId && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200">

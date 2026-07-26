@@ -34,7 +34,7 @@ export default function HtmlCodeBlock({ code }: HtmlCodeBlockProps) {
             onClick={() => setViewMode('code')}
             className={`p-1.5 rounded-lg transition-all ${
               viewMode === 'code'
-                ? 'text-[#5c53e5] bg-[#5c53e5]/10 font-bold shadow-3xs'
+                ? 'text-[#2563eb] bg-[#2563eb]/10 font-bold shadow-3xs'
                 : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-850'
             }`}
             title="Ver Código"
@@ -46,7 +46,7 @@ export default function HtmlCodeBlock({ code }: HtmlCodeBlockProps) {
             onClick={() => setViewMode('preview')}
             className={`p-1.5 rounded-lg transition-all ${
               viewMode === 'preview'
-                ? 'text-[#5c53e5] bg-[#5c53e5]/10 font-bold shadow-3xs'
+                ? 'text-[#2563eb] bg-[#2563eb]/10 font-bold shadow-3xs'
                 : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-850'
             }`}
             title="Visualizar HTML"
@@ -135,7 +135,7 @@ export default function HtmlCodeBlock({ code }: HtmlCodeBlockProps) {
               {/* Modal Header */}
               <div className="bg-gray-50 dark:bg-gray-950 px-5 py-3 flex items-center justify-between border-b border-gray-150 dark:border-gray-800">
                 <div className="flex items-center gap-2">
-                  <Play className="w-4 h-4 text-[#5c53e5]" />
+                  <Play className="w-4 h-4 text-[#2563eb]" />
                   <span className="font-sans text-sm font-bold text-gray-800 dark:text-gray-200">
                     Visualização em Tela Cheia
                   </span>

@@ -103,7 +103,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       <div className="relative z-10 w-full max-w-[400px] bg-white border border-[#eae6e1] rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.03)] p-6 md:p-8 flex flex-col gap-6">
         {/* Brand Header */}
         <div className="flex flex-col items-center text-center gap-2">
-          <div className="w-12 h-12 bg-gradient-to-br from-[#7c3aed] to-[#5c53e5] rounded-xl flex items-center justify-center shadow-md animate-pulse">
+          <div className="w-12 h-12 bg-gradient-to-br from-[#2563eb] to-[#3b82f6] rounded-xl flex items-center justify-center shadow-md animate-pulse">
             <svg 
               viewBox="0 0 24 24" 
               fill="none" 
@@ -140,7 +140,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="w-full bg-[#fcfbfa] border border-[#eae6e1] rounded-xl pl-9.5 pr-4 py-2.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#5c53e5] focus:ring-1 focus:ring-[#5c53e5]/25 transition-all font-medium"
+                className="w-full bg-[#fcfbfa] border border-[#eae6e1] rounded-xl pl-9.5 pr-4 py-2.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]/25 transition-all font-medium"
               />
             </div>
           )}
@@ -153,7 +153,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full bg-[#fcfbfa] border border-[#eae6e1] rounded-xl pl-9.5 pr-4 py-2.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#5c53e5] focus:ring-1 focus:ring-[#5c53e5]/25 transition-all font-medium"
+              className="w-full bg-[#fcfbfa] border border-[#eae6e1] rounded-xl pl-9.5 pr-4 py-2.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]/25 transition-all font-medium"
             />
           </div>
 
@@ -166,7 +166,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              className="w-full bg-[#fcfbfa] border border-[#eae6e1] rounded-xl pl-9.5 pr-4 py-2.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#5c53e5] focus:ring-1 focus:ring-[#5c53e5]/25 transition-all font-medium"
+              className="w-full bg-[#fcfbfa] border border-[#eae6e1] rounded-xl pl-9.5 pr-4 py-2.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]/25 transition-all font-medium"
             />
           </div>
 
@@ -221,7 +221,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           <button
             type="button"
             onClick={() => setIsSignUp(!isSignUp)}
-            className="text-[11px] text-gray-500 hover:text-[#5c53e5] font-semibold transition-colors cursor-pointer"
+            className="text-[11px] text-gray-500 hover:text-[#2563eb] font-semibold transition-colors cursor-pointer"
           >
             {isSignUp ? 'Já possui uma conta? Entre aqui' : 'Não tem uma conta? Cadastre-se grátis'}
           </button>

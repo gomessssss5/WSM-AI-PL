@@ -794,10 +794,10 @@ export default function MainHome({
             onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#eae6e1] hover:border-gray-300 rounded-full text-[13px] font-semibold text-gray-700 shadow-2xs cursor-pointer transition-all duration-150 active:scale-[0.98]"
           >
-            <Sparkles className="w-3 h-3 text-[#5c53e5] fill-[#5c53e5]/20 animate-pulse" />
-            {selectedModel === 'WSM 1.6 Pro' ? (
+            <Sparkles className="w-3 h-3 text-[#2563eb] fill-[#2563eb]/20 animate-pulse" />
+            {selectedModel === 'WSM 1.6 Flash' ? (
               <>
-                <span className="font-bold text-gray-900">WSM 1.6 Pro</span>
+                <span className="font-bold text-gray-900">WSM 1.6 Flash</span>
                 {reasoningLevel !== 'Nenhum' && (
                   <span className="text-gray-400 font-normal ml-0.5">{reasoningLevel}</span>
                 )}
@@ -834,7 +834,7 @@ export default function MainHome({
                       >
                         <div className="flex items-center justify-between w-full">
                           <div className="flex items-center gap-1.5 text-[13px] font-semibold">
-                            <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-[#5c53e5]' : 'bg-transparent'}`} />
+                            <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-[#2563eb]' : 'bg-transparent'}`} />
                             <span>{model}</span>
                           </div>
                         </div>
@@ -850,8 +850,8 @@ export default function MainHome({
           )}
         </div>
 
-        {/* Mobile Esforço Selector Button (shows up only for WSM 1.6 Pro on mobile) */}
-        {selectedModel === 'WSM 1.6 Pro' && (
+        {/* Mobile Esforço Selector Button (shows up only for WSM 1.6 Flash on mobile) */}
+        {selectedModel === 'WSM 1.6 Flash' && (
           <div className="relative md:hidden">
             <button
               type="button"
@@ -880,7 +880,7 @@ export default function MainHome({
                         }}
                         className={`w-full text-left px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors cursor-pointer ${
                           reasoningLevel === level
-                            ? 'bg-gray-50 text-[#5c53e5] font-semibold'
+                            ? 'bg-gray-50 text-[#2563eb] font-semibold'
                             : 'text-gray-700 hover:bg-gray-50'
                         }`}
                       >
@@ -897,14 +897,14 @@ export default function MainHome({
 
         {/* Right side controls / Chat temporário */}
         <div className="flex items-center gap-2 relative z-50">
-          {/* Tag WSM 1.6.1 - Desktop Only */}
+          {/* Tag WSM 1.6.2 - Desktop Only */}
           <button
             onClick={onOpenUpdateModal}
-            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-indigo-50/25 border border-[#eae6e1] rounded-full text-xs font-bold text-gray-700 hover:text-indigo-600 transition-colors cursor-pointer shadow-3xs active:scale-95"
-            title="Ver novidades da versão 1.6.1"
+            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-blue-50/40 border border-[#eae6e1] rounded-full text-xs font-bold text-gray-700 hover:text-[#2563eb] transition-colors cursor-pointer shadow-3xs active:scale-95"
+            title="Ver novidades da versão 1.6.2"
           >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-            <span>Atualização: WSM 1.6.1</span>
+            <Sparkles className="w-3.5 h-3.5 text-[#2563eb] shrink-0" />
+            <span>Atualização: WSM 1.6.2</span>
           </button>
 
           <button
@@ -1305,7 +1305,7 @@ export default function MainHome({
               {activeSkills.map(skill => (
                 <div 
                   key={skill.id}
-                  className="flex items-center gap-1 bg-[#5c53e5]/10 text-[#5c53e5] px-2 py-0.5 rounded flex-shrink-0 cursor-pointer hover:bg-[#5c53e5]/20 transition-colors"
+                  className="flex items-center gap-1 bg-[#2563eb]/10 text-[#2563eb] px-2 py-0.5 rounded flex-shrink-0 cursor-pointer hover:bg-[#2563eb]/20 transition-colors"
                   onClick={() => setActiveSkills(prev => prev.filter(s => s.id !== skill.id))}
                 >
                   <span className="font-bold text-[13px]">/{skill.name}</span>
@@ -1460,25 +1460,25 @@ export default function MainHome({
                     onClick={() => setIsSearchEnabled(!isSearchEnabled)}
                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold transition-all cursor-pointer ${
                       isSearchEnabled
-                        ? 'bg-[#5c53e5]/10 text-[#5c53e5] border border-[#5c53e5]/25 shadow-2xs'
-                        : 'bg-[#eae7e2] text-gray-700 hover:bg-[#e1ded9]'
+                        ? 'bg-white text-[#2563eb] border border-[#2563eb] shadow-2xs'
+                        : 'bg-white text-gray-700 border border-[#eae6e1] hover:border-gray-300 hover:bg-gray-50/50 shadow-2xs'
                     }`}
                     title="Ativar busca web em tempo real"
                   >
-                    <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-[#5c53e5] animate-spin-slow' : 'text-gray-500'}`} />
+                    <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-[#2563eb] animate-spin-slow' : 'text-gray-500'}`} />
                     <span>Pesquisar</span>
                   </button>
                 </div>
 
                 {/* Right Controls: Mic & Send Circular Button */}
                 <div className="flex items-center gap-1.5">
-                  {/* Esforço Dropdown/Pill Selector (shows up only for WSM 1.6 Pro - desktop only, mobile is in header) */}
-                  {selectedModel === 'WSM 1.6 Pro' && (
+                  {/* Esforço Dropdown/Pill Selector (shows up only for WSM 1.6 Flash - desktop only, mobile is in header) */}
+                  {selectedModel === 'WSM 1.6 Flash' && (
                     <div className="relative hidden md:block">
                       <button
                         type="button"
                         onClick={() => setIsEffortDropdownOpen(!isEffortDropdownOpen)}
-                        className="flex items-center gap-1 px-3 py-1 bg-[#eae7e2] hover:bg-[#e1ded9] rounded-full text-[12px] font-bold text-gray-700 transition-all cursor-pointer"
+                        className="flex items-center gap-1 px-3 py-1 bg-white border border-[#eae6e1] hover:border-gray-300 rounded-full text-[12px] font-bold text-gray-700 shadow-2xs transition-all cursor-pointer"
                         title="Seletor de esforço de raciocínio"
                       >
                         <span>Esforço</span>
@@ -1504,7 +1504,7 @@ export default function MainHome({
                                   }}
                                   className={`w-full text-left px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors cursor-pointer ${
                                     reasoningLevel === level
-                                      ? 'bg-gray-50 text-[#5c53e5] font-semibold'
+                                      ? 'bg-gray-50 text-[#2563eb] font-semibold'
                                       : 'text-gray-700 hover:bg-gray-50'
                                   }`}
                                 >
@@ -1649,7 +1649,7 @@ export default function MainHome({
                   >
                     <div className="flex items-center gap-3.5 min-w-0 flex-1">
                       <div className="w-12 h-12 md:w-14 md:h-14 shrink-0 flex items-center justify-center bg-white border border-[#eae6e1] rounded-xl shadow-2xs">
-                        <Sparkles className="w-6 h-6 md:w-7 md:h-7 text-[#5c53e5]" />
+                        <Sparkles className="w-6 h-6 md:w-7 md:h-7 text-[#2563eb]" />
                       </div>
                       <div className="flex flex-col text-left min-w-0 flex-1">
                         <h3 className="font-sans font-bold text-gray-900 text-[13.5px] md:text-[14.5px] tracking-tight leading-snug truncate">

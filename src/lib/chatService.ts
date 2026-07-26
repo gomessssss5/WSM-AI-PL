@@ -356,3 +356,19 @@ export const dismissNewsCardForUser = async (userId: string): Promise<void> => {
     console.error("Error dismissing news card:", err);
   }
 };
+
+/**
+ * Persists welcome/announcement card dismissal in Firestore for the given account
+ */
+export const dismissWelcomeCardForUser = async (userId: string): Promise<void> => {
+  if (!userId) return;
+  const userRef = doc(db, 'users', userId);
+  try {
+    await setDoc(userRef, {
+      seenWelcomeCard: true,
+      updatedAt: Timestamp.now()
+    }, { merge: true });
+  } catch (err) {
+    console.error("Error setting seenWelcomeCard:", err);
+  }
+};

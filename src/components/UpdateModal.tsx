@@ -53,10 +53,10 @@ export default function UpdateModal({ isOpen, onClose }: UpdateModalProps) {
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-[#f3efe9] shrink-0 bg-[#fdfcfb]">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+              <div className="p-1.5 bg-blue-50 text-[#2563eb] rounded-lg">
                 <Sparkles className="w-5 h-5" />
               </div>
-              <h2 className="text-lg font-bold text-gray-900">Atualização: WSM 1.6.1</h2>
+              <h2 className="text-lg font-bold text-gray-900">Atualização: WSM 1.6.2</h2>
             </div>
             <button
               onClick={onClose}
@@ -69,82 +69,59 @@ export default function UpdateModal({ isOpen, onClose }: UpdateModalProps) {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            {/* Description Card */}
-            <div className="space-y-3">
-              <h3 className="text-md font-bold text-gray-900">Bugs arrumados e melhora na geração de códigos</h3>
+            {/* WSM 1.6.2 Section */}
+            <div className="bg-blue-50/40 border border-blue-100 rounded-2xl p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="bg-[#2563eb] text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                  Versão 1.6.2 (Mais Recente)
+                </span>
+              </div>
+
+              <h3 className="text-lg font-normal text-gray-900">
+                WSM 1.6 Pro agora é <strong className="font-extrabold text-[#2563eb]">AGENTE</strong>
+              </h3>
+
               <p className="text-sm text-gray-600 leading-relaxed">
-                A <strong>WSM 1.6 Pro</strong> está mais apta para geração de códigos. Agora, na criação de sites, ela analisa o próprio site que criou, encontra bugs, erros, e analisa se está de acordo com o que o usuário pediu de forma autônoma e iterativa.
+                agora, WSM 1.6 Pro consegue mexer e navegar em sites, clicando em botões, escrevendo textos, como se fosse um usuário.
               </p>
 
-              <h3 className="text-md font-bold text-gray-900 pt-2">Melhora do conhecimento do WSM 1.6</h3>
-              <p className="text-sm text-gray-600 leading-relaxed">
-                WSM 1.6 agora tem conhecimento de até março de 2026, além de conseguir fazer buscas na web pra aprimorar seus conhecimentos.
-              </p>
+              {/* Image */}
+              <div 
+                onClick={() => handleImageClick("https://i.ibb.co/xtVwXdHQ/tech-ad-poster-wsm.webp", "WSM 1.6 Pro agora é AGENTE")}
+                className="group relative bg-gray-950 rounded-xl border border-gray-800 overflow-hidden cursor-pointer shadow-3xs w-full flex justify-center p-2"
+              >
+                <img
+                  src="https://i.ibb.co/xtVwXdHQ/tech-ad-poster-wsm.webp"
+                  alt="WSM 1.6 Pro agora é AGENTE"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-auto max-h-[500px] object-contain rounded-lg transition-transform duration-300 group-hover:scale-[1.01]"
+                />
+                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-semibold">
+                  <ZoomIn className="w-5 h-5" />
+                  <span>Clique para ver em tela cheia</span>
+                </div>
+              </div>
             </div>
 
             {/* Separator */}
             <div className="border-t border-[#f3efe9]"></div>
 
-            {/* Examples Section - Stacked vertically for larger sizes */}
-            <div className="space-y-6">
-              <h4 className="text-sm font-bold text-gray-800 flex items-center gap-2 uppercase tracking-wider text-[11px]">
-                Comparação de Versões
-              </h4>
+            {/* WSM 1.6.1 Section */}
+            <div className="space-y-4">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                Histórico - Versão 1.6.1
+              </span>
 
-              <div className="flex flex-col gap-6">
-                {/* Old version */}
-                <div className="border border-[#eae6e1] bg-[#faf9f6] rounded-xl p-5 flex flex-col space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-gray-600">WSM 1.6.0 (versão antiga)</span>
-                  </div>
-                  
-                  {/* Image container */}
-                  <div 
-                    onClick={() => handleImageClick("https://i.ibb.co/d0NQ3Kzc/Screenshot-2026-07-21-15-02-29.png", "WSM 1.6.0 (versão antiga)")}
-                    className="group relative bg-white rounded-lg border border-[#eae6e1] overflow-hidden cursor-pointer shadow-3xs w-full flex justify-center"
-                  >
-                    <img
-                      src="https://i.ibb.co/d0NQ3Kzc/Screenshot-2026-07-21-15-02-29.png"
-                      alt="WSM 1.6.0"
-                      referrerPolicy="no-referrer"
-                      className="w-full h-auto object-contain transition-transform duration-300 group-hover:scale-[1.01]"
-                    />
+              <div className="space-y-3">
+                <h3 className="text-md font-bold text-gray-900">Bugs arrumados e melhora na geração de códigos</h3>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  A <strong>WSM 1.6 Pro</strong> está mais apta para geração de códigos. Agora, na criação de sites, ela analisa o próprio site que criou, encontra bugs, erros, e analisa se está de acordo com o que o usuário pediu de forma autônoma e iterativa.
+                </p>
 
-                    {/* Hover Overlay */}
-                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-semibold">
-                      <ZoomIn className="w-5 h-5" />
-                      <span>Clique para ver em tela cheia</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* New version */}
-                <div className="border border-indigo-100 bg-indigo-50/10 rounded-xl p-5 flex flex-col space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-indigo-700 flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4 text-indigo-600" /> WSM 1.6.1 (atualização)
-                    </span>
-                  </div>
-                  
-                  {/* Image container */}
-                  <div 
-                    onClick={() => handleImageClick("https://i.ibb.co/gbkcyrBZ/Screenshot-2026-07-21-15-03-46.png", "WSM 1.6.1 (atualização)")}
-                    className="group relative bg-white rounded-lg border border-indigo-100 overflow-hidden cursor-pointer shadow-3xs w-full flex justify-center"
-                  >
-                    <img
-                      src="https://i.ibb.co/gbkcyrBZ/Screenshot-2026-07-21-15-03-46.png"
-                      alt="WSM 1.6.1"
-                      referrerPolicy="no-referrer"
-                      className="w-full h-auto object-contain transition-transform duration-300 group-hover:scale-[1.01]"
-                    />
-
-                    {/* Hover Overlay */}
-                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-semibold">
-                      <ZoomIn className="w-5 h-5" />
-                      <span>Clique para ver em tela cheia</span>
-                    </div>
-                  </div>
-                </div>
+                <h3 className="text-md font-bold text-gray-900 pt-2">Melhora do conhecimento do WSM 1.6</h3>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  WSM 1.6 agora tem conhecimento atualizado, além de conseguir fazer buscas na web pra aprimorar seus conhecimentos.
+                </p>
               </div>
             </div>
           </div>

@@ -61,6 +61,13 @@ export interface Message {
   finalSynthesis?: string;
   visibleStepsCount?: number;
   isSimulatingSearch?: boolean;
+  browserScreenshots?: {
+    screenshot: string;
+    url?: string;
+    title?: string;
+    stepName?: string;
+    timestamp?: number;
+  }[];
   attachments?: {
     name: string;
     type: 'image' | 'video' | 'audio' | 'document';

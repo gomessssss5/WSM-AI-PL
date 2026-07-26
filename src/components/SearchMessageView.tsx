@@ -358,7 +358,7 @@ export default function SearchMessageView({
                                 }}
                               />
                             </div>
-                            <span className="text-[12px] font-semibold text-gray-700 truncate hover:text-[#5c53e5]">
+                            <span className="text-[12px] font-semibold text-gray-700 truncate hover:text-[#2563eb]">
                               {src.title}
                             </span>
                           </div>
@@ -483,7 +483,7 @@ export default function SearchMessageView({
                     );
                   })}
                 </div>
-                <span className="text-[#5c53e5] font-semibold text-[11.5px] pr-0.5">{count} {count === 1 ? 'fonte' : 'fontes'}</span>
+                <span className="text-[#2563eb] font-semibold text-[11.5px] pr-0.5">{count} {count === 1 ? 'fonte' : 'fontes'}</span>
               </button>
             );
           })()}

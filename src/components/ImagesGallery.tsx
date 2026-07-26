@@ -75,7 +75,7 @@ export default function ImagesGallery({ onBackToHome }: ImagesGalleryProps) {
           </button>
           <div>
             <span className="text-xs font-bold text-gray-900 tracking-tight flex items-center gap-1.5">
-              <ImageIcon className="w-3.5 h-3.5 text-[#5c53e5]" />
+              <ImageIcon className="w-3.5 h-3.5 text-[#2563eb]" />
               Galeria de Imagens WSM AI
             </span>
             <span className="text-[9px] text-gray-400 font-semibold block">Imagens geradas recentemente pelo modelo</span>
@@ -84,7 +84,7 @@ export default function ImagesGallery({ onBackToHome }: ImagesGalleryProps) {
 
         <button
           onClick={onBackToHome}
-          className="text-[10px] font-bold text-[#5c53e5] bg-[#5c53e5]/5 hover:bg-[#5c53e5]/10 border border-[#5c53e5]/15 px-3 py-1 rounded-full transition-all cursor-pointer"
+          className="text-[10px] font-bold text-[#2563eb] bg-[#2563eb]/5 hover:bg-[#2563eb]/10 border border-[#2563eb]/15 px-3 py-1 rounded-full transition-all cursor-pointer"
         >
           Nova conversa
         </button>
@@ -94,7 +94,7 @@ export default function ImagesGallery({ onBackToHome }: ImagesGalleryProps) {
       <div className="p-5 max-w-4xl mx-auto w-full space-y-4">
         <div className="flex flex-col gap-1 text-center md:text-left">
           <h2 className="text-lg font-bold text-gray-900 tracking-tight flex items-center justify-center md:justify-start gap-1.5">
-            <Sparkles className="w-4 h-4 text-[#5c53e5] fill-[#5c53e5]/10" />
+            <Sparkles className="w-4 h-4 text-[#2563eb] fill-[#2563eb]/10" />
             Suas criações visuais
           </h2>
           <p className="text-xs text-gray-400">
@@ -129,7 +129,7 @@ export default function ImagesGallery({ onBackToHome }: ImagesGalleryProps) {
                   <button className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all border border-white/15 active:scale-95 cursor-pointer">
                     <Eye className="w-3.5 h-3.5" />
                   </button>
-                  <button className="p-1.5 bg-[#5c53e5] hover:bg-[#4b42cc] text-white rounded-full transition-all active:scale-95 cursor-pointer">
+                  <button className="p-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-full transition-all active:scale-95 cursor-pointer">
                     <Download className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -138,7 +138,7 @@ export default function ImagesGallery({ onBackToHome }: ImagesGalleryProps) {
               {/* Text Info */}
               <div className="p-3 space-y-1 flex-1 flex flex-col justify-between">
                 <div>
-                  <h3 className="text-xs font-bold text-gray-800 tracking-tight group-hover:text-[#5c53e5] transition-colors">
+                  <h3 className="text-xs font-bold text-gray-800 tracking-tight group-hover:text-[#2563eb] transition-colors">
                     {image.title}
                   </h3>
                   <p className="text-[10px] text-gray-400 line-clamp-2 leading-relaxed">
@@ -186,7 +186,7 @@ export default function ImagesGallery({ onBackToHome }: ImagesGalleryProps) {
                 </button>
                 <button
                   onClick={() => setSelectedImage(null)}
-                  className="flex-1 py-1.5 bg-[#5c53e5] hover:bg-[#4b42cc] text-white rounded-lg text-xs font-semibold cursor-pointer flex items-center justify-center gap-1.5 shadow-sm hover:shadow-md transition-all"
+                  className="flex-1 py-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-lg text-xs font-semibold cursor-pointer flex items-center justify-center gap-1.5 shadow-sm hover:shadow-md transition-all"
                 >
                   <Download className="w-3.5 h-3.5" />
                   Download PNG (1K)

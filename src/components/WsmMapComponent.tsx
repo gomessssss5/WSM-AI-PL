@@ -223,7 +223,7 @@ export default function WsmMapComponent({
                       href={`https://pt.wikipedia.org/wiki/${encodeURIComponent(wiki)}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-bold text-[#5c53e5] hover:text-purple-700 transition-colors"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-[#2563eb] hover:text-purple-700 transition-colors"
                     >
                       Artigo Completo na Wikipédia <ExternalLink className="w-3 h-3" />
                     </a>
@@ -234,7 +234,7 @@ export default function WsmMapComponent({
               // Case: Just show the Place Name with a clean minimalist card
               <div className="flex flex-col items-center justify-center text-center py-6 select-text">
                 <div className="bg-purple-50 p-2.5 rounded-full mb-3">
-                  <MapPin className="w-6 h-6 text-[#5c53e5]" />
+                  <MapPin className="w-6 h-6 text-[#2563eb]" />
                 </div>
                 <h4 className="font-bold text-gray-900 text-sm">{place}</h4>
                 <p className="text-xs text-gray-500 mt-1">Coordenadas: {lat.toFixed(4)}, {lon.toFixed(4)}</p>

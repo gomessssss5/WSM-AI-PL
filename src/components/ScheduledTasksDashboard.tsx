@@ -672,7 +672,7 @@ export default function ScheduledTasksDashboard({
                                     setIsTypeDropdownOpen(false);
                                   }}
                                   className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors cursor-pointer ${
-                                    scheduleType === option.value ? 'bg-gray-50 font-semibold text-[#5c53e5]' : 'text-gray-700'
+                                    scheduleType === option.value ? 'bg-gray-50 font-semibold text-[#2563eb]' : 'text-gray-700'
                                   }`}
                                 >
                                   {option.label}

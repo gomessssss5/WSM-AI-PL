@@ -177,7 +177,7 @@ export default function Sidebar(props: SidebarProps) {
           )}
 
           <div 
-            className="w-7 h-7 bg-gradient-to-tr from-[#5c53e5] to-indigo-400 rounded-full flex items-center justify-center text-white font-bold text-[10px] shadow-xs select-none shrink-0"
+            className="w-7 h-7 bg-gradient-to-tr from-[#2563eb] to-indigo-400 rounded-full flex items-center justify-center text-white font-bold text-[10px] shadow-xs select-none shrink-0"
             title={userName || userEmail || 'Usuário WSM AI'}
           >
             {userName 
@@ -292,7 +292,7 @@ export default function Sidebar(props: SidebarProps) {
             <Clock className="w-4.5 h-4.5 text-gray-500 group-hover:text-gray-800 transition-colors" />
             <span>Tarefas Agendadas</span>
             {sessions.some(s => s.isScheduled && s.isUnread) && (
-              <span className="absolute right-3.5 top-1/2 -translate-y-1/2 w-2 h-2 bg-[#5c53e5] rounded-full animate-pulse"></span>
+              <span className="absolute right-3.5 top-1/2 -translate-y-1/2 w-2 h-2 bg-[#2563eb] rounded-full animate-pulse"></span>
             )}
           </button>
         </div>
@@ -348,7 +348,7 @@ export default function Sidebar(props: SidebarProps) {
         <div className="px-3 py-2 border-t border-[#eae6e1] bg-[#fbfbfa]">
           <button
             onClick={() => setShowInstallModal(true)}
-            className="w-full flex items-center justify-center gap-2 bg-[#5c53e5] hover:bg-[#4d45c7] text-white py-2 px-3 rounded-lg shadow-sm transition-all duration-200 active:scale-[0.98] cursor-pointer font-semibold text-[12px]"
+            className="w-full flex items-center justify-center gap-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white py-2 px-3 rounded-lg shadow-sm transition-all duration-200 active:scale-[0.98] cursor-pointer font-semibold text-[12px]"
           >
             <Download className="w-3.5 h-3.5" />
             Instalar App
@@ -358,7 +358,7 @@ export default function Sidebar(props: SidebarProps) {
         {/* User Footer Profile */}
         <div className="p-3 border-t border-[#eae6e1] bg-[#f0ede8] flex items-center justify-between gap-1.5">
           <div className="flex items-center gap-2 truncate">
-            <div className="w-8 h-8 bg-gradient-to-tr from-[#5c53e5] to-indigo-400 rounded-full flex items-center justify-center text-white font-bold text-[12px] shadow-xs select-none shrink-0">
+            <div className="w-8 h-8 bg-gradient-to-tr from-[#2563eb] to-indigo-400 rounded-full flex items-center justify-center text-white font-bold text-[12px] shadow-xs select-none shrink-0">
               {userName 
                 ? userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() 
                 : (userEmail ? userEmail.substring(0, 2).toUpperCase() : 'AI')}
@@ -414,7 +414,7 @@ export default function Sidebar(props: SidebarProps) {
               {deferredPrompt ? (
                 <button
                   onClick={handleInstallApp}
-                  className="w-full bg-[#5c53e5] hover:bg-[#4d45c7] text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all active:scale-[0.98] mt-2"
+                  className="w-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all active:scale-[0.98] mt-2"
                 >
                   Instalar Agora
                 </button>

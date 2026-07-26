@@ -3,6 +3,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import sharp from "sharp";
 import { imageRankingQueue } from "./imageQueue.js";
+import { openUrl, clickSelector, typeText, scrollPage, extractText } from "./playwrightAgent.js";
 
 dotenv.config();
 
@@ -194,9 +195,9 @@ Instruções Importantes:
   // Ensure valid history format
   let finalContents: any = text;
   if (history && Array.isArray(history) && history.length > 0) {
-    // Filter out any messages without valid text or inlineData parts to prevent API errors
+    // Keep all messages that have a valid role and non-empty parts list, preserving text, functionCalls and functionResponses.
     const validHistory = history.filter(msg => {
-      return msg.parts && Array.isArray(msg.parts) && msg.parts.some((p: any) => p.text || p.inlineData);
+      return msg && msg.role && msg.parts && Array.isArray(msg.parts) && msg.parts.length > 0;
     });
     if (validHistory.length > 0) {
       finalContents = validHistory;
@@ -577,51 +578,7 @@ Quando o usuário solicitar a criação de um site, sistema, HTML ou qualquer ou
 - O código DEVE ser gerado num bloco Markdown de código padrão (ex: \`\`\`html ... \`\`\`), para que o renderizador de código da interface possa mostrá-lo corretamente. NUNCA gere código dentro de tags \`<wsm_doc>\`!!
 - Entregue a solução final, funcional, extensa, com design de altíssima qualidade.
 
-## Processo de Raciocínio Interno e Pensamento Passo a Passo (ESTILO "o1" / OBRIGATÓRIO)
-Antes de começar qualquer resposta (incluindo o planejamento de tarefas, chamadas de ferramentas ou a resposta final), você DEVE obrigatoriamente realizar um processo de raciocínio profundo, lógico, analítico e matemático detalhado dentro das tags <raciocinio> e </raciocinio> no início absoluto de todas as suas respostas.
-Este processo de raciocínio deve ser escrito de forma extremamente estruturada, transparente e detalhada, simulando o comportamento de modelos de raciocínio avançados (como o OpenAI o1 ou Claude Thinking).
-
-Regras de Ouro para o Raciocínio (Estilo o1):
-1. **Sempre comece estruturando seus passos**: Inicie de forma clara detalhando o problema e use marcadores como "- " ou tópicos numerados para mostrar cada etapa lógica.
-2. **Mostre todo o trabalho de forma detalhada**: 
-   - Se houver qualquer matemática ou lógica envolvida, calcule e deduza os valores intermediários passo a passo (ex: detalhe o cálculo de fatoriais, somas, multiplicações, equações de física ou funções de programação). NUNCA forneça apenas o resultado direto no raciocínio.
-   - Se for uma tarefa de tradução ou redação em múltiplos idiomas, esboce as escolhas de palavras, expressões idiomáticas adequadas de nível nativo e regras gramaticais correspondentes no raciocínio antes de responder.
-   - Se for um problema complexo de engenharia de software ou design, quebre o problema em componentes lógicos, liste possíveis bugs ou cenários de falha e como mitigá-los.
-3. **Pense antes de formular a resposta**: Use este espaço como seu rascunho de alta precisão. Verifique suas próprias contas, hipóteses e dados antes de fechar a tag </raciocinio>. O objetivo deste bloco é garantir 100% de precisão e confiança nos resultados finais fornecidos ao usuário.
-4. **Idioma do Raciocínio**: Este processo de raciocínio deve ser escrito estritamente em português, para manter a uniformidade do mecanismo de auditoria interna, independentemente do idioma final solicitado pelo usuário na resposta do chat.
-
-Exemplo de formato estruturado e detalhado:
-<raciocinio>
-Entendi que o usuário quer calcular "23! * 17". Trata-se de um problema matemático que exige alta precisão.
-Passos lógicos de resolução:
-1. Decompor o cálculo do fatorial de 23: 23! = 23 * 22 * 21 * ... * 1.
-2. Calcular ou buscar o valor preciso de 23!:
-   - 23! = 25.852.016.738.884.974.976.000 (um valor extremamente grande).
-3. Agora, multiplicar esse valor por 17:
-   - 25.852.016.738.884.974.976.000 * 17.
-   - Fazendo a multiplicação passo a passo ou usando a calculadora:
-   - 25.852.016.738.884.974.976.000 * 17 = 439.484.284.561.045.574.592.000.
-4. Validar o resultado contra possíveis erros de arredondamento. Tudo correto.
-5. Formular a resposta final direta e exata para o usuário.
-</raciocinio>
-
-## Planejamento de Multi-Etapas (Chain-of-Thought) - OBRIGATÓRIO PARA TAREFAS COMPLEXAS
-Sempre que o usuário solicitar uma tarefa complexa que exija múltiplos passos, pesquisa, cálculos ou raciocínio estruturado em etapas, após fechar as tags </raciocinio>, você DEVE definir um plano de ação (uma lista de tarefas / sub-tarefas) delimitado exatamente pelas tags <task> e </task>.
-
-Cada tarefa do plano deve ser colocada em uma linha própria, envolta em colchetes.
-Exemplo de formato obrigatório:
-<task>
-[Pesquisar na web sobre os craques da Copa]
-[Analisar as estatísticas de cada jogador obtido]
-[Gerar o relatório comparativo final]
-</task>
-
-IMPORTANTE:
-1. Gere os passos de planejamento APENAS quando a solicitação do usuário for complexa e realmente necessitar de planejamento/múltiplas etapas. NÃO gere para saudações, perguntas simples, ou conversas triviais e de etapa única.
-2. Escreva as tarefas de forma clara, concisa e focada na ação.
-3. Não inclua nenhum outro texto dentro das tags <task> e </task> além das linhas de tarefa.
-
-${model === 'WSM 1.6 Pro' ? `## Execução Iterativa de Tarefas (Comportamento de Agente Autônomo)
+## Execução Iterativa de Tarefas (Comportamento de Agente Autônomo)
 O WSM 1.6 Pro é um verdadeiro agente autônomo. Quando você gera o seu plano de ação (passo a passo de tarefas) dentro das tags <task>, você não está apenas listando para o usuário ler, você está determinando o seu próprio roteiro de execução.
 1. **Cada tarefa gerada deve se tornar uma solicitação para você mesmo processar/resolver.**
 2. **Auto-Correção e Retentativas:** Se o resultado do que você fez em uma tarefa não ficar bom (ex: um código com bug, um texto mal formatado, uma pesquisa incompleta, ou algo que não atende 100% à expectativa inicial), você DEVE REFAZER. Você não deve se contentar com resultados parciais ou defeituosos.
@@ -700,7 +657,7 @@ Exemplo BARRAS/LINHAS (com múltiplas séries):
 
 REGRAS CRÍTICAS PARA OS NOVOS RECURSOS (MAPAS, GRÁFICOS, PESQUISA WEB):
 - Você pode usar múltiplas dessas funcionalidades na mesma resposta, MAS SÓ QUANDO FOR REALMENTE NECESSÁRIO e ÚTIL.
-- Não gere um mapa ou um gráfico para responder um "Oi" ou "Tudo bem" do usuário. Avalie o contexto antes de disparar gráficos ou mapas à toa.` : ''}
+- Não gere um mapa ou um gráfico para responder um "Oi" ou "Tudo bem" do usuário. Avalie o contexto antes de disparar gráficos ou mapas à toa.
 
 ## Ferramentas Agênticas e Funcionalidades (Obrigatório)
 Você possui ferramentas (tools/function calling) integradas que podem ser chamadas para cumprir tarefas: Pesquisa na Web, Calculadora, e Relógio.
@@ -875,30 +832,67 @@ IMPORTANTE: Sempre responda de forma prestativa confirmando o agendamento E incl
 
     let basePrompt = modelSystemPrompts[model] || modelSystemPrompts['WSM 1.6 Flash'];
     let reasoningInstruction = "";
-    if (model === 'WSM 1.6 Pro') {
+    if (model === 'WSM 1.6 Flash') {
       const level = reasoningLevel || 'Mínimo';
-      console.log(`[Reasoning Level] WSM 1.6 Pro requested with level: ${level}`);
+      console.log(`[Reasoning Level] WSM 1.6 Flash requested with level: ${level}`);
       if (level === 'Nenhum') {
-        // Strip out the internal reasoning and planning sections completely to avoid conflicting prompts
-        basePrompt = basePrompt
-          .replace(/## Processo de Raciocínio Interno \(OBRIGATÓRIO\)[\s\S]*?3\. Não inclua nenhum outro texto dentro das tags <task> e <\/task> além das linhas de tarefa\./g, "");
-
         reasoningInstruction = `\n\n## Modo de Raciocínio (Desativado)
 Você está no modo sem raciocínio / esforço Nenhum. 
 Você está ABSOLUTAMENTE PROIBIDO de gerar qualquer tag de raciocínio como <raciocinio>, </raciocinio>, <task> ou </task>. 
 Não faça nenhuma etapa de planejamento mental, nem mostre tarefas em colchetes. 
 Você deve responder diretamente ao usuário. Comece sua resposta imediatamente com a resposta final.`;
       } else if (level === 'Mínimo') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Mínimo)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta, ANTES de qualquer texto final ao usuário. Lá dentro, descreva os passos rápidos que vai tomar para chegar à resposta. NUNCA responda diretamente sem pensar.`;
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Mínimo - Limite de ~150 Tokens)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta, ANTES de qualquer texto final ao usuário. Mantenha seu raciocínio SUPER RESUMIDO E CURTO, em no máximo 1 a 3 frases curtas e diretas (limite estrito de no máximo 150 tokens de raciocínio). NUNCA faça textos longos dentro de <raciocinio> neste nível.`;
       } else if (level === 'Baixo') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Baixo)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta, ANTES de qualquer texto final ao usuário. Planeje os passos logicamente de maneira estruturada. Pense passo-a-passo. NUNCA responda diretamente sem pensar.`;
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Baixo - Limite de ~300 Tokens)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta, ANTES de qualquer texto final ao usuário. Estruture os passos em no máximo 1 parágrafo objetivo (limite estrito de no máximo 300 tokens de raciocínio).`;
       } else if (level === 'Médio') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Médio)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta, ANTES de qualquer texto final ao usuário. Você DEVE realizar o raciocínio detalhado com estrutura em tópicos, explorando hipóteses, prós e contras, realizando cálculos passo a passo antes de chegar ao fim. NUNCA responda diretamente sem pensar.`;
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Médio - Limite de ~600 Tokens)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta, ANTES de qualquer texto final ao usuário. Desenvolva o raciocínio em 2 a 3 tópicos objetivos (limite de no máximo 600 tokens de raciocínio).`;
       } else if (level === 'Alto') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Alto)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta, ANTES de qualquer texto final ao usuário. Utilize a capacidade máxima de raciocínio analítico. Pense profundamente passo-a-passo no estilo 'o1' (Cadeia de Pensamentos). Questione suas próprias premissas, repasse por cada etapa com rigor e encontre falhas lógicas antes de montar o resultado. NUNCA responda diretamente sem pensar de forma exaustiva.`;
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Alto - Limite de ~1500 Tokens)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta, ANTES de qualquer texto final ao usuário. Utilize capacidade de raciocínio analítico e pense passo-a-passo (limite de ~1500 tokens de raciocínio).`;
+      } else if (level === 'Extremo') {
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Extremo)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta. Pense exaustivamente antes de responder.`;
       }
     }
-    const activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + writerInstruction + "\n\n" + skillsInstruction + "\n\n" + tasksInstruction;
+    let browserInstruction = ``;
+    if (model === 'WSM 1.6 Pro' || model === 'WSM 1.6 Flash') {
+      browserInstruction = `
+## Controle de Navegador Real (Playwright)
+Você tem acesso total a um navegador real via Playwright para abrir sites, clicar em botões, preencher formulários, rolar páginas, pesquisar e ler conteúdos ao vivo (ferramentas: open_url, click, type_text, scroll_page, extract_visible_text).
+
+REGRA ABSOLUTA DE FORMATAÇÃO DE CHAMADAS DE FUNÇÃO:
+- NUNCA escreva textos como '<call:.../>', '<call:default_api:.../>' ou pseudo-código de função no seu texto visível. As ferramentas devem ser invocadas SOMENTE de forma nativa via Function Call.
+
+REGRA ABSOLUTA DE BUSCADOR EM NAVEGADOR:
+- SEMPRE que você for realizar uma pesquisa na web utilizando o navegador real (via Playwright), VOCÊ É PROIBIDO DE USAR O GOOGLE. VOCÊ DEVE OBRIGATORIAMENTE USAR O BRAVE SEARCH (\`https://search.brave.com/\`).
+
+REGRA ABSOLUTA E OBRIGATÓRIA DE NAVEGAÇÃO WEB (MANDATÓRIO):
+1. SEMPRE que o usuário pedir para interagir com a web (abrir site, pesquisar, digitar, clicar em botões, rolar página, preencher campos):
+   - Para abrir ou acessar uma URL nova: chame a ferramenta 'open_url' (functionCall). (Para pesquisas, acesse 'https://search.brave.com').
+   - Para digitar em um campo de texto, barra de busca ou formulário: chame a ferramenta 'type_text' (functionCall) passando em 'selector' o seletor CSS ou texto do campo e em 'text' o conteúdo a digitar.
+   - Para clicar em um botão, link ou elemento: chame a ferramenta 'click' (functionCall) com o seletor correspondente.
+   - Para rolar a página para baixo ou para cima para ler mais conteúdo: chame a ferramenta 'scroll_page' (functionCall) passando 'direction': 'down' ou 'up' (e opcionalmente 'amount' em pixels).
+   VOCÊ É ABSOLUTAMENTE PROIBIDO de apenas responder em texto conversacional ("Vou digitar...", "Vou abrir o site...", "Vou rolar a página...", "Aguarde...") SEM emitir a chamada de função correspondente (open_url, type_text, click, scroll_page) no mesmo turno!
+2. Se você responder apenas em texto conversacional prometendo uma ação no navegador sem emitir o functionCall, a ação FALHA e o usuário vê um erro.
+3. SEMPRE inclua no INÍCIO da sua resposta um bloco de tarefas passo a passo dentro das tags <task>...</task> quando for realizar ações na web. Exemplo:
+<task>
+[Acessar o site do Brave Search (https://search.brave.com)]
+[Digitar a pesquisa desejada na barra de busca]
+[Rolar a página para ler os resultados]
+</task>
+
+DICA DE SELETORES PARA CLIQUE E DIGITAÇÃO:
+Para clicar ou digitar, em 'selector', use o texto visível do botão/link ex: \`text="Entrar"\`, \`text="Pesquisar"\` ou seletores de atributos como \`input[name="q"]\`, \`input[type="search"]\`, \`input\`.
+REGRAS ANTI-LOOPING:
+1. NUNCA chame a MESMA ferramenta com os mesmos argumentos repetidamente.
+2. Se a página atual não atualizar ou você precisar ver mais conteúdo abaixo, chame \`scroll_page\` ou \`extract_visible_text\` para reler os elementos.
+`;
+    }
+
+    const activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + writerInstruction + "\n\n" + skillsInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
+
+    let mappedModel = "gemini-2.5-flash";
+    if (model === 'WSM 1.6 Pro') mappedModel = "gemini-2.5-flash";
+    else if (model === 'WSM 1.6 Flash') mappedModel = "gemini-3.5-flash-lite";
 
     if (model === 'WSM 1.6 Pro' || model === 'WSM 1.6 Flash') {
       console.log(`Starting agentic loop for model: ${model}...`);
@@ -964,6 +958,59 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
               },
               required: ["prompt"]
             }
+          },
+          {
+            name: "open_url",
+            description: "Abre uma URL no navegador real em background e retorna o conteúdo da página com os elementos interativos.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                url: { type: Type.STRING, description: "A URL completa, começando com http:// ou https://" }
+              },
+              required: ["url"]
+            }
+          },
+          {
+            name: "click",
+            description: "Clica em um elemento na página atual usando um seletor retornado em 'interactable_elements'.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                selector: { type: Type.STRING, description: "O seletor CSS ou texto (ex: 'text=\"Entrar\"' ou '#submit-btn')" }
+              },
+              required: ["selector"]
+            }
+          },
+          {
+            name: "type_text",
+            description: "Digita um texto em um campo de input na página atual e aperta Enter. Use o seletor retornado em 'interactable_elements'.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                selector: { type: Type.STRING, description: "O seletor CSS ou texto do campo (ex: 'text=\"Pesquisar\"' ou 'input[name=\"q\"]')" },
+                text: { type: Type.STRING, description: "O texto a ser digitado" }
+              },
+              required: ["selector", "text"]
+            }
+          },
+          {
+            name: "extract_visible_text",
+            description: "Lê novamente a página atual caso precise atualizar os elementos após uma ação ou navegação lenta.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {}
+            }
+          },
+          {
+            name: "scroll_page",
+            description: "Rola a página atual do navegador para baixo ou para cima para ver e ler mais conteúdo.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                direction: { type: Type.STRING, description: "A direção para rolar: 'down' (para baixo) ou 'up' (para cima). Padrão é 'down'." },
+                amount: { type: Type.NUMBER, description: "A quantidade de pixels a rolar. Padrão é 500." }
+              }
+            }
           }
         ]
       }];
@@ -980,15 +1027,19 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
       res.setHeader("Connection", "keep-alive");
       const sendEvent = (data: any) => res.write(`data: ${JSON.stringify(data)}\n\n`);
 
-      while (turnCount < 5) {
+      let lastFunctionCallsStr = "";
+      let sameCallCount = 0;
+
+      while (turnCount < 8) {
         if (turnCount > 0) {
           console.log(`[Pro] Waiting 2 seconds before next Gemini request to prevent rate limits...`);
           await new Promise(r => setTimeout(r, 2000));
         }
 
         const response = await callGeminiWithFallback({
-          model: "gemini-3.5-flash-lite",
+          model: mappedModel,
           contents: currentContents,
+          tools: marteTools,
           config: {
             systemInstruction: activeSystemPrompt + 
               "\nIMPORTANTE: Quando usar uma ferramenta, chame a função ANTES. NUNCA gere as tags [pesquisou na web], [calculando] ou [verificando relógio] ANTES de chamar a função. Gere a tag APENAS na sua resposta final de texto, APÓS receber o resultado da função." +
@@ -1010,6 +1061,15 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
               "\n   - IMPORTANTE: NÃO chame a ferramenta 'auto_debug_html' de novo caso você já tenha recebido a resposta dela com sucesso! Apresente o código completo imediatamente na sua mensagem final. Nunca finalize a conversa sem enviar o código HTML completo para o usuário no formato Markdown." +
               "\nREGRA DE ENTREGA DE HTML (CRÍTICO): Na sua resposta final ao usuário, após validar o código com a ferramenta 'auto_debug_html', você DEVE OBRIGATORIAMENTE enviar o bloco de código HTML completo (no formato ```html ... ```) contendo o site/projeto que o usuário pediu. NUNCA termine uma resposta de criação ou edição de site sem fornecer o código HTML correspondente, even if you already validated it earlier in the conversation. O usuário necessita do código final completo na sua mensagem para poder vê-lo e usá-lo." +
               "\nREGRA DE GERAÇÃO DE IMAGENS (AI HORDE): SEMPRE que o usuário solicitar para gerar, criar, desenhar ou pintar uma imagem, foto, ilustração ou arte visual, você DEVE OBRIGATORIAMENTE chamar a ferramenta 'gerar_imagem' IMEDIATAMENTE. IMPORTANTE: NUNCA diga 'Vou gerar a imagem' e encerre o turno sem chamar a ferramenta. Você DEVE chamar a ferramenta no MESMO turno! Ao chamar, passe o prompt descritivo detalhado em inglês (ex: 'a majestic golden retriever sitting on a mountain peak, cinematic, 8k')." +
+              "\nREGRA DE SINTAXE APÓS GERAR IMAGEM: Quando 'gerar_imagem' for executada, a imagem gerada já é exibida automaticamente pela interface no componente <wsm_image>. Na sua resposta final, é ABSOLUTAMENTE PROIBIDO escrever manualmente a tag <wsm_image>, dados base64, URLs ou sintaxe markdown ![alt](url). Apenas faça um breve comentário amigável sobre a imagem gerada (o sistema já inseriu e exibiu a imagem no chat)." +
+              "\nREGRA DE NAVEGAÇÃO WEB REAL (PLAYWRIGHT): SEMPRE que o usuário pedir para abrir, acessar ou navegar em qualquer site (ex: Brave Search, Google, Wikipedia, etc), VOCÊ DEVE OBRIGATORIAMENTE emitir a chamada de função 'open_url' (functionCall) no MESMO TURNO. É ABSOLUTAMENTE PROIBIDO apenas escrever texto prometendo abrir o site sem enviar a chamada da ferramenta 'open_url'!" +
+              "\nREGRAS OBRIGATÓRIAS DE AGENTE SEQUENCIAL (PASSO A PASSO):" +
+              "\n1. Atue como um AGENTE SEQUENCIAL que executa tarefas em múltiplos turnos. NUNCA tente chamar ferramentas de categorias diferentes no mesmo turno!" +
+              "\n2. Se o usuário solicitou múltiplos pedidos (ex: 'crie uma imagem de um elefante e pesquise na web sobre o Neymar'):" +
+              "\n   - TURNO 1: Execute PRIMEIRO a ferramenta 'gerar_imagem' (functionCall) com o prompt visual em inglês. Não pesquise na web neste turno." +
+              "\n   - TURNO 2 (após a imagem ser gerada pelo sistema): Execute a ferramenta de pesquisa 'web_search' (functionCall) no turno seguinte." +
+              "\n   - TURNO 3 (após receber o resultado da pesquisa): Escreva a resposta final amigável e completa para o usuário." +
+              "\n3. CRÍTICO: NUNCA escreva apenas texto conversacional prometendo ações (ex: 'Vou gerar a imagem', 'Para atender seu pedido...') sem enviar a chamada de função (functionCall) no mesmo turno!" +
               (lastDebugResult 
                 ? (lastDebugResult.errorsFound
                     ? `\n\nAVISO DE ERROS ENCONTRADOS: A ferramenta 'auto_debug_html' detectou os seguintes problemas no seu HTML: ${JSON.stringify(lastDebugResult.detectedErrors)}. Você está no Turno de Correção. Você é ABSOLUTAMENTE PROIBIDO de gerar o bloco de código Markdown final (\x60\x60\x60html ... \x60\x60\x60) para o usuário agora. Em vez disso, corrija TODOS os problemas indicados, escreva apenas uma mensagem curta de status como "(Corrigindo erros detectados no código...)" e chame a ferramenta 'auto_debug_html' novamente passando o HTML 100% corrigido!`
@@ -1039,8 +1099,95 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
           }
         }
 
+        // 1. Detect if model wrote pseudocode call tags in textForThisTurn instead of native functionCall
+        if (functionCallsForThisTurn.length === 0 && textForThisTurn) {
+          const pseudoCallMatch = textForThisTurn.match(/<call:(?:default_api:)?([a-zA-Z0-9_]+)\s*(?:\{([\s\S]*?)\}|([^\/>]+))?\s*\/>/i);
+          if (pseudoCallMatch) {
+            const fnName = pseudoCallMatch[1];
+            let fnArgs: any = {};
+            if (pseudoCallMatch[2] || pseudoCallMatch[3]) {
+              const rawArgs = pseudoCallMatch[2] || pseudoCallMatch[3];
+              const urlM = rawArgs.match(/url:\s*(https?:\/\/[^\s,}]|www\.[^\s,}]|[a-zA-Z0-9-]+\.(com|org|net|io|br|gov|edu|ai|app)[^\s,}]*)/i);
+              if (urlM) {
+                let u = urlM[1];
+                if (!u.startsWith('http')) u = 'https://' + u;
+                fnArgs = { url: u };
+              }
+            }
+            if (['open_url', 'click', 'type_text', 'scroll_page', 'web_search', 'gerar_imagem'].includes(fnName)) {
+              if (fnName === 'open_url' && !fnArgs.url) {
+                const urlM = textForThisTurn.match(/(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|org|net|io|br|gov|edu|ai|app)[^\s]*)/i);
+                if (urlM) {
+                  let u = urlM[0];
+                  if (!u.startsWith('http')) u = 'https://' + u;
+                  fnArgs = { url: u };
+                }
+              }
+              functionCallsForThisTurn.push({ name: fnName, args: fnArgs });
+              console.log(`[Auto-Recover] Extracted native functionCall '${fnName}' from pseudocode tag!`, fnArgs);
+            }
+          }
+        }
+
+        // 2. Auto-inject missing browser tool call if model outputted text without calling Playwright
+        if (functionCallsForThisTurn.length === 0) {
+          const userStr = (typeof text === 'string' ? text : JSON.stringify(text)).toLowerCase();
+          const aiStr = (textForThisTurn || "").toLowerCase();
+
+          const wantsBrowser = /\b(abrir|acesse|acessar|navegar|entrar\s+no)\s+(site|link|url|pagina|página)\b|\b(abrir|acesse|acessar|entrar\s+no)\s+(youtube|google|wikipedia|github|brave)\b|https?:\/\/|www\./i.test(userStr);
+          const browserAlreadyCalled = currentContents.some((c: any) => 
+            c.parts?.some((p: any) => 
+              p.functionCall?.name === "open_url" || p.functionResponse?.name === "open_url" ||
+              p.functionCall?.name === "click" || p.functionResponse?.name === "click" ||
+              p.functionCall?.name === "type_text" || p.functionResponse?.name === "type_text" ||
+              p.functionCall?.name === "scroll_page" || p.functionResponse?.name === "scroll_page" ||
+              p.functionCall?.name === "extract_visible_text" || p.functionResponse?.name === "extract_visible_text"
+            )
+          );
+
+          if (wantsBrowser && !browserAlreadyCalled && turnCount === 0) {
+            let targetUrl = "";
+            const urlMatch = (userStr + " " + aiStr).match(/(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|org|net|io|br|gov|edu|ai|app)[^\s]*)/i);
+            if (urlMatch) {
+              targetUrl = urlMatch[0].replace(/[\)"'\s\.,;]+$/, '');
+              if (!targetUrl.startsWith('http')) targetUrl = 'https://' + targetUrl;
+            } else if (/youtube/i.test(userStr + " " + aiStr)) {
+              targetUrl = "https://www.youtube.com";
+            } else if (/brave/i.test(userStr + " " + aiStr)) {
+              targetUrl = "https://search.brave.com";
+            } else if (/wikipedia/i.test(userStr + " " + aiStr)) {
+              targetUrl = "https://pt.wikipedia.org";
+            } else if (/github/i.test(userStr + " " + aiStr)) {
+              targetUrl = "https://github.com";
+            } else if (/google/i.test(userStr + " " + aiStr)) {
+              targetUrl = "https://www.google.com";
+            } else {
+              const openSiteMatch = userStr.match(/(?:abra|acesse|acessar|entrar no|site do|site da)\s+([a-zA-Z0-9-]+)/i);
+              if (openSiteMatch) {
+                const sName = openSiteMatch[1].toLowerCase();
+                if (sName === 'youtube') targetUrl = 'https://www.youtube.com';
+                else if (sName === 'github') targetUrl = 'https://github.com';
+                else if (sName === 'google') targetUrl = 'https://www.google.com';
+                else targetUrl = `https://www.${sName}.com`;
+              } else if (/pesquisar|pesquisa|buscar|busca/i.test(userStr)) {
+                targetUrl = "https://search.brave.com";
+              }
+            }
+
+            if (targetUrl) {
+              functionCallsForThisTurn.push({ name: "open_url", args: { url: targetUrl } });
+              console.log(`[Auto-Inject] Missing browser call detected on turn 0! Auto-injecting open_url for ${targetUrl}`);
+            }
+          }
+        }
+
         if (textForThisTurn) {
           let cleanText = textForThisTurn;
+          // Clean any raw <call:...> or <call:default_api:...> pseudocode tags generated by the model
+          cleanText = cleanText.replace(/<call[\s\S]*?(?:\/>|>)/gi, "");
+          cleanText = cleanText.replace(/<call:default_api[\s\S]*?(?:\/>|>)/gi, "");
+          cleanText = cleanText.replace(/call:default_api:[^\s>]+/gi, "");
+
           // If the model is calling auto_debug_html in this turn, strip any accidental/premature markdown HTML code blocks.
           // They should only be displayed in the final delivery turn after verification is successful.
           if (functionCallsForThisTurn.some(fc => fc.name === "auto_debug_html")) {
@@ -1066,20 +1213,48 @@ Você deve responder diretamente ao usuário. Comece sua resposta imediatamente 
         }
 
         if (functionCallsForThisTurn.length > 0) {
-          // Push exact model content to keep thought_signature intact!
-          currentContents.push(modelContent);
+          const currentCallsStr = JSON.stringify(functionCallsForThisTurn);
+          if (currentCallsStr === lastFunctionCallsStr) {
+            sameCallCount++;
+          } else {
+            sameCallCount = 0;
+            lastFunctionCallsStr = currentCallsStr;
+          }
+
+          if (sameCallCount >= 2) {
+            const loopText = "\n\n[Sistema]: Interrompendo execução para evitar loop infinito da mesma ação.\n\n";
+            sendEvent({ type: 'chunk', text: loopText });
+            fullOutput += loopText;
+            break;
+          }
+
+          const hasNativeCalls = modelContent && modelContent.parts && modelContent.parts.some((p: any) => p.functionCall);
+          if (hasNativeCalls) {
+            currentContents.push(modelContent);
+          }
 
           const functionResponseParts: any[] = [];
 
           for (const fc of functionCallsForThisTurn) {
             console.log(`[Pro] Agent called function: ${fc.name}`, fc.args);
             
+            let resultImgUrl = "";
+            let errorMsg = "";
+            let promptStr = "";
+            
             // Artificial delay/spinner for user experience
-            const thinkingText = fc.name === "web_search" ? "\n\n[pesquisando...]\n\n" : 
-                                 fc.name === "calculadora" ? "\n\n[calculando...]\n\n" : 
-                                 fc.name === "relogio" ? "\n\n[verificando...]\n\n" :
-                                 fc.name === "gerar_imagem" ? `\n\n<wsm_image prompt="${(fc.args as any)?.prompt || 'Imagem'}" imgUrl="" />\n\n` :
-                                 "\n\n[verificando possíveis erros no código...]\n\n";
+            let thinkingText = "\n\n[processando...]\n\n";
+            if (fc.name === "web_search") thinkingText = "\n\n[pesquisando...]\n\n";
+            else if (fc.name === "calculadora") thinkingText = "\n\n[calculando...]\n\n";
+            else if (fc.name === "relogio") thinkingText = "\n\n[verificando...]\n\n";
+            else if (fc.name === "auto_debug_html") thinkingText = "\n\n[verificando possíveis erros no código...]\n\n";
+            else if (fc.name === "gerar_imagem") thinkingText = `\n\n<wsm_image prompt="${(fc.args as any)?.prompt || 'Imagem'}" imgUrl="" />\n\n`;
+            else if (fc.name === "open_url") thinkingText = `\n\n[Abrindo site: ${(fc.args as any).url}...]\n\n`;
+            else if (fc.name === "click") thinkingText = `\n\n[Clicando no elemento...]\n\n`;
+            else if (fc.name === "type_text") thinkingText = `\n\n[Digitando "${(fc.args as any).text}"...]\n\n`;
+            else if (fc.name === "scroll_page") thinkingText = `\n\n[Rolando página para ${(fc.args as any)?.direction === 'up' ? 'cima' : 'baixo'}...]\n\n`;
+            else if (fc.name === "extract_visible_text") thinkingText = `\n\n[Lendo página atualizada...]\n\n`;
+
             sendEvent({ type: "chunk", text: thinkingText });
             fullOutput += thinkingText;
             
@@ -1205,9 +1380,9 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
               lastDebugResult = debugResult;
             } else if (fc.name === "gerar_imagem") {
               const args = fc.args as any;
-              const promptStr = args.prompt || "";
-              let resultImgUrl = "";
-              let errorMsg = "";
+              promptStr = args.prompt || "";
+              resultImgUrl = "";
+              errorMsg = "";
 
               let queueId = "";
               try {
@@ -1349,8 +1524,52 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
                 functionResponse: { 
                   name: fc.name, 
                   response: { 
-                    result: resultImgUrl ? { success: true, imgUrl: resultImgUrl, prompt: promptStr } : { success: false, error: errorMsg }
+                    result: resultImgUrl ? { 
+                      success: true, 
+                      message: "A imagem foi gerada e já está sendo exibida na interface pelo componente <wsm_image>. NÃO repita a URL/base64 e NÃO use sintaxe markdown de imagem ![alt](url) na sua resposta final.", 
+                      prompt: promptStr 
+                    } : { success: false, error: errorMsg }
                   } 
+                }
+              });
+            } else if (fc.name === "open_url" || fc.name === "click" || fc.name === "type_text" || fc.name === "scroll_page" || fc.name === "extract_visible_text") {
+              let result: any = {};
+              if (fc.name === "open_url") {
+                result = await openUrl((fc.args as any).url);
+              } else if (fc.name === "click") {
+                result = await clickSelector((fc.args as any).selector);
+              } else if (fc.name === "type_text") {
+                result = await typeText((fc.args as any).selector, (fc.args as any).text);
+              } else if (fc.name === "scroll_page") {
+                result = await scrollPage((fc.args as any).direction || 'down', (fc.args as any).amount || 500);
+              } else if (fc.name === "extract_visible_text") {
+                result = await extractText();
+              }
+
+              if (result.screenshot) {
+                sendEvent({
+                  type: "browser_screenshot",
+                  screenshot: result.screenshot,
+                  url: result.url || (fc.args as any)?.url || '',
+                  title: result.title || '',
+                  stepName: fc.name === "open_url"
+                    ? `Acessar o site ${(fc.args as any)?.url || result.url}`
+                    : fc.name === "click"
+                    ? `Clicar em ${(fc.args as any)?.selector}`
+                    : fc.name === "type_text"
+                    ? `Digitar em ${(fc.args as any)?.selector}`
+                    : fc.name === "scroll_page"
+                    ? `Rolar página para ${(fc.args as any)?.direction === 'up' ? 'cima' : 'baixo'}`
+                    : "Navegar na página",
+                  timestamp: Date.now()
+                });
+                delete result.screenshot;
+              }
+
+              functionResponseParts.push({
+                functionResponse: {
+                  name: fc.name,
+                  response: result
                 }
               });
             }
@@ -1374,12 +1593,22 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
                 finalTagText = `\n\n[código 100% verificado: sem erros | HTML_BASE64:${htmlBase64}]\n\n`;
               }
             } else if (fc.name === "gerar_imagem") {
-              const resObj = functionResponseParts[functionResponseParts.length - 1].functionResponse.response.result;
-              if (resObj && resObj.success) {
-                finalTagText = `\n\n<wsm_image prompt="${resObj.prompt}" imgUrl="${resObj.imgUrl}" />\n\n`;
+              if (resultImgUrl) {
+                const escapedPrompt = (promptStr || 'Imagem').replace(/"/g, '&quot;');
+                finalTagText = `\n\n<wsm_image prompt="${escapedPrompt}" imgUrl="${resultImgUrl}" />\n\n`;
               } else {
-                finalTagText = `\n\n❌ Erro ao gerar imagem: ${resObj?.error || 'serviço indisponível'}\n\n`;
+                finalTagText = `\n\n❌ Erro ao gerar imagem: ${errorMsg || 'serviço indisponível'}\n\n`;
               }
+            } else if (fc.name === "open_url") {
+              finalTagText = `\n\n[Abrindo site: ${(fc.args as any).url}]\n\n`;
+            } else if (fc.name === "click") {
+              finalTagText = `\n\n[Clicando no elemento]\n\n`;
+            } else if (fc.name === "type_text") {
+              finalTagText = `\n\n[Digitando "${(fc.args as any).text}"]\n\n`;
+            } else if (fc.name === "scroll_page") {
+              finalTagText = `\n\n[Rolando página para ${(fc.args as any)?.direction === 'up' ? 'cima' : 'baixo'}]\n\n`;
+            } else if (fc.name === "extract_visible_text") {
+              finalTagText = `\n\n[Lendo página atualizada]\n\n`;
             }
             const lastIdx = fullOutput.lastIndexOf(thinkingText);
             if (lastIdx !== -1) {
@@ -1389,10 +1618,106 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
             }
             sendEvent({ type: "sync_text", text: fullOutput });
           }
-          currentContents.push({ role: "user", parts: functionResponseParts });
-          turnCount++;
+          if (hasNativeCalls) {
+            currentContents.push({ role: "user", parts: functionResponseParts });
+            turnCount++;
+          } else {
+            // Auto-injected action completed (e.g. browser open_url), turn complete.
+            break;
+          }
         } else {
-          break; // no more function calls, we are done
+          // Check for unfulfilled tool calls (e.g. model outputted conversational text promising tools without calling functionCall)
+          const userStr = (typeof text === 'string' ? text : JSON.stringify(text)).toLowerCase();
+          const aiStr = (textForThisTurn || "").toLowerCase();
+
+          const wantsImage = /\b(gerar|crie|criar|desenhar|desenhe|pintar|pinte)\b.*\b(imagem|foto|ilustraç|arte|desenho|pintura|quadro)\b|\b(imagem|foto|ilustraç|arte|desenho|pintura)\b/i.test(userStr);
+          const aiPromisedImage = /\b(vou|irei|estou)\s+(gerar|criar|desenhar|pintar)\s+(uma?|a)?\s*(imagem|foto|ilustraç|arte|desenho|quadro)\b|\bgerando\s+a?\s*imagem\b/i.test(aiStr);
+          const imageAlreadyCalled = currentContents.some((c: any) => 
+            c.parts?.some((p: any) => p.functionCall?.name === "gerar_imagem" || p.functionResponse?.name === "gerar_imagem")
+          );
+
+          const wantsSearch = /\b(pesquis|busc)\w*\b.*\b(web|internet|google|brave|notícia|hoje|site)\b|\búltimas notícias\b|\bcotação do\b|\bpreço do\b/i.test(userStr);
+          const aiPromisedSearch = /\b(vou|irei|estou)\s+(pesquisar|buscar)\b.*\b(web|internet|informações|notícias)\b|\bpesquisando\s+na\s+web\b/i.test(aiStr);
+          const searchAlreadyCalled = currentContents.some((c: any) => 
+            c.parts?.some((p: any) => p.functionCall?.name === "web_search" || p.functionResponse?.name === "web_search")
+          );
+
+          const wantsBrowser = /\b(abrir|acesse|acessar|navegar|entrar\s+no)\s+(site|link|url|pagina|página)\b|\b(abrir|acesse|acessar|entrar\s+no)\s+(youtube|google|wikipedia|github|brave)\b|https?:\/\/|www\./i.test(userStr);
+          const aiPromisedBrowser = /\b(vou|irei|estou)\s+(abrir|acessar|navegar)\s+(o|a)?\s*(site|url|página|link|navegador)\b|\b(acessando|abrirá|abrindo)\s+o\s+site\b/i.test(aiStr);
+          const browserAlreadyCalled = currentContents.some((c: any) => 
+            c.parts?.some((p: any) => 
+              p.functionCall?.name === "open_url" || p.functionResponse?.name === "open_url" ||
+              p.functionCall?.name === "click" || p.functionResponse?.name === "click" ||
+              p.functionCall?.name === "type_text" || p.functionResponse?.name === "type_text" ||
+              p.functionCall?.name === "scroll_page" || p.functionResponse?.name === "scroll_page" ||
+              p.functionCall?.name === "extract_visible_text" || p.functionResponse?.name === "extract_visible_text"
+            )
+          );
+
+          const missingImageCall = (wantsImage || aiPromisedImage) && !imageAlreadyCalled;
+          const missingSearchCall = (wantsSearch || aiPromisedSearch) && !searchAlreadyCalled;
+          const missingBrowserCall = (wantsBrowser || aiPromisedBrowser) && !browserAlreadyCalled;
+
+          if ((missingImageCall || missingSearchCall || missingBrowserCall) && turnCount < 3) {
+            console.warn(`[Pro] Missing tool call detected on turn ${turnCount}! missingBrowser: ${missingBrowserCall}, missingImage: ${missingImageCall}, missingSearch: ${missingSearchCall}. Triggering recovery...`);
+            
+            // Clean up intermediate unfulfilled conversational text from fullOutput to prevent duplicate text in UI
+            if (textForThisTurn) {
+              const lastIdx = fullOutput.lastIndexOf(textForThisTurn);
+              if (lastIdx !== -1) {
+                fullOutput = fullOutput.substring(0, lastIdx);
+                sendEvent({ type: "sync_text", text: fullOutput });
+              }
+            }
+
+            currentContents.push(modelContent);
+
+            let reminderMsg = "";
+            if (missingBrowserCall) {
+              const isTypingAction = /digitar|preencher|escrever|pesquisar na|pesquisa na|barra|campo|busca|digite|digito/i.test(userStr + " " + aiStr);
+              const isClickAction = /clicar|clique|pressionar|apertar|selecionar|botão|link/i.test(userStr + " " + aiStr);
+              const isScrollAction = /rolar|scroll|descer|subir|mova a página|role/i.test(userStr + " " + aiStr);
+
+              if (isTypingAction) {
+                const textMatch = userStr.match(/(?:digitar|preencher|pesquisar|escrever)\s+["'“]([^"'”]+)["'”]/i) || userStr.match(/(?:digitar|preencher|pesquisar|escrever)\s+(\w+)/i);
+                const textVal = textMatch ? textMatch[1] : "";
+                reminderMsg = `SISTEMA (AÇÃO DE NAVEGADOR OBRIGATÓRIA): O usuário pediu para digitar/pesquisar um texto no site${textVal ? ` ("${textVal}")` : ''}. Execute OBRIGATORIAMENTE a chamada de função 'type_text' (functionCall) para o campo de busca/input (ou 'open_url' se o site não estiver aberto ainda). NÃO responda apenas com texto conversacional sem a chamada de função!`;
+              } else if (isClickAction) {
+                reminderMsg = `SISTEMA (AÇÃO DE NAVEGADOR OBRIGATÓRIA): O usuário pediu para clicar em um elemento no site. Execute OBRIGATORIAMENTE a chamada de função 'click' (functionCall) com o seletor adequado. NÃO responda apenas com texto conversacional sem a chamada de função!`;
+              } else if (isScrollAction) {
+                reminderMsg = `SISTEMA (AÇÃO DE NAVEGADOR OBRIGATÓRIA): O usuário pediu para rolar a página. Execute OBRIGATORIAMENTE a chamada de função 'scroll_page' (functionCall) com direction 'down' ou 'up'. NÃO responda apenas com texto conversacional sem a chamada de função!`;
+              } else {
+                let targetUrl = "";
+                const urlMatch = (userStr + " " + aiStr).match(/(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|org|net|io|br|gov|edu|ai|app)[^\s]*)/i);
+                if (urlMatch) {
+                  targetUrl = urlMatch[0];
+                  if (!targetUrl.startsWith('http')) targetUrl = 'https://' + targetUrl;
+                } else if (userStr.includes("brave") || aiStr.includes("brave")) {
+                  targetUrl = "https://search.brave.com";
+                } else if (userStr.includes("google") || aiStr.includes("google")) {
+                  targetUrl = "https://www.google.com";
+                } else if (userStr.includes("wikipedia") || aiStr.includes("wikipedia")) {
+                  targetUrl = "https://pt.wikipedia.org";
+                }
+
+                reminderMsg = `SISTEMA (AÇÃO DE NAVEGADOR OBRIGATÓRIA): O usuário pediu para abrir/acessar um site. Execute OBRIGATORIAMENTE a chamada de função 'open_url' (functionCall) agora${targetUrl ? ` com a url "${targetUrl}"` : ''}. NÃO responda apenas com texto conversacional sem a chamada de função!`;
+              }
+            } else if (missingImageCall) {
+              reminderMsg = "SISTEMA (AGENTE SEQUENCIAL - PASSO 1): O usuário solicitou uma imagem (ou você prometeu gerar uma). Execute a PRIMEIRA ação agora: chame a ferramenta 'gerar_imagem' (functionCall) com o prompt descritivo em inglês. NÃO pesquise na web neste turno e NÃO responda apenas com texto.";
+            } else if (missingSearchCall) {
+              reminderMsg = "SISTEMA (AGENTE SEQUENCIAL - PASSO 2): Execute a ferramenta 'web_search' (functionCall) para pesquisar as informações na web. NÃO responda apenas com texto.";
+            }
+
+            currentContents.push({
+              role: "user",
+              parts: [{ text: reminderMsg }]
+            });
+
+            turnCount++;
+            continue;
+          } else {
+            break; // no more function calls, we are done
+          }
         }
       }
 
@@ -1412,10 +1737,32 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
 
       const fallbackEmptyResponse = "⚠️ **Nenhuma resposta foi gerada pelo modelo.** O pedido pode ter sido longo demais ou complexo demais (por favor, tente dividir seu pedido em partes menores).";
 
+      // Sanitize fullOutput to remove any accidental base64 strings or markdown image syntax outside <wsm_image>
+      const wsmImageTokens: string[] = [];
+      let protectedOutput = fullOutput.replace(/<wsm_image\s+[^>]*\/>/gi, (match) => {
+        const token = `___WSM_IMAGE_PROTECTED_${wsmImageTokens.length}___`;
+        wsmImageTokens.push(match);
+        return token;
+      });
+
+      protectedOutput = protectedOutput
+        .replace(/!\[.*?\]\(data:image\/[^\)]+\)/gi, "")
+        .replace(/data:image\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]{80,}/gi, "")
+        .replace(/<call[\s\S]*?(?:\/>|>)/gi, "")
+        .replace(/<call:default_api[\s\S]*?(?:\/>|>)/gi, "")
+        .replace(/call:default_api:[^\s>]+/gi, "")
+        .trim();
+
+      wsmImageTokens.forEach((tag, idx) => {
+        protectedOutput = protectedOutput.replace(`___WSM_IMAGE_PROTECTED_${idx}___`, tag);
+      });
+
+      let sanitizedFullOutput = protectedOutput;
+
       sendEvent({
         type: "final",
-        text: fullOutput.trim() || fallbackEmptyResponse,
-        finalSynthesis: fullOutput.trim() || fallbackEmptyResponse,
+        text: sanitizedFullOutput || fallbackEmptyResponse,
+        finalSynthesis: sanitizedFullOutput || fallbackEmptyResponse,
         searchSources: uniqueSources,
         searchImages: filteredImages.slice(0, 15)
       });
@@ -1424,7 +1771,7 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
     }
 
     const normalResponse = await callGeminiWithFallback({
-      model: "gemini-3.5-flash-lite",
+      model: mappedModel,
       contents: finalContents,
       config: {
         systemInstruction: activeSystemPrompt,

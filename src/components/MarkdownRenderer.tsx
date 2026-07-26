@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin, TvMinimalPlay, Image as ImageIcon, Loader2, Download, ZoomIn } from 'lucide-react';
+import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin, TvMinimalPlay, Image as ImageIcon, Loader2, Download, ZoomIn, MousePointer2, Keyboard, ScanEye, ArrowDownUp } from 'lucide-react';
 import HtmlCodeBlock from './HtmlCodeBlock';
 import WsmMapComponent from './WsmMapComponent';
 import WsmChartComponent from './WsmChartComponent';
@@ -573,7 +573,7 @@ const renderNodes = (
           return (
             <ol key={`ol-${depth}-${groupIdx}`} className="list-none space-y-1 text-gray-700 text-[13.5px]">
               {group.items.map((node, nodeIdx) => {
-                let markerColor = 'text-[#5c53e5]';
+                let markerColor = 'text-[#2563eb]';
                 if (depth === 1) {
                   markerColor = 'text-purple-600';
                 } else if (depth === 2) {
@@ -603,7 +603,7 @@ const renderNodes = (
             <ul key={`ul-${depth}-${groupIdx}`} className="list-none space-y-1 text-gray-700 text-[13.5px]">
               {group.items.map((node, nodeIdx) => {
                 let bullet = '•';
-                let bulletColor = 'text-[#5c53e5]';
+                let bulletColor = 'text-[#2563eb]';
                 
                 if (depth === 1) {
                   bullet = '◦';
@@ -709,7 +709,7 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
     });
 
     // 0. Extract agentic tags: [pesquisou na web], [calculando], [verificando relógio], and active/completed states
-    const agenticRegex = /\[(pesquisou na web|calculando|verificando relógio|pesquisando\.\.\.|calculando\.\.\.|verificando\.\.\.|verificando possíveis erros no código\.\.\.|código 100% verificado: sem erros[\s\S]*?|corrigindo erro detectado no código:[\s\S]*?|sandbox de depuração:[\s\S]*?|Criando Skill:[\s\S]*?|Editando Skill:[\s\S]*?|Excluindo Skill:[\s\S]*?|Criou Skill:[\s\S]*?|Editou Skill:[\s\S]*?|Excluiu Skill:[\s\S]*?|criando skill:[\s\S]*?|editando skill:[\s\S]*?|excluindo skill:[\s\S]*?|criou skill:[\s\S]*?|editou skill:[\s\S]*?|excluiu skill:[\s\S]*?|nova tarefa:[\s\S]*?|tarefa removida:[\s\S]*?|passo concluído)\]/gi;
+    const agenticRegex = /\[(pesquisou na web|calculando|verificando relógio|pesquisando\.\.\.|calculando\.\.\.|verificando\.\.\.|verificando possíveis erros no código\.\.\.|código 100% verificado: sem erros[\s\S]*?|corrigindo erro detectado no código:[\s\S]*?|sandbox de depuração:[\s\S]*?|Criando Skill:[\s\S]*?|Editando Skill:[\s\S]*?|Excluindo Skill:[\s\S]*?|Criou Skill:[\s\S]*?|Editou Skill:[\s\S]*?|Excluiu Skill:[\s\S]*?|criando skill:[\s\S]*?|editando skill:[\s\S]*?|excluindo skill:[\s\S]*?|criou skill:[\s\S]*?|editou skill:[\s\S]*?|excluiu skill:[\s\S]*?|nova tarefa:[\s\S]*?|tarefa removida:[\s\S]*?|passo concluído|Abrindo site:[\s\S]*?|Clicando no elemento[\s\S]*?|Digitando[\s\S]*?|Rolando página[\s\S]*?|Lendo página atualizada[\s\S]*?)\]/gi;
     currentText = currentText.replace(agenticRegex, (match, tagContent) => {
       const id = `:::AGENTICTOKEN-${agenticTokens.length}:::`;
       let type = 'web';
@@ -721,6 +721,11 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
       else if (lower.includes('editando skill:') || lower.includes('editou skill:')) type = 'skill_edit';
       else if (lower.includes('excluindo skill:') || lower.includes('excluiu skill:')) type = 'skill_delete';
       else if (lower.includes('nova tarefa:') || lower.includes('tarefa removida:') || lower.includes('passo concluído')) type = 'task_update';
+      else if (lower.includes('abrindo site:')) type = 'pw_open';
+      else if (lower.includes('clicando no elemento')) type = 'pw_click';
+      else if (lower.includes('digitando')) type = 'pw_type';
+      else if (lower.includes('rolando página')) type = 'pw_scroll';
+      else if (lower.includes('lendo página')) type = 'pw_read';
       agenticTokens.push({ id, type, text: tagContent });
       return id;
     });
@@ -752,10 +757,23 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
       return id;
     });
 
+    // 2.8 Extract markdown images: ![alt](url)
+    const inlineImageRegex = /!\[(.*?)\]\((.*?)\)/g;
+    currentText = currentText.replace(inlineImageRegex, (match, altText, url) => {
+      // If it's a base64 data URI, strip it completely so raw base64 text is never dumped into chat text
+      if (url.trim().startsWith('data:image/')) {
+        return '';
+      }
+      const id = `:::LINKTOKEN-${linkTokens.length}:::`;
+      linkTokens.push({ id, text: altText || 'Imagem', url });
+      return id;
+    });
+
     // 3. Extract links: [text](url)
     const inlineLinkRegex = /\[(.*?)\]\((.*?)\)/g;
     currentText = currentText.replace(inlineLinkRegex, (match, textContent, url) => {
       if (!textContent.trim() || !url.trim()) return match;
+      if (url.trim().startsWith('data:image/')) return '';
       const id = `:::LINKTOKEN-${linkTokens.length}:::`;
       linkTokens.push({ id, text: textContent, url });
       return id;
@@ -853,6 +871,31 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
                   Icon = CheckCircle2;
                   let rawText = token.text.replace(/\[|\]/g, '');
                   displayType = rawText.charAt(0).toUpperCase() + rawText.slice(1);
+                } else if (token.type === 'pw_open') {
+                  Icon = Globe;
+                  let rawText = token.text.replace(/\[|\]/g, '');
+                  displayType = rawText;
+                  isActive = isTyping;
+                } else if (token.type === 'pw_click') {
+                  Icon = MousePointer2;
+                  let rawText = token.text.replace(/\[|\]/g, '');
+                  displayType = rawText;
+                  isActive = isTyping;
+                } else if (token.type === 'pw_type') {
+                  Icon = Keyboard;
+                  let rawText = token.text.replace(/\[|\]/g, '');
+                  displayType = rawText;
+                  isActive = isTyping;
+                } else if (token.type === 'pw_scroll') {
+                  Icon = ArrowDownUp;
+                  let rawText = token.text.replace(/\[|\]/g, '');
+                  displayType = rawText;
+                  isActive = isTyping;
+                } else if (token.type === 'pw_read') {
+                  Icon = ScanEye;
+                  let rawText = token.text.replace(/\[|\]/g, '');
+                  displayType = rawText;
+                  isActive = isTyping;
                 } else {
                   displayType = (isTyping && token.text.includes('...')) ? 'Pesquisando na web...' : 'Pesquisou na web';
                   isActive = isTyping && token.text.includes('...');
@@ -1114,7 +1157,7 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
           );
         } else if (level === 2) {
           blocks.push(
-            <h2 key={`h2-${i}`} className="text-lg font-bold text-gray-800 tracking-tight mt-5 mb-2 flex items-center gap-2 border-l-3 border-[#5c53e5] pl-2.5">
+            <h2 key={`h2-${i}`} className="text-lg font-bold text-gray-800 tracking-tight mt-5 mb-2 flex items-center gap-2 border-l-3 border-[#2563eb] pl-2.5">
               {inlineContent}
             </h2>
           );
@@ -1137,7 +1180,7 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
           i++;
         }
         blocks.push(
-          <blockquote key={`quote-${i}`} className="my-4 border-l-4 border-[#5c53e5] bg-gray-50/70 py-3 pl-4 pr-3 rounded-r-xl italic text-gray-600 text-[13.5px] leading-relaxed shadow-3xs">
+          <blockquote key={`quote-${i}`} className="my-4 border-l-4 border-[#2563eb] bg-gray-50/70 py-3 pl-4 pr-3 rounded-r-xl italic text-gray-600 text-[13.5px] leading-relaxed shadow-3xs">
             {renderInlineContent(quoteContent.trim())}
           </blockquote>
         );
@@ -1358,7 +1401,7 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
           // If we are typing the map tag and coordinates are not fully typed yet, render a beautiful placeholder
           blocks.push(
             <div key={`map-skeleton-${i}`} className="my-3 w-full h-[350px] bg-gray-100 rounded-2xl flex flex-col items-center justify-center border border-gray-200 shadow-xs animate-pulse">
-              <MapPin className="w-8 h-8 text-[#5c53e5] animate-bounce mb-2" />
+              <MapPin className="w-8 h-8 text-[#2563eb] animate-bounce mb-2" />
               <span className="text-xs text-gray-500 font-medium">Renderizando mapa interativo do WSM Pro...</span>
             </div>
           );

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share } from 'lucide-react';
+import { Paperclip, Globe, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share, Columns, Pause } from 'lucide-react';
+import BrowserPreviewPane from './BrowserPreviewPane';
 import { Skill } from '../lib/skills';
 import { Message, Draft } from '../types';
 import { saveEvaluationToDb } from '../lib/chatService';
@@ -258,8 +259,15 @@ export default function ChatWindow({
   const [isEffortDropdownOpen, setIsEffortDropdownOpen] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [isTasksExpanded, setIsTasksExpanded] = useState(true);
+  const [isSplitScreenOpen, setIsSplitScreenOpen] = useState(false);
   const [completedReasoningMsgIds, setCompletedReasoningMsgIds] = useState<Set<string>>(new Set());
   const [completedTypewriterMsgIds, setCompletedTypewriterMsgIds] = useState<Set<string>>(new Set());
+
+  const lastAiWithScreenshots = [...messages].reverse().find(
+    m => m.sender === 'ai' && m.browserScreenshots && m.browserScreenshots.length > 0
+  );
+  const currentScreenshots = lastAiWithScreenshots?.browserScreenshots || [];
+  const latestScreenshot = currentScreenshots.length > 0 ? currentScreenshots[currentScreenshots.length - 1] : null;
 
   const lastVisibleUserIndex = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -275,6 +283,12 @@ export default function ChatWindow({
       setIsTasksExpanded(true);
     }
   }, [isThinking]);
+
+  useEffect(() => {
+    if (currentScreenshots.length > 0 && isThinking && !isSplitScreenOpen) {
+      setIsSplitScreenOpen(true);
+    }
+  }, [currentScreenshots.length, isThinking]);
 
   // Attachments States
   const [attachments, setAttachments] = useState<any[]>([]);
@@ -1050,46 +1064,55 @@ export default function ChatWindow({
   };
 
   const isUserScrollingRef = useRef(false);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleScroll = () => {
     if (messagesContainerRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-      const isScrolledUp = scrollHeight - scrollTop - clientHeight > 150;
+      const isScrolledUp = scrollHeight - scrollTop - clientHeight > 250;
       isUserScrollingRef.current = isScrolledUp;
     }
   };
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
-    if (isUserScrollingRef.current) return;
-    
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: 'auto'
+      });
     }
-    
-    scrollTimeoutRef.current = setTimeout(() => {
-      if (messagesContainerRef.current) {
-        // If we are getting called rapidly (e.g. streaming), smooth scroll can cause bouncing.
-        // We will use auto if the distance is small, or just trust 'auto' for stream updates.
-        messagesContainerRef.current.scrollTo({
-          top: messagesContainerRef.current.scrollHeight,
-          behavior: 'auto'
-        });
-      }
-    }, 50);
   };
 
   useEffect(() => {
     const container = messagesContainerRef.current;
-    if (container) {
-      container.addEventListener('scroll', handleScroll);
-      return () => container.removeEventListener('scroll', handleScroll);
-    }
-  }, []);
+    if (!container) return;
 
-  // Auto-scroll to bottom of messages
-  useEffect(() => {
-    scrollToBottom('auto');
+    container.addEventListener('scroll', handleScroll);
+
+    const performScroll = () => {
+      // If AI is thinking or user is close to bottom, automatically keep scrolled to bottom
+      if (isThinking || !isUserScrollingRef.current) {
+        container.scrollTop = container.scrollHeight;
+      }
+    };
+
+    performScroll();
+
+    // Observe size changes inside messagesContainerRef (Typewriter text, browser tags, screenshots)
+    const observer = new ResizeObserver(() => {
+      performScroll();
+    });
+
+    const innerContent = container.firstElementChild;
+    if (innerContent) {
+      observer.observe(innerContent);
+    } else {
+      observer.observe(container);
+    }
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      observer.disconnect();
+    };
   }, [messages, isThinking]);
 
   // Auto-focus input on mount, when thinking stops, when switching conversations, or when sending/receiving messages
@@ -1127,6 +1150,7 @@ export default function ChatWindow({
     }
     
     if (onDeleteDraft) onDeleteDraft();
+    isUserScrollingRef.current = false;
     onSendMessage(textToSend, isSearchEnabled, undefined, attachments);
     
     // Synchronously clear the DOM value to prevent race conditions during rapid consecutive sends
@@ -1227,7 +1251,7 @@ export default function ChatWindow({
         {/* Glowing Neon Lights and Windows */}
         <div className="absolute bottom-1.5 left-4 w-2 h-0.5 bg-[#8b5cf6] shadow-[0_0_6px_#8b5cf6] rounded-xxs animate-pulse" />
         <div className="absolute bottom-4 left-10 w-1.5 h-1.5 bg-purple-400 shadow-[0_0_4px_#8b5cf6] rounded-xxs" />
-        <div className="absolute bottom-10 left-1/3 w-1 h-1 bg-[#5c53e5] shadow-[0_0_4px_#5c53e5] rounded-xxs animate-ping" />
+        <div className="absolute bottom-10 left-1/3 w-1 h-1 bg-[#2563eb] shadow-[0_0_4px_#2563eb] rounded-xxs animate-ping" />
         <div className="absolute bottom-6 left-1/2 w-3 h-0.5 bg-[#8b5cf6] shadow-[0_0_6px_#8b5cf6] rounded-xxs" />
 
         {/* Image Spec Label */}
@@ -1241,7 +1265,7 @@ export default function ChatWindow({
           <button className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all border border-white/15 active:scale-95 cursor-pointer shadow-md">
             <ZoomIn className="w-4 h-4" />
           </button>
-          <button className="p-1.5 bg-[#5c53e5] hover:bg-[#4b42cc] text-white rounded-full transition-all active:scale-95 cursor-pointer shadow-md">
+          <button className="p-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-full transition-all active:scale-95 cursor-pointer shadow-md">
             <Download className="w-4 h-4" />
           </button>
         </div>
@@ -1282,7 +1306,8 @@ export default function ChatWindow({
   }
 
   return (
-    <div id="wsm-chat-window" className={`flex-1 flex flex-col h-full bg-[#fcfbfa] relative overflow-hidden ${!isEmbedded ? 'animate-in zoom-in-95 duration-200' : ''}`}>
+    <div className="w-full h-full flex flex-col md:flex-row overflow-hidden relative">
+      <div id="wsm-chat-window" className={`${isSplitScreenOpen && currentScreenshots.length > 0 ? 'w-full md:w-1/2 border-r border-gray-200/80' : 'w-full'} flex-1 flex flex-col h-full bg-[#fcfbfa] relative overflow-hidden ${!isEmbedded ? 'animate-in zoom-in-95 duration-200' : ''}`}>
       
       {/* Top Header */}
       <header className="flex px-4 py-2.5 bg-white/80 backdrop-blur-md border-b border-[#eae6e1] items-center justify-between relative z-40">
@@ -1300,9 +1325,9 @@ export default function ChatWindow({
               if (hasMessages) {
                 return (
                   <div className="flex items-center px-1.5 py-1.5 text-[13px] font-extrabold text-gray-600 select-none tracking-tight">
-                    {selectedModel === 'WSM 1.6 Pro' ? (
+                    {selectedModel === 'WSM 1.6 Flash' ? (
                       <>
-                        <span className="font-extrabold text-gray-900">WSM 1.6 Pro</span>
+                        <span className="font-extrabold text-gray-900">WSM 1.6 Flash</span>
                         {reasoningLevel !== 'Nenhum' && (
                           <span className="text-gray-400 font-normal ml-1">{reasoningLevel}</span>
                         )}
@@ -1319,15 +1344,15 @@ export default function ChatWindow({
                   className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-[#eae6e1] rounded-full text-[13px] font-semibold text-gray-800 shadow-2xs hover:border-gray-300 cursor-pointer active:scale-95 transition-all"
                   title="Selecione o modelo"
                 >
-                  <div className="w-6 h-6 bg-gradient-to-br from-[#7c3aed] to-[#5c53e5] rounded-md flex items-center justify-center shadow-xs shrink-0">
+                  <div className="w-6 h-6 bg-gradient-to-br from-[#2563eb] to-[#3b82f6] rounded-md flex items-center justify-center shadow-xs shrink-0">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3 text-white">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
                     </svg>
                   </div>
                   <span className="font-bold tracking-tight text-gray-900">
-                    {selectedModel === 'WSM 1.6 Pro' ? 'WSM 1.6 Pro' : selectedModel}
+                    {selectedModel}
                   </span>
-                  {selectedModel === 'WSM 1.6 Pro' && reasoningLevel !== 'Nenhum' && (
+                  {selectedModel === 'WSM 1.6 Flash' && reasoningLevel !== 'Nenhum' && (
                     <span className="text-gray-400 font-normal ml-0.5">{reasoningLevel}</span>
                   )}
                   <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
@@ -1365,7 +1390,7 @@ export default function ChatWindow({
                       >
                         <div className="flex items-center justify-between w-full">
                           <div className="flex items-center gap-1.5 text-[13px] font-semibold">
-                            <div className={`w-1 h-1 rounded-full ${isActive ? 'bg-[#5c53e5]' : 'bg-transparent'}`} />
+                            <div className={`w-1 h-1 rounded-full ${isActive ? 'bg-[#2563eb]' : 'bg-transparent'}`} />
                             <span>{model}</span>
                           </div>
                         </div>
@@ -1380,8 +1405,8 @@ export default function ChatWindow({
             )}
           </div>
 
-          {/* Mobile Esforço Selector Button (shows up only for WSM 1.6 Pro on mobile) */}
-          {selectedModel === 'WSM 1.6 Pro' && (
+          {/* Mobile Esforço Selector Button (shows up only for WSM 1.6 Flash on mobile) */}
+          {selectedModel === 'WSM 1.6 Flash' && (
             <div className="relative md:hidden">
               <button
                 type="button"
@@ -1410,7 +1435,7 @@ export default function ChatWindow({
                           }}
                           className={`w-full text-left px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors cursor-pointer ${
                             reasoningLevel === level
-                              ? 'bg-gray-50 text-[#5c53e5] font-semibold'
+                              ? 'bg-gray-50 text-[#2563eb] font-semibold'
                               : 'text-gray-700 hover:bg-gray-50'
                           }`}
                         >
@@ -1434,14 +1459,14 @@ export default function ChatWindow({
 
         {/* Right side controls */}
         <div className="flex items-center gap-2 relative z-50">
-          {/* Tag WSM 1.6.1 - Desktop Only */}
+          {/* Tag WSM 1.6.2 - Desktop Only */}
           <button
             onClick={onOpenUpdateModal}
-            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-indigo-50/25 border border-[#eae6e1] rounded-full text-xs font-bold text-gray-700 hover:text-indigo-600 transition-colors cursor-pointer shadow-3xs active:scale-95"
-            title="Ver novidades da versão 1.6.1"
+            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-blue-50/40 border border-[#eae6e1] rounded-full text-xs font-bold text-gray-700 hover:text-[#2563eb] transition-colors cursor-pointer shadow-3xs active:scale-95"
+            title="Ver novidades da versão 1.6.2"
           >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-            <span>Atualização: WSM 1.6.1</span>
+            <Sparkles className="w-3.5 h-3.5 text-[#2563eb] shrink-0" />
+            <span>Atualização: WSM 1.6.2</span>
           </button>
 
           <button
@@ -1685,14 +1710,14 @@ export default function ChatWindow({
                         <textarea 
                           value={editInputValue}
                           onChange={(e) => setEditInputValue(e.target.value)}
-                          className="w-full text-[13.5px] p-2 border border-[#eae6e1] rounded-lg bg-white resize-none outline-none focus:border-[#5c53e5] min-h-[60px]"
+                          className="w-full text-[13.5px] p-2 border border-[#eae6e1] rounded-lg bg-white resize-none outline-none focus:border-[#2563eb] min-h-[60px]"
                         />
                         <div className="flex justify-end gap-2">
                           <button onClick={() => setEditingMessageId(null)} className="text-xs px-2 py-1 text-gray-500 hover:bg-gray-100 rounded transition-colors border border-[#eae6e1]">Cancelar</button>
                           <button onClick={() => {
                              onEditMessage?.(message.id, editInputValue);
                              setEditingMessageId(null);
-                          }} className="text-xs px-2 py-1 bg-[#5c53e5] text-white rounded hover:bg-[#4b43c6] transition-colors">Confirmar</button>
+                          }} className="text-xs px-2 py-1 bg-[#2563eb] text-white rounded hover:bg-[#1d4ed8] transition-colors">Confirmar</button>
                         </div>
                       </div>
                     ) : message.isSearchMessage ? (
@@ -1882,8 +1907,8 @@ export default function ChatWindow({
                                           "{message.translationData.original}"
                                         </p>
                                       </div>
-                                      <div className="bg-[#5c53e5]/5 p-3 rounded-lg border border-[#5c53e5]/10">
-                                        <div className="text-[9px] font-bold text-[#5c53e5] uppercase tracking-wider mb-1">
+                                      <div className="bg-[#2563eb]/5 p-3 rounded-lg border border-[#2563eb]/10">
+                                        <div className="text-[9px] font-bold text-[#2563eb] uppercase tracking-wider mb-1">
                                           {message.translationData.targetLang}
                                         </div>
                                         <p className="text-gray-800 font-medium text-[12px]">
@@ -1984,7 +2009,7 @@ export default function ChatWindow({
                                                 );
                                               })}
                                             </div>
-                                            <span className="text-[#5c53e5] font-semibold text-[11.5px] pr-0.5">{count} {count === 1 ? 'fonte' : 'fontes'}</span>
+                                            <span className="text-[#2563eb] font-semibold text-[11.5px] pr-0.5">{count} {count === 1 ? 'fonte' : 'fontes'}</span>
                                           </button>
                                         );
                                       })()}
@@ -2036,7 +2061,7 @@ export default function ChatWindow({
                                   onEditMessage?.(lastUser.id, lastUser.text);
                                 }
                               }}
-                              className="text-gray-400 hover:text-[#5c53e5] p-0.5"
+                              className="text-gray-400 hover:text-[#2563eb] p-0.5"
                               title="Tentar novamente"
                             >
                               <RotateCcw size={12} />
@@ -2112,7 +2137,7 @@ export default function ChatWindow({
           const lastVisibleMsg = visibleMessages[visibleMessages.length - 1];
           const lastMessageText = lastVisibleMsg?.text || "";
           const isPro = selectedModel === 'WSM 1.6 Pro';
-          const taskProgress = (isPro && isThinking && lastVisibleMsg?.sender === 'ai')
+          const taskProgress = (lastVisibleMsg?.sender === 'ai')
             ? getTaskProgress(lastMessageText)
             : null;
 
@@ -2132,14 +2157,55 @@ export default function ChatWindow({
                   {/* Header */}
                   <div 
                     onClick={() => setIsTasksExpanded(!isTasksExpanded)}
-                    className="flex items-center justify-between px-4 py-3 md:py-2.5 cursor-pointer hover:bg-[#eae8e5] transition-colors rounded-t-2xl"
+                    className="flex items-center justify-between px-3.5 py-2.5 md:py-2 cursor-pointer hover:bg-[#eae8e5] transition-colors rounded-t-2xl select-none"
                   >
-                    <div className="flex items-center">
-                      <Flag className="w-4 h-4 text-gray-500 mr-2.5" />
-                      <span className="text-sm font-semibold text-gray-700">Tarefas</span>
+                    <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                      {/* Tiny Screenshot Thumbnail if browser screenshots exist */}
+                      {latestScreenshot && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsSplitScreenOpen(!isSplitScreenOpen);
+                          }}
+                          className="w-8 h-5 rounded border border-gray-300 shadow-2xs overflow-hidden object-cover bg-white hover:scale-105 active:scale-95 transition-all shrink-0 relative group cursor-pointer"
+                          title="Clique para abrir/fechar tela dividida do navegador"
+                        >
+                          <img src={latestScreenshot.screenshot} alt="Navegador" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
+                        </button>
+                      )}
+
+                      {!isTasksExpanded ? (
+                        <div className="flex items-center gap-2 truncate min-w-0">
+                          <Pause className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                          <span className="text-xs font-semibold text-gray-800 truncate">
+                            {taskProgress.tasks[taskProgress.activeIndex] || taskProgress.tasks[0] || "Progresso da tarefa"}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Flag className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                          <span className="text-xs font-semibold text-gray-800">Progresso da tarefa</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono text-gray-500 bg-gray-200/60 px-1.5 py-0.5 rounded font-bold">
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {latestScreenshot && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsSplitScreenOpen(!isSplitScreenOpen);
+                          }}
+                          className="p-1 hover:bg-gray-200/80 rounded text-gray-600 hover:text-gray-900 transition-colors cursor-pointer"
+                          title="Alternar tela dividida do navegador"
+                        >
+                          <Columns className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <span className="text-xs font-mono text-gray-500 bg-gray-200/70 px-1.5 py-0.5 rounded font-bold">
                         {taskProgress.completedCount}/{taskProgress.totalCount}
                       </span>
                       {isTasksExpanded ? (
@@ -2534,7 +2600,7 @@ export default function ChatWindow({
               {activeSkills.map(skill => (
                 <div 
                   key={skill.id}
-                  className="flex items-center gap-1 bg-[#5c53e5]/10 text-[#5c53e5] px-2 py-0.5 rounded flex-shrink-0 cursor-pointer hover:bg-[#5c53e5]/20 transition-colors"
+                  className="flex items-center gap-1 bg-[#2563eb]/10 text-[#2563eb] px-2 py-0.5 rounded flex-shrink-0 cursor-pointer hover:bg-[#2563eb]/20 transition-colors"
                   onClick={() => setActiveSkills(prev => prev.filter(s => s.id !== skill.id))}
                 >
                   <span className="font-bold text-[13px]">/{skill.name}</span>
@@ -2686,25 +2752,25 @@ export default function ChatWindow({
                     onClick={() => setIsSearchEnabled(!isSearchEnabled)}
                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold transition-all cursor-pointer ${
                       isSearchEnabled
-                        ? 'bg-[#5c53e5]/10 text-[#5c53e5] border border-[#5c53e5]/15'
-                        : 'bg-[#eae7e2] text-gray-700 hover:bg-[#e1ded9]'
+                        ? 'bg-white text-[#2563eb] border border-[#2563eb] shadow-2xs'
+                        : 'bg-white text-gray-700 border border-[#eae6e1] hover:border-gray-300 hover:bg-gray-50/50 shadow-2xs'
                     }`}
                     title="Ativar busca web"
                   >
-                    <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-[#5c53e5] animate-spin-slow' : 'text-gray-500'}`} />
+                    <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-[#2563eb] animate-spin-slow' : 'text-gray-500'}`} />
                     <span>Pesquisar</span>
                   </button>
                 </div>
 
                 {/* Right Controls */}
                 <div className="flex items-center gap-1.5">
-                  {/* Esforço Dropdown/Pill Selector (shows up only for WSM 1.6 Pro - desktop only, mobile is in header) */}
-                  {selectedModel === 'WSM 1.6 Pro' && (
+                  {/* Esforço Dropdown/Pill Selector (shows up only for WSM 1.6 Flash - desktop only, mobile is in header) */}
+                  {selectedModel === 'WSM 1.6 Flash' && (
                     <div className="relative hidden md:block">
                       <button
                         type="button"
                         onClick={() => setIsEffortDropdownOpen(!isEffortDropdownOpen)}
-                        className="flex items-center gap-1 px-3 py-1 bg-[#eae7e2] hover:bg-[#e1ded9] rounded-full text-[12px] font-bold text-gray-700 transition-all cursor-pointer"
+                        className="flex items-center gap-1 px-3 py-1 bg-white border border-[#eae6e1] hover:border-gray-300 rounded-full text-[12px] font-bold text-gray-700 shadow-2xs transition-all cursor-pointer"
                         title="Seletor de esforço de raciocínio"
                       >
                         <span>Esforço</span>
@@ -2730,7 +2796,7 @@ export default function ChatWindow({
                                   }}
                                   className={`w-full text-left px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors cursor-pointer ${
                                     reasoningLevel === level
-                                      ? 'bg-gray-50 text-[#5c53e5] font-semibold'
+                                      ? 'bg-gray-50 text-[#2563eb] font-semibold'
                                       : 'text-gray-700 hover:bg-gray-50'
                                   }`}
                                 >
@@ -2913,7 +2979,7 @@ export default function ChatWindow({
                       href={src.url} 
                       target="_blank" 
                       rel="noreferrer"
-                      className="font-bold text-[13px] text-gray-900 group-hover:text-[#5c53e5] leading-snug transition-colors line-clamp-2 block mb-1.5 hover:underline"
+                      className="font-bold text-[13px] text-gray-900 group-hover:text-[#2563eb] leading-snug transition-colors line-clamp-2 block mb-1.5 hover:underline"
                     >
                       {src.title}
                     </a>
@@ -3082,6 +3148,18 @@ export default function ChatWindow({
               </button>
             </div>
           </div>
+        </div>
+      )}
+      </div>
+
+      {/* Right Column: Split Screen Browser Preview Pane */}
+      {isSplitScreenOpen && currentScreenshots.length > 0 && (
+        <div className="w-full md:w-1/2 h-1/2 md:h-full flex flex-col overflow-hidden shrink-0">
+          <BrowserPreviewPane
+            screenshots={currentScreenshots}
+            isThinking={isThinking}
+            onClose={() => setIsSplitScreenOpen(false)}
+          />
         </div>
       )}
     </div>

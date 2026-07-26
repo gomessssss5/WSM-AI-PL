@@ -168,7 +168,8 @@ export default function TypewriterMarkdown({
               "sandbox de depuração", "criando skill", "editando skill",
               "excluindo skill", "criou skill", "editou skill", "excluiu skill",
               "nova tarefa", "tarefa removida", "passo concluído",
-              "pesquisando...", "calculando...", "verificando...", "verificando possíveis erros no código..."
+              "pesquisando...", "calculando...", "verificando...", "verificando possíveis erros no código...",
+              "abrindo site:", "clicando no elemento", "digitando", "rolando página", "lendo página"
            ];
            const isAgentic = prefixes.some(p => p.startsWith(textInside) || textInside.startsWith(p));
            
