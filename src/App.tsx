@@ -153,13 +153,36 @@ export default function App() {
     isThinkingRef.current = isThinking;
   }, [isThinking]);
 
-  // Request Notification permission immediately when the app mounts
+  // Request Notification permission and setup beforeunload beacon for interrupted responses
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission().then((permission) => {
         console.log('Permissão de notificação concedida:', permission);
       });
     }
+
+    const handleBeforeUnload = () => {
+      if (isThinkingRef.current && currentUserRef.current?.email?.toLowerCase().endsWith('@gmail.com')) {
+        const activeSession = activeSessionRef.current;
+        const lastUserMsg = activeSession?.messages.filter(m => m.role === 'user').slice(-1)[0];
+        const lastAssistantMsg = activeSession?.messages.filter(m => m.role === 'assistant').slice(-1)[0];
+
+        const payload = JSON.stringify({
+          toEmail: currentUserRef.current.email,
+          userPrompt: lastUserMsg?.content || "Sua mensagem",
+          aiResponseSnippet: lastAssistantMsg?.content || "A resposta foi concluída no seu histórico."
+        });
+
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon('/api/notify-interrupted-response', new Blob([payload], { type: 'application/json' }));
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
   }, []);
 
   const sendCompletionNotification = () => {
@@ -539,6 +562,28 @@ export default function App() {
               setSessions((prev) => {
                 return prev.map(s => s.id === finalSession.id ? finalSession : s);
               });
+
+              // Send email with task execution result
+              const destinationEmail = currentUser.email || "wsmathenas@gmail.com";
+              fetch("/api/send-scheduled-email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  toEmail: destinationEmail,
+                  taskTitle: task.title,
+                  taskPrompt: task.prompt,
+                  aiResponse: aiFinalSynthesis || aiText
+                })
+              })
+              .then(res => res.json())
+              .then(emailData => {
+                if (emailData.success) {
+                  console.log("[Agendamento] E-mail enviado com sucesso:", emailData.message);
+                } else {
+                  console.log("[Agendamento] Informação de envio de e-mail:", emailData.message);
+                }
+              })
+              .catch(err => console.warn("[Agendamento] Erro no envio do e-mail:", err));
 
               // Send browser notification if not focused
               if (document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {

@@ -2,6 +2,7 @@ import { db, auth } from './firebase';
 import { 
   collection, 
   doc, 
+  getDoc,
   setDoc, 
   deleteDoc, 
   onSnapshot, 
@@ -129,7 +130,7 @@ const mapSessionToDoc = (session: ChatSession): any => {
 
 /**
  * Ensures that a user profile document exists in the `/users` collection
- * so that they appear on the Admin Dashboard.
+ * so that they appear on the Admin Dashboard and email automations work.
  */
 export const ensureUserExists = async (userId: string): Promise<void> => {
   if (!userId) return;
@@ -138,13 +139,38 @@ export const ensureUserExists = async (userId: string): Promise<void> => {
 
   const userRef = doc(db, 'users', userId);
   try {
+    const userSnap = await getDoc(userRef);
+    const isNewUser = !userSnap.exists();
+
+    const userEmail = currentUser.email || `usr_${userId.substring(0, 5)}@wsm.ai`;
+
     await setDoc(userRef, {
-      email: currentUser.email || `usr_${userId.substring(0, 5)}@wsm.ai`,
+      email: userEmail,
       displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Usuário Sem Nome',
       photoURL: currentUser.photoURL || '',
       lastInteraction: Timestamp.now(),
-      updatedAt: Timestamp.now()
+      updatedAt: Timestamp.now(),
+      // Reset inactivity counters when user interacts
+      inactivity5Sent: false,
+      inactivity10Sent: false,
+      inactivity15Sent: false,
+      inactivity30Sent: false,
+      inactivity60Sent: false,
+      inactivity150Sent: false,
+      ...(isNewUser ? { createdAt: Timestamp.now(), welcomeEmailSent: false } : {})
     }, { merge: true });
+
+    // Send Welcome Email for new registered users with @gmail.com email
+    if (isNewUser && userEmail.toLowerCase().endsWith('@gmail.com')) {
+      fetch("/api/send-welcome-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          toEmail: userEmail,
+          displayName: currentUser.displayName || currentUser.email?.split('@')[0]
+        })
+      }).catch(err => console.warn("[WelcomeEmail] Failed to send:", err));
+    }
   } catch (err) {
     console.error("Error ensuring user document exists:", err);
   }

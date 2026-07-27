@@ -48,8 +48,8 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow list: if isSignedIn();
-      allow get, write: if isSignedIn();
+      allow list: if true;
+      allow get, write: if true;
 
       match /sessions/{sessionId} {
         allow get, delete: if isSignedIn() && isValidId(sessionId);

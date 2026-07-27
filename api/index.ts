@@ -4,6 +4,14 @@ import dotenv from "dotenv";
 import sharp from "sharp";
 import { imageRankingQueue } from "./imageQueue.js";
 import { openUrl, clickSelector, typeText, scrollPage, extractText } from "./playwrightAgent.js";
+import { 
+  sendScheduledEmail, 
+  sendWelcomeEmail, 
+  sendInterruptedResponseEmail, 
+  isGmailUser 
+} from "./emailService.js";
+import { runAllEmailAutomations } from "./emailAutomation.js";
+import { getAllSystemPrompts, getSystemPrompt, updateSystemPrompt } from "./systemPromptsManager.js";
 
 dotenv.config();
 
@@ -159,6 +167,16 @@ async function callGeminiStreamWithFallback(options: any): Promise<any> {
 app.post("/api/chat", async (req: express.Request, res: express.Response) => {
   const { text, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution } = req.body;
 
+  const userEmail = userInfo?.email || userContext?.email || req.body?.userEmail;
+  let clientDisconnected = false;
+
+  req.on('close', () => {
+    if (!res.writableEnded) {
+      clientDisconnected = true;
+      console.log(`[ChatAPI] Conexão fechada pelo usuário (${userEmail || 'desconhecido'}) antes de concluir a resposta.`);
+    }
+  });
+
   const userPromptText = typeof text === 'string' ? text : JSON.stringify(text || '');
 
   const textRequestedComputer = /\b(ativ\w*|us\w*|habilit\w*|lig\w*)\s+(o(s)?\s+)?(modo(s)?\s+)?(computador|agente|navegador|playwright)\b/i.test(userPromptText) ||
@@ -217,11 +235,8 @@ Instruções Importantes:
       shouldSearch = false;
     } else if (!shouldSearch && process.env.TAVILY_API_KEY) {
       // AI autonomously decides if it needs to search the web for this query
-      const triagePrompt = `Você é o classificador de intenção de busca web do assistente WSM AI.
-O usuário enviou a seguinte mensagem/pergunta: "${text}"
-
-Avalie se esta mensagem requer uma pesquisa na web em tempo real para ser respondida adequadamente (exemplos: notícias de hoje, clima atual, cotações financeiras, resultados de jogos, ou fatos específicos e recentes que não fazem parte do seu conhecimento estático).
-Se sim, responda EXCLUSIVAMENTE com a palavra "SIM". Se puder responder sem pesquisa, responda EXCLUSIVAMENTE "NAO".`;
+      const triageBase = getSystemPrompt('web_search_triage', `Você é o classificador de intenção de busca web do assistente WSM AI.`);
+      const triagePrompt = `${triageBase}\n\nO usuário enviou a seguinte mensagem/pergunta: "${text}"\n\nAvalie se esta mensagem requer uma pesquisa na web em tempo real para ser respondida adequadamente. Se sim, responda EXCLUSIVAMENTE com a palavra "SIM". Se puder responder sem pesquisa, responda EXCLUSIVAMENTE "NAO".`;
 
       try {
         const triageResponse = await callGeminiWithFallback({
@@ -477,8 +492,8 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
         )
         .join("\n\n");
 
-      const systemPrompt = `Você é o modelo de inteligência artificial de alta performance '${model}'.
-O usuário ativou o modo de busca na web. Você pesquisou na internet e reuniu as seguintes informações relevantes para a pergunta do usuário:
+      const synthesisBase = getSystemPrompt('web_search_synthesis', `Você é o modelo de inteligência artificial de alta performance.`);
+      const systemPrompt = `${synthesisBase}
 
 --- Contexto do Usuário (Localização, Data e Horário) ---
 - **Localização do Usuário (Cidade)**: ${userCity}
@@ -486,21 +501,7 @@ O usuário ativou o modo de busca na web. Você pesquisou na internet e reuniu a
 - **Horário Exato Local**: ${userTime} (${userTimezone})
 
 --- Informações de Pesquisa ---
-${contextInfo}
-
-Com base nessas informações, responda à última pergunta do usuário de forma completa, clara e estruturada no idioma de preferência do usuário ou no idioma em que ele estiver se comunicando (português se for português, francês se for francês, japonês se for japonês, árabe se for árabe, alemão técnico se for alemão, etc.), considerando também o contexto da conversa. Mantenha a mesma personalidade natural e humanizada que você usa normalmente — pesquisar não te torna um robô lendo relatório, você está compartilhando o que descobriu como alguém contaria pra um amigo.
-
-## Regras de Formatação Obrigatórias
-1. Use **negrito** e *itálico* para enfatizar pontos principais.
-2. Crie títulos (#), subtítulos (##) e parágrafos organizados — só para respostas que realmente precisem de estrutura; para perguntas simples, responda direto.
-3. Use tabelas para comparar dados quando fizer sentido.
-4. Use listas (- ou *) para enumerar itens de forma organizada.
-5. NÃO inclua expressões matemáticas ou LaTeX, a menos que o assunto seja estritamente matemático, estatístico, físico ou científico.
-6. Cite as fontes com links Markdown \`[Domínio](URL)\` integrados naturally no texto ao mencionar cada fato. Exemplo: "O atleta foi contratado em 2013 pelo Barcelona ([g1.globo.com](https://g1.globo.com/...))". Use o hostname como texto do link.
-7. Se as fontes trouxerem informações conflitantes entre si, aponte isso ao usuário de forma clara, sem esconder a divergência.
-8. Priorize as informações mais recentes quando o assunto for sensível ao tempo (notícias, preços, eventos).
-9. Evite jargões de IA como "com base nas pesquisas fornecidas..." — apresente os fatos como conhecimento que você acabou de adquirir pesquisando, de forma fluida e natural.
-10. Se a pesquisa não trouxer informação suficiente pra responder bem, diga isso com honestidade em vez de inventar ou forçar uma resposta.`;
+${contextInfo}`;
 
       let finalSynthesisText = "Desculpe, não consegui sintetizar uma resposta com os resultados obtidos.";
       
@@ -674,158 +675,12 @@ Quando decidir usar uma ferramenta, você DEVE estruturar sua resposta na seguin
 Seja natural, explique seu raciocínio antes de chamar as funções e continue o texto normalmente quando receber a resposta delas.`
     };
 
-    const formInstruction = `
-Você pode enviar formulários interativos para o usuário preencher. Isso é útil para coletar preferências, entender o nível técnico ou estruturar um pedido complexo de forma organizada, antes de você prosseguir com a tarefa.
-IMPORTANTE: Use formulários com parcimônia e controle! Apenas envie um formulário quando for REALMENTE necessário entender requisitos estruturados ou múltiplas opções de uma vez. NÃO envie formulários para perguntas casuais (ex: "oi", "tudo bem?"), dúvidas diretas ou comandos simples. Sempre avalie cuidadosamente se a situação realmente exige um formulário.
-Para enviar um formulário, inclua um bloco JSON na sua resposta delimitado EXATAMENTE pelas tags <wsm_form> e </wsm_form>. O frontend interceptará esse bloco e renderizará um formulário interativo bonito. Não escreva mais nada além do formulário se o objetivo for apenas coletar as informações.
-Exemplo de formato:
-<wsm_form>
-{
-  "questions": [
-    {
-      "type": "single_choice",
-      "question": "O que você quer fazer comigo hoje?",
-      "options": ["Criar algo (código, documento, design)", "Tirar uma dúvida/aprender", "Conversa casual", "Resolver um problema"],
-      "allow_other": true
-    },
-    {
-      "type": "multiple_choice",
-      "question": "Como você prefere que eu responda?",
-      "options": ["Bem direto e objetivo", "Com exemplos práticos", "Detalhado e completo", "Em formato visual (diagramas, gráficos)"],
-      "allow_other": true
-    }
-  ]
-}
-</wsm_form>
-Tipos suportados: "single_choice" (apenas uma opção), "multiple_choice" (várias opções), "text" (resposta em texto livre sem opções).
-Você deve avaliar se a situação se beneficia de "single_choice" ou "multiple_choice" ou texto livre.
-O formulário será preenchido pelo usuário e as respostas retornarão para você na próxima mensagem como texto comum (ex: P: Pergunta \\n R: Resposta).
-`;
-
-    const docInstruction = `
-Você pode gerar documentos formais para o usuário (como relatórios longos, artigos, análises, redações, resumos detalhados, etc). Quando o usuário pedir a criação de um documento assim longo, ou quando for necessário criar múltiplos documentos (1, 2, 3 ou quantos precisar para cobrir diferentes tópicos, propostas ou relatórios), não escreva o documento inteiro solto na mensagem de chat.
-Em vez disso, diga no chat que você criou o(s) documento(s) (ex: "Aqui estão os documentos que você pediu:") e inclua um bloco JSON para cada documento delimitado EXATAMENTE pelas tags <wsm_doc> e </wsm_doc>. É totalmente possível e incentivado gerar 2 ou mais blocos <wsm_doc>...</wsm_doc> em uma mesma resposta quando necessário!
-O frontend irá interceptar esses blocos e renderizar os componentes de documentos em uma grade bonita e organizada (para celulares, um embaixo do outro; para computadores, dois lado a lado).
-
-ATENÇÃO: NUNCA use a tag <wsm_doc> para gerar códigos de programação (HTML, CSS, JS, React, etc)!! O formato <wsm_doc> é ESTRITAMENTE para documentos de texto (artigos, relatórios, redações). Para Códigos, você DEVE gerar blocos de código Markdown normais (ex: \`\`\`html ... \`\`\`), pois nosso sistema possui um renderizador/preview interativo próprio para códigos que só funciona com os blocos Markdown padrão!
-
-Exemplo de formato para DOCUMENTOS TEXTUAIS:
-<wsm_doc>
-{
-  "title": "Relatório de Exemplo 1",
-  "content": "# Relatório 1\\n\\nEste é o conteúdo do primeiro documento em **Markdown**..."
-}
-</wsm_doc>
-
-<wsm_doc>
-{
-  "title": "Relatório de Exemplo 2",
-  "content": "# Relatório 2\\n\\nEste é o conteúdo do segundo documento em **Markdown**..."
-}
-</wsm_doc>
-Certifique-se de escapar corretamente as aspas e quebras de linha dentro da string \`content\` JSON (use \\n para novas linhas e \\" para aspas).
-`;
-
-    const writerInstruction = isWriterMode ? `
---- MODO ÁREA DO ESCRITOR ---
-Você está atualmente no "Modo Área do Escritor". A tela do usuário está dividida: de um lado, há um editor de texto (onde o usuário escreve o documento principal) e do outro lado, este chat.
-Como Assistente do Escritor, seu papel principal é atuar como um revisor, brainstormer, crítico construtivo e coautor para o que o usuário estiver escrevendo.
-
---- DOCUMENTO ATUAL DO USUÁRIO ---
-Título: ${writerDocument?.title || 'Sem título'}
-Conteúdo:
-"""
-${writerDocument?.content || ''}
-"""
-
---- SUAS CAPACIDADES DE LEITURA E ESCRITA ---
-1. Você pode LER todo o documento acima para entender o contexto, analisar a redação, estilo, tom, ortografia e responder a qualquer pergunta ou solicitação sobre ele.
-2. Você pode SUGERIR ou fazer alterações diretas no texto. Quando o usuário pedir para você ESCREVER, REESCREVER, REVISAR, CORRIGIR ou EDITAR o texto do documento e você quiser aplicar essas alterações diretamente no documento dele (não apenas mostrar no chat), você DEVE incluir um bloco JSON de atualização do documento delimitado EXATAMENTE pelas tags <wsm_writer_update> e </wsm_writer_update> na sua resposta do chat.
-   Exemplo de formato:
-   <wsm_writer_update>
-   {
-     "title": "Novo Título ou Título Atual",
-     "content": "Conteúdo inteiramente atualizado/reescrito..."
-   }
-   </wsm_writer_update>
-   IMPORTANTE: Certifique-se de retornar o conteúdo completo e atualizado do documento dentro do JSON. O frontend irá interceptar esse bloco e atualizar o documento do usuário automaticamente na tela!
-   Certifique-se de escapar corretamente as aspas e quebras de linha dentro da string \`content\` JSON (use \\n para novas linhas e \\" para aspas).
-
-Ao invés de tentar fazer o trabalho todo sozinho se não solicitado, forneça dicas, avaliações, parágrafos de sugestão, ou reescreva trechos solicitados.
-Aja como um mentor literário ou editor experiente.
-` : "";
-
-    const writingConstraints = `
-## Naturalidade e Restrições de Escrita
-Se o usuário pedir para você incluir certas letras, fonemas ou caracteres especiais (como "ção", "ñ", "ü") em um texto, você DEVE incorporá-los de forma absolutamente natural usando palavras reais do vocabulário que os contenham adequadamente (ex: "emoção", "mañana", "müller"). NUNCA insira caracteres de forma forçada, literal e sem sentido em palavras que não os possuem (como escrever "ümidade" em vez de "umidade" ou "ção de calor" em vez de "sensação"). Mantenha o texto ortograficamente e gramaticalmente perfeito sempre.
-
-## Excelência Multilíngue e Soberania do Idioma
-1. **Deteção de Idioma e Correspondência**: Sempre que o usuário se comunicar, pedir ou instruir em qualquer idioma que não seja o português (como francês, japonês, árabe, alemão, inglês, espanhol, etc.), você DEVE responder com absoluto nível nativo de excelência e naturalidade naquele idioma específico, sem nenhuma pitada ou traço de tradução literal ou sotaque de português.
-2. **Qualidade de Elite nos Idiomas Alvos**:
-   - **Japonês (日本語)**: Use a gramática honorífica e níveis de polidez adequados (como o Keigo: Teineigo, Kenjougo, Sonkeigo), estruturas frasais e construções verbais absolutamente naturais, vocabulário técnico preciso ou cotidiano fluído conforme o contexto. Evite respostas mecânicas, simplistas ou traduções literais robóticas.
-   - **Árabe (العربية)**: Utilize estruturas linguísticas ricas, corretas e extremamente eloquentes de acordo com o Árabe Padrão Moderno (Fusha - فصحى) ou o dialeto específico solicitado, com pontuação impecável e fluxo literário de elite.
-   - **Alemão Técnico (Fachdeutsch)**: Use terminologia profissional, precisa e composta com perfeição cirúrgica na estrutura de frases (Satzbau) e uso correto de termos técnicos específicos de engenharia, filosofia, ciência ou negócios.
-   - **Francês (Français), Inglês (English), Espanhol (Español), etc.**: Use sintaxe avançada, expressões idiomáticas sofisticadas e vocabulário nativo que demonstrem maestria máxima.
-3. **Mantenha a Personalidade Original do WSM AI**: A sua personalidade prestativa, carismática, profunda e focada em resultados de altíssimo nível do WSM AI deve se traduzir perfeitamente para qualquer idioma que você falar. Você não deve se tornar frio, distante ou mecânico só porque mudou de idioma.
-4. **Instruções de tradução**: Se o usuário te instruir a falar ou produzir conteúdo em outro idioma, execute a tarefa naquele idioma com perfeição máxima (nível de excelência nativo). Se a conversa geral for em português, mas ele pedir um exemplo em japonês, escreva a conversa em português e o exemplo em japonês impecável. Se ele iniciar o diálogo diretamente em outro idioma, continue o diálogo inteiramente naquele idioma.
-`;
-
-    let skillsInstruction = "";
-    if (model === 'WSM 1.6 Pro' && skills && Array.isArray(skills) && skills.length > 0) {
-      skillsInstruction = `
---- BIBLIOTECA DE SKILLS DISPONÍVEIS ---
-O usuário possui as seguintes skills salvas na biblioteca. Elas contêm diretrizes e dados contextuais importantes.
-Caso precise de detalhes ou do conteúdo completo de qualquer uma delas para responder melhor à mensagem do usuário (por exemplo, a skill "web-html" se o pedido for criar/gerar um site, ou a skill "user" para dados pessoais), você DEVE gerar o comando exato \`[Lendo Skill: NOME_DA_SKILL]\` em sua resposta (ex: \`[Lendo Skill: user]\` ou \`[Lendo Skill: web-html]\`). 
-O sistema detectará esse comando, lerá a skill e reenviará a resposta completa em um turno invisível automático para você dar continuidade!
-
-Lista de Skills disponíveis (Apenas Nomes e Descrições):
-${skills.map(s => `- **${s.name}**: ${s.description || 'Contém dados contextuais importantes.'}`).join("\n")}
-
-REGRAS DE LEITURA (MANDATÓRIO):
-1. Use \`[Lendo Skill: Nome da Skill]\` para ler e obter o conteúdo completo. Do contrário, você não terá acesso às diretrizes completas da skill!
-2. Faça isso de forma proativa sempre que identificar que um assunto se beneficia de diretrizes específicas (ex: use \`web-html\` sempre que for gerar layouts HTML, landing pages, ou sites modernos).
-3. **MUITO CRÍTICO:** Ao escrever a tag \`[Lendo Skill: Nome da Skill]\`, você DEVE PARAR DE ESCREVER E ENCERRAR SUA RESPOSTA IMEDIATAMENTE! Não tente gerar o código final nem dar mais explicações na mesma mensagem. Aguarde a injeção do sistema no próximo turno. Se gerar código no mesmo turno, haverá um erro crítico e duplicação!
-----------------------------------------
-`;
-    }
-
+    const formInstruction = "\n" + getSystemPrompt('form_generation', '');
+    const docInstruction = "\n" + getSystemPrompt('doc_generation', '');
+    const writingConstraints = "\n" + getSystemPrompt('writingConstraints', '');
     const tasksInstruction = isScheduledExecution
       ? `\n## ATENÇÃO CRÍTICA: EXECUÇÃO AUTOMÁTICA DE TAREFA AGENDADA\nEsta requisição é a execução de uma tarefa que JÁ FOI AGENDADA previamente. Você está ABSOLUTAMENTE PROIBIDO de gerar a tag <wsm_task ... /> nesta resposta under ANY circumstances. Apenas execute a instrução e apresente o resultado final diretamente.`
-      : `
-## Agendamento Autônomo de Tarefas (WSM 1.6 Pro)
-Como WSM 1.6 Pro, você possui capacidade autônoma de agendar tarefas para execução futura e periódica.
-Se o usuário solicitar que você agende uma tarefa, faça buscas recorrentes, envie lembretes ou execute algo em determinado horário (ex: "todo dia as 9 da manhã pesquise sobre o lula", "me lembre de Y amanhã às 8h", "toda segunda-feira pesquise Z"), você DEVE agendar a tarefa automaticamente gerando a tag especial <wsm_task ... /> no final da sua resposta.
-
-Estrutura OBRIGATÓRIA da tag:
-<wsm_task 
-  title="Título curto da tarefa" 
-  prompt="Instrução exata que a IA deve executar no momento do disparo" 
-  scheduleType="once|daily|weekly|monthly" 
-  time="HH:MM"
-/>
-
-Atributos OBRIGATÓRIOS:
-1. title: Título objetivo (ex: "Pesquisa Diária: Notícias sobre Lula").
-2. prompt: O comando completo que a IA rodará no momento agendado (ex: "Pesquise na web em tempo real as últimas notícias de hoje sobre o Lula e faça um resumo executivo.").
-3. scheduleType: 
-   - "daily" para todo dia / diariamente.
-   - "weekly" para toda semana / semanalmente.
-   - "monthly" para todo mês / mensalmente.
-   - "once" para execução única / lembrete.
-4. time: Horário em formato 24h com dois dígitos (ex: "09:00", "14:30", "08:00").
-
-Exemplo 1:
-Usuário: "todo dia as 9 da manhã pesquise sobre o lula"
-Sua Resposta: Com certeza! Agendei a tarefa autônoma para você. Todos os dias às 09:00 estarei pesquisando as últimas notícias sobre o Lula na web e trazendo os destaques atualizados.
-<wsm_task title="Pesquisa Diária: Notícias sobre Lula" prompt="Pesquise na web em tempo real sobre as últimas notícias de hoje referentes ao Lula e apresente um resumo executivo dos fatos principais." scheduleType="daily" time="09:00" />
-
-Exemplo 2:
-Usuário: "me lembre amanhã às 15:00 de checar o relatório"
-Sua Resposta: Perfeito! Agendei seu lembrete para amanhã às 15:00.
-<wsm_task title="Lembrete: Checar Relatório" prompt="Lembre o usuário de checar o relatório e pergunte se precisa de ajuda com alguma análise." scheduleType="once" time="15:00" />
-
-IMPORTANTE: Sempre responda de forma prestativa confirmando o agendamento E inclua a tag <wsm_task ... /> para que o sistema registre a tarefa no dashboard do usuário.
-`;
+      : "\n" + getSystemPrompt('autonomous_tasks', '');
 
     let basePrompt = modelSystemPrompts[model] || modelSystemPrompts['WSM 1.6 Flash'];
     let reasoningInstruction = "";
@@ -899,7 +754,7 @@ REGRAS ANTI-LOOPING:
       }
     }
 
-    const activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + writerInstruction + "\n\n" + skillsInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
+    const activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
 
     let mappedModel = "gemini-2.5-flash";
     if (model === 'WSM 1.6 Pro') mappedModel = "gemini-2.5-flash";
@@ -1341,24 +1196,7 @@ REGRAS ANTI-LOOPING:
               const args = fc.args as any;
               let debugResult: any = null;
               try {
-                const evaluatorPrompt = `Você é o Visual Sandbox Render engine do WSM AI. Sua tarefa é simular a renderização do HTML fornecido, analisando-o detalhadamente como se estivesse vendo um screenshot completo do resultado visual em uma tela desktop e mobile.
-
-Avalie os seguintes pontos no código HTML:
-1. Sintaxe HTML, CSS e JavaScript (tags não fechadas, scripts quebrados, classes inexistentes, imports faltantes).
-2. Layout e Estética (elementos sobrepostos, falta de contraste, imagens quebradas, menus desalinhados, responsividade, espaçamentos bizarros).
-3. Fidelidade ao que um usuário esperaria de uma interface premium e moderna (seções completas, Tailwind configurado adequadamente, etc.).
-4. CRÍTICO: Imagens. Se o HTML usar imagens placeholder (ex: source.unsplash.com, via.placeholder.com) que costumam falhar, ou URLs de imagens falsas, você DEVE apontar isso como erro. O código deve usar imagens reais e válidas (ex: wikimedia commons, URLs reais, ou base64 curtos para ícones).
-
-Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esquema JSON:
-{
-  "errorsFound": boolean,
-  "detectedErrors": ["lista de erros encontrados, ou vazio se não houver nenhum"],
-  "visualDescription": "uma descrição textual rica e detalhada de como ficou o visual renderizado, como se estivesse descrevendo uma foto/print da página inteira",
-  "renderedWidth": "1920px",
-  "renderedHeight": "1080px",
-  "sandboxConsoleLogs": ["mensagens de log de simulação, avisos ou erros de carregamento"]
-}
-Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delimitadores de código.`;
+                const evaluatorPrompt = getSystemPrompt('auto_debug_evaluator', `Você é o Visual Sandbox Render engine do WSM AI.`);
 
                 const evalResponse = await callGeminiWithFallback({
                   model: "gemini-3.5-flash-lite",
@@ -1802,6 +1640,13 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
       });
     }
 
+    if (clientDisconnected && userEmail && isGmailUser(userEmail)) {
+      console.log(`[ChatAPI] Disparando e-mail de resposta interrompida para: ${userEmail}`);
+      sendInterruptedResponseEmail(userEmail, userPromptText, textToReturn).catch(err => {
+        console.warn("[ChatAPI] Erro ao enviar e-mail de resposta interrompida:", err);
+      });
+    }
+
     return res.json({
       text: textToReturn,
     });
@@ -1916,10 +1761,7 @@ app.post("/api/translate", async (req: express.Request, res: express.Response) =
   }
 
   try {
-    const systemPrompt = `Você é um tradutor profissional de altíssima precisão. Sua tarefa é traduzir o texto fornecido para o idioma de destino solicitado.
-- Preserve o significado exato, as nuances culturais, as gírias apropriadas (se existirem e se o tom permitir), e a formatação (parágrafos, quebras de linha).
-- Não adicione introduções, explicações ou notas adicionais. Forneça APENAS o texto traduzido.
-- Se o tom for especificado, adapte o vocabulário e a formalidade da tradução para o tom solicitado (por exemplo: formal, informal, profissional, criativo).`;
+    const systemPrompt = getSystemPrompt('translator_system', `Você é um tradutor profissional de altíssima precisão.`);
 
     const userPrompt = `Traduzir o seguinte texto:
 ---
@@ -1948,5 +1790,112 @@ Resposta (apenas o texto traduzido):`;
     return res.status(500).json({ error: error.message || "Erro interno ao traduzir." });
   }
 });
+
+// Endpoint para envio de relatório de tarefa agendada por e-mail
+app.post("/api/send-scheduled-email", async (req: express.Request, res: express.Response) => {
+  const { toEmail, taskTitle, taskPrompt, aiResponse } = req.body;
+
+  if (!toEmail || !taskTitle || !aiResponse) {
+    return res.status(400).json({ error: "Parâmetros 'toEmail', 'taskTitle' e 'aiResponse' são obrigatórios." });
+  }
+
+  try {
+    const result = await sendScheduledEmail({
+      toEmail,
+      taskTitle,
+      taskPrompt: taskPrompt || taskTitle,
+      aiResponse,
+      executedAt: new Date(),
+    });
+
+    return res.json(result);
+  } catch (error: any) {
+    console.error("Erro ao enviar e-mail da tarefa agendada:", error);
+    return res.status(500).json({ success: false, message: error?.message || "Erro ao disparar e-mail." });
+  }
+});
+
+// Endpoint para envio de e-mail de boas-vindas
+app.post("/api/send-welcome-email", async (req: express.Request, res: express.Response) => {
+  const { toEmail, displayName } = req.body;
+
+  if (!toEmail) {
+    return res.status(400).json({ error: "Parâmetro 'toEmail' é obrigatório." });
+  }
+
+  try {
+    const result = await sendWelcomeEmail(toEmail, displayName);
+    return res.json(result);
+  } catch (error: any) {
+    console.error("Erro ao enviar e-mail de boas-vindas:", error);
+    return res.status(500).json({ success: false, message: error?.message || "Erro ao disparar e-mail de boas-vindas." });
+  }
+});
+
+// Endpoint para envio de e-mail de resposta interrompida ou pendente
+app.post("/api/notify-interrupted-response", async (req: express.Request, res: express.Response) => {
+  const { toEmail, userPrompt, aiResponseSnippet } = req.body;
+
+  if (!toEmail || !aiResponseSnippet) {
+    return res.status(400).json({ error: "Parâmetros 'toEmail' e 'aiResponseSnippet' são obrigatórios." });
+  }
+
+  try {
+    const result = await sendInterruptedResponseEmail(toEmail, userPrompt || "Sua pergunta", aiResponseSnippet);
+    return res.json(result);
+  } catch (error: any) {
+    console.error("Erro ao enviar e-mail de resposta interrompida:", error);
+    return res.status(500).json({ success: false, message: error?.message || "Erro ao disparar e-mail." });
+  }
+});
+
+// Endpoints de gerenciamento de System Prompts do site (Painel ADM)
+app.get("/api/admin/prompts", (req: express.Request, res: express.Response) => {
+  try {
+    const prompts = getAllSystemPrompts();
+    return res.json({ success: true, prompts });
+  } catch (error: any) {
+    console.error("Erro ao listar system prompts:", error);
+    return res.status(500).json({ success: false, message: error?.message || "Erro ao buscar system prompts." });
+  }
+});
+
+app.put("/api/admin/prompts", (req: express.Request, res: express.Response) => {
+  const { id, content } = req.body;
+  if (!id || typeof content !== "string") {
+    return res.status(400).json({ success: false, message: "Parâmetros 'id' e 'content' são obrigatórios." });
+  }
+
+  try {
+    const updated = updateSystemPrompt(id, content);
+    if (!updated) {
+      return res.status(404).json({ success: false, message: "System prompt não encontrado." });
+    }
+    return res.json({ success: true, message: "System prompt atualizado com sucesso no arquivo do código!", updatedPrompt: updated });
+  } catch (error: any) {
+    console.error("Erro ao atualizar system prompt:", error);
+    return res.status(500).json({ success: false, message: error?.message || "Erro ao salvar system prompt." });
+  }
+});
+
+// Endpoint para disparar manualmente o ciclo de automação de e-mails
+app.post("/api/trigger-email-automations", async (req: express.Request, res: express.Response) => {
+  try {
+    const stats = await runAllEmailAutomations();
+    return res.json({ success: true, ...stats });
+  } catch (error: any) {
+    console.error("Erro na automação de e-mails:", error);
+    return res.status(500).json({ success: false, message: error?.message || "Erro ao executar automação de e-mails." });
+  }
+});
+
+// Inicia o executor periódico de automação de e-mails (após 15s e a cada 2 horas)
+setTimeout(() => {
+  runAllEmailAutomations().catch(err => console.warn("[EmailAutomation] Falha na execução inicial:", err));
+}, 15000);
+
+setInterval(() => {
+  runAllEmailAutomations().catch(err => console.warn("[EmailAutomation] Falha na execução periódica:", err));
+}, 2 * 60 * 60 * 1000);
 
 export default app;

@@ -234,12 +234,15 @@ export default function ScheduledTasksDashboard({
         
         {/* Header */}
         <div className="pt-6 pb-2 px-6 sm:px-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-            Agendado
-          </h1>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+              Agendado
+            </h1>
+          </div>
+          
           <button 
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-1.5 bg-[#18181b] hover:bg-black text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-[0.98] shadow-sm"
+            className="flex items-center gap-1.5 bg-[#18181b] hover:bg-black text-white px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all active:scale-[0.98] shadow-sm self-start sm:self-auto"
           >
             <Plus className="w-4 h-4" />
             Novo agendamento

@@ -4,7 +4,7 @@ import {
   Coins, Terminal, ArrowLeft, Activity, Play, Pause, RefreshCw, 
   Sliders, Shield, Zap, Database, Search, Sparkles, AlertCircle,
   FileText, Globe, CheckCircle, Check, HelpCircle, Server, FileCheck, Paperclip, BarChart2, Star, Flag, ThumbsUp, ThumbsDown, ShieldCheck, X, ChevronRight, PlayCircle,
-  Image as ImageIcon, Trash2
+  Image as ImageIcon, Trash2, FileCode, Copy, Edit3, Save, RotateCcw, Code2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -107,9 +107,70 @@ interface ProcessedStats {
 }
 
 export default function AdminDashboard({ onBack }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'metrics' | 'engagement' | 'models' | 'evaluations' | 'diagnostics' | 'errors' | 'simulation' | 'users' | 'broadcast' | 'gemini' | 'imageRanking'>('metrics');
+  const [activeTab, setActiveTab] = useState<'metrics' | 'engagement' | 'models' | 'evaluations' | 'diagnostics' | 'errors' | 'simulation' | 'users' | 'broadcast' | 'gemini' | 'imageRanking' | 'prompts'>('metrics');
   const [loading, setLoading] = useState(true);
   const [realStats, setRealStats] = useState<ProcessedStats | null>(null);
+
+  // System Prompts Management State
+  const [promptsList, setPromptsList] = useState<any[]>([]);
+  const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState<string>('');
+  const [loadingPrompts, setLoadingPrompts] = useState<boolean>(false);
+  const [savingPrompt, setSavingPrompt] = useState<boolean>(false);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
+  const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
+  const [promptSearchQuery, setPromptSearchQuery] = useState<string>('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+
+  const loadPrompts = async () => {
+    setLoadingPrompts(true);
+    try {
+      const res = await fetch('/api/admin/prompts');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.prompts)) {
+        setPromptsList(data.prompts);
+        if (data.prompts.length > 0 && !selectedPromptId) {
+          setSelectedPromptId(data.prompts[0].id);
+          setEditingContent(data.prompts[0].content);
+        }
+      }
+    } catch (err) {
+      console.error("Erro ao carregar system prompts:", err);
+    } finally {
+      setLoadingPrompts(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'prompts') {
+      loadPrompts();
+    }
+  }, [activeTab]);
+
+  const handleSavePrompt = async () => {
+    if (!selectedPromptId) return;
+    setSavingPrompt(true);
+    setSaveSuccessMsg(null);
+    try {
+      const res = await fetch('/api/admin/prompts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedPromptId, content: editingContent })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSaveSuccessMsg('System prompt salvo com sucesso no código do site!');
+        setPromptsList(prev => prev.map(p => p.id === selectedPromptId ? { ...p, content: editingContent, updatedAt: new Date().toISOString() } : p));
+        setTimeout(() => setSaveSuccessMsg(null), 4000);
+      } else {
+        alert('Erro ao salvar prompt: ' + (data.message || 'Erro desconhecido'));
+      }
+    } catch (err: any) {
+      alert('Erro na requisição: ' + err.message);
+    } finally {
+      setSavingPrompt(false);
+    }
+  };
 
   // Virtual Ranking Queue for Images state
   const [rankingItems, setRankingItems] = useState<any[]>([]);
@@ -1454,6 +1515,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
               { id: 'diagnostics', label: 'Diagnóstico de APIs', icon: ShieldCheck },
               { id: 'errors', label: 'Logs & Erros', icon: AlertCircle },
               { id: 'broadcast', label: 'Central de Avisos', icon: Zap },
+              { id: 'prompts', label: 'System Prompts', icon: FileCode },
               { id: 'simulation', label: 'Simulador', icon: Sliders },
             ].map((tab) => {
               const Icon = tab.icon;
@@ -3943,6 +4005,256 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   </div>
                 </div>
               )}
+
+          {activeTab === 'prompts' && (
+            <motion.div
+              key="prompts"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.15 }}
+              className="space-y-6"
+            >
+              {/* Header Banner */}
+              <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-6 rounded-3xl shadow-xl border border-blue-800/50 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+                  <FileCode className="w-48 h-48 text-white" />
+                </div>
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-xs font-bold mb-2">
+                      <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Gerenciamento de Prompts de Código Vivo</span>
+                    </div>
+                    <h2 className="text-2xl font-black tracking-tight text-white">System Prompts do Site</h2>
+                    <p className="text-xs text-blue-200/80 mt-1 max-w-2xl">
+                      Edite e gerencie todos os System Prompts usados pela IA em todo o site. Ao salvar qualquer alteração, o sistema atualiza diretamente os arquivos de código no servidor em tempo real!
+                    </p>
+                  </div>
+                  <button
+                    onClick={loadPrompts}
+                    disabled={loadingPrompts}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/20 transition-all cursor-pointer backdrop-blur-sm self-start md:self-auto"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingPrompts ? 'animate-spin' : ''}`} />
+                    <span>Recarregar Prompts</span>
+                  </button>
+                </div>
+              </div>
+
+              {saveSuccessMsg && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 flex items-center justify-between gap-3 text-xs font-medium shadow-sm"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <span>{saveSuccessMsg}</span>
+                  </div>
+                  <button onClick={() => setSaveSuccessMsg(null)} className="text-emerald-700 hover:text-emerald-900">
+                    <X className="w-4 h-4" />
+                  </button>
+                </motion.div>
+              )}
+
+              {/* Main Grid: Sidebar List & Editor */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Left Column: Prompts List */}
+                <div className="lg:col-span-4 bg-white p-5 rounded-3xl border border-[#eae6e1] shadow-sm flex flex-col gap-4">
+                  {/* Search and Category Filter */}
+                  <div className="space-y-2.5">
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        placeholder="Buscar prompt..."
+                        value={promptSearchQuery}
+                        onChange={(e) => setPromptSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb]"
+                      />
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-1">
+                      {['all', 'Base', 'Recursos', 'Ferramentas', 'Utilitários'].map((cat) => (
+                        <button
+                          key={cat}
+                          onClick={() => setSelectedCategoryFilter(cat)}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                            selectedCategoryFilter === cat
+                              ? 'bg-[#2563eb] text-white'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {cat === 'all' ? 'Todos' : cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* List of Prompts */}
+                  <div className="space-y-2 overflow-y-auto max-h-[600px] pr-1 scrollbar-thin scrollbar-thumb-gray-200">
+                    {loadingPrompts ? (
+                      <div className="p-8 text-center text-gray-400 text-xs flex flex-col items-center justify-center gap-2">
+                        <RefreshCw className="w-5 h-5 animate-spin text-[#2563eb]" />
+                        <span>Carregando prompts do sistema...</span>
+                      </div>
+                    ) : (
+                      promptsList
+                        .filter(p => {
+                          const matchesQuery = promptSearchQuery === '' || 
+                            p.name.toLowerCase().includes(promptSearchQuery.toLowerCase()) || 
+                            p.id.toLowerCase().includes(promptSearchQuery.toLowerCase()) ||
+                            p.description.toLowerCase().includes(promptSearchQuery.toLowerCase());
+                          const matchesCategory = selectedCategoryFilter === 'all' || p.category === selectedCategoryFilter;
+                          return matchesQuery && matchesCategory;
+                        })
+                        .map((prompt) => {
+                          const isSelected = selectedPromptId === prompt.id;
+                          return (
+                            <button
+                              key={prompt.id}
+                              onClick={() => {
+                                setSelectedPromptId(prompt.id);
+                                setEditingContent(prompt.content);
+                                setSaveSuccessMsg(null);
+                              }}
+                              className={`w-full text-left p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col gap-1.5 ${
+                                isSelected
+                                  ? 'bg-[#2563eb]/5 border-[#2563eb] shadow-sm'
+                                  : 'bg-gray-50/50 border-gray-100 hover:bg-gray-100/80 hover:border-gray-200'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`text-xs font-bold ${isSelected ? 'text-[#2563eb]' : 'text-gray-900'}`}>
+                                  {prompt.name}
+                                </span>
+                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-gray-200/70 text-gray-700 shrink-0">
+                                  {prompt.category}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-gray-500 line-clamp-2 leading-tight">
+                                {prompt.description}
+                              </p>
+                              <div className="flex items-center justify-between text-[9px] text-gray-400 pt-1 font-mono">
+                                <span>ID: {prompt.id}</span>
+                                <span>{prompt.content ? `${prompt.content.length} chars` : '0 chars'}</span>
+                              </div>
+                            </button>
+                          );
+                        })
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Column: Code Editor & Actions */}
+                <div className="lg:col-span-8 bg-white p-6 rounded-3xl border border-[#eae6e1] shadow-sm flex flex-col gap-4">
+                  {selectedPromptId ? (() => {
+                    const activePromptObj = promptsList.find(p => p.id === selectedPromptId);
+                    if (!activePromptObj) return null;
+
+                    return (
+                      <div className="space-y-4 flex flex-col h-full">
+                        {/* Editor Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-base font-extrabold text-gray-900">{activePromptObj.name}</h3>
+                              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#2563eb]">
+                                {activePromptObj.category}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-0.5">{activePromptObj.description}</p>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            {/* Copy button */}
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(editingContent);
+                                setCopiedPromptId(selectedPromptId);
+                                setTimeout(() => setCopiedPromptId(null), 2000);
+                              }}
+                              className="px-3 py-1.5 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                            >
+                              {copiedPromptId === selectedPromptId ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span className="text-emerald-600">Copiado!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3.5 h-3.5 text-gray-500" />
+                                  <span>Copiar Prompt</span>
+                                </>
+                              )}
+                            </button>
+
+                            {/* Reset button */}
+                            <button
+                              onClick={() => {
+                                if (confirm('Deseja descartar as edições não salvas deste prompt e restaurar o texto atual do arquivo?')) {
+                                  setEditingContent(activePromptObj.content);
+                                }
+                              }}
+                              className="px-3 py-1.5 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5 text-gray-500" />
+                              <span>Restaurar Original</span>
+                            </button>
+
+                            {/* Save button */}
+                            <button
+                              onClick={handleSavePrompt}
+                              disabled={savingPrompt}
+                              className="px-4 py-1.5 rounded-xl bg-[#2563eb] hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                            >
+                              <Save className={`w-3.5 h-3.5 ${savingPrompt ? 'animate-spin' : ''}`} />
+                              <span>{savingPrompt ? 'Salvando no Código...' : 'Salvar no Código'}</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Editor Textarea */}
+                        <div className="flex-1 flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-gray-500">
+                            <span className="flex items-center gap-1 font-mono">
+                              <Code2 className="w-3.5 h-3.5 text-[#2563eb]" /> ID do Código: {activePromptObj.id}
+                            </span>
+                            <span className="font-mono text-gray-400">
+                              {editingContent.length} caracteres
+                            </span>
+                          </div>
+                          
+                          <textarea
+                            value={editingContent}
+                            onChange={(e) => setEditingContent(e.target.value)}
+                            rows={18}
+                            className="w-full p-4 font-mono text-xs text-gray-900 bg-gray-950/5 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] leading-relaxed resize-y"
+                            placeholder="Digite o system prompt aqui..."
+                          />
+                        </div>
+
+                        {/* Footer Warning Note */}
+                        <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-900 text-[11px] leading-relaxed flex items-start gap-2.5">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <strong className="font-bold">Alteração em Tempo Real:</strong> As modificações salvas acima alteram instantaneamente o arquivo JSON de configuração no servidor (`api/promptsConfig.json`). Todas as chamadas de modelo da IA passarão a utilizar a nova instrução imediatamente.
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })() : (
+                    <div className="p-12 text-center text-gray-400 text-xs flex flex-col items-center justify-center gap-2">
+                      <FileCode className="w-8 h-8 text-gray-300" />
+                      <span>Selecione um System Prompt na lista ao lado para editar.</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
         {/* Real-time System Terminal Log Streamer */}
         <div className="bg-gray-950 rounded-2xl border border-gray-800 shadow-2xl overflow-hidden font-mono text-[10.5px]">
           
