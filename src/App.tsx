@@ -1446,11 +1446,6 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                         messages: s.messages.map((m) => {
                           if (m.id === initialAiMsg.id) {
                             let newText = eventData.type === "sync_text" ? eventData.text : (m.text + eventData.text);
-                            const lendoRegex = /\[Lendo Skill:\s*(.*?)\]/i;
-                            const matchText = lendoRegex.exec(newText);
-                            if (matchText) {
-                               newText = newText.substring(0, matchText.index + matchText[0].length);
-                            }
                             return {
                               ...m,
                               text: newText,

@@ -18,7 +18,7 @@ export async function initPlaywright() {
         browser = await playwrightCore.launch({
           args: sparticuzChromium.args,
           executablePath: executablePath,
-          headless: sparticuzChromium.headless,
+          headless: (sparticuzChromium as any).headless ?? true,
         });
       } else {
         console.log("Initializing Playwright with default chromium...");

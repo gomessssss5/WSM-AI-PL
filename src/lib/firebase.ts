@@ -14,6 +14,7 @@ import {
 } from 'firebase/auth';
 import { 
   getFirestore, 
+  initializeFirestore,
   doc, 
   setDoc, 
   getDoc, 
@@ -42,10 +43,14 @@ const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 
-// Use custom firestore database ID if specified in the config
-export const db = config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)'
-  ? getFirestore(app, config.firestoreDatabaseId)
-  : getFirestore(app);
+// Use custom firestore database ID if specified in the config, with auto-detect long polling enabled to prevent QUIC errors
+const dbId = config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)'
+  ? config.firestoreDatabaseId
+  : undefined;
+
+export const db = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true,
+}, dbId);
 
 // Validate Connection to Firestore on boot
 import { getDocFromServer } from 'firebase/firestore';

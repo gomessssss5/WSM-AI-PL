@@ -84,94 +84,91 @@ function getFallback2GeminiClient(): GoogleGenAI {
   return fallback2AiClient;
 }
 
-async function executeWithAllFallbacks(options: any, isStream: boolean) {
-  if (options && options.config) {
-    options.config.maxOutputTokens = options.config.maxOutputTokens || 20000;
-  } else if (options) {
-    options.config = { maxOutputTokens: 20000 };
+async function executeWithAllFallbacks(options: any, isStream: boolean): Promise<any> {
+  // Ensure config object exists and maxOutputTokens is capped at 8192 for Gemini models
+  const reqConfig = { ...(options.config || {}) };
+  if (!reqConfig.maxOutputTokens || reqConfig.maxOutputTokens > 8192) {
+    reqConfig.maxOutputTokens = 8192;
   }
 
-  const clientsToTry = [];
-
-  // Client 1 (Primary)
-  try {
-    clientsToTry.push({ name: "IA_API_KEY", client: getGeminiClient() });
-  } catch (e: any) {
-    console.warn("Could not load primary client:", e.message || String(e));
+  // Model fallback hierarchy
+  const primaryModel = options.model || "gemini-2.5-flash";
+  const modelList: string[] = [primaryModel];
+  if (!modelList.includes("gemini-3.5-flash-lite")) {
+    modelList.push("gemini-3.5-flash-lite");
+  }
+  if (!modelList.includes("gemini-2.5-flash")) {
+    modelList.push("gemini-2.5-flash");
   }
 
-  // Client 2 (Fallback 1)
-  if (process.env.IA_API_KEY_2) {
-    try {
-      clientsToTry.push({ name: "IA_API_KEY_2", client: getFallbackGeminiClient() });
-    } catch (e: any) {
-      console.warn("Could not load fallback 1 client:", e.message || String(e));
-    }
-  }
+  // Collect all available API keys
+  const keys: { name: string; key: string }[] = [];
+  if (process.env.IA_API_KEY) keys.push({ name: "IA_API_KEY", key: process.env.IA_API_KEY });
+  if (process.env.IA_API_KEY_2) keys.push({ name: "IA_API_KEY_2", key: process.env.IA_API_KEY_2 });
+  if (process.env.IA_API_KEY_3) keys.push({ name: "IA_API_KEY_3", key: process.env.IA_API_KEY_3 });
+  if (process.env.GEMINI_API_KEY) keys.push({ name: "GEMINI_API_KEY", key: process.env.GEMINI_API_KEY });
 
-  // Client 3 (Fallback 2)
-  if (process.env.IA_API_KEY_3) {
-    try {
-      clientsToTry.push({ name: "IA_API_KEY_3", client: getFallback2GeminiClient() });
-    } catch (e: any) {
-      console.warn("Could not load fallback 2 client:", e.message || String(e));
-    }
-  }
-
-  if (clientsToTry.length === 0) {
-    throw new Error("WSM 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.");
+  if (keys.length === 0) {
+    throw new Error("Nenhuma chave de API da IA (IA_API_KEY) foi configurada nas variáveis de ambiente.");
   }
 
   let lastError: any = null;
 
-  for (let i = 0; i < clientsToTry.length; i++) {
-    const item = clientsToTry[i];
-    try {
-      if (isStream) {
-        try {
-          return await item.client.models.generateContentStream(options);
-        } catch (apiError: any) {
-          const errMsg = apiError.message || String(apiError);
-          if (errMsg.includes("max_output_tokens") || errMsg.includes("maxOutputTokens") || errMsg.includes("out of range") || errMsg.includes("limit") || errMsg.includes("Value")) {
-            console.warn(`Stream maxOutputTokens of 20000 failed for ${item.name}, falling back to 8192...`, apiError.message);
-            options.config.maxOutputTokens = 8192;
-            return await item.client.models.generateContentStream(options);
-          }
-          throw apiError;
+  for (const modelToTry of modelList) {
+    for (const keyItem of keys) {
+      try {
+        const client = new GoogleGenAI({
+          apiKey: keyItem.key,
+          httpOptions: {
+            headers: {
+              "User-Agent": "aistudio-build",
+            },
+          },
+        });
+
+        const callOpts = {
+          ...options,
+          model: modelToTry,
+          config: reqConfig,
+        };
+
+        if (isStream) {
+          return await client.models.generateContentStream(callOpts);
+        } else {
+          return await client.models.generateContent(callOpts);
         }
-      } else {
-        try {
-          return await item.client.models.generateContent(options);
-        } catch (apiError: any) {
-          const errMsg = apiError.message || String(apiError);
-          if (errMsg.includes("max_output_tokens") || errMsg.includes("maxOutputTokens") || errMsg.includes("out of range") || errMsg.includes("limit") || errMsg.includes("Value")) {
-            console.warn(`maxOutputTokens of 20000 failed for ${item.name}, falling back to 8192...`, apiError.message);
-            options.config.maxOutputTokens = 8192;
-            return await item.client.models.generateContent(options);
-          }
-          throw apiError;
-        }
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`[Fallback] Model '${modelToTry}' with key '${keyItem.name}' failed:`, err?.message || String(err));
       }
-    } catch (error: any) {
-      console.warn(`Gemini API Client ${item.name} failed silently, attempting next fallback if available. Error:`, error.message || String(error));
-      lastError = error;
     }
   }
 
   throw new Error("WSM 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.");
 }
 
-async function callGeminiWithFallback(options: any) {
+async function callGeminiWithFallback(options: any): Promise<any> {
   return executeWithAllFallbacks(options, false);
 }
 
-async function callGeminiStreamWithFallback(options: any) {
+async function callGeminiStreamWithFallback(options: any): Promise<any> {
   return executeWithAllFallbacks(options, true);
 }
 
 // API endpoint for chatbot communication and Web Search
 app.post("/api/chat", async (req: express.Request, res: express.Response) => {
   const { text, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution } = req.body;
+
+  const userPromptText = typeof text === 'string' ? text : JSON.stringify(text || '');
+
+  const textRequestedComputer = /\b(ativ\w*|us\w*|habilit\w*|lig\w*)\s+(o(s)?\s+)?(modo(s)?\s+)?(computador|agente|navegador|playwright)\b/i.test(userPromptText) ||
+    /\b(modo\s+computador|modo\s+agente|modo\s+navegador)\b/i.test(userPromptText);
+
+  const textRequestedSearch = /\b(ativ\w*|us\w*|habilit\w*|lig\w*)\s+(o(s)?\s+)?(modo(s)?\s+)?(pesquis\w*|busca)\b/i.test(userPromptText) ||
+    /\b(modo\s+pesquis\w*|modo\s+busca|pesquisa\s+web|pesquisar\s+na\s+web)\b/i.test(userPromptText);
+
+  const effectiveComputerEnabled = Boolean(isComputerEnabled) || textRequestedComputer;
+  const effectiveSearchEnabled = Boolean(isSearchEnabled) || textRequestedSearch;
 
   // Extract real-time user location (city), date, and exact time
   const now = new Date();
@@ -213,10 +210,10 @@ Instruções Importantes:
       });
     }
 
-    let shouldSearch = isSearchEnabled;
+    let shouldSearch = effectiveSearchEnabled;
 
-    // Pro uses its own agentic flow for autonomous tool use, but if search is explicitly enabled (manual toggle or scheduled task), we let it use the structured search flow!
-    if (model === 'WSM 1.6 Pro' && !isSearchEnabled) {
+    // Pro uses its own agentic flow for autonomous tool use, but if search is explicitly enabled (manual toggle, scheduled task, or text prompt request), we let it use the structured search flow!
+    if (model === 'WSM 1.6 Pro' && !effectiveSearchEnabled) {
       shouldSearch = false;
     } else if (!shouldSearch && process.env.TAVILY_API_KEY) {
       // AI autonomously decides if it needs to search the web for this query
@@ -887,13 +884,18 @@ REGRAS ANTI-LOOPING:
 2. Se a página atual não atualizar ou você precisar ver mais conteúdo abaixo, chame \`scroll_page\` ou \`extract_visible_text\` para reler os elementos.
 `;
 
-      if (isComputerEnabled) {
-        browserInstruction += `
-
-## MODO COMPUTADOR ATIVADO (PRIORIDADE MÁXIMA DE USO DO PLAYWRIGHT/NAVEGADOR)
-O usuário ativou o botão "Computador".
-Com este modo ativado, você deve ter MUITO MAIS PRIORIDADE em utilizar as ferramentas do navegador real via Playwright (\`open_url\`, \`type_text\`, \`click\`, \`scroll_page\`, \`extract_visible_text\`) para interagir diretamente com a web de forma agêntica.
-Apenas NÃO utilize o navegador se a solicitação do usuário for REALMENTE algo que não precisa de navegação em site algum (por exemplo: um cumprimento simples como "olá", uma conta matemática direta "quanto é 2+2", ou uma pergunta estritamente teórica sem necessidade de verificação online). Em todos os outros casos (pesquisa, consulta, acesso a sites, automação, cliques, buscas), USE O NAVEGADOR COM PRIORIDADE MÁXIMA.`;
+      if (effectiveComputerEnabled || effectiveSearchEnabled) {
+        browserInstruction += `\n\n## MODOS ATIVADOS PELO USUÁRIO (CONFIRMAÇÃO E EXECUÇÃO OBRIGATÓRIA DA FERRAMENTA)`;
+        if (effectiveComputerEnabled) {
+          browserInstruction += `
+- **MODO COMPUTADOR ATIVADO**: O usuário solicitou o Modo Computador (Navegador Playwright real). Você DEVE utilizar as ferramentas de navegação (\`open_url\`, \`type_text\`, \`click\`, \`scroll_page\`, \`extract_visible_text\`) para interagir com a web com PRIORIDADE MÁXIMA.
+- Confirme claramente na sua resposta ("✓ Modo Computador ativado") e execute a chamada de ferramenta de navegação ('open_url') no MESMO TURNO.`;
+        }
+        if (effectiveSearchEnabled) {
+          browserInstruction += `
+- **MODO PESQUISAR ATIVADO**: O usuário solicitou o Modo Pesquisar. Você DEVE utilizar a ferramenta de pesquisa (\`web_search\` ou \`open_url\` no Brave Search \`https://search.brave.com\`) para buscar dados em tempo real.
+- Confirme claramente na sua resposta ("✓ Modo Pesquisar ativado") e execute a pesquisa no MESMO TURNO.`;
+        }
       }
     }
 
@@ -1072,13 +1074,14 @@ Apenas NÃO utilize o navegador se a solicitação do usuário for REALMENTE alg
               "\nREGRA DE GERAÇÃO DE IMAGENS (AI HORDE): SEMPRE que o usuário solicitar para gerar, criar, desenhar ou pintar uma imagem, foto, ilustração ou arte visual, você DEVE OBRIGATORIAMENTE chamar a ferramenta 'gerar_imagem' IMEDIATAMENTE. IMPORTANTE: NUNCA diga 'Vou gerar a imagem' e encerre o turno sem chamar a ferramenta. Você DEVE chamar a ferramenta no MESMO turno! Ao chamar, passe o prompt descritivo detalhado em inglês (ex: 'a majestic golden retriever sitting on a mountain peak, cinematic, 8k')." +
               "\nREGRA DE SINTAXE APÓS GERAR IMAGEM: Quando 'gerar_imagem' for executada, a imagem gerada já é exibida automaticamente pela interface no componente <wsm_image>. Na sua resposta final, é ABSOLUTAMENTE PROIBIDO escrever manualmente a tag <wsm_image>, dados base64, URLs ou sintaxe markdown ![alt](url). Apenas faça um breve comentário amigável sobre a imagem gerada (o sistema já inseriu e exibiu a imagem no chat)." +
               "\nREGRA DE NAVEGAÇÃO WEB REAL (PLAYWRIGHT): SEMPRE que o usuário pedir para abrir, acessar ou navegar em qualquer site (ex: Brave Search, Google, Wikipedia, etc), VOCÊ DEVE OBRIGATORIAMENTE emitir a chamada de função 'open_url' (functionCall) no MESMO TURNO. É ABSOLUTAMENTE PROIBIDO apenas escrever texto prometendo abrir o site sem enviar a chamada da ferramenta 'open_url'!" +
-              "\nREGRAS OBRIGATÓRIAS DE AGENTE SEQUENCIAL (PASSO A PASSO):" +
-              "\n1. Atue como um AGENTE SEQUENCIAL que executa tarefas em múltiplos turnos. NUNCA tente chamar ferramentas de categorias diferentes no mesmo turno!" +
-              "\n2. Se o usuário solicitou múltiplos pedidos (ex: 'crie uma imagem de um elefante e pesquise na web sobre o Neymar'):" +
-              "\n   - TURNO 1: Execute PRIMEIRO a ferramenta 'gerar_imagem' (functionCall) com o prompt visual em inglês. Não pesquise na web neste turno." +
-              "\n   - TURNO 2 (após a imagem ser gerada pelo sistema): Execute a ferramenta de pesquisa 'web_search' (functionCall) no turno seguinte." +
-              "\n   - TURNO 3 (após receber o resultado da pesquisa): Escreva a resposta final amigável e completa para o usuário." +
-              "\n3. CRÍTICO: NUNCA escreva apenas texto conversacional prometendo ações (ex: 'Vou gerar a imagem', 'Para atender seu pedido...') sem enviar a chamada de função (functionCall) no mesmo turno!" +
+              "\nREGRAS OBRIGATÓRIAS DE AGENTE SEQUENCIAL MULTI-ETAPAS (PASSO A PASSO):" +
+              "\n1. Atue como um AGENTE SEQUENCIAL AUTÔNOMO que executa tarefas complexas em múltiplos turnos encadeados." +
+              "\n2. Se o usuário solicitou MÚLTIPLAS ETAPAS no prompt (ex: 'pesquise na web X e depois abra o site Y', 'gerar imagem e depois pesquisar', 'pesquisar e depois abrir navegador', etc.):" +
+              "\n   - Execute UMA FERRAMENTA POR TURNO de forma organizada." +
+              "\n   - APÓS RECEBER O RETORNO DE UMA FERRAMENTA (ex: 'web_search'), SE O PROMPT DO USUÁRIO SOLICITOU OUTRAS AÇÕES (ex: abrir site com 'open_url', clicar, navegar, calcular, gerar imagem), VOCÊ DEVE OBRIGATORIAMENTE EXECUTAR A PRÓXIMA FERRAMENTA NO TURNO SEGUINTE." +
+              "\n   - É ABSOLUTAMENTE PROIBIDO encerrar a resposta ou parar na metade do fluxo logo após a pesquisa na web se ainda houver outras ações ou sites para abrir solicitados pelo usuário!" +
+              "\n   - Apenas apresente a resposta final completa em texto quando TODAS as ferramentas e ações pedidas no prompt do usuário tiverem sido devidamente executadas." +
+              "\n3. CRÍTICO: NUNCA escreva apenas texto conversacional prometendo ações (ex: 'Vou abrir o site', 'Para atender seu pedido...') sem enviar a chamada de função (functionCall) no mesmo turno!" +
               (lastDebugResult 
                 ? (lastDebugResult.errorsFound
                     ? `\n\nAVISO DE ERROS ENCONTRADOS: A ferramenta 'auto_debug_html' detectou os seguintes problemas no seu HTML: ${JSON.stringify(lastDebugResult.detectedErrors)}. Você está no Turno de Correção. Você é ABSOLUTAMENTE PROIBIDO de gerar o bloco de código Markdown final (\x60\x60\x60html ... \x60\x60\x60) para o usuário agora. Em vez disso, corrija TODOS os problemas indicados, escreva apenas uma mensagem curta de status como "(Corrigindo erros detectados no código...)" e chame a ferramenta 'auto_debug_html' novamente passando o HTML 100% corrigido!`
@@ -1144,7 +1147,8 @@ Apenas NÃO utilize o navegador se a solicitação do usuário for REALMENTE alg
           const aiStr = (textForThisTurn || "").toLowerCase();
 
           const isSimpleGreetingOrMath = /^(ol[áa]|oi|tudo\s+bem|boa\s+(tarde|noite|dia)|quanto\s+[ée]|calcul[ae]|1\+[123456789]|2\+2)$/i.test(userStr.trim());
-          const wantsBrowser = (Boolean(isComputerEnabled) && !isSimpleGreetingOrMath) || /\b(abrir|acesse|acessar|navegar|entrar\s+no)\s+(site|link|url|pagina|página)\b|\b(abrir|acesse|acessar|entrar\s+no)\s+(youtube|google|wikipedia|github|brave)\b|https?:\/\/|www\./i.test(userStr);
+          const wantsBrowser = (Boolean(effectiveComputerEnabled) && !isSimpleGreetingOrMath) || 
+            /\b(abrir|acesse|acessar|navegar|entrar\s+no|ir\s+at[ée]|visit\w*|abra)\s+(o\s+)?(site|link|url|pagina|página|navegador)\b|\b(abrir|acesse|acessar|entrar\s+no|visitar|pesquisar\s+no|procurar\s+no)\s+(youtube|google|wikipedia|github|brave|twitter|x\.com)\b|\b(ativ\w*|us\w*|habilit\w*)\s+.*(computador|agente|navegador)\b|\bmodo\s+computador\b|https?:\/\/|www\./i.test(userStr);
           const browserAlreadyCalled = currentContents.some((c: any) => 
             c.parts?.some((p: any) => 
               p.functionCall?.name === "open_url" || p.functionResponse?.name === "open_url" ||
@@ -1646,14 +1650,16 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
             c.parts?.some((p: any) => p.functionCall?.name === "gerar_imagem" || p.functionResponse?.name === "gerar_imagem")
           );
 
-          const wantsSearch = /\b(pesquis|busc)\w*\b.*\b(web|internet|google|brave|notícia|hoje|site)\b|\búltimas notícias\b|\bcotação do\b|\bpreço do\b/i.test(userStr);
+          const wantsSearch = Boolean(effectiveSearchEnabled) ||
+            /\b(pesquis|busc)\w*\b.*\b(web|internet|google|brave|notícia|hoje|site)\b|\búltimas notícias\b|\bcotação do\b|\bpreço do\b|\b(ativ\w*|us\w*|habilit\w*)\s+.*(pesquis|busca)\b|\bmodo\s+pesquis\w*\b/i.test(userStr);
           const aiPromisedSearch = /\b(vou|irei|estou)\s+(pesquisar|buscar)\b.*\b(web|internet|informações|notícias)\b|\bpesquisando\s+na\s+web\b/i.test(aiStr);
           const searchAlreadyCalled = currentContents.some((c: any) => 
             c.parts?.some((p: any) => p.functionCall?.name === "web_search" || p.functionResponse?.name === "web_search")
           );
 
           const isSimpleGreetingOrMath2 = /^(ol[áa]|oi|tudo\s+bem|boa\s+(tarde|noite|dia)|quanto\s+[ée]|calcul[ae]|1\+[123456789]|2\+2)$/i.test(userStr.trim());
-          const wantsBrowser = (Boolean(isComputerEnabled) && !isSimpleGreetingOrMath2) || /\b(abrir|acesse|acessar|navegar|entrar\s+no)\s+(site|link|url|pagina|página)\b|\b(abrir|acesse|acessar|entrar\s+no)\s+(youtube|google|wikipedia|github|brave)\b|https?:\/\/|www\./i.test(userStr);
+          const wantsBrowser = (Boolean(effectiveComputerEnabled) && !isSimpleGreetingOrMath2) || 
+            /\b(abrir|acesse|acessar|navegar|entrar\s+no|ir\s+at[ée]|visit\w*|abra)\s+(o\s+)?(site|link|url|pagina|página|navegador)\b|\b(abrir|acesse|acessar|entrar\s+no|visitar|pesquisar\s+no|procurar\s+no)\s+(youtube|google|wikipedia|github|brave|twitter|x\.com)\b|\b(ativ\w*|us\w*|habilit\w*)\s+.*(computador|agente|navegador)\b|\bmodo\s+computador\b|https?:\/\/|www\./i.test(userStr);
           const aiPromisedBrowser = /\b(vou|irei|estou)\s+(abrir|acessar|navegar)\s+(o|a)?\s*(site|url|página|link|navegador)\b|\b(acessando|abrirá|abrindo)\s+o\s+site\b/i.test(aiStr);
           const browserAlreadyCalled = currentContents.some((c: any) => 
             c.parts?.some((p: any) => 
@@ -1669,7 +1675,7 @@ Certifique-se de retornar apenas o JSON puro, sem formatação Markdown ou delim
           const missingSearchCall = (wantsSearch || aiPromisedSearch) && !searchAlreadyCalled;
           const missingBrowserCall = (wantsBrowser || aiPromisedBrowser) && !browserAlreadyCalled;
 
-          if ((missingImageCall || missingSearchCall || missingBrowserCall) && turnCount < 3) {
+          if ((missingImageCall || missingSearchCall || missingBrowserCall) && turnCount < 6) {
             console.warn(`[Pro] Missing tool call detected on turn ${turnCount}! missingBrowser: ${missingBrowserCall}, missingImage: ${missingImageCall}, missingSearch: ${missingSearchCall}. Triggering recovery...`);
             
             // Clean up intermediate unfulfilled conversational text from fullOutput to prevent duplicate text in UI

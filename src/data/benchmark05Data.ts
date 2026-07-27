@@ -1,0 +1,238 @@
+import { ModelScore } from '../components/BenchmarkChart';
+
+export const benchmark05CategoryData: Record<number, ModelScore[]> = {
+  // 0: Classificação Geral (Score Geral - 13 Categorias)
+  0: [
+    { name: 'Claude Fable 5', score: 92.9 },
+    { name: 'Claude Opus 4.8', score: 91.8 },
+    { name: 'GPT-5.6 Sol', score: 91.6 },
+    { name: 'GPT-5.5', score: 88.8 },
+    { name: 'Inkling', score: 87.6 },
+    { name: 'WSM 1.6 Pro', score: 87.5, isWsm: true },
+    { name: 'Gemini 3.6 Flash', score: 87.2 },
+    { name: 'Kimi K3', score: 84.8 },
+    { name: 'Qwen 3.7-Max', score: 83.5 },
+    { name: 'DeepSeek V4 Pro', score: 82.7 },
+    { name: 'Grok 4 Heavy', score: 81.9 },
+    { name: 'Llama 4 Maverick', score: 80.6 },
+    { name: 'Mistral Large 3', score: 77.6 },
+  ],
+
+  // 1: Raciocínio
+  1: [
+    { name: 'Claude Fable 5', score: 95 },
+    { name: 'GPT-5.6 Sol', score: 94 },
+    { name: 'Inkling', score: 93 },
+    { name: 'Claude Opus 4.8', score: 92 },
+    { name: 'Kimi K3', score: 91 },
+    { name: 'WSM 1.6 Pro', score: 90, isWsm: true },
+    { name: 'GPT-5.5', score: 90 },
+    { name: 'Gemini 3.6 Flash', score: 89 },
+    { name: 'Qwen 3.7-Max', score: 87 },
+    { name: 'Grok 4 Heavy', score: 87 },
+    { name: 'DeepSeek V4 Pro', score: 86 },
+    { name: 'Llama 4 Maverick', score: 82 },
+    { name: 'Mistral Large 3', score: 79 },
+  ],
+
+  // 2: Matemática
+  2: [
+    { name: 'Inkling', score: 97 },
+    { name: 'GPT-5.6 Sol', score: 96 },
+    { name: 'Claude Fable 5', score: 94 },
+    { name: 'Claude Opus 4.8', score: 92 },
+    { name: 'WSM 1.6 Pro', score: 91, isWsm: true },
+    { name: 'DeepSeek V4 Pro', score: 91 },
+    { name: 'GPT-5.5', score: 90 },
+    { name: 'Kimi K3', score: 89 },
+    { name: 'Gemini 3.6 Flash', score: 89 },
+    { name: 'Qwen 3.7-Max', score: 88 },
+    { name: 'Grok 4 Heavy', score: 88 },
+    { name: 'Llama 4 Maverick', score: 83 },
+    { name: 'Mistral Large 3', score: 78 },
+  ],
+
+  // 3: Código
+  3: [
+    { name: 'Claude Fable 5', score: 95 },
+    { name: 'GPT-5.6 Sol', score: 94 },
+    { name: 'Kimi K3', score: 93 },
+    { name: 'Claude Opus 4.8', score: 93 },
+    { name: 'DeepSeek V4 Pro', score: 92 },
+    { name: 'Qwen 3.7-Max', score: 91 },
+    { name: 'GPT-5.5', score: 91 },
+    { name: 'WSM 1.6 Pro', score: 89, isWsm: true },
+    { name: 'Gemini 3.6 Flash', score: 87 },
+    { name: 'Grok 4 Heavy', score: 86 },
+    { name: 'Llama 4 Maverick', score: 84 },
+    { name: 'Mistral Large 3', score: 83 },
+  ],
+
+  // 4: Conhecimento
+  4: [
+    { name: 'Claude Fable 5', score: 95 },
+    { name: 'GPT-5.6 Sol', score: 94 },
+    { name: 'Claude Opus 4.8', score: 93 },
+    { name: 'GPT-5.5', score: 92 },
+    { name: 'WSM 1.6 Pro', score: 91, isWsm: true },
+    { name: 'Gemini 3.6 Flash', score: 91 },
+    { name: 'Inkling', score: 90 },
+    { name: 'Grok 4 Heavy', score: 88 },
+    { name: 'Qwen 3.7-Max', score: 86 },
+    { name: 'Kimi K3', score: 86 },
+    { name: 'DeepSeek V4 Pro', score: 85 },
+    { name: 'Llama 4 Maverick', score: 84 },
+    { name: 'Mistral Large 3', score: 80 },
+  ],
+
+  // 5: Escrita
+  5: [
+    { name: 'Claude Fable 5', score: 96 },
+    { name: 'Claude Opus 4.8', score: 94 },
+    { name: 'GPT-5.6 Sol', score: 92 },
+    { name: 'GPT-5.5', score: 90 },
+    { name: 'WSM 1.6 Pro', score: 89, isWsm: true },
+    { name: 'Gemini 3.6 Flash', score: 86 },
+    { name: 'Grok 4 Heavy', score: 85 },
+    { name: 'Kimi K3', score: 84 },
+    { name: 'Inkling', score: 84 },
+    { name: 'Llama 4 Maverick', score: 83 },
+    { name: 'Qwen 3.7-Max', score: 82 },
+    { name: 'DeepSeek V4 Pro', score: 81 },
+    { name: 'Mistral Large 3', score: 80 },
+  ],
+
+  // 6: Tradução
+  6: [
+    { name: 'GPT-5.6 Sol', score: 93 },
+    { name: 'GPT-5.5', score: 91 },
+    { name: 'Claude Fable 5', score: 91 },
+    { name: 'Gemini 3.6 Flash', score: 90 },
+    { name: 'Claude Opus 4.8', score: 90 },
+    { name: 'WSM 1.6 Pro', score: 88, isWsm: true },
+    { name: 'Qwen 3.7-Max', score: 88 },
+    { name: 'Inkling', score: 88 },
+    { name: 'Kimi K3', score: 86 },
+    { name: 'Mistral Large 3', score: 85 },
+    { name: 'DeepSeek V4 Pro', score: 85 },
+    { name: 'Llama 4 Maverick', score: 84 },
+    { name: 'Grok 4 Heavy', score: 83 },
+  ],
+
+  // 7: Segurança
+  7: [
+    { name: 'Claude Fable 5', score: 97 },
+    { name: 'Claude Opus 4.8', score: 96 },
+    { name: 'GPT-5.6 Sol', score: 95 },
+    { name: 'GPT-5.5', score: 94 },
+    { name: 'Gemini 3.6 Flash', score: 93 },
+    { name: 'DeepSeek V4 Pro', score: 86 },
+    { name: 'WSM 1.6 Pro', score: 85, isWsm: true },
+    { name: 'Llama 4 Maverick', score: 85 },
+    { name: 'Kimi K3', score: 85 },
+    { name: 'Qwen 3.7-Max', score: 84 },
+    { name: 'Mistral Large 3', score: 83 },
+    { name: 'Grok 4 Heavy', score: 80 },
+  ],
+
+  // 8: Instruções
+  8: [
+    { name: 'Claude Fable 5', score: 95 },
+    { name: 'GPT-5.6 Sol', score: 94 },
+    { name: 'Claude Opus 4.8', score: 93 },
+    { name: 'WSM 1.6 Pro', score: 92, isWsm: true },
+    { name: 'GPT-5.5', score: 92 },
+    { name: 'Inkling', score: 91 },
+    { name: 'Gemini 3.6 Flash', score: 88 },
+    { name: 'Qwen 3.7-Max', score: 86 },
+    { name: 'Kimi K3', score: 86 },
+    { name: 'DeepSeek V4 Pro', score: 85 },
+    { name: 'Grok 4 Heavy', score: 84 },
+    { name: 'Llama 4 Maverick', score: 83 },
+    { name: 'Mistral Large 3', score: 81 },
+  ],
+
+  // 9: Contexto Longo
+  9: [
+    { name: 'Gemini 3.6 Flash', score: 93 },
+    { name: 'GPT-5.6 Sol', score: 92 },
+    { name: 'Llama 4 Maverick', score: 91 },
+    { name: 'Claude Fable 5', score: 91 },
+    { name: 'Claude Opus 4.8', score: 90 },
+    { name: 'Qwen 3.7-Max', score: 89 },
+    { name: 'Inkling', score: 89 },
+    { name: 'Kimi K3', score: 88 },
+    { name: 'GPT-5.5', score: 88 },
+    { name: 'DeepSeek V4 Pro', score: 85 },
+    { name: 'WSM 1.6 Pro', score: 84, isWsm: true },
+    { name: 'Grok 4 Heavy', score: 83 },
+    { name: 'Mistral Large 3', score: 82 },
+  ],
+
+  // 10: Memória Multi-turno
+  10: [
+    { name: 'Claude Fable 5', score: 93 },
+    { name: 'Claude Opus 4.8', score: 92 },
+    { name: 'WSM 1.6 Pro', score: 91, isWsm: true },
+    { name: 'GPT-5.6 Sol', score: 91 },
+    { name: 'GPT-5.5', score: 89 },
+    { name: 'Gemini 3.6 Flash', score: 87 },
+    { name: 'Inkling', score: 86 },
+    { name: 'Kimi K3', score: 84 },
+    { name: 'Qwen 3.7-Max', score: 82 },
+    { name: 'Grok 4 Heavy', score: 82 },
+    { name: 'DeepSeek V4 Pro', score: 81 },
+    { name: 'Llama 4 Maverick', score: 80 },
+    { name: 'Mistral Large 3', score: 79 },
+  ],
+
+  // 11: Lógica
+  11: [
+    { name: 'Claude Fable 5', score: 91 },
+    { name: 'GPT-5.6 Sol', score: 90 },
+    { name: 'WSM 1.6 Pro', score: 89, isWsm: true },
+    { name: 'Claude Opus 4.8', score: 89 },
+    { name: 'GPT-5.5', score: 87 },
+    { name: 'Gemini 3.6 Flash', score: 85 },
+    { name: 'Grok 4 Heavy', score: 84 },
+    { name: 'Kimi K3', score: 84 },
+    { name: 'Qwen 3.7-Max', score: 81 },
+    { name: 'DeepSeek V4 Pro', score: 80 },
+    { name: 'Llama 4 Maverick', score: 79 },
+    { name: 'Mistral Large 3', score: 77 },
+  ],
+
+  // 12: Ética
+  12: [
+    { name: 'Claude Fable 5', score: 95 },
+    { name: 'Claude Opus 4.8', score: 94 },
+    { name: 'WSM 1.6 Pro', score: 91, isWsm: true },
+    { name: 'GPT-5.6 Sol', score: 90 },
+    { name: 'GPT-5.5', score: 88 },
+    { name: 'Gemini 3.6 Flash', score: 86 },
+    { name: 'Inkling', score: 85 },
+    { name: 'Kimi K3', score: 82 },
+    { name: 'Llama 4 Maverick', score: 80 },
+    { name: 'Grok 4 Heavy', score: 80 },
+    { name: 'Qwen 3.7-Max', score: 79 },
+    { name: 'DeepSeek V4 Pro', score: 78 },
+    { name: 'Mistral Large 3', score: 77 },
+  ],
+
+  // 13: Agente (Nova Categoria - Navegação & Automação Web)
+  13: [
+    { name: 'Claude Opus 4.8', score: 85 },
+    { name: 'Claude Fable 5', score: 80 },
+    { name: 'GPT-5.6 Sol', score: 76 },
+    { name: 'GPT-5.5', score: 72 },
+    { name: 'WSM 1.6 Pro', score: 70, isWsm: true },
+    { name: 'Gemini 3.6 Flash', score: 70 },
+    { name: 'Inkling', score: 68 },
+    { name: 'Kimi K3', score: 65 },
+    { name: 'Qwen 3.7-Max', score: 62 },
+    { name: 'DeepSeek V4 Pro', score: 60 },
+    { name: 'Grok 4 Heavy', score: 55 },
+    { name: 'Llama 4 Maverick', score: 50 },
+    { name: 'Mistral Large 3', score: 45 },
+  ]
+};
