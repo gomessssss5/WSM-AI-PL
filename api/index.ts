@@ -3,11 +3,12 @@ import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import sharp from "sharp";
 import { imageRankingQueue } from "./imageQueue.js";
-import { openUrl, clickSelector, typeText, scrollPage, extractText } from "./playwrightAgent.js";
+import { openUrl, clickSelector, typeText, scrollPage, extractText, waitSeconds } from "./playwrightAgent.js";
 import { 
   sendScheduledEmail, 
   sendWelcomeEmail, 
   sendInterruptedResponseEmail, 
+  sendGenericEmail,
   isGmailUser 
 } from "./emailService.js";
 import { runAllEmailAutomations } from "./emailAutomation.js";
@@ -92,21 +93,88 @@ function getFallback2GeminiClient(): GoogleGenAI {
   return fallback2AiClient;
 }
 
+function sanitizeGeminiContents(rawContents: any[]): any[] {
+  if (!Array.isArray(rawContents) || rawContents.length === 0) return [];
+  
+  const cleaned: any[] = [];
+  
+  for (const item of rawContents) {
+    if (!item || typeof item !== "object") continue;
+    let role = item.role === "model" ? "model" : "user";
+    let parts = item.parts;
+    
+    if (!Array.isArray(parts)) {
+      if (typeof item.text === "string" && item.text.trim()) {
+        parts = [{ text: item.text }];
+      } else {
+        continue;
+      }
+    }
+    
+    const validParts: any[] = [];
+    for (const p of parts) {
+      if (!p) continue;
+      if (p.functionCall) {
+        validParts.push({ functionCall: p.functionCall });
+      } else if (p.functionResponse) {
+        validParts.push({ functionResponse: p.functionResponse });
+      } else if (p.inlineData && p.inlineData.data) {
+        validParts.push({ inlineData: p.inlineData });
+      } else if (typeof p.text === "string") {
+        let txt = p.text;
+        txt = txt.replace(/<call[\s\S]*?(?:\/>|>)/gi, "");
+        txt = txt.replace(/<call:default_api[\s\S]*?(?:\/>|>)/gi, "");
+        txt = txt.replace(/call:default_api:[^\s>]+/gi, "");
+        if (txt.trim()) {
+          validParts.push({ text: txt });
+        }
+      }
+    }
+    
+    if (validParts.length > 0) {
+      cleaned.push({ role, parts: validParts });
+    }
+  }
+
+  const merged: any[] = [];
+  for (const turn of cleaned) {
+    if (merged.length > 0 && merged[merged.length - 1].role === turn.role) {
+      merged[merged.length - 1].parts.push(...turn.parts);
+    } else {
+      merged.push({ role: turn.role, parts: [...turn.parts] });
+    }
+  }
+
+  while (merged.length > 0 && merged[0].role !== "user") {
+    merged.shift();
+  }
+
+  return merged;
+}
+
 async function executeWithAllFallbacks(options: any, isStream: boolean): Promise<any> {
   // Ensure config object exists and maxOutputTokens is capped at 8192 for Gemini models
   const reqConfig = { ...(options.config || {}) };
   if (!reqConfig.maxOutputTokens || reqConfig.maxOutputTokens > 8192) {
     reqConfig.maxOutputTokens = 8192;
   }
+  if (options.tools && !reqConfig.tools) {
+    reqConfig.tools = options.tools;
+  }
 
   // Model fallback hierarchy
-  const primaryModel = options.model || "gemini-2.5-flash";
-  const modelList: string[] = [primaryModel];
-  if (!modelList.includes("gemini-3.5-flash-lite")) {
-    modelList.push("gemini-3.5-flash-lite");
-  }
-  if (!modelList.includes("gemini-2.5-flash")) {
-    modelList.push("gemini-2.5-flash");
+  const primaryModel = options.model || "gemini-3.5-flash-lite";
+  let modelList: string[] = [primaryModel];
+  
+  if (primaryModel === "gemini-3.5-flash-lite") {
+    modelList = ["gemini-3.5-flash-lite", "gemini-2.5-flash-lite", "gemini-2.5-flash"];
+  } else {
+    if (!modelList.includes("gemini-3.5-flash-lite")) {
+      modelList.push("gemini-3.5-flash-lite");
+    }
+    if (!modelList.includes("gemini-2.5-flash-lite")) {
+      modelList.push("gemini-2.5-flash-lite");
+    }
   }
 
   // Collect all available API keys
@@ -121,9 +189,15 @@ async function executeWithAllFallbacks(options: any, isStream: boolean): Promise
   }
 
   let lastError: any = null;
+  let firstAttempt = true;
 
   for (const modelToTry of modelList) {
     for (const keyItem of keys) {
+      if (!firstAttempt) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      firstAttempt = false;
+
       try {
         const client = new GoogleGenAI({
           apiKey: keyItem.key,
@@ -143,7 +217,11 @@ async function executeWithAllFallbacks(options: any, isStream: boolean): Promise
         if (isStream) {
           return await client.models.generateContentStream(callOpts);
         } else {
-          return await client.models.generateContent(callOpts);
+          const res = await client.models.generateContent(callOpts);
+          if (!res.candidates?.[0]?.content) {
+            throw new Error("No content returned from Gemini model (empty candidates). Finish reason: " + (res.candidates?.[0]?.finishReason || 'Unknown'));
+          }
+          return res;
         }
       } catch (err: any) {
         lastError = err;
@@ -555,6 +633,19 @@ Você é capaz de buscar informações na internet em tempo real. Sempre que um 
 
       'WSM 1.6 Pro': `Você é o modelo de inteligência artificial 'WSM 1.6 Pro', um assistente pessoal inteligente e agêntico, feito para tarefas de complexidade intermediária que exigem raciocínio em etapas.
 
+## WORKSPACE DE DOCUMENTOS E ARQUIVOS (FERRAMENTAS NATIVAS - CRÍTICO)
+- Você POSSUI TOTAL ACESSO INTEGRADO AO WORKSPACE DE DOCUMENTOS através das ferramentas nativas: \`create_document\`, \`read_document\`, \`edit_document\`, \`append_document\`, \`delete_document\` e \`list_documents\`.
+- Quando o usuário pedir para você criar, escrever, revisar, editar, estruturar ou gerenciar documentos, relatórios, redações, artigos, resumos, TCCs, capítulos ou múltiplos arquivos:
+  1. NÃO "imagine" apenas o texto na resposta comum de chat nem escreva blocos JSON manuais.
+  2. EXECUTE AS FERRAMENTAS DE DOCUMENTOS para criar, ler, editar ou organizar os arquivos no Workspace de forma agêntica.
+  3. Durante a mesma execução de resposta, você tem TOTAL LIBERDADE para realizar múltiplos passos: criar um documento (\`create_document\`), reler para revisar (\`read_document\`), fazer edições e aprimoramentos (\`edit_document\`), criar versões secundárias ou excluir arquivos desnecessários (\`delete_document\`).
+  4. O usuário verá as tags das suas ações em tempo real (ex: \`[Criou documento: ...]\`, \`[Editou documento: ...]\`), e o estado final limpo de todos os documentos ativos do Workspace será disponibilizado no final da sua resposta.
+
+## CAPACIDADE NATIVA DE ABRIR E NAVEGAR EM SITES (PLAYWRIGHT - CRÍTICO)
+- Você POSSUI TOTAL CAPACIDADE INTEGRADA DE ABRIR, NAVEGAR, TESTAR E INTERAGIR COM SITES REAIS NA WEB através das suas ferramentas de navegador Playwright nativas.
+- Quando o usuário pedir para você abrir um site, testar um site, navegar em uma página, clicar em botões, digitar em campos, rolar a tela, aguardar carregamentos/animações ou interagir com qualquer sistema/chat/card web (ex: "abra o site...", "teste o chat no site...", "entre na página..."), VOCÊ É ABSOLUTAMENTE CAPAZ E DEVE OBRIGATORIAMENTE USAR AS FERRAMENTAS NATIVAS DE NAVEGAÇÃO (\`open_url\`, \`click\`, \`type_text\`, \`scroll_page\`, \`wait_seconds\`).
+- É RIGOROSAMENTE PROIBIDO dizer ao usuário que você é apenas um modelo de linguagem que não consegue abrir ou navegar em sites na web. Você tem ferramentas nativas ativadas e DEVE usá-las!
+
 ## ADERÊNCIA ESTRITA ÀS INSTRUÇÕES DO USUÁRIO (CRÍTICO)
 - Você DEVE seguir ABSOLUTAMENTE e FIELMENTE todas as instruções, preferências, formatos, designs, regras e caminhos solicitados pelo usuário.
 - Se o usuário pedir para fazer algo de uma forma específica, faça exatamente daquela forma. Não altere os requisitos, não tome caminhos alternativos que desrespeitem a especificação do usuário, e nunca faça algo de outro jeito só porque você acha melhor.
@@ -694,22 +785,48 @@ Você está ABSOLUTAMENTE PROIBIDO de gerar qualquer tag de raciocínio como <ra
 Não faça nenhuma etapa de planejamento mental, nem mostre tarefas em colchetes. 
 Você deve responder diretamente ao usuário. Comece sua resposta imediatamente com a resposta final.`;
       } else if (level === 'Mínimo') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Mínimo - Limite de ~150 Tokens)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta, ANTES de qualquer texto final ao usuário. Mantenha seu raciocínio SUPER RESUMIDO E CURTO, em no máximo 1 a 3 frases curtas e diretas (limite estrito de no máximo 150 tokens de raciocínio). NUNCA faça textos longos dentro de <raciocinio> neste nível.`;
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Mínimo - Limite estrito de no máximo 100 Tokens)
+IMPORTANTE:
+1. Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da sua resposta.
+2. LIMITE MÁXIMO DE RACIOCÍNIO: Mantenha seu raciocínio SUPER CURTO, em no máximo 1 a 2 frases objetivas (limite máximo de 100 tokens dentro de <raciocinio>). NUNCA faça reflexões longas ou parágrafos extensos.
+3. REGRA CRÍTICA DE RESPOSTA FINAL: APÓS fechar o bloco </raciocinio>, VOCÊ É ABSOLUTAMENTE OBRIGADO A ESCREVER A RESPOSTA FINAL COMPLETA E DIRETA PARA O USUÁRIO (ou acionar as ferramentas necessárias). É estritamente PROIBIDO encerrar a resposta apenas com o bloco <raciocinio> sem nada escrito depois!`;
       } else if (level === 'Baixo') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Baixo - Limite de ~300 Tokens)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta, ANTES de qualquer texto final ao usuário. Estruture os passos em no máximo 1 parágrafo objetivo (limite estrito de no máximo 300 tokens de raciocínio).`;
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Baixo - Limite estrito de no máximo 200 Tokens)
+IMPORTANTE:
+1. Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da sua resposta.
+2. LIMITE MÁXIMO DE RACIOCÍNIO: Resuma os passos mentais em no máximo 1 parágrafo curto e objetivo (limite máximo de 200 tokens dentro de <raciocinio>).
+3. REGRA CRÍTICA DE RESPOSTA FINAL: APÓS fechar o bloco </raciocinio>, VOCÊ É ABSOLUTAMENTE OBRIGADO A ESCREVER A RESPOSTA FINAL COMPLETA E DIRETA PARA O USUÁRIO (ou acionar as ferramentas necessárias). É estritamente PROIBIDO encerrar a resposta apenas com o bloco <raciocinio> sem nada escrito depois!`;
       } else if (level === 'Médio') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Médio - Limite de ~600 Tokens)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta, ANTES de qualquer texto final ao usuário. Desenvolva o raciocínio em 2 a 3 tópicos objetivos (limite de no máximo 600 tokens de raciocínio).`;
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Médio - Limite estrito de no máximo 400 Tokens)
+IMPORTANTE:
+1. Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da sua resposta.
+2. LIMITE MÁXIMO DE RACIOCÍNIO: Desenvolva o raciocínio em no máximo 2 a 3 tópicos diretos (limite máximo de 400 tokens dentro de <raciocinio>).
+3. REGRA CRÍTICA DE RESPOSTA FINAL: APÓS fechar o bloco </raciocinio>, VOCÊ É ABSOLUTAMENTE OBRIGADO A ESCREVER A RESPOSTA FINAL COMPLETA E DIRETA PARA O USUÁRIO (ou acionar as ferramentas necessárias). É estritamente PROIBIDO encerrar a resposta apenas com o bloco <raciocinio> sem nada escrito depois!`;
       } else if (level === 'Alto') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Alto - Limite de ~1500 Tokens)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta, ANTES de qualquer texto final ao usuário. Utilize capacidade de raciocínio analítico e pense passo-a-passo (limite de ~1500 tokens de raciocínio).`;
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Alto - Limite estrito de no máximo 800 Tokens)
+IMPORTANTE:
+1. Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da sua resposta.
+2. LIMITE MÁXIMO DE RACIOCÍNIO: Pense passo a passo com limite máximo de 800 tokens dentro de <raciocinio>.
+3. REGRA CRÍTICA DE RESPOSTA FINAL: APÓS fechar o bloco </raciocinio>, VOCÊ É ABSOLUTAMENTE OBRIGADO A ESCREVER A RESPOSTA FINAL COMPLETA E DIRETA PARA O USUÁRIO (ou acionar as ferramentas necessárias). É estritamente PROIBIDO encerrar a resposta apenas com o bloco <raciocinio> sem nada escrito depois!`;
       } else if (level === 'Extremo') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Extremo)\nIMPORTANTE: Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da resposta. Pense exaustivamente antes de responder.`;
+        reasoningInstruction = `\n\n## Modo de Raciocínio (Extremo - Limite estrito de no máximo 1200 Tokens)
+IMPORTANTE:
+1. Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da sua resposta.
+2. LIMITE MÁXIMO DE RACIOCÍNIO: Pense de forma profunda e estruturada (limite máximo de 1200 tokens dentro de <raciocinio>).
+3. REGRA CRÍTICA DE RESPOSTA FINAL: APÓS fechar o bloco </raciocinio>, VOCÊ É ABSOLUTAMENTE OBRIGADO A ESCREVER A RESPOSTA FINAL COMPLETA E DIRETA PARA O USUÁRIO (ou acionar as ferramentas necessárias). É estritamente PROIBIDO encerrar a resposta apenas com o bloco <raciocinio> sem nada escrito depois!`;
       }
     }
     let browserInstruction = ``;
     if (model === 'WSM 1.6 Pro' || model === 'WSM 1.6 Flash') {
       browserInstruction = `
-## Controle de Navegador Real (Playwright)
-Você tem acesso total a um navegador real via Playwright para abrir sites, clicar em botões, preencher formulários, rolar páginas, pesquisar e ler conteúdos ao vivo (ferramentas: open_url, click, type_text, scroll_page, extract_visible_text).
+## Controle de Navegador Real (Playwright) & Agente Agêntico (Plan → Act → Observe → Reflect)
+Você tem acesso total a um navegador real via Playwright para abrir sites, clicar em botões, preencher formulários, rolar páginas, aguardar carregamentos dinâmicos, pesquisar e ler conteúdos ao vivo (ferramentas: open_url, click, type_text, scroll_page, extract_visible_text, wait_seconds).
+
+CICLO AGÊNTICO DE EXECUÇÃO (Plan → Act → Observe → Reflect):
+1. Plan (Planejar): Defina a intenção do próximo passo.
+2. Act (Agir): Invoque a ferramenta necessária (open_url, click, type_text, scroll_page, wait_seconds, web_search).
+3. Observe (Observar): Verifique os resultados retornados (elementos interativos, texto visível, captura de tela ou erro).
+4. Reflect (Refletir): Avalie se a ação teve sucesso e se o site precisa de mais tempo para carregar animações ou dados. Se a página demorar ou tiver animações lentas, chame 'wait_seconds'.
 
 REGRA ABSOLUTA DE FORMATAÇÃO DE CHAMADAS DE FUNÇÃO:
 - NUNCA escreva textos como '<call:.../>', '<call:default_api:.../>' ou pseudo-código de função no seu texto visível. As ferramentas devem ser invocadas SOMENTE de forma nativa via Function Call.
@@ -718,14 +835,15 @@ REGRA ABSOLUTA DE BUSCADOR EM NAVEGADOR:
 - SEMPRE que você for realizar uma pesquisa na web utilizando o navegador real (via Playwright), VOCÊ É PROIBIDO DE USAR O GOOGLE. VOCÊ DEVE OBRIGATORIAMENTE USAR O BRAVE SEARCH (\`https://search.brave.com/\`).
 
 REGRA ABSOLUTA E OBRIGATÓRIA DE NAVEGAÇÃO WEB (MANDATÓRIO):
-1. SEMPRE que o usuário pedir para interagir com a web (abrir site, pesquisar, digitar, clicar em botões, rolar página, preencher campos):
+1. SEMPRE que o usuário pedir para interagir com a web (abrir site, pesquisar, digitar, clicar em botões, rolar página, preencher campos, esperar animação/carregamento):
    - Para abrir ou acessar uma URL nova: chame a ferramenta 'open_url' (functionCall). (Para pesquisas, acesse 'https://search.brave.com').
    - Para digitar em um campo de texto, barra de busca ou formulário: chame a ferramenta 'type_text' (functionCall) passando em 'selector' o seletor CSS ou texto do campo e em 'text' o conteúdo a digitar.
    - Para clicar em um botão, link ou elemento: chame a ferramenta 'click' (functionCall) com o seletor correspondente.
    - Para rolar a página para baixo ou para cima para ler mais conteúdo: chame a ferramenta 'scroll_page' (functionCall) passando 'direction': 'down' ou 'up' (e opcionalmente 'amount' em pixels).
-   VOCÊ É ABSOLUTAMENTE PROIBIDO de apenas responder em texto conversacional ("Vou digitar...", "Vou abrir o site...", "Vou rolar a página...", "Aguarde...") SEM emitir a chamada de função correspondente (open_url, type_text, click, scroll_page) no mesmo turno!
+   - Para aguardar N segundos enquanto um site com animação longa ou carregamento lento processa (e reler a página atualizada): chame a ferramenta 'wait_seconds' (functionCall) passando 'seconds': N (ex: 3, 5, 8, 10). Se após os segundos a página ainda precisar de mais tempo, você pode chamar 'wait_seconds' novamente por quantos segundos precisar.
+   VOCÊ É ABSOLUTAMENTE PROIBIDO de apenas responder em texto conversacional ("Vou digitar...", "Vou abrir o site...", "Vou rolar a página...", "Vou esperar...") SEM emitir a chamada de função correspondente (open_url, type_text, click, scroll_page, wait_seconds) no mesmo turno!
 2. Se você responder apenas em texto conversacional prometendo uma ação no navegador sem emitir o functionCall, a ação FALHA e o usuário vê um erro.
-3. SEMPRE inclua no INÍCIO da sua resposta um bloco de tarefas passo a passo dentro das tags <task>...</task> quando for realizar ações na web. Exemplo:
+3. Se você incluir um bloco de tarefas dentro das tags <task>...</task>, você DEVE OBRIGATORIAMENTE emitir a chamada de função (functionCall) para o passo atual IMEDIATAMENTE no mesmo turno! É estritamente proibido apenas gerar o texto ou a tag <task> sem disparar a função (open_url, type_text, click, scroll_page, wait_seconds, web_search). Exemplo de estrutura:
 <task>
 [Acessar o site do Brave Search (https://search.brave.com)]
 [Digitar a pesquisa desejada na barra de busca]
@@ -734,9 +852,10 @@ REGRA ABSOLUTA E OBRIGATÓRIA DE NAVEGAÇÃO WEB (MANDATÓRIO):
 
 DICA DE SELETORES PARA CLIQUE E DIGITAÇÃO:
 Para clicar ou digitar, em 'selector', use o texto visível do botão/link ex: \`text="Entrar"\`, \`text="Pesquisar"\` ou seletores de atributos como \`input[name="q"]\`, \`input[type="search"]\`, \`input\`.
-REGRAS ANTI-LOOPING:
-1. NUNCA chame a MESMA ferramenta com os mesmos argumentos repetidamente.
-2. Se a página atual não atualizar ou você precisar ver mais conteúdo abaixo, chame \`scroll_page\` ou \`extract_visible_text\` para reler os elementos.
+REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
+1. NUNCA chame a MESMA ferramenta com os mesmos argumentos repetidamente se estiver falhando.
+2. Se a página estiver em branco ou carregando animações, chame \`wait_seconds\` para aguardar de 3 a 15 segundos antes de tentar agir.
+3. Se a página não atualizar ou você precisar ver mais conteúdo abaixo, chame \`scroll_page\`, \`wait_seconds\` ou \`extract_visible_text\` para reler os elementos.
 `;
 
       if (effectiveComputerEnabled || effectiveSearchEnabled) {
@@ -756,8 +875,8 @@ REGRAS ANTI-LOOPING:
 
     const activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
 
-    let mappedModel = "gemini-2.5-flash";
-    if (model === 'WSM 1.6 Pro') mappedModel = "gemini-2.5-flash";
+    let mappedModel = "gemini-3.5-flash-lite";
+    if (model === 'WSM 1.6 Pro') mappedModel = "gemini-3.5-flash-lite";
     else if (model === 'WSM 1.6 Flash') mappedModel = "gemini-3.5-flash-lite";
 
     if (model === 'WSM 1.6 Pro' || model === 'WSM 1.6 Flash') {
@@ -877,13 +996,98 @@ REGRAS ANTI-LOOPING:
                 amount: { type: Type.NUMBER, description: "A quantidade de pixels a rolar. Padrão é 500." }
               }
             }
+          },
+          {
+            name: "wait_seconds",
+            description: "Aguarda um número especificado de segundos na página do navegador para que animações longas, scripts ou conteúdos dinâmicos terminem de carregar, e relê a página atualizada com elementos e captura de tela.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                seconds: { type: Type.NUMBER, description: "Número de segundos para aguardar (ex: 3, 5, 8, 10, 15)." }
+              },
+              required: ["seconds"]
+            }
+          },
+          {
+            name: "create_document",
+            description: "Cria um novo documento ou arquivo no Workspace de Documentos da sessão. O documento fica salvo e disponível para leitura, edição, expansão ou entrega ao usuário.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING, description: "O título ou nome do arquivo/documento (ex: 'Relatório Financeiro', 'TCC - Capítulo 1.md')." },
+                content: { type: Type.STRING, description: "O conteúdo completo em texto ou Markdown do documento." }
+              },
+              required: ["title", "content"]
+            }
+          },
+          {
+            name: "read_document",
+            description: "Lê o conteúdo completo de um documento existente no Workspace de Documentos.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING, description: "O título exato do documento a ser lido." }
+              },
+              required: ["title"]
+            }
+          },
+          {
+            name: "edit_document",
+            description: "Edita ou substitui o conteúdo completo de um documento existente no Workspace de Documentos. Use para revisar, aprimorar, corrigir ou reescrever textos e documentos.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING, description: "O título do documento a ser editado." },
+                content: { type: Type.STRING, description: "O novo conteúdo completo e atualizado do documento." }
+              },
+              required: ["title", "content"]
+            }
+          },
+          {
+            name: "append_document",
+            description: "Adiciona novo texto ao final de um documento existente no Workspace.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING, description: "O título do documento." },
+                text: { type: Type.STRING, description: "O texto a ser adicionado ao final do documento." }
+              },
+              required: ["title", "text"]
+            }
+          },
+          {
+            name: "delete_document",
+            description: "Exclui/apaga um documento do Workspace de Documentos.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING, description: "O título ou nome do documento a ser excluído." }
+              },
+              required: ["title"]
+            }
+          },
+          {
+            name: "list_documents",
+            description: "Lista todos os documentos/arquivos atualmente presentes no Workspace de Documentos da sessão.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {}
+            }
           }
         ]
       }];
 
-      let currentContents = Array.isArray(finalContents) ? [...finalContents] : [{ role: "user", parts: [{ text: finalContents }] }];
+      let currentContents = Array.isArray(finalContents) 
+        ? sanitizeGeminiContents(finalContents) 
+        : [{ role: "user", parts: [{ text: String(finalContents) }] }];
+
+      if (currentContents.length === 0) {
+        currentContents = [{ role: "user", parts: [{ text: typeof text === 'string' ? text : JSON.stringify(text) }] }];
+      }
+
       const marteSources: any[] = [];
       const marteImages: string[] = [];
+      const workspaceDocuments = new Map<string, { title: string, content: string }>();
       let fullOutput = "";
       let turnCount = 0;
       let lastDebugResult: any = null;
@@ -895,11 +1099,34 @@ REGRAS ANTI-LOOPING:
 
       let lastFunctionCallsStr = "";
       let sameCallCount = 0;
+      let forceNextTurnModeAny = false;
 
-      while (turnCount < 8) {
+      const userStrPrompt = (typeof text === 'string' ? text : JSON.stringify(text)).toLowerCase();
+      const isSimpleGreetingOrMathPrompt = /^(ol[áa]|oi|tudo\s+bem|boa\s+(tarde|noite|dia)|quanto\s+[ée]|calcul[ae]|1\+[123456789]|2\+2)$/i.test(userStrPrompt.trim());
+      const promptWantsBrowser = (Boolean(effectiveComputerEnabled) && !isSimpleGreetingOrMathPrompt) || 
+        /\b(abrir|acesse|acessar|navegar|entrar|ir\s+at[ée]|visit\w*|abra)\b/i.test(userStrPrompt) ||
+        /\b(site|link|url|pagina|página|navegador|google|youtube|wikipedia|github|brave|twitter|x\.com)\b/i.test(userStrPrompt) ||
+        /https?:\/\/|www\./i.test(userStrPrompt);
+      const promptWantsSearch = Boolean(effectiveSearchEnabled) ||
+        /\b(pesquis|busc|procur|encontr)\w*\b/i.test(userStrPrompt) ||
+        /\b(web|internet|google|brave|notícia|noticias|hoje|site|quem\s+[ée]|onde\s+fica|quanto\s+custa|neymar|futebol|preço|cotação)\b/i.test(userStrPrompt);
+      const promptWantsImage = /\b(gerar|crie|criar|desenhar|desenhe|pintar|pinte)\b.*\b(imagem|foto|ilustraç|arte|desenho|pintura|quadro)\b|\b(imagem|foto|ilustraç|arte|desenho|pintura)\b/i.test(userStrPrompt);
+      const promptWantsDoc = /\b(documento|relatório|relatorio|redação|redacao|resumo|artigo|tcc|texto|capítulo|capitulo|escrever|criar\s+doc|editar\s+doc|gerar\s+doc)\b/i.test(userStrPrompt);
+      const promptHasRequestedActions = !isSimpleGreetingOrMathPrompt && (promptWantsBrowser || promptWantsSearch || promptWantsImage || promptWantsDoc);
+
+      while (turnCount < 100) {
         if (turnCount > 0) {
           console.log(`[Pro] Waiting 2 seconds before next Gemini request to prevent rate limits...`);
           await new Promise(r => setTimeout(r, 2000));
+        }
+
+        let currentToolConfig: any = undefined;
+        if (forceNextTurnModeAny || (turnCount === 0 && promptHasRequestedActions)) {
+          currentToolConfig = {
+            functionCallingConfig: {
+              mode: "ANY"
+            }
+          };
         }
 
         const response = await callGeminiWithFallback({
@@ -943,13 +1170,15 @@ REGRAS ANTI-LOOPING:
                     : "\n\nAVISO DE VALIDAÇÃO CONCLUÍDA: A ferramenta 'auto_debug_html' já foi executada com sucesso absoluto (sem erros). Você está na ETAPA DE ENTREGA (TURNO 2). Você DEVE obrigatoriamente gerar e exibir o código HTML completo e polido em um bloco Markdown (\x60\x60\x60html ... \x60\x60\x60) agora! NÃO chame a ferramenta 'auto_debug_html' novamente.")
                 : ""),
             tools: marteTools,
+            ...(currentToolConfig ? { toolConfig: currentToolConfig } : {}),
             temperature: 0.7
           }
         });
 
         const modelContent = response.candidates?.[0]?.content;
         if (!modelContent) {
-          throw new Error("No content returned from Gemini model");
+          console.error("Gemini response missing content. Full response:", JSON.stringify(response, null, 2));
+          throw new Error("No content returned from Gemini model. Reason: " + (response.candidates?.[0]?.finishReason || 'Unknown'));
         }
 
         let textForThisTurn = "";
@@ -1097,10 +1326,16 @@ REGRAS ANTI-LOOPING:
             break;
           }
 
+          console.log("[DEBUG] modelContent.parts:", JSON.stringify(modelContent?.parts));
           const hasNativeCalls = modelContent && modelContent.parts && modelContent.parts.some((p: any) => p.functionCall);
-          if (hasNativeCalls) {
-            currentContents.push(modelContent);
-          }
+          const modelPartsForContents = (hasNativeCalls && modelContent?.parts)
+            ? modelContent.parts
+            : [
+                ...(textForThisTurn ? [{ text: textForThisTurn }] : []),
+                ...functionCallsForThisTurn.map(fc => ({ functionCall: fc }))
+              ];
+
+          currentContents.push({ role: "model", parts: modelPartsForContents });
 
           const functionResponseParts: any[] = [];
 
@@ -1123,6 +1358,12 @@ REGRAS ANTI-LOOPING:
             else if (fc.name === "type_text") thinkingText = `\n\n[Digitando "${(fc.args as any).text}"...]\n\n`;
             else if (fc.name === "scroll_page") thinkingText = `\n\n[Rolando página para ${(fc.args as any)?.direction === 'up' ? 'cima' : 'baixo'}...]\n\n`;
             else if (fc.name === "extract_visible_text") thinkingText = `\n\n[Lendo página atualizada...]\n\n`;
+            else if (fc.name === "wait_seconds") thinkingText = `\n\n[Aguardando ${(fc.args as any)?.seconds || 3}s para o site carregar...]\n\n`;
+            else if (fc.name === "create_document") thinkingText = `\n\n[Criando documento: "${(fc.args as any)?.title || 'Documento'}"...]\n\n`;
+            else if (fc.name === "read_document") thinkingText = `\n\n[Lendo documento: "${(fc.args as any)?.title || 'Documento'}"...]\n\n`;
+            else if (fc.name === "edit_document" || fc.name === "append_document") thinkingText = `\n\n[Editando documento: "${(fc.args as any)?.title || 'Documento'}"...]\n\n`;
+            else if (fc.name === "delete_document") thinkingText = `\n\n[Excluindo documento: "${(fc.args as any)?.title || 'Documento'}"...]\n\n`;
+            else if (fc.name === "list_documents") thinkingText = `\n\n[Listando documentos...]\n\n`;
 
             sendEvent({ type: "chunk", text: thinkingText });
             fullOutput += thinkingText;
@@ -1384,7 +1625,7 @@ REGRAS ANTI-LOOPING:
                   } 
                 }
               });
-            } else if (fc.name === "open_url" || fc.name === "click" || fc.name === "type_text" || fc.name === "scroll_page" || fc.name === "extract_visible_text") {
+            } else if (fc.name === "open_url" || fc.name === "click" || fc.name === "type_text" || fc.name === "scroll_page" || fc.name === "extract_visible_text" || fc.name === "wait_seconds") {
               let result: any = {};
               if (fc.name === "open_url") {
                 result = await openUrl((fc.args as any).url);
@@ -1396,6 +1637,8 @@ REGRAS ANTI-LOOPING:
                 result = await scrollPage((fc.args as any).direction || 'down', (fc.args as any).amount || 500);
               } else if (fc.name === "extract_visible_text") {
                 result = await extractText();
+              } else if (fc.name === "wait_seconds") {
+                result = await waitSeconds((fc.args as any).seconds || 3);
               }
 
               if (result.screenshot) {
@@ -1412,6 +1655,8 @@ REGRAS ANTI-LOOPING:
                     ? `Digitar em ${(fc.args as any)?.selector}`
                     : fc.name === "scroll_page"
                     ? `Rolar página para ${(fc.args as any)?.direction === 'up' ? 'cima' : 'baixo'}`
+                    : fc.name === "wait_seconds"
+                    ? `Aguardar ${(fc.args as any)?.seconds || 3}s para carregar o site`
                     : "Navegar na página",
                   timestamp: Date.now()
                 });
@@ -1422,6 +1667,104 @@ REGRAS ANTI-LOOPING:
                 functionResponse: {
                   name: fc.name,
                   response: result
+                }
+              });
+            } else if (fc.name === "create_document") {
+              const args = fc.args as any;
+              const title = String(args.title || 'Documento').trim();
+              const content = String(args.content || '');
+              workspaceDocuments.set(title, { title, content });
+              functionResponseParts.push({
+                functionResponse: {
+                  name: fc.name,
+                  response: {
+                    success: true,
+                    message: `Documento "${title}" criado com sucesso no workspace de documentos.`,
+                    content_length: content.length,
+                    total_documents_in_workspace: workspaceDocuments.size
+                  }
+                }
+              });
+            } else if (fc.name === "read_document") {
+              const args = fc.args as any;
+              const title = String(args.title || '').trim();
+              const docObj = workspaceDocuments.get(title);
+              if (docObj) {
+                functionResponseParts.push({
+                  functionResponse: {
+                    name: fc.name,
+                    response: {
+                      success: true,
+                      title: docObj.title,
+                      content: docObj.content
+                    }
+                  }
+                });
+              } else {
+                functionResponseParts.push({
+                  functionResponse: {
+                    name: fc.name,
+                    response: {
+                      success: false,
+                      error: `Documento "${title}" não encontrado no workspace. Documentos disponíveis: ${Array.from(workspaceDocuments.keys()).join(', ') || 'Nenhum'}`
+                    }
+                  }
+                });
+              }
+            } else if (fc.name === "edit_document") {
+              const args = fc.args as any;
+              const title = String(args.title || 'Documento').trim();
+              const content = String(args.content || '');
+              workspaceDocuments.set(title, { title, content });
+              functionResponseParts.push({
+                functionResponse: {
+                  name: fc.name,
+                  response: {
+                    success: true,
+                    message: `Documento "${title}" atualizado com sucesso no workspace.`,
+                    content_length: content.length
+                  }
+                }
+              });
+            } else if (fc.name === "append_document") {
+              const args = fc.args as any;
+              const title = String(args.title || 'Documento').trim();
+              const textToAppend = String(args.text || '');
+              const existingDoc = workspaceDocuments.get(title);
+              const newContent = existingDoc ? existingDoc.content + "\n\n" + textToAppend : textToAppend;
+              workspaceDocuments.set(title, { title, content: newContent });
+              functionResponseParts.push({
+                functionResponse: {
+                  name: fc.name,
+                  response: {
+                    success: true,
+                    message: `Texto adicionado com sucesso ao documento "${title}". Tamanho atual: ${newContent.length} caracteres.`
+                  }
+                }
+              });
+            } else if (fc.name === "delete_document") {
+              const args = fc.args as any;
+              const title = String(args.title || '').trim();
+              const existed = workspaceDocuments.delete(title);
+              functionResponseParts.push({
+                functionResponse: {
+                  name: fc.name,
+                  response: {
+                    success: existed,
+                    message: existed ? `Documento "${title}" excluído com sucesso do workspace.` : `Documento "${title}" não encontrado no workspace.`
+                  }
+                }
+              });
+            } else if (fc.name === "list_documents") {
+              const docsList = Array.from(workspaceDocuments.values()).map(d => ({ title: d.title, length: d.content.length }));
+              functionResponseParts.push({
+                functionResponse: {
+                  name: fc.name,
+                  response: {
+                    success: true,
+                    total_documents: docsList.length,
+                    documents: docsList
+                  }
                 }
               });
             }
@@ -1461,6 +1804,18 @@ REGRAS ANTI-LOOPING:
               finalTagText = `\n\n[Rolando página para ${(fc.args as any)?.direction === 'up' ? 'cima' : 'baixo'}]\n\n`;
             } else if (fc.name === "extract_visible_text") {
               finalTagText = `\n\n[Lendo página atualizada]\n\n`;
+            } else if (fc.name === "wait_seconds") {
+              finalTagText = `\n\n[Aguardou ${(fc.args as any)?.seconds || 3}s no site para releitura]\n\n`;
+            } else if (fc.name === "create_document") {
+              finalTagText = `\n\n[Criou documento: ${(fc.args as any)?.title || 'Documento'}]\n\n`;
+            } else if (fc.name === "read_document") {
+              finalTagText = `\n\n[Lêu documento: ${(fc.args as any)?.title || 'Documento'}]\n\n`;
+            } else if (fc.name === "edit_document" || fc.name === "append_document") {
+              finalTagText = `\n\n[Editou documento: ${(fc.args as any)?.title || 'Documento'}]\n\n`;
+            } else if (fc.name === "delete_document") {
+              finalTagText = `\n\n[Excluiu documento: ${(fc.args as any)?.title || 'Documento'}]\n\n`;
+            } else if (fc.name === "list_documents") {
+              finalTagText = `\n\n[Listou documentos do workspace]\n\n`;
             }
             const lastIdx = fullOutput.lastIndexOf(thinkingText);
             if (lastIdx !== -1) {
@@ -1470,53 +1825,40 @@ REGRAS ANTI-LOOPING:
             }
             sendEvent({ type: "sync_text", text: fullOutput });
           }
-          if (hasNativeCalls) {
-            currentContents.push({ role: "user", parts: functionResponseParts });
-            turnCount++;
-          } else {
-            // Auto-injected action completed (e.g. browser open_url), turn complete.
-            break;
-          }
+          currentContents.push({ role: "user", parts: functionResponseParts });
+          turnCount++;
+          forceNextTurnModeAny = false;
         } else {
-          // Check for unfulfilled tool calls (e.g. model outputted conversational text promising tools without calling functionCall)
+          // Check for unfulfilled tool calls (e.g. model outputted conversational text or <task> block promising tools without calling functionCall)
           const userStr = (typeof text === 'string' ? text : JSON.stringify(text)).toLowerCase();
           const aiStr = (textForThisTurn || "").toLowerCase();
 
-          const wantsImage = /\b(gerar|crie|criar|desenhar|desenhe|pintar|pinte)\b.*\b(imagem|foto|ilustraç|arte|desenho|pintura|quadro)\b|\b(imagem|foto|ilustraç|arte|desenho|pintura)\b/i.test(userStr);
-          const aiPromisedImage = /\b(vou|irei|estou)\s+(gerar|criar|desenhar|pintar)\s+(uma?|a)?\s*(imagem|foto|ilustraç|arte|desenho|quadro)\b|\bgerando\s+a?\s*imagem\b/i.test(aiStr);
-          const imageAlreadyCalled = currentContents.some((c: any) => 
-            c.parts?.some((p: any) => p.functionCall?.name === "gerar_imagem" || p.functionResponse?.name === "gerar_imagem")
-          );
-
-          const wantsSearch = Boolean(effectiveSearchEnabled) ||
-            /\b(pesquis|busc)\w*\b.*\b(web|internet|google|brave|notícia|hoje|site)\b|\búltimas notícias\b|\bcotação do\b|\bpreço do\b|\b(ativ\w*|us\w*|habilit\w*)\s+.*(pesquis|busca)\b|\bmodo\s+pesquis\w*\b/i.test(userStr);
-          const aiPromisedSearch = /\b(vou|irei|estou)\s+(pesquisar|buscar)\b.*\b(web|internet|informações|notícias)\b|\bpesquisando\s+na\s+web\b/i.test(aiStr);
-          const searchAlreadyCalled = currentContents.some((c: any) => 
-            c.parts?.some((p: any) => p.functionCall?.name === "web_search" || p.functionResponse?.name === "web_search")
-          );
+          const aiHasTaskBlock = aiStr.includes("<task>") || /\[(acessar|digitar|rolar|clicar|pesquisar|buscar|aguardar|esperar)\b/i.test(aiStr);
+          const aiPromisedBrowser = /\b(vou|irei|estou|vamos|agora|próximo|proximo|em seguida|aguarde|processando)\b/i.test(aiStr) ||
+            /\b(abrir|acessar|navegar|digitar|clicar|rolar|preencher|enviar|criar|colocar|fazer|selecionar|pressionar|aguardar|esperar|fechar)\b/i.test(aiStr) ||
+            /\b(preenchendo|enviando|clicando|digitando|abrindo|acessando|rolando|aguardando|fechando)\b/i.test(aiStr);
+          const aiPromisedSearch = /\b(vou|irei|estou)\s+(pesquisar|buscar)\b|\bpesquisando\b/i.test(aiStr);
+          const aiPromisedImage = /\b(gerando|criando|desenhando|pintando)\s+(a|uma)?\s*(imagem|foto|ilustraç|arte)\b/i.test(aiStr);
 
           const isSimpleGreetingOrMath2 = /^(ol[áa]|oi|tudo\s+bem|boa\s+(tarde|noite|dia)|quanto\s+[ée]|calcul[ae]|1\+[123456789]|2\+2)$/i.test(userStr.trim());
-          const wantsBrowser = (Boolean(effectiveComputerEnabled) && !isSimpleGreetingOrMath2) || 
-            /\b(abrir|acesse|acessar|navegar|entrar\s+no|ir\s+at[ée]|visit\w*|abra)\s+(o\s+)?(site|link|url|pagina|página|navegador)\b|\b(abrir|acesse|acessar|entrar\s+no|visitar|pesquisar\s+no|procurar\s+no)\s+(youtube|google|wikipedia|github|brave|twitter|x\.com)\b|\b(ativ\w*|us\w*|habilit\w*)\s+.*(computador|agente|navegador)\b|\bmodo\s+computador\b|https?:\/\/|www\./i.test(userStr);
-          const aiPromisedBrowser = /\b(vou|irei|estou)\s+(abrir|acessar|navegar)\s+(o|a)?\s*(site|url|página|link|navegador)\b|\b(acessando|abrirá|abrindo)\s+o\s+site\b/i.test(aiStr);
-          const browserAlreadyCalled = currentContents.some((c: any) => 
-            c.parts?.some((p: any) => 
-              p.functionCall?.name === "open_url" || p.functionResponse?.name === "open_url" ||
-              p.functionCall?.name === "click" || p.functionResponse?.name === "click" ||
-              p.functionCall?.name === "type_text" || p.functionResponse?.name === "type_text" ||
-              p.functionCall?.name === "scroll_page" || p.functionResponse?.name === "scroll_page" ||
-              p.functionCall?.name === "extract_visible_text" || p.functionResponse?.name === "extract_visible_text"
-            )
+          const wantsBrowser = (Boolean(effectiveComputerEnabled) && !isSimpleGreetingOrMath2) || promptWantsBrowser;
+          const wantsSearch = Boolean(effectiveSearchEnabled) || promptWantsSearch;
+          const wantsImage = promptWantsImage;
+
+          const aiHasFinalConclusion = /\b(concluí|conclui|concluído|concluido|finalizei|finalizado|tudo certo|sucesso no teste|teste concluído)\b/i.test(aiStr);
+
+          const missingToolCall = (
+            aiHasTaskBlock ||
+            aiPromisedBrowser ||
+            aiPromisedSearch ||
+            aiPromisedImage ||
+            (!isSimpleGreetingOrMath2 && (wantsBrowser || wantsSearch || wantsImage) && !aiHasFinalConclusion)
           );
 
-          const missingImageCall = (wantsImage || aiPromisedImage) && !imageAlreadyCalled;
-          const missingSearchCall = (wantsSearch || aiPromisedSearch) && !searchAlreadyCalled;
-          const missingBrowserCall = (wantsBrowser || aiPromisedBrowser) && !browserAlreadyCalled;
-
-          if ((missingImageCall || missingSearchCall || missingBrowserCall) && turnCount < 6) {
-            console.warn(`[Pro] Missing tool call detected on turn ${turnCount}! missingBrowser: ${missingBrowserCall}, missingImage: ${missingImageCall}, missingSearch: ${missingSearchCall}. Triggering recovery...`);
+          if (missingToolCall && turnCount < 100) {
+            console.warn(`[Pro] Missing tool call / unfulfilled task detected on turn ${turnCount}! Triggering mode ANY recovery...`);
             
-            // Clean up intermediate unfulfilled conversational text from fullOutput to prevent duplicate text in UI
+            // Clean up intermediate unfulfilled conversational text / task text from fullOutput to prevent duplicate text in UI
             if (textForThisTurn) {
               const lastIdx = fullOutput.lastIndexOf(textForThisTurn);
               if (lastIdx !== -1) {
@@ -1525,42 +1867,25 @@ REGRAS ANTI-LOOPING:
               }
             }
 
-            currentContents.push(modelContent);
+            currentContents.push({ 
+              role: "model", 
+              parts: (modelContent?.parts && modelContent.parts.length > 0) ? modelContent.parts : [{ text: textForThisTurn || "Processando requisição..." }] 
+            });
 
             let reminderMsg = "";
-            if (missingBrowserCall) {
-              const isTypingAction = /digitar|preencher|escrever|pesquisar na|pesquisa na|barra|campo|busca|digite|digito/i.test(userStr + " " + aiStr);
-              const isClickAction = /clicar|clique|pressionar|apertar|selecionar|botão|link/i.test(userStr + " " + aiStr);
-              const isScrollAction = /rolar|scroll|descer|subir|mova a página|role/i.test(userStr + " " + aiStr);
-
-              if (isTypingAction) {
-                const textMatch = userStr.match(/(?:digitar|preencher|pesquisar|escrever)\s+["'“]([^"'”]+)["'”]/i) || userStr.match(/(?:digitar|preencher|pesquisar|escrever)\s+(\w+)/i);
-                const textVal = textMatch ? textMatch[1] : "";
-                reminderMsg = `SISTEMA (AÇÃO DE NAVEGADOR OBRIGATÓRIA): O usuário pediu para digitar/pesquisar um texto no site${textVal ? ` ("${textVal}")` : ''}. Execute OBRIGATORIAMENTE a chamada de função 'type_text' (functionCall) para o campo de busca/input (ou 'open_url' se o site não estiver aberto ainda). NÃO responda apenas com texto conversacional sem a chamada de função!`;
-              } else if (isClickAction) {
-                reminderMsg = `SISTEMA (AÇÃO DE NAVEGADOR OBRIGATÓRIA): O usuário pediu para clicar em um elemento no site. Execute OBRIGATORIAMENTE a chamada de função 'click' (functionCall) com o seletor adequado. NÃO responda apenas com texto conversacional sem a chamada de função!`;
-              } else if (isScrollAction) {
-                reminderMsg = `SISTEMA (AÇÃO DE NAVEGADOR OBRIGATÓRIA): O usuário pediu para rolar a página. Execute OBRIGATORIAMENTE a chamada de função 'scroll_page' (functionCall) com direction 'down' ou 'up'. NÃO responda apenas com texto conversacional sem a chamada de função!`;
-              } else {
-                let targetUrl = "";
-                const urlMatch = (userStr + " " + aiStr).match(/(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|org|net|io|br|gov|edu|ai|app)[^\s]*)/i);
-                if (urlMatch) {
-                  targetUrl = urlMatch[0];
-                  if (!targetUrl.startsWith('http')) targetUrl = 'https://' + targetUrl;
-                } else if (userStr.includes("brave") || aiStr.includes("brave")) {
-                  targetUrl = "https://search.brave.com";
-                } else if (userStr.includes("google") || aiStr.includes("google")) {
-                  targetUrl = "https://www.google.com";
-                } else if (userStr.includes("wikipedia") || aiStr.includes("wikipedia")) {
-                  targetUrl = "https://pt.wikipedia.org";
-                }
-
-                reminderMsg = `SISTEMA (AÇÃO DE NAVEGADOR OBRIGATÓRIA): O usuário pediu para abrir/acessar um site. Execute OBRIGATORIAMENTE a chamada de função 'open_url' (functionCall) agora${targetUrl ? ` com a url "${targetUrl}"` : ''}. NÃO responda apenas com texto conversacional sem a chamada de função!`;
+            if (aiHasTaskBlock || wantsBrowser || aiPromisedBrowser) {
+              let targetUrl = "";
+              const urlMatch = (userStr + " " + aiStr).match(/(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|org|net|io|br|gov|edu|ai|app)[^\s]*)/i);
+              if (urlMatch) {
+                targetUrl = urlMatch[0];
+                if (!targetUrl.startsWith('http')) targetUrl = 'https://' + targetUrl;
               }
-            } else if (missingImageCall) {
-              reminderMsg = "SISTEMA (AGENTE SEQUENCIAL - PASSO 1): O usuário solicitou uma imagem (ou você prometeu gerar uma). Execute a PRIMEIRA ação agora: chame a ferramenta 'gerar_imagem' (functionCall) com o prompt descritivo em inglês. NÃO pesquise na web neste turno e NÃO responda apenas com texto.";
-            } else if (missingSearchCall) {
-              reminderMsg = "SISTEMA (AGENTE SEQUENCIAL - PASSO 2): Execute a ferramenta 'web_search' (functionCall) para pesquisar as informações na web. NÃO responda apenas com texto.";
+
+              reminderMsg = `SISTEMA (AÇÃO DE FERRAMENTA OBRIGATÓRIA - PLAN → ACT → OBSERVE → REFLECT): Você mencionou um próximo passo ou descreveu ações ("${(textForThisTurn || "").slice(0, 100)}..."), mas NENHUMA função (functionCall) foi disparada neste turno! Você DEVE OBRIGATORIAMENTE invocar a ferramenta necessária ('open_url'${targetUrl ? ` com "${targetUrl}"` : ''}, 'type_text', 'click', 'scroll_page', 'wait_seconds' ou 'web_search') via Function Call agora para continuar a tarefa até a conclusão. É estritamente PROIBIDO parar ou apenas responder com texto sem disparar a função!`;
+            } else if (wantsImage || aiPromisedImage) {
+              reminderMsg = "SISTEMA (GERAÇÃO DE IMAGEM OBRIGATÓRIA): Execute a ferramenta 'gerar_imagem' (functionCall) com o prompt descritivo em inglês agora. NÃO responda apenas com texto.";
+            } else {
+              reminderMsg = "SISTEMA (PESQUISA WEB OBRIGATÓRIA): Execute a ferramenta 'web_search' (functionCall) para pesquisar as informações na web agora. NÃO responda apenas com texto.";
             }
 
             currentContents.push({
@@ -1568,10 +1893,50 @@ REGRAS ANTI-LOOPING:
               parts: [{ text: reminderMsg }]
             });
 
+            forceNextTurnModeAny = true;
             turnCount++;
             continue;
           } else {
+            // Check if model ONLY outputted <raciocinio>...</raciocinio> with no text or tool outside it
+            const textOutsideReasoning = (textForThisTurn || "")
+              .replace(/<raciocinio>[\s\S]*?<\/raciocinio>/gi, '')
+              .replace(/<task>[\s\S]*?<\/task>/gi, '')
+              .trim();
+
+            const modelOnlyReasonedWithoutAnswer = (
+              (textForThisTurn || "").includes("</raciocinio>") &&
+              textOutsideReasoning === "" &&
+              (!functionCallsForThisTurn || functionCallsForThisTurn.length === 0)
+            );
+
+            if (modelOnlyReasonedWithoutAnswer && turnCount < 100) {
+              console.warn(`[Pro/Flash] Model outputted only <raciocinio> block without final answer on turn ${turnCount}! Prompting for final answer...`);
+              
+              currentContents.push({ 
+                role: "model", 
+                parts: (modelContent?.parts && modelContent.parts.length > 0) ? modelContent.parts : [{ text: textForThisTurn || "" }] 
+              });
+
+              currentContents.push({
+                role: "user",
+                parts: [{ text: "SISTEMA (RESPOSTA FINAL OBRIGATÓRIA): Você apenas abriu e fechou o bloco <raciocinio> e NÃO escreveu a resposta final ao usuário após ele! Responda AGORA com a resposta final completa, direta e clara para o usuário." }]
+              });
+
+              turnCount++;
+              continue;
+            }
+
             break; // no more function calls, we are done
+          }
+        }
+      }
+
+      if (workspaceDocuments.size > 0) {
+        for (const [dTitle, dObj] of workspaceDocuments.entries()) {
+          const docJson = JSON.stringify({ title: dObj.title, content: dObj.content });
+          const tag = `<wsm_doc>${docJson}</wsm_doc>`;
+          if (!fullOutput.includes(tag)) {
+            fullOutput += `\n\n${tag}\n\n`;
           }
         }
       }
@@ -1875,6 +2240,59 @@ app.put("/api/admin/prompts", (req: express.Request, res: express.Response) => {
   } catch (error: any) {
     console.error("Erro ao atualizar system prompt:", error);
     return res.status(500).json({ success: false, message: error?.message || "Erro ao salvar system prompt." });
+  }
+});
+
+// Endpoint para disparo administrativo de e-mails em massa/personalizados
+app.post("/api/admin/send-email", async (req: express.Request, res: express.Response) => {
+  const { recipients, subject, title, badgeText, subtitleText, bodyMarkdown } = req.body;
+
+  if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
+    return res.status(400).json({ success: false, message: "A lista de destinatários ('recipients') é obrigatória." });
+  }
+
+  if (!subject || !title || !bodyMarkdown) {
+    return res.status(400).json({ success: false, message: "Campos 'subject', 'title' e 'bodyMarkdown' são obrigatórios." });
+  }
+
+  // Mandatory restriction: Only send to @gmail.com emails!
+  const validGmailRecipients = recipients.filter((email: string) => isGmailUser(email));
+
+  if (validGmailRecipients.length === 0) {
+    return res.status(400).json({ 
+      success: false, 
+      message: "Nenhum e-mail válido com final @gmail.com foi fornecido. Apenas contas @gmail.com podem receber e-mails." 
+    });
+  }
+
+  try {
+    const results: { email: string; success: boolean; message: string }[] = [];
+
+    for (const toEmail of validGmailRecipients) {
+      const result = await sendGenericEmail({
+        toEmail,
+        subject,
+        badgeText: badgeText || "Aviso Oficial WSM 1.6 Pro",
+        title,
+        subtitleText: subtitleText || `Comunicação Direta ao Usuário`,
+        bodyMarkdown
+      });
+      results.push({ email: toEmail, ...result });
+    }
+
+    const sentCount = results.filter(r => r.success).length;
+
+    return res.json({
+      success: sentCount > 0,
+      sentCount,
+      totalCount: validGmailRecipients.length,
+      ignoredCount: recipients.length - validGmailRecipients.length,
+      results,
+      message: `Disparo concluído: ${sentCount} de ${validGmailRecipients.length} e-mail(s) @gmail.com enviado(s) com sucesso.`
+    });
+  } catch (error: any) {
+    console.error("Erro no envio administrativo de e-mails:", error);
+    return res.status(500).json({ success: false, message: error?.message || "Erro interno no servidor ao disparar e-mails." });
   }
 });
 

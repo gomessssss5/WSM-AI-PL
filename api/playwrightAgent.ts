@@ -21,11 +21,21 @@ export async function initPlaywright() {
           headless: (sparticuzChromium as any).headless ?? true,
         });
       } else {
-        console.log("Initializing Playwright with default chromium...");
-        browser = await playwrightLocal.launch({
-          headless: true,
-          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-        });
+        try {
+          console.log("Initializing Playwright with default chromium...");
+          browser = await playwrightLocal.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+          });
+        } catch (localErr: any) {
+          console.warn("Default Playwright launch failed, trying Sparticuz Chromium fallback...", localErr?.message || localErr);
+          const executablePath = await sparticuzChromium.executablePath();
+          browser = await playwrightCore.launch({
+            args: sparticuzChromium.args,
+            executablePath: executablePath,
+            headless: (sparticuzChromium as any).headless ?? true,
+          });
+        }
       }
 
       context = await browser.newContext({
@@ -176,6 +186,20 @@ export async function typeText(selector: string, text: string) {
 
 export async function extractText() {
   await initPlaywright();
+  return await getPageState();
+}
+
+export async function waitSeconds(seconds: number = 3) {
+  await initPlaywright();
+  if (!page || page.isClosed()) return { error: "Navegador não inicializado." };
+
+  if (page.url() === 'about:blank' || page.url() === '') {
+    return { error: "Nenhum site aberto no momento. Use 'open_url' primeiro para abrir uma página." };
+  }
+
+  const safeSeconds = Math.max(1, Math.min(Math.round(Number(seconds) || 3), 30));
+  console.log(`[Playwright] Aguardando ${safeSeconds} segundos para o carregamento/animações do site...`);
+  await page.waitForTimeout(safeSeconds * 1000);
   return await getPageState();
 }
 

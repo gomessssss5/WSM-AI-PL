@@ -120,7 +120,7 @@ export async function sendGenericEmail(params: SendGenericEmailParams): Promise<
 
     <!-- Call to Action Button -->
     <div style="padding: 0 24px 28px 24px; text-align: center;">
-      <a href="https://ais-dev-7t3yx6xcumhsgriiblhd3a-353764507972.us-west2.run.app" target="_blank" style="display: inline-block; background-color: #18181b; color: #ffffff; font-weight: 600; font-size: 14px; padding: 12px 28px; border-radius: 8px; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">Acessar WSM 1.6 Pro</a>
+      <a href="https://wsm-chat.vercel.app/" target="_blank" style="display: inline-block; background-color: #18181b; color: #ffffff; font-weight: 600; font-size: 14px; padding: 12px 28px; border-radius: 8px; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">Acessar WSM 1.6 Pro</a>
     </div>
 
     <!-- Footer -->
@@ -274,7 +274,7 @@ export async function sendInactivityEmail(toEmail: string, daysInactive: number)
     subject,
     badgeText: 'Lembrete de Inatividade',
     title,
-    bodyMarkdown: `${body}\n\n[Clique aqui para acessar o WSM 1.6 Pro](https://ais-dev-7t3yx6xcumhsgriiblhd3a-353764507972.us-west2.run.app)`
+    bodyMarkdown: `${body}\n\n[Clique aqui para acessar o WSM 1.6 Pro](https://wsm-chat.vercel.app/)`
   });
 }
 

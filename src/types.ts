@@ -76,6 +76,8 @@ export interface Message {
     mimeType?: string;
     base64?: string;
   }[];
+  model?: string;
+  geminiModel?: string;
 }
 
 export interface ScheduledTask {

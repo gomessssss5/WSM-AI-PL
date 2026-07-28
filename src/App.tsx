@@ -1263,11 +1263,14 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
     }
     abortControllerRef.current = new AbortController();
 
+    const currentRequestedModel = sessionToUpdate.model || selectedModel;
     const initialAiMsg: Message = {
       id: `msg-${Date.now()}-ai`,
       sender: "ai",
       text: "",
       timestamp: new Date(),
+      model: currentRequestedModel,
+      geminiModel: 'gemini-3.5-flash-lite',
       isSearchMessage: isSearchEnabled,
       searchIntro: isSearchEnabled ? "Preparando a pesquisa..." : undefined,
       searchSteps: [],
@@ -1593,6 +1596,8 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                             ...m,
                             text: textToSave,
                             finalSynthesis: finalSynthesisToSave,
+                            model: eventData.model || m.model || currentRequestedModel,
+                            geminiModel: eventData.geminiModel || m.geminiModel || 'gemini-3.5-flash-lite',
                             searchImages: eventData.searchImages,
                             searchSources: eventData.searchSources,
                             isSimulatingSearch: m.isSearchMessage ? true : false,

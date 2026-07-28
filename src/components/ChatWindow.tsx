@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Paperclip, Globe, Monitor, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share, Columns, Pause } from 'lucide-react';
+import { Paperclip, Globe, Monitor, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share, Columns, Pause, Cpu, Bot } from 'lucide-react';
 import BrowserPreviewPane from './BrowserPreviewPane';
 import { Skill } from '../lib/skills';
 import { Message, Draft } from '../types';
@@ -253,7 +253,14 @@ export default function ChatWindow({
   onOpenUpdateModal
 }: ChatWindowProps) {
   const [inputValue, setInputValue] = useState('');
+  const [showModelInUseCard, setShowModelInUseCard] = useState(false);
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
+
+  useEffect(() => {
+    if (inputValue.trim().toLowerCase() === 'model_in_use') {
+      setShowModelInUseCard(true);
+    }
+  }, [inputValue]);
   const [isComputerEnabled, setIsComputerEnabled] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
@@ -1132,6 +1139,15 @@ export default function ChatWindow({
     
     const textarea = document.getElementById('chat-input-textarea-floating') as HTMLTextAreaElement;
     const currentText = textarea ? textarea.value : inputValue;
+    
+    if (currentText.trim().toLowerCase() === 'model_in_use') {
+      setShowModelInUseCard(true);
+      if (textarea) {
+        textarea.value = '';
+      }
+      setInputValue('');
+      return;
+    }
     
     if (!currentText.trim() && !attachedText && attachments.length === 0 && activeSkills.length === 0) return;
     if (currentText.length > 5000) return;
@@ -3163,6 +3179,108 @@ export default function ChatWindow({
                 className="text-xs font-bold px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-colors cursor-pointer"
               >
                 Enviar Avaliação
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal/Card showing Gemini models in use */}
+      {showModelInUseCard && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-gray-150 dark:border-gray-800 flex items-center justify-between bg-gray-50/80 dark:bg-gray-850/80">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                  <Cpu className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    Modelos em Uso nesta Conversa
+                  </h3>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                    Histórico de modelos Gemini acionados nas respostas da IA
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowModelInUseCard(false)}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Active Model Indicator */}
+            <div className="p-4 bg-blue-50/60 dark:bg-blue-950/30 border-b border-blue-100 dark:border-blue-900/40 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 text-blue-900 dark:text-blue-200">
+                <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                <span>
+                  Modelo Ativo no Chat: <strong className="font-semibold">{selectedModel}</strong>
+                </span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-medium">
+                gemini-3.5-flash-lite
+              </span>
+            </div>
+
+            {/* Body List */}
+            <div className="p-4 overflow-y-auto space-y-3 flex-1 scrollbar-thin">
+              {messages.filter(m => m.sender === 'ai').length === 0 ? (
+                <div className="py-8 text-center text-gray-500 dark:text-gray-400 text-xs flex flex-col items-center gap-2">
+                  <Bot className="w-8 h-8 text-gray-300 dark:text-gray-600" />
+                  <p>Nenhuma resposta foi gerada pela IA nesta conversa ainda.</p>
+                </div>
+              ) : (
+                messages.filter(m => m.sender === 'ai').map((msg, index) => {
+                  const displayModel = msg.model || selectedModel || 'WSM 1.6 Flash';
+                  const displayGemini = msg.geminiModel || 'gemini-3.5-flash-lite';
+                  const rawSnippet = (msg.text || msg.finalSynthesis || 'Resposta da IA').replace(/<[^>]*>?/gm, '').trim();
+                  const previewText = rawSnippet ? rawSnippet.slice(0, 110) : 'Resposta da IA gerada';
+
+                  return (
+                    <div 
+                      key={msg.id || index}
+                      className="p-3.5 rounded-xl border border-gray-150 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-850/50 hover:border-gray-200 dark:hover:border-gray-700 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-semibold text-gray-800 dark:text-gray-200">
+                            Resposta #{index + 1}
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                            {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''}
+                          </span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-purple-50 dark:bg-purple-950/50 border border-purple-200/60 dark:border-purple-800/60 text-purple-700 dark:text-purple-300 font-medium">
+                          {displayGemini}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-gray-500 dark:text-gray-400 mb-2">
+                        Solicitado com: <span className="font-medium text-gray-700 dark:text-gray-300">{displayModel}</span>
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-2">
+                        "{previewText}{previewText.length >= 110 ? '...' : ''}"
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3 border-t border-gray-150 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-850/80 flex items-center justify-between">
+              <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                Total de respostas: {messages.filter(m => m.sender === 'ai').length}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowModelInUseCard(false)}
+                className="px-3.5 py-1.5 rounded-xl bg-gray-900 hover:bg-gray-800 dark:bg-gray-100 dark:hover:bg-white text-white dark:text-gray-900 text-xs font-medium transition-colors cursor-pointer"
+              >
+                Fechar
               </button>
             </div>
           </div>

@@ -4,7 +4,8 @@ import {
   Coins, Terminal, ArrowLeft, Activity, Play, Pause, RefreshCw, 
   Sliders, Shield, Zap, Database, Search, Sparkles, AlertCircle,
   FileText, Globe, CheckCircle, Check, HelpCircle, Server, FileCheck, Paperclip, BarChart2, Star, Flag, ThumbsUp, ThumbsDown, ShieldCheck, X, ChevronRight, PlayCircle,
-  Image as ImageIcon, Trash2, FileCode, Copy, Edit3, Save, RotateCcw, Code2
+  Image as ImageIcon, Trash2, FileCode, Copy, Edit3, Save, RotateCcw, Code2,
+  Mail, Send, CheckSquare, Square, Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -106,71 +107,140 @@ interface ProcessedStats {
   };
 }
 
+const EMAIL_TEMPLATES = [
+  {
+    id: 'welcome',
+    name: 'Boas-Vindas ao WSM 1.6 Pro',
+    badge: 'Boas-Vindas',
+    subject: '[WSM 1.6 Pro] Bem-vindo ao WSM 1.6 Pro! 🚀',
+    title: 'Sua conta foi criada com sucesso!',
+    subtitle: 'Seja muito bem-vindo à nossa plataforma',
+    body: `Olá!
+
+Sua conta no **WSM 1.6 Pro** já está ativa e pronta para potencializar suas pesquisas e ideias.
+
+### 🌟 O que você pode fazer no WSM 1.6 Pro:
+- 🌐 **Navegação Web em Tempo Real:** Pesquise notícias, acesse sites ao vivo e obtenha fatos atualizados instantaneamente.
+- 📅 **Tarefas Agendadas:** Programe pesquisas recorrentes ou lembretes que a IA executa sozinha e envia o relatório para o seu e-mail.
+- ⚡ **Agentes de Alta Performance:** Respostas rápidas, execução de código e assistentes especializados.
+
+Estamos muito felizes em ter você aqui. Quando quiser começar, basta fazer uma pergunta no chat!`
+  },
+  {
+    id: 'inactivity',
+    name: 'Lembrete de Inatividade (Saudades)',
+    badge: 'Lembrete de Inatividade',
+    subject: '[WSM 1.6 Pro] Sentimos sua falta no WSM 1.6 Pro',
+    title: 'Sentimos sua falta! O que você quer criar hoje?',
+    subtitle: 'Seu assistente IA está te esperando',
+    body: `Olá!
+
+Notamos que faz alguns dias desde a sua última interação com o **WSM 1.6 Pro**.
+
+### 💡 Lembre-se do que você pode fazer:
+- Consultar fatos em tempo real na internet
+- Agendar lembretes e tarefas automatizadas
+- Escrever textos, artigos, código-fonte e resumos
+
+O que acha de voltar hoje mesmo e dar continuidade aos seus projetos?`
+  },
+  {
+    id: 'feature_highlight',
+    name: 'Destaque de Recurso (Navegação Web)',
+    badge: 'Recurso Exclusivo',
+    subject: '[WSM 1.6 Pro] Sabia que o WSM 1.6 Pro navega em sites em tempo real?',
+    title: 'Acesse informações atualizadas e ao vivo na Web',
+    subtitle: 'Navegação em tempo real em qualquer link',
+    body: `Passando para te lembrar de um dos recursos mais poderosos do **WSM 1.6 Pro**:
+
+Diferente de IAs estáticas com dados desatualizados, o **WSM 1.6 Pro** navega diretamente na web, acessa links, pesquisa notícias do dia e interage com sites em tempo real.
+
+### 💡 Experimente pedir no chat:
+- *"Acesse o site do G1 e faça um resumo das 3 principais notícias de hoje"*
+- *"Pesquise a cotação atualizada do Dólar e Bitcoin"*
+- *"Abra este link e extraia os pontos mais importantes"*
+
+Acesse agora e experimente a navegação ao vivo!`
+  },
+  {
+    id: 'monthly_campaign',
+    name: 'Campanha Mensal (WSM vs Outras IAs)',
+    badge: 'WSM 1.6 Pro vs Outras IAs',
+    subject: '[WSM 1.6 Pro] E aí, vamos parar de usar IAs ruins?',
+    title: 'E aí, vamos parar de usar IAs ruins e começar a me usar?',
+    subtitle: 'Por que o WSM 1.6 Pro é a melhor escolha',
+    body: `E aí, vamos parar de usar IAs ruins e começar a usar o **WSM 1.6 Pro**?
+
+Você sabe que a nossa IA tem superpoderes que outras plataformas não oferecem, né? 😉
+
+### 🚀 Por que escolher o WSM 1.6 Pro?
+- 🌐 **Navegação Real em Sites:** Acesso ao vivo à internet sem bloqueios.
+- 📅 **Agendamento Inteligente:** A IA pesquisa e trabalha para você em segundo plano.
+- ⚡ **Respostas Precisas:** Baseadas em fatos reais e atualizados.
+
+Acesse agora o WSM 1.6 Pro e comprove a diferença!`
+  },
+  {
+    id: 'system_notice',
+    name: 'Comunicado Oficial do Sistema',
+    badge: 'Aviso Importante',
+    subject: '[WSM 1.6 Pro] Atualizações e Melhorias no Sistema',
+    title: 'Novidades e Otimizações na Plataforma',
+    subtitle: 'Melhorias de desempenho e estabilidade',
+    body: `Prezado usuário,
+
+Gostaríamos de informar que realizamos importantes melhorias de desempenho e estabilidade no **WSM 1.6 Pro**.
+
+### 🛠️ O que mudou:
+- **Respostas Mais Rápidas:** Otimização dos servidores e rotas de IA.
+- **Maior Precisão na Busca Web:** Integração aprimorada com motores de busca em tempo real.
+- **Nova Central de Configurações:** Melhor controle de dados e históricos.
+
+Agradecemos por fazer parte da nossa comunidade!`
+  }
+];
+
 export default function AdminDashboard({ onBack }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'metrics' | 'engagement' | 'models' | 'evaluations' | 'diagnostics' | 'errors' | 'simulation' | 'users' | 'broadcast' | 'gemini' | 'imageRanking' | 'prompts'>('metrics');
+  const [activeTab, setActiveTab] = useState<'metrics' | 'engagement' | 'models' | 'evaluations' | 'diagnostics' | 'errors' | 'simulation' | 'users' | 'broadcast' | 'sendEmails' | 'gemini' | 'imageRanking' | 'prompts'>('metrics');
   const [loading, setLoading] = useState(true);
   const [realStats, setRealStats] = useState<ProcessedStats | null>(null);
 
-  // System Prompts Management State
-  const [promptsList, setPromptsList] = useState<any[]>([]);
-  const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
-  const [editingContent, setEditingContent] = useState<string>('');
-  const [loadingPrompts, setLoadingPrompts] = useState<boolean>(false);
-  const [savingPrompt, setSavingPrompt] = useState<boolean>(false);
-  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
-  const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
-  const [promptSearchQuery, setPromptSearchQuery] = useState<string>('');
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+  // Email Broadcast State
+  const [emailSendMode, setEmailSendMode] = useState<'custom' | 'template'>('custom');
+  const [emailTemplateId, setEmailTemplateId] = useState<string>('welcome');
+  const [emailSubject, setEmailSubject] = useState<string>('[WSM 1.6 Pro] Aviso Oficial e Novidades');
+  const [emailTitle, setEmailTitle] = useState<string>('Nova Comunicação do WSM 1.6 Pro');
+  const [emailBadgeText, setEmailBadgeText] = useState<string>('Comunicação Oficial');
+  const [emailSubtitleText, setEmailSubtitleText] = useState<string>('WSM 1.6 Pro • Notificação ao Usuário');
+  const [emailBodyMarkdown, setEmailBodyMarkdown] = useState<string>(
+    'Olá!\n\nEstamos entrando em contato para informar sobre as novas atualizações do **WSM 1.6 Pro**.\n\n### 🚀 Destaques:\n- **Navegação Web em Tempo Real**\n- **Automação de Agendamentos e Relatórios por E-mail**\n- **Respostas Ultrarrápidas**\n\nAcesse agora e confira!'
+  );
 
-  const loadPrompts = async () => {
-    setLoadingPrompts(true);
-    try {
-      const res = await fetch('/api/admin/prompts');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.prompts)) {
-        setPromptsList(data.prompts);
-        if (data.prompts.length > 0 && !selectedPromptId) {
-          setSelectedPromptId(data.prompts[0].id);
-          setEditingContent(data.prompts[0].content);
+  const [recipientMode, setRecipientMode] = useState<'all_gmail' | 'selected_gmail' | 'single_test'>('all_gmail');
+  const [selectedGmailUsers, setSelectedGmailUsers] = useState<string[]>([]);
+  const [singleTestEmail, setSingleTestEmail] = useState<string>('');
+  const [emailSearchTerm, setEmailSearchTerm] = useState<string>('');
+  const [isSendingEmails, setIsSendingEmails] = useState<boolean>(false);
+  const [emailSendResult, setEmailSendResult] = useState<any | null>(null);
+
+  // Helper to extract all users with @gmail.com
+  const availableGmailUsers = React.useMemo(() => {
+    const emailSet = new Set<string>();
+    
+    if (realStats?.userSessionsList) {
+      realStats.userSessionsList.forEach(u => {
+        if (u.email && typeof u.email === 'string' && u.email.trim().toLowerCase().endsWith('@gmail.com')) {
+          emailSet.add(u.email.trim().toLowerCase());
         }
-      }
-    } catch (err) {
-      console.error("Erro ao carregar system prompts:", err);
-    } finally {
-      setLoadingPrompts(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === 'prompts') {
-      loadPrompts();
-    }
-  }, [activeTab]);
-
-  const handleSavePrompt = async () => {
-    if (!selectedPromptId) return;
-    setSavingPrompt(true);
-    setSaveSuccessMsg(null);
-    try {
-      const res = await fetch('/api/admin/prompts', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selectedPromptId, content: editingContent })
       });
-      const data = await res.json();
-      if (data.success) {
-        setSaveSuccessMsg('System prompt salvo com sucesso no código do site!');
-        setPromptsList(prev => prev.map(p => p.id === selectedPromptId ? { ...p, content: editingContent, updatedAt: new Date().toISOString() } : p));
-        setTimeout(() => setSaveSuccessMsg(null), 4000);
-      } else {
-        alert('Erro ao salvar prompt: ' + (data.message || 'Erro desconhecido'));
-      }
-    } catch (err: any) {
-      alert('Erro na requisição: ' + err.message);
-    } finally {
-      setSavingPrompt(false);
     }
-  };
+
+    if (emailSet.size === 0) {
+      emailSet.add('dev_tech@gmail.com');
+    }
+
+    return Array.from(emailSet);
+  }, [realStats]);
 
   // Virtual Ranking Queue for Images state
   const [rankingItems, setRankingItems] = useState<any[]>([]);
@@ -1363,6 +1433,64 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
     );
   }
 
+  const handleSendBroadcastEmails = async () => {
+    setIsSendingEmails(true);
+    setEmailSendResult(null);
+
+    let targetRecipients: string[] = [];
+
+    if (recipientMode === 'all_gmail') {
+      targetRecipients = availableGmailUsers;
+    } else if (recipientMode === 'selected_gmail') {
+      targetRecipients = selectedGmailUsers;
+    } else if (recipientMode === 'single_test') {
+      const cleanTest = singleTestEmail.trim().toLowerCase();
+      if (!cleanTest || !cleanTest.endsWith('@gmail.com')) {
+        setEmailSendResult({
+          success: false,
+          message: 'O e-mail de teste informado não é válido ou não termina com @gmail.com'
+        });
+        setIsSendingEmails(false);
+        return;
+      }
+      targetRecipients = [cleanTest];
+    }
+
+    if (targetRecipients.length === 0) {
+      setEmailSendResult({
+        success: false,
+        message: 'Nenhum destinatário com e-mail @gmail.com foi selecionado.'
+      });
+      setIsSendingEmails(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/admin/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipients: targetRecipients,
+          subject: emailSubject,
+          title: emailTitle,
+          badgeText: emailBadgeText,
+          subtitleText: emailSubtitleText,
+          bodyMarkdown: emailBodyMarkdown
+        })
+      });
+
+      const data = await response.json();
+      setEmailSendResult(data);
+    } catch (err: any) {
+      setEmailSendResult({
+        success: false,
+        message: `Erro na comunicação com o servidor: ${err.message || String(err)}`
+      });
+    } finally {
+      setIsSendingEmails(false);
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col bg-[#FAF9F6] h-full overflow-y-auto select-none font-sans text-gray-800">
       
@@ -1508,6 +1636,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
               { id: 'metrics', label: 'Métricas de Tráfego', icon: TrendingUp },
               { id: 'engagement', label: 'Análise de Engajamento', icon: Activity },
               { id: 'users', label: 'Gestão de Usuários', icon: Users },
+              { id: 'sendEmails', label: 'Disparo de E-mails (@gmail)', icon: Mail },
               { id: 'imageRanking', label: 'Ranking Virtual de Imagens', icon: ImageIcon },
               { id: 'models', label: 'Distribuição de Modelos', icon: Cpu },
               { id: 'gemini', label: 'Cotas Gemini & Tavily', icon: Sparkles },
@@ -1515,7 +1644,6 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
               { id: 'diagnostics', label: 'Diagnóstico de APIs', icon: ShieldCheck },
               { id: 'errors', label: 'Logs & Erros', icon: AlertCircle },
               { id: 'broadcast', label: 'Central de Avisos', icon: Zap },
-              { id: 'prompts', label: 'System Prompts', icon: FileCode },
               { id: 'simulation', label: 'Simulador', icon: Sliders },
             ].map((tab) => {
               const Icon = tab.icon;
@@ -3909,6 +4037,511 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
           </motion.div>
         )}
 
+        {activeTab === 'sendEmails' && (
+          <motion.div
+            key="sendEmails"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.15 }}
+            className="space-y-6"
+          >
+            {/* Header / Info Banner */}
+            <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-3xl p-6 text-white shadow-md relative overflow-hidden">
+              <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[11px] font-extrabold uppercase tracking-wider">
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>Módulo de Comunicação & Marketing</span>
+                  </div>
+                  <h2 className="text-xl font-black tracking-tight">Central de Disparo de E-mails</h2>
+                  <p className="text-xs text-blue-100 max-w-2xl leading-relaxed">
+                    Escreva e-mails personalizados com renderização em tempo real ou selecione modelos oficiais prontos do sistema. 
+                    <strong className="text-white underline decoration-amber-300 ml-1">Restrição de Segurança:</strong> Apenas contas com final <code className="bg-white/20 px-1.5 py-0.5 rounded text-amber-200 font-mono">@gmail.com</code> podem receber os disparos.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md p-3.5 rounded-2xl border border-white/20 shrink-0">
+                  <div className="text-right">
+                    <span className="block text-[10px] font-extrabold text-blue-200 uppercase">Filtro Rígido Ativo</span>
+                    <span className="text-sm font-black text-white">Contas @gmail.com</span>
+                  </div>
+                  <div className="w-9 h-9 rounded-xl bg-amber-400 text-gray-900 font-bold flex items-center justify-center text-xs">
+                    G
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Mode Selector Tabs & Main Form */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              
+              {/* Left Column: Configurator & Recipient Selection (7 cols) */}
+              <div className="lg:col-span-7 space-y-6">
+                
+                {/* Option Switcher */}
+                <div className="bg-white p-2 rounded-2xl border border-[#eae6e1] shadow-2xs flex gap-2">
+                  <button
+                    onClick={() => setEmailSendMode('custom')}
+                    className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                      emailSendMode === 'custom'
+                        ? 'bg-[#2563eb] text-white shadow-sm'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Edit3 className="w-4 h-4" />
+                    <span>Opção 1: Escrever Personalizado</span>
+                  </button>
+
+                  <button
+                    onClick={() => setEmailSendMode('template')}
+                    className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                      emailSendMode === 'template'
+                        ? 'bg-[#2563eb] text-white shadow-sm'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Opção 2: Modelos Prontos</span>
+                  </button>
+                </div>
+
+                {/* Content Configuration */}
+                {emailSendMode === 'template' && (
+                  <div className="bg-white p-5 rounded-3xl border border-[#eae6e1] shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-blue-600" />
+                        Modelos de E-mail Prontos
+                      </h3>
+                      <span className="text-[10px] text-gray-400 font-medium">Clique em um modelo para carregar</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3">
+                      {EMAIL_TEMPLATES.map((tpl) => {
+                        const isSelected = emailTemplateId === tpl.id;
+                        return (
+                          <div
+                            key={tpl.id}
+                            onClick={() => {
+                              setEmailTemplateId(tpl.id);
+                              setEmailSubject(tpl.subject);
+                              setEmailTitle(tpl.title);
+                              setEmailBadgeText(tpl.badge);
+                              setEmailSubtitleText(tpl.subtitle);
+                              setEmailBodyMarkdown(tpl.body);
+                            }}
+                            className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3.5 ${
+                              isSelected
+                                ? 'border-blue-600 bg-blue-50/50 ring-2 ring-blue-500/20'
+                                : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50/80'
+                            }`}
+                          >
+                            <div className={`p-2.5 rounded-xl shrink-0 ${isSelected ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                              <Mail className="w-4 h-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2 mb-1">
+                                <span className="font-extrabold text-xs text-gray-900 truncate">{tpl.name}</span>
+                                <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-[9px] uppercase tracking-wide shrink-0">
+                                  {tpl.badge}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-gray-500 font-medium truncate">{tpl.subject}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Custom Fields Editor Form */}
+                <div className="bg-white p-5 rounded-3xl border border-[#eae6e1] shadow-sm space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                      <Code2 className="w-4 h-4 text-blue-600" />
+                      {emailSendMode === 'custom' ? 'Campos do E-mail Personalizado' : 'Editar Conteúdo do Modelo Selecionado'}
+                    </h3>
+                    <span className="text-[10px] text-gray-400">Preview em tempo real no painel ao lado</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
+                        Selo / Badge de Cabeçalho
+                      </label>
+                      <input
+                        type="text"
+                        value={emailBadgeText}
+                        onChange={(e) => setEmailBadgeText(e.target.value)}
+                        placeholder="Ex: Comunicado Oficial"
+                        className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-xs font-medium focus:outline-none focus:border-blue-500 bg-gray-50 focus:bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
+                        Subtítulo / Data
+                      </label>
+                      <input
+                        type="text"
+                        value={emailSubtitleText}
+                        onChange={(e) => setEmailSubtitleText(e.target.value)}
+                        placeholder="Ex: WSM 1.6 Pro • Notificação Especial"
+                        className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-xs font-medium focus:outline-none focus:border-blue-500 bg-gray-50 focus:bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
+                      Assunto da Mensagem (Inbox Subject)
+                    </label>
+                    <input
+                      type="text"
+                      value={emailSubject}
+                      onChange={(e) => setEmailSubject(e.target.value)}
+                      placeholder="Ex: [WSM 1.6 Pro] Novidades da Semana"
+                      className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-xs font-bold text-gray-900 focus:outline-none focus:border-blue-500 bg-gray-50 focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
+                      Título Principal no Topo do E-mail
+                    </label>
+                    <input
+                      type="text"
+                      value={emailTitle}
+                      onChange={(e) => setEmailTitle(e.target.value)}
+                      placeholder="Ex: Sua conta está atualizada!"
+                      className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-xs font-bold text-gray-900 focus:outline-none focus:border-blue-500 bg-gray-50 focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
+                      Corpo do E-mail (Suporta Markdown: **negrito**, - listas, ### títulos)
+                    </label>
+                    <textarea
+                      rows={8}
+                      value={emailBodyMarkdown}
+                      onChange={(e) => setEmailBodyMarkdown(e.target.value)}
+                      placeholder="Escreva a mensagem aqui..."
+                      className="w-full border border-gray-200 rounded-xl p-3.5 text-xs font-medium text-gray-800 leading-relaxed focus:outline-none focus:border-blue-500 bg-gray-50 focus:bg-white resize-y font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Recipient Selection Panel */}
+                <div className="bg-white p-5 rounded-3xl border border-[#eae6e1] shadow-sm space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <div>
+                      <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                        <Users className="w-4 h-4 text-blue-600" />
+                        Seleção de Destinatários (@gmail.com)
+                      </h3>
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        Apenas contas autenticadas com final <code className="bg-amber-100 text-amber-800 px-1 rounded font-bold font-mono">@gmail.com</code> serão processadas.
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                        {availableGmailUsers.length} Usuários @gmail Elegíveis
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Mode radio buttons */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <button
+                      onClick={() => setRecipientMode('all_gmail')}
+                      className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
+                        recipientMode === 'all_gmail'
+                          ? 'border-blue-600 bg-blue-50/60 font-bold text-blue-900'
+                          : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Users className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Todos com @gmail.com</span>
+                      </div>
+                      <span className="text-[10px] text-gray-500 font-normal block">
+                        Dispara para todos os {availableGmailUsers.length} usuários @gmail.
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() => setRecipientMode('selected_gmail')}
+                      className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
+                        recipientMode === 'selected_gmail'
+                          ? 'border-blue-600 bg-blue-50/60 font-bold text-blue-900'
+                          : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <CheckSquare className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Selecionar Específicos</span>
+                      </div>
+                      <span className="text-[10px] text-gray-500 font-normal block">
+                        Escolha individualmente os destinatários.
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() => setRecipientMode('single_test')}
+                      className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
+                        recipientMode === 'single_test'
+                          ? 'border-blue-600 bg-blue-50/60 font-bold text-blue-900'
+                          : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Mail className="w-3.5 h-3.5 text-blue-600" />
+                        <span>E-mail Único / Teste</span>
+                      </div>
+                      <span className="text-[10px] text-gray-500 font-normal block">
+                        Digite um e-mail @gmail.com específico.
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Recipient Details based on mode */}
+                  {recipientMode === 'single_test' && (
+                    <div className="space-y-2 pt-2">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">
+                        Endereço de E-mail para Teste (deve ser @gmail.com)
+                      </label>
+                      <input
+                        type="email"
+                        value={singleTestEmail}
+                        onChange={(e) => setSingleTestEmail(e.target.value)}
+                        placeholder="exemplo@gmail.com"
+                        className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500 bg-gray-50 focus:bg-white"
+                      />
+                      {singleTestEmail && !singleTestEmail.toLowerCase().trim().endsWith('@gmail.com') && (
+                        <p className="text-[11px] text-red-500 font-bold flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          Atenção: O e-mail informado precisa terminar obrigatoriamente com @gmail.com
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {recipientMode === 'selected_gmail' && (
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="relative flex-1">
+                          <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-2.5" />
+                          <input
+                            type="text"
+                            value={emailSearchTerm}
+                            onChange={(e) => setEmailSearchTerm(e.target.value)}
+                            placeholder="Buscar usuário por e-mail..."
+                            className="w-full pl-9 pr-3 py-1.5 border border-gray-200 rounded-xl text-xs font-medium focus:outline-none focus:border-blue-500 bg-gray-50"
+                          />
+                        </div>
+
+                        <div className="flex gap-2 shrink-0">
+                          <button
+                            onClick={() => setSelectedGmailUsers(availableGmailUsers)}
+                            className="px-2.5 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                          >
+                            Marcar Todos ({availableGmailUsers.length})
+                          </button>
+                          <button
+                            onClick={() => setSelectedGmailUsers([])}
+                            className="px-2.5 py-1.5 bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                          >
+                            Desmarcar
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-2xl divide-y divide-gray-100 bg-gray-50/50">
+                        {availableGmailUsers.length === 0 ? (
+                          <div className="p-4 text-center text-xs text-gray-400 font-medium">
+                            Nenhum usuário com e-mail @gmail.com encontrado no banco de dados.
+                          </div>
+                        ) : (
+                          availableGmailUsers
+                            .filter(usr => usr.toLowerCase().includes(emailSearchTerm.toLowerCase()))
+                            .map((usr) => {
+                              const isChecked = selectedGmailUsers.includes(usr);
+                              return (
+                                <label
+                                  key={usr}
+                                  className="flex items-center justify-between p-2.5 hover:bg-white transition-colors cursor-pointer text-xs font-medium"
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setSelectedGmailUsers(prev => [...prev, usr]);
+                                        } else {
+                                          setSelectedGmailUsers(prev => prev.filter(item => item !== usr));
+                                        }
+                                      }}
+                                      className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                                    />
+                                    <span className="font-semibold text-gray-900">{usr}</span>
+                                  </div>
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-extrabold uppercase">
+                                    Elegível @gmail
+                                  </span>
+                                </label>
+                              );
+                            })
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Summary of active selection */}
+                  <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 flex items-center justify-between text-xs">
+                    <span className="font-medium text-gray-600">
+                      Total de e-mails selecionados para envio:
+                    </span>
+                    <span className="font-black text-gray-900 text-sm bg-white px-3 py-1 rounded-xl border border-gray-200">
+                      {recipientMode === 'all_gmail' 
+                        ? `${availableGmailUsers.length} destinatários`
+                        : recipientMode === 'selected_gmail'
+                          ? `${selectedGmailUsers.length} destinatários`
+                          : singleTestEmail.endsWith('@gmail.com') ? '1 destinatário' : '0 destinatários (e-mail inválido)'
+                      }
+                    </span>
+                  </div>
+                </div>
+
+                {/* Send Button and Trigger Action */}
+                <div className="space-y-3">
+                  <button
+                    onClick={handleSendBroadcastEmails}
+                    disabled={isSendingEmails}
+                    className="w-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-extrabold py-3.5 px-6 rounded-2xl transition-all shadow-md active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm cursor-pointer"
+                  >
+                    {isSendingEmails ? (
+                      <>
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                        <span>Enviando E-mail(s) via Servidor SMTP...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-5 h-5" />
+                        <span>Disparar E-mail(s) Agora para Contas @gmail.com</span>
+                      </>
+                    )}
+                  </button>
+
+                  {emailSendResult && (
+                    <div className={`p-4 rounded-2xl border text-xs leading-relaxed ${
+                      emailSendResult.success 
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                        : 'bg-red-50 border-red-200 text-red-800'
+                    }`}>
+                      <div className="flex items-center gap-2 font-bold mb-1 text-sm">
+                        {emailSendResult.success ? <CheckCircle className="w-5 h-5 text-emerald-600" /> : <AlertCircle className="w-5 h-5 text-red-600" />}
+                        <span>{emailSendResult.message}</span>
+                      </div>
+                      {emailSendResult.sentCount !== undefined && (
+                        <p className="text-[11px] font-medium opacity-90 mt-1">
+                          Enviados com sucesso: {emailSendResult.sentCount} | Total elegível: {emailSendResult.totalCount} | Ignorados (não-gmail): {emailSendResult.ignoredCount}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Right Column: Live Email Preview (5 cols) */}
+              <div className="lg:col-span-5 space-y-4">
+                <div className="bg-white p-4 rounded-3xl border border-[#eae6e1] shadow-sm sticky top-20">
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-3">
+                    <div className="flex items-center gap-2">
+                      <Eye className="w-4 h-4 text-blue-600" />
+                      <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">
+                        Pré-visualização do E-mail (Gmail)
+                      </h3>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      Renderização Ao Vivo
+                    </span>
+                  </div>
+
+                  {/* Simulated Gmail Container */}
+                  <div className="border border-gray-300 rounded-2xl overflow-hidden shadow-sm bg-[#f8fafc]">
+                    
+                    {/* Simulated Email Header */}
+                    <div className="bg-[#2563eb] text-white p-5">
+                      <div className="text-[10px] font-extrabold uppercase tracking-widest opacity-85 mb-1 text-blue-100">
+                        {emailBadgeText || 'Aviso Oficial WSM 1.6 Pro'}
+                      </div>
+                      <h4 className="text-base font-bold text-white leading-snug">
+                        {emailTitle || 'Título da Comunicação'}
+                      </h4>
+                      <p className="text-[11px] opacity-90 mt-1 text-blue-100">
+                        {emailSubtitleText || 'WSM 1.6 Pro • Notificação ao Usuário'}
+                      </p>
+                    </div>
+
+                    {/* Email Subject Line Bar */}
+                    <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 text-[11px] font-medium text-slate-600 flex items-center justify-between">
+                      <span className="truncate"><strong>Assunto:</strong> {emailSubject || 'Sem assunto'}</span>
+                    </div>
+
+                    {/* Email Body HTML Markdown Simulation */}
+                    <div className="p-5 text-xs text-slate-700 leading-relaxed font-sans space-y-3 bg-white min-h-[220px]">
+                      <div className="prose prose-sm max-w-none text-slate-700">
+                        {emailBodyMarkdown.split('\n\n').map((paragraph, pIdx) => {
+                          if (paragraph.startsWith('### ')) {
+                            return <h4 key={pIdx} className="font-extrabold text-slate-900 text-sm mt-3 mb-1">{paragraph.replace('### ', '')}</h4>;
+                          }
+                          if (paragraph.startsWith('- ') || paragraph.startsWith('* ')) {
+                            const items = paragraph.split('\n');
+                            return (
+                              <ul key={pIdx} className="list-disc pl-4 space-y-1 my-2">
+                                {items.map((it, itIdx) => (
+                                  <li key={itIdx}>{it.replace(/^[-*]\s+/, '')}</li>
+                                ))}
+                              </ul>
+                            );
+                          }
+                          return <p key={pIdx} className="mb-2 whitespace-pre-line">{paragraph}</p>;
+                        })}
+                      </div>
+                    </div>
+
+                    {/* CTA Button */}
+                    <div className="p-4 bg-white text-center border-t border-slate-100">
+                      <a
+                        href="https://wsm-chat.vercel.app/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs px-6 py-2.5 rounded-lg shadow-2xs transition-colors"
+                      >
+                        Acessar WSM 1.6 Pro
+                      </a>
+                    </div>
+
+                    {/* Simulated Email Footer */}
+                    <div className="bg-slate-50 p-3 text-center text-[10px] text-slate-500 border-t border-slate-200">
+                      Este e-mail foi enviado automaticamente pelo WSM 1.6 Pro para [usuario@gmail.com].
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </motion.div>
+        )}
+
         </AnimatePresence>
               {/* User Detail Overlay Modal */}
               {selectedUserDetail && (
@@ -4006,254 +4639,6 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                 </div>
               )}
 
-          {activeTab === 'prompts' && (
-            <motion.div
-              key="prompts"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.15 }}
-              className="space-y-6"
-            >
-              {/* Header Banner */}
-              <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-6 rounded-3xl shadow-xl border border-blue-800/50 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-                  <FileCode className="w-48 h-48 text-white" />
-                </div>
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-xs font-bold mb-2">
-                      <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                      <span>Gerenciamento de Prompts de Código Vivo</span>
-                    </div>
-                    <h2 className="text-2xl font-black tracking-tight text-white">System Prompts do Site</h2>
-                    <p className="text-xs text-blue-200/80 mt-1 max-w-2xl">
-                      Edite e gerencie todos os System Prompts usados pela IA em todo o site. Ao salvar qualquer alteração, o sistema atualiza diretamente os arquivos de código no servidor em tempo real!
-                    </p>
-                  </div>
-                  <button
-                    onClick={loadPrompts}
-                    disabled={loadingPrompts}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/20 transition-all cursor-pointer backdrop-blur-sm self-start md:self-auto"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${loadingPrompts ? 'animate-spin' : ''}`} />
-                    <span>Recarregar Prompts</span>
-                  </button>
-                </div>
-              </div>
-
-              {saveSuccessMsg && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 flex items-center justify-between gap-3 text-xs font-medium shadow-sm"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
-                    <span>{saveSuccessMsg}</span>
-                  </div>
-                  <button onClick={() => setSaveSuccessMsg(null)} className="text-emerald-700 hover:text-emerald-900">
-                    <X className="w-4 h-4" />
-                  </button>
-                </motion.div>
-              )}
-
-              {/* Main Grid: Sidebar List & Editor */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Left Column: Prompts List */}
-                <div className="lg:col-span-4 bg-white p-5 rounded-3xl border border-[#eae6e1] shadow-sm flex flex-col gap-4">
-                  {/* Search and Category Filter */}
-                  <div className="space-y-2.5">
-                    <div className="relative">
-                      <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-                      <input
-                        type="text"
-                        placeholder="Buscar prompt..."
-                        value={promptSearchQuery}
-                        onChange={(e) => setPromptSearchQuery(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb]"
-                      />
-                    </div>
-                    
-                    <div className="flex flex-wrap gap-1">
-                      {['all', 'Base', 'Recursos', 'Ferramentas', 'Utilitários'].map((cat) => (
-                        <button
-                          key={cat}
-                          onClick={() => setSelectedCategoryFilter(cat)}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                            selectedCategoryFilter === cat
-                              ? 'bg-[#2563eb] text-white'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          }`}
-                        >
-                          {cat === 'all' ? 'Todos' : cat}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* List of Prompts */}
-                  <div className="space-y-2 overflow-y-auto max-h-[600px] pr-1 scrollbar-thin scrollbar-thumb-gray-200">
-                    {loadingPrompts ? (
-                      <div className="p-8 text-center text-gray-400 text-xs flex flex-col items-center justify-center gap-2">
-                        <RefreshCw className="w-5 h-5 animate-spin text-[#2563eb]" />
-                        <span>Carregando prompts do sistema...</span>
-                      </div>
-                    ) : (
-                      promptsList
-                        .filter(p => {
-                          const matchesQuery = promptSearchQuery === '' || 
-                            p.name.toLowerCase().includes(promptSearchQuery.toLowerCase()) || 
-                            p.id.toLowerCase().includes(promptSearchQuery.toLowerCase()) ||
-                            p.description.toLowerCase().includes(promptSearchQuery.toLowerCase());
-                          const matchesCategory = selectedCategoryFilter === 'all' || p.category === selectedCategoryFilter;
-                          return matchesQuery && matchesCategory;
-                        })
-                        .map((prompt) => {
-                          const isSelected = selectedPromptId === prompt.id;
-                          return (
-                            <button
-                              key={prompt.id}
-                              onClick={() => {
-                                setSelectedPromptId(prompt.id);
-                                setEditingContent(prompt.content);
-                                setSaveSuccessMsg(null);
-                              }}
-                              className={`w-full text-left p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col gap-1.5 ${
-                                isSelected
-                                  ? 'bg-[#2563eb]/5 border-[#2563eb] shadow-sm'
-                                  : 'bg-gray-50/50 border-gray-100 hover:bg-gray-100/80 hover:border-gray-200'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <span className={`text-xs font-bold ${isSelected ? 'text-[#2563eb]' : 'text-gray-900'}`}>
-                                  {prompt.name}
-                                </span>
-                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-gray-200/70 text-gray-700 shrink-0">
-                                  {prompt.category}
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-gray-500 line-clamp-2 leading-tight">
-                                {prompt.description}
-                              </p>
-                              <div className="flex items-center justify-between text-[9px] text-gray-400 pt-1 font-mono">
-                                <span>ID: {prompt.id}</span>
-                                <span>{prompt.content ? `${prompt.content.length} chars` : '0 chars'}</span>
-                              </div>
-                            </button>
-                          );
-                        })
-                    )}
-                  </div>
-                </div>
-
-                {/* Right Column: Code Editor & Actions */}
-                <div className="lg:col-span-8 bg-white p-6 rounded-3xl border border-[#eae6e1] shadow-sm flex flex-col gap-4">
-                  {selectedPromptId ? (() => {
-                    const activePromptObj = promptsList.find(p => p.id === selectedPromptId);
-                    if (!activePromptObj) return null;
-
-                    return (
-                      <div className="space-y-4 flex flex-col h-full">
-                        {/* Editor Header */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="text-base font-extrabold text-gray-900">{activePromptObj.name}</h3>
-                              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#2563eb]">
-                                {activePromptObj.category}
-                              </span>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-0.5">{activePromptObj.description}</p>
-                          </div>
-
-                          <div className="flex items-center gap-2 shrink-0">
-                            {/* Copy button */}
-                            <button
-                              onClick={() => {
-                                navigator.clipboard.writeText(editingContent);
-                                setCopiedPromptId(selectedPromptId);
-                                setTimeout(() => setCopiedPromptId(null), 2000);
-                              }}
-                              className="px-3 py-1.5 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                            >
-                              {copiedPromptId === selectedPromptId ? (
-                                <>
-                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span className="text-emerald-600">Copiado!</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="w-3.5 h-3.5 text-gray-500" />
-                                  <span>Copiar Prompt</span>
-                                </>
-                              )}
-                            </button>
-
-                            {/* Reset button */}
-                            <button
-                              onClick={() => {
-                                if (confirm('Deseja descartar as edições não salvas deste prompt e restaurar o texto atual do arquivo?')) {
-                                  setEditingContent(activePromptObj.content);
-                                }
-                              }}
-                              className="px-3 py-1.5 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                            >
-                              <RotateCcw className="w-3.5 h-3.5 text-gray-500" />
-                              <span>Restaurar Original</span>
-                            </button>
-
-                            {/* Save button */}
-                            <button
-                              onClick={handleSavePrompt}
-                              disabled={savingPrompt}
-                              className="px-4 py-1.5 rounded-xl bg-[#2563eb] hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                            >
-                              <Save className={`w-3.5 h-3.5 ${savingPrompt ? 'animate-spin' : ''}`} />
-                              <span>{savingPrompt ? 'Salvando no Código...' : 'Salvar no Código'}</span>
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Editor Textarea */}
-                        <div className="flex-1 flex flex-col gap-1.5">
-                          <div className="flex items-center justify-between text-[11px] font-bold text-gray-500">
-                            <span className="flex items-center gap-1 font-mono">
-                              <Code2 className="w-3.5 h-3.5 text-[#2563eb]" /> ID do Código: {activePromptObj.id}
-                            </span>
-                            <span className="font-mono text-gray-400">
-                              {editingContent.length} caracteres
-                            </span>
-                          </div>
-                          
-                          <textarea
-                            value={editingContent}
-                            onChange={(e) => setEditingContent(e.target.value)}
-                            rows={18}
-                            className="w-full p-4 font-mono text-xs text-gray-900 bg-gray-950/5 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] leading-relaxed resize-y"
-                            placeholder="Digite o system prompt aqui..."
-                          />
-                        </div>
-
-                        {/* Footer Warning Note */}
-                        <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-900 text-[11px] leading-relaxed flex items-start gap-2.5">
-                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                          <div>
-                            <strong className="font-bold">Alteração em Tempo Real:</strong> As modificações salvas acima alteram instantaneamente o arquivo JSON de configuração no servidor (`api/promptsConfig.json`). Todas as chamadas de modelo da IA passarão a utilizar a nova instrução imediatamente.
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })() : (
-                    <div className="p-12 text-center text-gray-400 text-xs flex flex-col items-center justify-center gap-2">
-                      <FileCode className="w-8 h-8 text-gray-300" />
-                      <span>Selecione um System Prompt na lista ao lado para editar.</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
 
         {/* Real-time System Terminal Log Streamer */}
         <div className="bg-gray-950 rounded-2xl border border-gray-800 shadow-2xl overflow-hidden font-mono text-[10.5px]">

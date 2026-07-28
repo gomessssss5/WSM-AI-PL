@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin, TvMinimalPlay, Image as ImageIcon, Loader2, Download, ZoomIn, MousePointer2, Keyboard, ScanEye, ArrowDownUp } from 'lucide-react';
+import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin, TvMinimalPlay, Image as ImageIcon, Loader2, Download, ZoomIn, MousePointer2, Keyboard, ScanEye, ArrowDownUp, FileText, FilePlus, FolderOpen, Edit3, Trash2 } from 'lucide-react';
 import HtmlCodeBlock from './HtmlCodeBlock';
 import WsmMapComponent from './WsmMapComponent';
 import WsmChartComponent from './WsmChartComponent';
@@ -709,7 +709,7 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
     });
 
     // 0. Extract agentic tags: [pesquisou na web], [calculando], [verificando relógio], and active/completed states
-    const agenticRegex = /\[(pesquisou na web|calculando|verificando relógio|pesquisando\.\.\.|calculando\.\.\.|verificando\.\.\.|verificando possíveis erros no código\.\.\.|código 100% verificado: sem erros[\s\S]*?|corrigindo erro detectado no código:[\s\S]*?|sandbox de depuração:[\s\S]*?|Criando Skill:[\s\S]*?|Editando Skill:[\s\S]*?|Excluindo Skill:[\s\S]*?|Criou Skill:[\s\S]*?|Editou Skill:[\s\S]*?|Excluiu Skill:[\s\S]*?|criando skill:[\s\S]*?|editando skill:[\s\S]*?|excluindo skill:[\s\S]*?|criou skill:[\s\S]*?|editou skill:[\s\S]*?|excluiu skill:[\s\S]*?|nova tarefa:[\s\S]*?|tarefa removida:[\s\S]*?|passo concluído|Abrindo site:[\s\S]*?|Clicando no elemento[\s\S]*?|Digitando[\s\S]*?|Rolando página[\s\S]*?|Lendo página atualizada[\s\S]*?)\]/gi;
+    const agenticRegex = /\[(pesquisou na web|calculando|verificando relógio|pesquisando\.\.\.|calculando\.\.\.|verificando\.\.\.|verificando possíveis erros no código\.\.\.|código 100% verificado: sem erros[\s\S]*?|corrigindo erro detectado no código:[\s\S]*?|sandbox de depuração:[\s\S]*?|Criando Skill:[\s\S]*?|Editando Skill:[\s\S]*?|Excluindo Skill:[\s\S]*?|Criou Skill:[\s\S]*?|Editou Skill:[\s\S]*?|Excluiu Skill:[\s\S]*?|criando skill:[\s\S]*?|editando skill:[\s\S]*?|excluindo skill:[\s\S]*?|criou skill:[\s\S]*?|editou skill:[\s\S]*?|excluiu skill:[\s\S]*?|nova tarefa:[\s\S]*?|tarefa removida:[\s\S]*?|passo concluído|Abrindo site:[\s\S]*?|Clicando no elemento[\s\S]*?|Digitando[\s\S]*?|Rolando página[\s\S]*?|Lendo página atualizada[\s\S]*?|Aguardando[\s\S]*?|Aguardou[\s\S]*?|Criando documento:[\s\S]*?|Criou documento:[\s\S]*?|Lendo documento:[\s\S]*?|Lêu documento:[\s\S]*?|Editando documento:[\s\S]*?|Editou documento:[\s\S]*?|Excluindo documento:[\s\S]*?|Excluiu documento:[\s\S]*?|Listando documentos[\s\S]*?|Listou documentos[\s\S]*?|Documento não encontrado:[\s\S]*?)\]/gi;
     currentText = currentText.replace(agenticRegex, (match, tagContent) => {
       const id = `:::AGENTICTOKEN-${agenticTokens.length}:::`;
       let type = 'web';
@@ -726,6 +726,12 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
       else if (lower.includes('digitando')) type = 'pw_type';
       else if (lower.includes('rolando página')) type = 'pw_scroll';
       else if (lower.includes('lendo página')) type = 'pw_read';
+      else if (lower.includes('aguardando') || lower.includes('aguardou')) type = 'pw_wait';
+      else if (lower.includes('criando documento:') || lower.includes('criou documento:')) type = 'doc_create';
+      else if (lower.includes('lendo documento:') || lower.includes('lêu documento:')) type = 'doc_read';
+      else if (lower.includes('editando documento:') || lower.includes('editou documento:')) type = 'doc_edit';
+      else if (lower.includes('excluindo documento:') || lower.includes('excluiu documento:')) type = 'doc_delete';
+      else if (lower.includes('listando documentos') || lower.includes('listou documentos')) type = 'doc_list';
       agenticTokens.push({ id, type, text: tagContent });
       return id;
     });
@@ -896,6 +902,36 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
                   let rawText = token.text.replace(/\[|\]/g, '');
                   displayType = rawText;
                   isActive = isTyping;
+                } else if (token.type === 'pw_wait') {
+                  Icon = Clock;
+                  let rawText = token.text.replace(/\[|\]/g, '');
+                  displayType = rawText;
+                  isActive = isTyping;
+                } else if (token.type === 'doc_create') {
+                  Icon = FilePlus;
+                  let rawText = token.text.replace(/\[|\]/g, '');
+                  displayType = rawText;
+                  isActive = isTyping && token.text.endsWith('...');
+                } else if (token.type === 'doc_read') {
+                  Icon = FolderOpen;
+                  let rawText = token.text.replace(/\[|\]/g, '');
+                  displayType = rawText;
+                  isActive = isTyping && token.text.endsWith('...');
+                } else if (token.type === 'doc_edit') {
+                  Icon = Edit3;
+                  let rawText = token.text.replace(/\[|\]/g, '');
+                  displayType = rawText;
+                  isActive = isTyping && token.text.endsWith('...');
+                } else if (token.type === 'doc_delete') {
+                  Icon = Trash2;
+                  let rawText = token.text.replace(/\[|\]/g, '');
+                  displayType = rawText;
+                  isActive = isTyping && token.text.endsWith('...');
+                } else if (token.type === 'doc_list') {
+                  Icon = FileText;
+                  let rawText = token.text.replace(/\[|\]/g, '');
+                  displayType = rawText;
+                  isActive = isTyping && token.text.endsWith('...');
                 } else {
                   displayType = (isTyping && token.text.includes('...')) ? 'Pesquisando na web...' : 'Pesquisou na web';
                   isActive = isTyping && token.text.includes('...');
