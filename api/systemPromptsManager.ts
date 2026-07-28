@@ -9,16 +9,36 @@ export interface SystemPromptItem {
   content: string;
 }
 
-const CONFIG_PATH = path.resolve(process.cwd(), 'api/promptsConfig.json');
+function getConfigFilePath(): string {
+  const possiblePaths = [
+    path.resolve(process.cwd(), 'api/promptsConfig.json'),
+    path.resolve(process.cwd(), 'promptsConfig.json'),
+    path.resolve(process.cwd(), 'dist/promptsConfig.json'),
+    path.resolve(process.cwd(), 'dist/api/promptsConfig.json')
+  ];
+
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      return p;
+    }
+  }
+
+  // Default path if none exists
+  return path.resolve(process.cwd(), 'api/promptsConfig.json');
+}
 
 /**
  * Reads all system prompts from disk.
  */
 export function getAllSystemPrompts(): SystemPromptItem[] {
   try {
-    if (fs.existsSync(CONFIG_PATH)) {
-      const raw = fs.readFileSync(CONFIG_PATH, 'utf-8');
-      return JSON.parse(raw);
+    const configPath = getConfigFilePath();
+    if (fs.existsSync(configPath)) {
+      const raw = fs.readFileSync(configPath, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
     }
   } catch (err) {
     console.error('[SystemPromptsManager] Error reading promptsConfig.json:', err);
@@ -33,7 +53,7 @@ export function getAllSystemPrompts(): SystemPromptItem[] {
 export function getSystemPrompt(id: string, defaultFallback: string = ''): string {
   const prompts = getAllSystemPrompts();
   const found = prompts.find(p => p.id === id);
-  return found ? found.content : defaultFallback;
+  return found && found.content ? found.content : defaultFallback;
 }
 
 /**
@@ -41,6 +61,7 @@ export function getSystemPrompt(id: string, defaultFallback: string = ''): strin
  */
 export function updateSystemPrompt(id: string, newContent: string): { success: boolean; message: string; updatedPrompt?: SystemPromptItem } {
   try {
+    const configPath = getConfigFilePath();
     const prompts = getAllSystemPrompts();
     const index = prompts.findIndex(p => p.id === id);
 
@@ -50,8 +71,8 @@ export function updateSystemPrompt(id: string, newContent: string): { success: b
 
     prompts[index].content = newContent;
 
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(prompts, null, 2), 'utf-8');
-    console.log(`[SystemPromptsManager] Successfully saved system prompt '${id}' to disk.`);
+    fs.writeFileSync(configPath, JSON.stringify(prompts, null, 2), 'utf-8');
+    console.log(`[SystemPromptsManager] Successfully saved system prompt '${id}' to ${configPath}.`);
 
     return { 
       success: true, 
@@ -63,3 +84,4 @@ export function updateSystemPrompt(id: string, newContent: string): { success: b
     return { success: false, message: `Erro ao salvar no arquivo de código: ${err?.message || String(err)}` };
   }
 }
+

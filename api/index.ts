@@ -677,7 +677,7 @@ Seja natural, explique seu raciocínio antes de chamar as funções e continue o
 
     const formInstruction = "\n" + getSystemPrompt('form_generation', '');
     const docInstruction = "\n" + getSystemPrompt('doc_generation', '');
-    const writingConstraints = "\n" + getSystemPrompt('writingConstraints', '');
+    const writingConstraints = "\n" + getSystemPrompt('writing_constraints', '');
     const tasksInstruction = isScheduledExecution
       ? `\n## ATENÇÃO CRÍTICA: EXECUÇÃO AUTOMÁTICA DE TAREFA AGENDADA\nEsta requisição é a execução de uma tarefa que JÁ FOI AGENDADA previamente. Você está ABSOLUTAMENTE PROIBIDO de gerar a tag <wsm_task ... /> nesta resposta under ANY circumstances. Apenas execute a instrução e apresente o resultado final diretamente.`
       : "\n" + getSystemPrompt('autonomous_tasks', '');
