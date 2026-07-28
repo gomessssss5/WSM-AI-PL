@@ -15,7 +15,7 @@ import {
   sendInactivityEmail, 
   sendFeatureHighlightEmail, 
   sendMonthlyCampaignEmail 
-} from './emailService';
+} from './emailService.js';
 
 let dbInstance: any = null;
 
