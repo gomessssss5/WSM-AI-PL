@@ -1867,11 +1867,11 @@ app.put("/api/admin/prompts", (req: express.Request, res: express.Response) => {
   }
 
   try {
-    const updated = updateSystemPrompt(id, content);
-    if (!updated) {
-      return res.status(404).json({ success: false, message: "System prompt não encontrado." });
+    const result = updateSystemPrompt(id, content);
+    if (!result.success) {
+      return res.status(404).json({ success: false, message: result.message });
     }
-    return res.json({ success: true, message: "System prompt atualizado com sucesso no arquivo do código!", updatedPrompt: updated });
+    return res.json({ success: true, message: result.message, updatedPrompt: result.updatedPrompt });
   } catch (error: any) {
     console.error("Erro ao atualizar system prompt:", error);
     return res.status(500).json({ success: false, message: error?.message || "Erro ao salvar system prompt." });
