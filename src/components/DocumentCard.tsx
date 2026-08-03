@@ -1,155 +1,132 @@
 import React, { useState } from 'react';
 import { WsmDocument } from '../types';
-import { FileText, Download, Maximize2, X } from 'lucide-react';
-import MarkdownRenderer from './MarkdownRenderer';
-import { motion, AnimatePresence } from 'motion/react';
+import { Download, Loader2, FileSpreadsheet, FileCode, FileText, AlignLeft } from 'lucide-react';
+import { motion } from 'motion/react';
+import { generatePdfBlob } from '../utils/pdfGenerator';
+import { generateExcelBlob } from '../utils/excelGenerator';
 
 interface DocumentCardProps {
   document: WsmDocument;
+  onOpenDocument?: (doc: WsmDocument) => void;
   key?: React.Key;
 }
 
-export default function DocumentCard({ document }: DocumentCardProps) {
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+export default function DocumentCard({ document, onOpenDocument }: DocumentCardProps) {
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  const handleDownloadMarkdown = () => {
-    const blob = new Blob([document.content], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = window.document.createElement('a');
-    link.href = url;
-    link.download = `${document.title}.md`;
-    link.click();
-    URL.revokeObjectURL(url);
-    setIsMenuOpen(false);
-  };
+  // Format determined by AI: 'pdf' (default), 'md', 'xlsx', 'txt', 'html', etc.
+  const rawFormat = (document.format || (document as any).type || 'pdf').toString().toLowerCase();
+  let format = rawFormat;
+  if (rawFormat === 'markdown') {
+    format = 'md';
+  } else if (rawFormat === 'excel' || rawFormat === 'csv' || rawFormat === 'sheet' || rawFormat === 'planilha') {
+    format = 'xlsx';
+  }
+  
+  const isCode = ['html', 'json', 'js', 'ts', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'css'].includes(format);
 
-  const handleDownloadDOCX = () => {
-    const element = window.document.getElementById('pdf-content-wrapper');
-    if (element) {
-      const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'></head><body>";
-      const footer = "</body></html>";
-      const html = header + element.innerHTML + footer;
-      const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+  const handleDownload = async (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+
+    if (format === 'md' || format === 'txt' || isCode) {
+      const blob = new Blob([document.content || ''], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const link = window.document.createElement('a');
       link.href = url;
-      link.download = `${document.title}.doc`;
+      link.download = `${document.title || 'arquivo'}.${format}`;
       link.click();
       URL.revokeObjectURL(url);
+    } else if (format === 'xlsx') {
+      try {
+        setIsGenerating(true);
+        const excelBlob = await generateExcelBlob(document.title || 'Planilha', document.content || '');
+        const url = URL.createObjectURL(excelBlob);
+        const link = window.document.createElement('a');
+        link.href = url;
+        link.download = `${document.title || 'planilha'}.xlsx`;
+        link.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error("Erro ao gerar Excel:", err);
+      } finally {
+        setIsGenerating(false);
+      }
+    } else {
+      try {
+        setIsGenerating(true);
+        const pdfBlob = await generatePdfBlob(document.title || 'Documento', document.content || '');
+        const url = URL.createObjectURL(pdfBlob);
+        const link = window.document.createElement('a');
+        link.href = url;
+        link.download = `${document.title || 'documento'}.pdf`;
+        link.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error("Erro ao gerar PDF:", err);
+      } finally {
+        setIsGenerating(false);
+      }
     }
-    setIsMenuOpen(false);
   };
 
   return (
-    <>
-      <motion.div 
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="w-full border border-[#eae6e1] rounded-xl bg-white shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden"
-        onClick={() => setIsFullscreen(true)}
-      >
-        <div className="flex items-center justify-between p-3 border-b border-[#eae6e1] bg-[#fcfbfa]">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
-              <FileText className="w-4 h-4" />
-            </div>
-            <span className="font-semibold text-[13px] text-gray-800 line-clamp-1">{document.title}</span>
+    <motion.div 
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+      onClick={() => onOpenDocument?.(document)}
+      className="w-full bg-[#f8f8f7] hover:bg-[#f2f0ec] dark:bg-gray-900/60 dark:hover:bg-gray-850 border border-[#eae6e1] dark:border-gray-800 rounded-2xl p-3 md:p-3.5 flex items-center justify-between gap-3 shadow-3xs hover:shadow-2xs transition-all cursor-pointer select-none group my-1.5"
+    >
+      {/* Left side: Mini document sheet graphic */}
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        {format === 'xlsx' ? (
+          <div className="w-11 h-13 md:w-12 md:h-14 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/80 rounded-xl shadow-3xs flex flex-col items-center justify-center shrink-0 relative overflow-hidden group-hover:scale-105 transition-transform p-1.5 text-emerald-600 dark:text-emerald-400">
+            <FileSpreadsheet className="w-6 h-6" />
           </div>
-          <button 
-            className="p-1 hover:bg-gray-200 rounded text-gray-500 transition-colors shrink-0"
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsFullscreen(true);
-            }}
-          >
-            <Maximize2 className="w-4 h-4" />
-          </button>
+        ) : isCode ? (
+          <div className="w-11 h-13 md:w-12 md:h-14 bg-blue-50 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/80 rounded-xl shadow-3xs flex flex-col items-center justify-center shrink-0 relative overflow-hidden group-hover:scale-105 transition-transform p-1.5 text-blue-600 dark:text-blue-400">
+            <FileCode className="w-6 h-6" />
+          </div>
+        ) : format === 'txt' ? (
+          <div className="w-11 h-13 md:w-12 md:h-14 bg-gray-50 dark:bg-gray-800/80 border border-gray-200/80 dark:border-gray-700/80 rounded-xl shadow-3xs flex flex-col items-center justify-center shrink-0 relative overflow-hidden group-hover:scale-105 transition-transform p-1.5 text-gray-600 dark:text-gray-400">
+            <AlignLeft className="w-6 h-6" />
+          </div>
+        ) : (
+          <div className="w-11 h-13 md:w-12 md:h-14 bg-white dark:bg-gray-800 border border-gray-200/90 dark:border-gray-700 rounded-xl shadow-3xs flex flex-col items-center justify-center shrink-0 relative overflow-hidden group-hover:scale-105 transition-transform p-1.5">
+            <div className="w-6 h-1 bg-blue-500/80 rounded-full mb-1.5" />
+            <div className="w-7 h-0.5 bg-gray-300 dark:bg-gray-600 rounded-full mb-1" />
+            <div className="w-5 h-0.5 bg-gray-300 dark:bg-gray-600 rounded-full mb-1" />
+            <div className="w-6 h-0.5 bg-gray-200 dark:bg-gray-700 rounded-full mb-1" />
+            <div className="w-4 h-0.5 bg-gray-200 dark:bg-gray-700 rounded-full" />
+          </div>
+        )}
+
+        {/* Middle text */}
+        <div className="flex flex-col min-w-0 flex-1">
+          <span className="font-semibold text-[14px] text-gray-900 dark:text-gray-100 truncate tracking-tight leading-snug">
+            {document.title || 'Documento'}
+          </span>
+          <span className="text-[12px] text-gray-500 dark:text-gray-400 font-normal mt-0.5">
+            {format === 'xlsx' ? 'Planilha' : isCode ? 'Código' : format === 'txt' ? 'Texto' : 'Documento'} · {format.toUpperCase()}
+          </span>
         </div>
-        
-        <div className="p-4 bg-white max-h-[200px] overflow-hidden relative">
-           <div className="prose text-[12px] text-gray-500 line-clamp-6 opacity-70 pointer-events-none">
-             <MarkdownRenderer content={document.content} />
-           </div>
-           <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white to-transparent" />
-        </div>
-      </motion.div>
+      </div>
 
-      <AnimatePresence>
-      {isFullscreen && (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 md:p-8"
-        >
-          <motion.div 
-            initial={{ scale: 0.95, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 20 }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="bg-white rounded-2xl w-full max-w-4xl h-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-150 bg-white">
-              <div className="flex items-center gap-3">
-                 <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
-                    <FileText className="w-5 h-5" />
-                 </div>
-                 <div>
-                    <h2 className="text-[15px] font-bold text-gray-900">{document.title}</h2>
-                    <span className="text-[11px] text-gray-500">Documento Gerado</span>
-                 </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <button 
-                    onClick={() => setIsMenuOpen(!isMenuOpen)}
-                    className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors border border-transparent hover:border-gray-200"
-                  >
-                    <Download className="w-4 h-4" />
-                  </button>
-                  {isMenuOpen && (
-                    <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-150 rounded-xl shadow-xl z-50 py-1">
-                      <button 
-                        onClick={handleDownloadMarkdown}
-                        className="w-full text-left px-4 py-2 text-[13px] text-gray-700 hover:bg-gray-50"
-                      >
-                        Baixar como Markdown (.md)
-                      </button>
-                      <button 
-                        onClick={handleDownloadDOCX}
-                        className="w-full text-left px-4 py-2 text-[13px] text-gray-700 hover:bg-gray-50 rounded-b-xl"
-                      >
-                        Baixar como Word (.doc)
-                      </button>
-                    </div>
-                  )}
-                </div>
-                
-                <button 
-                  onClick={() => setIsFullscreen(false)}
-                  className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-8 md:p-12 bg-[#fcfbfa]">
-              <div className="max-w-3xl mx-auto bg-white border border-gray-150 shadow-sm rounded-xl p-8 md:p-12 min-h-full">
-                <div id="pdf-content-wrapper" className="prose max-w-none text-gray-800">
-                  <MarkdownRenderer content={document.content} />
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-      </AnimatePresence>
-    </>
+      {/* Right side: Baixar button */}
+      <button
+        type="button"
+        onClick={handleDownload}
+        disabled={isGenerating}
+        className="bg-white hover:bg-gray-50 active:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-750 dark:text-gray-100 border border-gray-200/90 dark:border-gray-700 text-gray-800 text-xs font-semibold px-4 py-2 rounded-xl shadow-3xs flex items-center gap-1.5 transition-all shrink-0 cursor-pointer disabled:opacity-50 active:scale-95"
+        title={`Baixar ${format.toUpperCase()}`}
+      >
+        {isGenerating ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 dark:text-emerald-400" />
+        ) : (
+          <Download className="w-3.5 h-3.5 text-gray-600 dark:text-gray-300" />
+        )}
+        <span>Baixar</span>
+      </button>
+    </motion.div>
   );
 }

@@ -1849,7 +1849,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
       />
 
       {/* Main View Area (Responsive) */}
-      <div className={`flex-1 flex flex-col h-full overflow-hidden ${isMobileHistoryOpen ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`flex-1 flex flex-col h-full overflow-hidden min-w-0 ${isMobileHistoryOpen ? 'hidden md:flex' : 'flex'}`}>
         {isAdminView ? (
           <AdminDashboard 
             onBack={() => setIsAdminView(false)} 

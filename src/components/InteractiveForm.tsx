@@ -122,7 +122,7 @@ export default function InteractiveForm({ form, onSubmit, onCancel }: Interactiv
           </button>
           <span>{currentStep + 1} de {totalSteps}</span>
           <button 
-            onClick={handleNext}
+            onClick={() => handleNext()}
             disabled={currentStep === totalSteps - 1 && !answers[currentStep]}
             className="p-1 hover:bg-gray-100 rounded disabled:opacity-30 transition-colors cursor-pointer"
           >

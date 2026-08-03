@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Paperclip, Globe, Monitor, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share, Columns, Pause, Cpu, Bot } from 'lucide-react';
+import { Paperclip, Globe, Monitor, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share, Columns, Pause, Cpu, Bot, PanelRight } from 'lucide-react';
 import BrowserPreviewPane from './BrowserPreviewPane';
+import DocumentViewerPane from './DocumentViewerPane';
 import { Skill } from '../lib/skills';
-import { Message, Draft } from '../types';
+import { Message, Draft, WsmDocument } from '../types';
 import { saveEvaluationToDb } from '../lib/chatService';
 import MarkdownRenderer from './MarkdownRenderer';
 import SearchMessageView from './SearchMessageView';
@@ -268,14 +269,93 @@ export default function ChatWindow({
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [isTasksExpanded, setIsTasksExpanded] = useState(true);
   const [isSplitScreenOpen, setIsSplitScreenOpen] = useState(false);
+  const [activeDocument, setActiveDocument] = useState<{ doc: WsmDocument; isFullscreen: boolean } | null>(null);
   const [completedReasoningMsgIds, setCompletedReasoningMsgIds] = useState<Set<string>>(new Set());
   const [completedTypewriterMsgIds, setCompletedTypewriterMsgIds] = useState<Set<string>>(new Set());
 
-  const lastAiWithScreenshots = [...messages].reverse().find(
-    m => m.sender === 'ai' && m.browserScreenshots && m.browserScreenshots.length > 0
-  );
-  const currentScreenshots = lastAiWithScreenshots?.browserScreenshots || [];
-  const latestScreenshot = currentScreenshots.length > 0 ? currentScreenshots[currentScreenshots.length - 1] : null;
+  const allScreenshots = useMemo(() => {
+    return messages.flatMap(m => m.browserScreenshots || []);
+  }, [messages]);
+
+  const latestScreenshot = allScreenshots.length > 0 ? allScreenshots[allScreenshots.length - 1] : null;
+  
+  // Check if current messages or history chat utilized the browser/computer
+  const hasUsedComputer = useMemo(() => {
+    if (allScreenshots.length > 0) return true;
+    return messages.some(m => {
+      if (m.browserScreenshots && m.browserScreenshots.length > 0) return true;
+      if (!m.text) return false;
+      const lower = m.text.toLowerCase();
+      return (
+        lower.includes('[abrindo site:') ||
+        lower.includes('[clicando no elemento') ||
+        lower.includes('[digitando') ||
+        lower.includes('[rolando página') ||
+        lower.includes('[lendo página') ||
+        lower.includes('[aguardando') ||
+        lower.includes('pw_click') ||
+        lower.includes('pw_open') ||
+        lower.includes('wsm 1.6 está usando o computador') ||
+        lower.includes('wsm 1.6 usou o computador')
+      );
+    });
+  }, [allScreenshots, messages]);
+
+  const browserStepCount = useMemo(() => {
+    if (allScreenshots.length > 0) return allScreenshots.length;
+    let count = 0;
+    messages.forEach(m => {
+      if (m.text) {
+        const matches = m.text.match(/\[(abrindo site|clicando no elemento|digitando|rolando página|lendo página|aguardando)/gi);
+        if (matches) count += matches.length;
+      }
+    });
+    return Math.max(1, count);
+  }, [allScreenshots, messages]);
+
+  // Track elapsed navigation duration in seconds
+  const [navigationSeconds, setNavigationSeconds] = useState<number>(0);
+  const navStartRef = useRef<number | null>(null);
+
+  // Sync navigation duration when switching messages/sessions or during live thinking
+  useEffect(() => {
+    if (!hasUsedComputer) {
+      navStartRef.current = null;
+      setNavigationSeconds(0);
+      return;
+    }
+
+    let interval: NodeJS.Timeout | null = null;
+
+    if (isThinking) {
+      if (!navStartRef.current) {
+        navStartRef.current = Date.now() - (navigationSeconds * 1000);
+      }
+      interval = setInterval(() => {
+        if (navStartRef.current) {
+          const elapsed = Math.max(1, Math.floor((Date.now() - navStartRef.current) / 1000));
+          setNavigationSeconds(elapsed);
+        }
+      }, 1000);
+    } else {
+      setNavigationSeconds(prev => prev > 0 ? prev : Math.max(5, browserStepCount * 3));
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [hasUsedComputer, isThinking, browserStepCount]);
+
+  const formattedNavTime = useMemo(() => {
+    if (navigationSeconds < 60) {
+      return `${navigationSeconds}s`;
+    }
+    const mins = Math.floor(navigationSeconds / 60);
+    const secs = navigationSeconds % 60;
+    return `${mins}m ${String(secs).padStart(2, '0')}s`;
+  }, [navigationSeconds]);
+
+  const currentScreenshots = allScreenshots;
 
   const lastVisibleUserIndex = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -1324,8 +1404,16 @@ export default function ChatWindow({
   }
 
   return (
-    <div className="w-full h-full flex flex-col md:flex-row overflow-hidden relative">
-      <div id="wsm-chat-window" className={`${isSplitScreenOpen && currentScreenshots.length > 0 ? 'w-full md:w-1/2 border-r border-gray-200/80' : 'w-full'} flex-1 flex flex-col h-full bg-[#fcfbfa] relative overflow-hidden ${!isEmbedded ? 'animate-in zoom-in-95 duration-200' : ''}`}>
+    <div className="w-full h-full flex flex-col md:flex-row overflow-hidden relative min-w-0 max-w-full">
+      <div id="wsm-chat-window" className={`${
+        activeDocument && activeDocument.isFullscreen
+          ? 'hidden'
+          : activeDocument
+            ? 'hidden md:flex w-full md:w-1/2 border-r border-[#eae6e1] shrink-0 min-w-0 max-w-full overflow-x-hidden'
+            : isSplitScreenOpen && currentScreenshots.length > 0 
+              ? 'w-full md:w-1/2 border-r border-gray-200/80 min-w-0 max-w-full overflow-x-hidden' 
+              : 'w-full min-w-0 max-w-full overflow-x-hidden'
+      } flex-1 flex flex-col h-full bg-[#fcfbfa] relative overflow-hidden ${!isEmbedded ? 'animate-in zoom-in-95 duration-200' : ''}`}>
       
       {/* Top Header */}
       <header className="flex px-4 py-2.5 bg-white/80 backdrop-blur-md border-b border-[#eae6e1] items-center justify-between relative z-40">
@@ -1603,7 +1691,7 @@ export default function ChatWindow({
       {/* Message List */}
       <div 
         ref={messagesContainerRef} 
-        className={`flex-1 overflow-y-auto px-4 py-4 ${messages.length === 0 ? 'flex flex-col justify-center items-center' : 'space-y-4'}`}
+        className={`flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 w-full max-w-full min-w-0 ${messages.length === 0 ? 'flex flex-col justify-center items-center' : 'space-y-4'}`}
       >
         {messages.length === 0 ? (
           isTemporary ? (
@@ -1641,7 +1729,7 @@ export default function ChatWindow({
             </motion.div>
           ) : null
         ) : (
-          <div className="max-w-2xl mx-auto space-y-4">
+          <div className="max-w-2xl mx-auto space-y-4 w-full min-w-0 overflow-x-hidden">
             {messages.map((message, index) => {
             if (message.isHidden) return null;
             const isUser = message.sender === 'user';
@@ -1649,7 +1737,7 @@ export default function ChatWindow({
               <div
                 key={message.id}
                 id={`msg-container-${message.id}`}
-                className={`flex gap-3 group ${isUser ? 'justify-end' : 'justify-start'}`}
+                className={`flex gap-3 group w-full min-w-0 ${isUser ? 'justify-end' : 'justify-start'}`}
               >
                 {/* AI Avatar */}
                 {!isUser && (
@@ -1660,11 +1748,11 @@ export default function ChatWindow({
                   )
                 )}
 
-                <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-[85%]`}>
+                <div className={`flex flex-col min-w-0 ${isUser ? 'items-end max-w-[85%]' : 'items-start max-w-[95%] overflow-hidden'}`}>
                   {/* Bubble content */}
                   {true && (
                     <div
-                      className={`rounded-xl px-3.5 py-2 text-[13.5px] leading-relaxed w-full ${
+                      className={`rounded-xl px-3.5 py-2 text-[13.5px] leading-relaxed min-w-0 break-words ${
                         isUser
                           ? 'bg-[#f3f0ec] text-gray-800 shadow-[0_1px_1.5px_rgba(0,0,0,0.01)] border border-[#eae6e1]'
                           : 'text-gray-800'
@@ -1753,6 +1841,7 @@ export default function ChatWindow({
                         onOpenSources={(sources, query, count) => {
                           setDrawerSources({ sources, query, count });
                         }}
+                        onOpenDocument={(doc) => setActiveDocument({ doc, isFullscreen: false })}
                       />
                     ) : (
                       <>
@@ -1781,11 +1870,11 @@ export default function ChatWindow({
                                   <span>Você cancelou essa resposta</span>
                                 </div>
                               ) : isUser ? (
-                                <div className="prose max-w-none text-[14px] text-gray-800 w-full whitespace-pre-wrap">
+                                <div className="prose max-w-none text-[14px] text-gray-800 whitespace-pre-wrap overflow-x-auto max-w-full">
                                   {displayUserText(message.text)}
                                 </div>
                               ) : (
-                                <div className="prose max-w-none text-[14px] text-gray-800 w-full">
+                                <div className="prose max-w-none text-[14px] text-gray-800 min-w-0 break-words overflow-x-auto max-w-full">
                                   {/* 1. Reasoning Block */}
                                   {raciocinio && (
                                     <ReasoningBlock
@@ -1805,9 +1894,9 @@ export default function ChatWindow({
                                     if (match) {
                                       const rawSkillName = match[1].replace(/\]/g, '').trim();
                                       return (
-                                        <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-medium text-[13px] bg-indigo-50/70 dark:bg-indigo-950/20 border border-indigo-150/50 dark:border-indigo-900/30 rounded-xl px-3.5 py-2 mb-3 w-fit select-none shadow-xxs">
-                                          <BookOpen className="w-4.5 h-4.5 text-indigo-500 dark:text-indigo-400 animate-pulse" />
-                                          <span>Lendo Skill: <strong className="font-semibold text-indigo-700 dark:text-indigo-300">{rawSkillName}</strong></span>
+                                        <div className="inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-gray-500 dark:text-slate-300 bg-gray-50/80 dark:bg-slate-800/50 border-gray-150 dark:border-slate-700 mb-3 w-fit shadow-3xs">
+                                          <BookOpen className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400 shrink-0" />
+                                          <span>Lendo Skill: <strong className="font-semibold text-gray-600 dark:text-slate-200">{rawSkillName}</strong></span>
                                         </div>
                                       );
                                     }
@@ -1840,9 +1929,13 @@ export default function ChatWindow({
                                     const { docObjs } = extractWsmDoc(extractWsmForm(cleanRaciocinioTags(message.text)).cleanText);
                                     if (docObjs && docObjs.length > 0) {
                                       return (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mt-3 w-full">
+                                        <div className="flex flex-col gap-2 mt-3 w-full">
                                           {docObjs.map((doc, idx) => (
-                                            <DocumentCard key={idx} document={doc} />
+                                            <DocumentCard 
+                                              key={idx} 
+                                              document={doc} 
+                                              onOpenDocument={(d) => setActiveDocument({ doc: d, isFullscreen: false })} 
+                                            />
                                           ))}
                                         </div>
                                       );
@@ -1865,8 +1958,8 @@ export default function ChatWindow({
                                     return null;
                                   })()}
 
-                                  {/* 5. Thinking indicator - only while reasoning or typewriter are actively generating */}
-                                  {isThinking && message.id === messages[messages.length - 1]?.id && isReasoningDone && !isTypewriterDone && (
+                                  {/* 5. Thinking indicator - while thinking/navigating and reasoning is done */}
+                                  {isThinking && message.id === messages[messages.length - 1]?.id && isReasoningDone && (
                                     <div className="flex items-center gap-2 text-gray-500 text-xs py-2 mt-2">
                                       <PacmanLoadingAnimation />
                                     </div>
@@ -2286,6 +2379,55 @@ export default function ChatWindow({
               </motion.div>
             )}
             </AnimatePresence>
+
+            {/* Playwright Computer Status Card attached seamlessly above message input box */}
+            {hasUsedComputer && (
+              <div 
+                onClick={() => setIsSplitScreenOpen(prev => !prev)}
+                className="w-full bg-[#fbfaf8] dark:bg-gray-900 border border-[#eae6e1] dark:border-gray-800 border-b-0 rounded-t-[28px] md:rounded-t-[26px] p-2.5 px-3.5 flex items-center justify-between gap-3 select-none transition-all duration-200 cursor-pointer hover:bg-[#f5f3ee] dark:hover:bg-gray-800/90 group"
+                title="Clique para abrir o painel lateral de navegação do computador"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  {/* Thumbnail Image from latest screenshot */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (latestScreenshot?.screenshot) setLightboxImage(latestScreenshot.screenshot);
+                    }}
+                    className="w-10 h-10 md:w-12 md:h-12 rounded-xl overflow-hidden border border-gray-200/90 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 shrink-0 relative shadow-2xs flex items-center justify-center group/btn cursor-pointer hover:border-blue-400 transition-colors"
+                    title="Clique para expandir a captura"
+                  >
+                    {latestScreenshot?.screenshot ? (
+                      <>
+                        <img
+                          src={latestScreenshot.screenshot}
+                          alt="Navegação WSM 1.6"
+                          className="w-full h-full object-cover transition-transform group-hover/btn:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover/btn:bg-black/10 transition-colors" />
+                      </>
+                    ) : (
+                      <Monitor className="w-5 h-5 text-gray-400 animate-pulse" />
+                    )}
+                  </button>
+
+                  {/* Status Indicator & Text */}
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isThinking ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-emerald-500'}`} />
+                    <span className="text-[14px] font-bold text-gray-800 dark:text-gray-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                      {isThinking ? "WSM 1.6 está usando o Computador" : "WSM 1.6 Usou o computador"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Toggle side panel icon on the right */}
+                <div className="shrink-0 flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-200/90 dark:border-gray-700 p-1.5 rounded-full text-gray-600 dark:text-gray-300 shadow-2xs group-hover:border-blue-300 dark:group-hover:border-blue-700 transition-colors" title="Alternar painel lateral">
+                  <PanelRight className="w-4 h-4 text-gray-500 group-hover:text-blue-500 transition-colors" />
+                </div>
+              </div>
+            )}
+
             <form
                 onSubmit={handleSubmit}
                 onDragEnter={handleDragEnter}
@@ -2293,8 +2435,10 @@ export default function ChatWindow({
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 className={`w-full ${isListening ? 'bg-[#f5f6f8]' : 'bg-white'} border border-[#eae6e1] p-3 md:p-2.5 focus-within:border-gray-300 transition-all duration-200 z-50 ${
-                  taskProgress 
-                    ? 'rounded-b-[28px] md:rounded-b-[24px] border-t-0' 
+                  hasUsedComputer
+                    ? 'rounded-b-[28px] md:rounded-b-[26px] rounded-t-none border-t border-t-gray-100 dark:border-t-gray-800/80 shadow-lg md:shadow-[0_1px_8px_rgba(0,0,0,0.01)]'
+                    : taskProgress 
+                    ? 'rounded-b-[28px] md:rounded-b-[24px] border-t-0 shadow-lg md:shadow-[0_1px_8px_rgba(0,0,0,0.01)]' 
                     : 'rounded-[28px] md:rounded-[26px] shadow-lg md:shadow-[0_1px_8px_rgba(0,0,0,0.01)]'
                 }`}
               >
@@ -2778,21 +2922,6 @@ export default function ChatWindow({
                   >
                     <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-[#2563eb] animate-spin-slow' : 'text-gray-500'}`} />
                     <span>Pesquisar</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    id="btn-computer-toggle"
-                    onClick={() => setIsComputerEnabled(!isComputerEnabled)}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold transition-all cursor-pointer ${
-                      isComputerEnabled
-                        ? 'bg-white text-[#2563eb] border border-[#2563eb] shadow-2xs'
-                        : 'bg-white text-gray-700 border border-[#eae6e1] hover:border-gray-300 hover:bg-gray-50/50 shadow-2xs'
-                    }`}
-                    title="Dar prioridade máxima ao uso do navegador/Playwright (Agente)"
-                  >
-                    <Monitor className={`w-3.5 h-3.5 ${isComputerEnabled ? 'text-[#2563eb]' : 'text-gray-500'}`} />
-                    <span>Computador</span>
                   </button>
                 </div>
 
@@ -3288,11 +3417,23 @@ export default function ChatWindow({
       )}
       </div>
 
+      {/* Right Column: Active Document Viewer Pane */}
+      <AnimatePresence>
+        {activeDocument && (
+          <DocumentViewerPane
+            document={activeDocument.doc}
+            isFullscreen={activeDocument.isFullscreen}
+            onToggleFullscreen={() => setActiveDocument(prev => prev ? { ...prev, isFullscreen: !prev.isFullscreen } : null)}
+            onClose={() => setActiveDocument(null)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Right Column: Split Screen Browser Preview Pane */}
-      {isSplitScreenOpen && currentScreenshots.length > 0 && (
-        <div className="w-full md:w-1/2 h-1/2 md:h-full flex flex-col overflow-hidden shrink-0">
+      {isSplitScreenOpen && (currentScreenshots.length > 0 || allScreenshots.length > 0) && (
+        <div className="w-full md:w-1/2 h-1/2 md:h-full flex flex-col overflow-hidden shrink-0 animate-in fade-in slide-in-from-right-4 duration-200">
           <BrowserPreviewPane
-            screenshots={currentScreenshots}
+            screenshots={currentScreenshots.length > 0 ? currentScreenshots : allScreenshots}
             isThinking={isThinking}
             onClose={() => setIsSplitScreenOpen(false)}
           />

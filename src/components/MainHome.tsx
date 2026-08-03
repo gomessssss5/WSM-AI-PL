@@ -1469,22 +1469,6 @@ export default function MainHome({
                     <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-[#2563eb] animate-spin-slow' : 'text-gray-500'}`} />
                     <span>Pesquisar</span>
                   </button>
-
-                  {/* Toggleable Computador Button */}
-                  <button
-                    type="button"
-                    id="btn-computer-toggle"
-                    onClick={() => setIsComputerEnabled(!isComputerEnabled)}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold transition-all cursor-pointer ${
-                      isComputerEnabled
-                        ? 'bg-white text-[#2563eb] border border-[#2563eb] shadow-2xs'
-                        : 'bg-white text-gray-700 border border-[#eae6e1] hover:border-gray-300 hover:bg-gray-50/50 shadow-2xs'
-                    }`}
-                    title="Dar prioridade máxima ao uso do navegador/Playwright (Agente)"
-                  >
-                    <Monitor className={`w-3.5 h-3.5 ${isComputerEnabled ? 'text-[#2563eb]' : 'text-gray-500'}`} />
-                    <span>Computador</span>
-                  </button>
                 </div>
 
                 {/* Right Controls: Mic & Send Circular Button */}

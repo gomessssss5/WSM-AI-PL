@@ -17,7 +17,14 @@ const COLORS = ['#2563eb', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#3b82f6'
 export default function WsmChartComponent({ type, title, data }: WsmChartComponentProps) {
   const parsedData = useMemo(() => {
     try {
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+      if (typeof parsed === 'object' && parsed !== null) {
+        return [parsed];
+      }
+      return [];
     } catch (e) {
       console.error('Invalid JSON for chart data:', e);
       return [];
@@ -131,13 +138,13 @@ export default function WsmChartComponent({ type, title, data }: WsmChartCompone
   };
 
   return (
-    <div className="my-6 border border-gray-200 shadow-sm rounded-2xl overflow-hidden bg-white flex flex-col w-full max-w-none">
+    <div className="my-6 border border-gray-200 shadow-sm rounded-2xl overflow-hidden bg-white flex flex-col md:relative w-[calc(100%+2rem)] -ml-4 lg:w-[calc(100%+16rem)] lg:-ml-32 max-w-none">
       {title && (
         <div className="px-5 py-4 border-b border-gray-150 bg-gray-50/50">
           <h4 className="text-gray-800 font-semibold text-[15px] leading-tight">{title}</h4>
         </div>
       )}
-      <div className="p-4 h-[350px] w-full">
+      <div className="p-4 h-[420px] w-full">
         {renderChart()}
       </div>
     </div>

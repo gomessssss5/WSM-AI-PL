@@ -13,6 +13,7 @@ export interface WsmForm {
 export interface WsmDocument {
   title: string;
   content: string;
+  format?: 'pdf' | 'md' | string;
 }
 
 export interface SearchStep {

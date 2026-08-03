@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin, TvMinimalPlay, Image as ImageIcon, Loader2, Download, ZoomIn, MousePointer2, Keyboard, ScanEye, ArrowDownUp, FileText, FilePlus, FolderOpen, Edit3, Trash2 } from 'lucide-react';
-import HtmlCodeBlock from './HtmlCodeBlock';
 import WsmMapComponent from './WsmMapComponent';
 import WsmChartComponent from './WsmChartComponent';
 import { auth, db } from '../lib/firebase';
@@ -178,9 +177,9 @@ export function AgenticSkillTag({ text, type }: AgenticSkillTagProps) {
 
   if (status === 'active') {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-purple-700 bg-purple-50 border-purple-200 cursor-default shadow-xs mx-0 my-3">
-        <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse shrink-0" />
-        <span><strong className="font-semibold">{labelText}</strong></span>
+      <span className="inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-gray-500 dark:text-slate-300 bg-gray-50/80 dark:bg-slate-800/50 border-gray-150 dark:border-slate-700 cursor-default shadow-3xs mx-0 my-2">
+        <BookOpen className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400 shrink-0" />
+        <span><strong className="font-semibold text-gray-600 dark:text-slate-200">{labelText}</strong></span>
       </span>
     );
   }
@@ -192,12 +191,12 @@ export function AgenticSkillTag({ text, type }: AgenticSkillTagProps) {
       <button
         onClick={isClickable ? handleOpenModal : undefined}
         disabled={!isClickable}
-        className={`inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-indigo-700 bg-indigo-50 border-indigo-200 shadow-xs mx-0 my-3 ${isClickable ? 'cursor-pointer hover:bg-indigo-100 hover:border-indigo-300 active:scale-98' : 'cursor-default opacity-80'}`}
+        className={`inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-gray-500 dark:text-slate-300 bg-gray-50/80 dark:bg-slate-800/50 border-gray-150 dark:border-slate-700 shadow-3xs mx-0 my-2 ${isClickable ? 'cursor-pointer hover:bg-gray-100/80 dark:hover:bg-slate-800 hover:border-gray-200 active:scale-98' : 'cursor-default opacity-80'}`}
       >
-        <CheckCircle2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-        <span><strong className="font-semibold">{labelText}</strong></span>
+        <BookOpen className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400 shrink-0" />
+        <span><strong className="font-semibold text-gray-600 dark:text-slate-200">{labelText}</strong></span>
         {isClickable && (
-          <span className="text-[10px] text-indigo-400 font-normal ml-0.5">(Ver Skill)</span>
+          <span className="text-[10px] text-gray-400 dark:text-slate-400 font-normal ml-0.5">(Ver Skill)</span>
         )}
       </button>
 
@@ -709,7 +708,7 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
     });
 
     // 0. Extract agentic tags: [pesquisou na web], [calculando], [verificando relógio], and active/completed states
-    const agenticRegex = /\[(pesquisou na web|calculando|verificando relógio|pesquisando\.\.\.|calculando\.\.\.|verificando\.\.\.|verificando possíveis erros no código\.\.\.|código 100% verificado: sem erros[\s\S]*?|corrigindo erro detectado no código:[\s\S]*?|sandbox de depuração:[\s\S]*?|Criando Skill:[\s\S]*?|Editando Skill:[\s\S]*?|Excluindo Skill:[\s\S]*?|Criou Skill:[\s\S]*?|Editou Skill:[\s\S]*?|Excluiu Skill:[\s\S]*?|criando skill:[\s\S]*?|editando skill:[\s\S]*?|excluindo skill:[\s\S]*?|criou skill:[\s\S]*?|editou skill:[\s\S]*?|excluiu skill:[\s\S]*?|nova tarefa:[\s\S]*?|tarefa removida:[\s\S]*?|passo concluído|Abrindo site:[\s\S]*?|Clicando no elemento[\s\S]*?|Digitando[\s\S]*?|Rolando página[\s\S]*?|Lendo página atualizada[\s\S]*?|Aguardando[\s\S]*?|Aguardou[\s\S]*?|Criando documento:[\s\S]*?|Criou documento:[\s\S]*?|Lendo documento:[\s\S]*?|Lêu documento:[\s\S]*?|Editando documento:[\s\S]*?|Editou documento:[\s\S]*?|Excluindo documento:[\s\S]*?|Excluiu documento:[\s\S]*?|Listando documentos[\s\S]*?|Listou documentos[\s\S]*?|Documento não encontrado:[\s\S]*?)\]/gi;
+    const agenticRegex = /\[(pesquisou na web|calculando|verificando relógio|pesquisando\.\.\.|calculando\.\.\.|verificando\.\.\.|verificando possíveis erros no código\.\.\.|código 100% verificado: sem erros[\s\S]*?|corrigindo erro detectado no código:[\s\S]*?|sandbox de depuração:[\s\S]*?|Criando Skill:[\s\S]*?|Editando Skill:[\s\S]*?|Excluindo Skill:[\s\S]*?|Criou Skill:[\s\S]*?|Editou Skill:[\s\S]*?|Excluiu Skill:[\s\S]*?|criando skill:[\s\S]*?|editando skill:[\s\S]*?|excluindo skill:[\s\S]*?|criou skill:[\s\S]*?|editou skill:[\s\S]*?|excluiu skill:[\s\S]*?|nova tarefa:[\s\S]*?|tarefa removida:[\s\S]*?|passo concluído|Abrindo site:[\s\S]*?|Clicando no elemento[\s\S]*?|Digitando[\s\S]*?|Rolando página[\s\S]*?|Lendo página atualizada[\s\S]*?|Aguardando[\s\S]*?|Aguardou[\s\S]*?|Criando documento:[\s\S]*?|Criou documento:[\s\S]*?|Lendo documento:[\s\S]*?|Leu documento:[\s\S]*?|Editando documento:[\s\S]*?|Editou documento:[\s\S]*?|Excluindo documento:[\s\S]*?|Excluiu documento:[\s\S]*?|Listando documentos[\s\S]*?|Listou documentos[\s\S]*?|Documento não encontrado:[\s\S]*?)\]/gi;
     currentText = currentText.replace(agenticRegex, (match, tagContent) => {
       const id = `:::AGENTICTOKEN-${agenticTokens.length}:::`;
       let type = 'web';
@@ -728,7 +727,7 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
       else if (lower.includes('lendo página')) type = 'pw_read';
       else if (lower.includes('aguardando') || lower.includes('aguardou')) type = 'pw_wait';
       else if (lower.includes('criando documento:') || lower.includes('criou documento:')) type = 'doc_create';
-      else if (lower.includes('lendo documento:') || lower.includes('lêu documento:')) type = 'doc_read';
+      else if (lower.includes('lendo documento:') || lower.includes('leu documento:') || lower.includes('lêu documento:')) type = 'doc_read';
       else if (lower.includes('editando documento:') || lower.includes('editou documento:')) type = 'doc_edit';
       else if (lower.includes('excluindo documento:') || lower.includes('excluiu documento:')) type = 'doc_delete';
       else if (lower.includes('listando documentos') || lower.includes('listou documentos')) type = 'doc_list';
@@ -1052,7 +1051,19 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
     if (!content) return [];
 
     const cleanedContent = cleanStepTags(content);
-    const lines = cleanedContent.split('\n');
+    
+    // Ensure wsm tags are on their own lines so text before/after them doesn't get swallowed
+    let formattedContent = cleanedContent;
+    const tagNames = ['wsm_chart', 'wsm_map', 'wsm_image', 'wsm_form', 'wsm_task'];
+    tagNames.forEach(tagName => {
+      // Matches both self-closing <wsm_chart ... /> and matching <wsm_chart ...>...</wsm_chart>
+      const selfClosingRegex = new RegExp(`(<${tagName}[\\s\\S]*?\\/>)`, 'gi');
+      const openCloseRegex = new RegExp(`(<${tagName}[\\s\\S]*?>[\\s\\S]*?<\\/${tagName}>)`, 'gi');
+      formattedContent = formattedContent.replace(selfClosingRegex, '\n$1\n');
+      formattedContent = formattedContent.replace(openCloseRegex, '\n$1\n');
+    });
+
+    const lines = formattedContent.split('\n');
     const blocks: React.ReactNode[] = [];
     let i = 0;
 
@@ -1080,66 +1091,34 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
         const codeBlockId = `code-block-${i}`;
         const normalizedLang = lang.toLowerCase();
 
-        if (normalizedLang === 'html' || normalizedLang === 'htm') {
-          // Find if there is any other HTML block AFTER the current block (index i)
-          let hasHtmlBlockAfter = false;
-          for (let j = i; j < lines.length; j++) {
-            const l = lines[j].trim().toLowerCase();
-            if (l.startsWith('```html') || l.startsWith('```htm')) {
-              hasHtmlBlockAfter = true;
-              break;
-            }
-          }
-
-          let shouldHideHtml = false;
-          // If there is another HTML block after this one, we can hide this one
-          // to avoid cluttering the interface with buggy versions during verification.
-          if (hasHtmlBlockAfter) {
-            const lowerContent = content.toLowerCase();
-            const hasVerification = lowerContent.includes('[verificando possíveis erros') || 
-                                    lowerContent.includes('[corrigindo erro');
-            if (hasVerification) {
-              shouldHideHtml = true;
-            }
-          }
-
-          if (!shouldHideHtml) {
-            blocks.push(
-              <div key={`html-code-${i}`}>
-                <HtmlCodeBlock code={code.trim()} />
-              </div>
-            );
-          }
-        } else {
-          blocks.push(
-            <div key={`code-${i}`} className="my-4 bg-gray-950 rounded-xl overflow-hidden shadow-md border border-gray-850 w-full max-w-full">
-              <div className="bg-gray-900 px-3.5 py-2 flex items-center justify-between text-[11px] text-gray-400 border-b border-gray-800/60 select-none">
-                <span className="font-mono text-purple-400 uppercase tracking-wider font-semibold">
-                  {lang || 'code'}
-                </span>
-                <button
-                  onClick={() => copyToClipboard(code.trim(), codeBlockId)}
-                  className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer text-xs"
-                >
-                  {copiedId === codeBlockId ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-emerald-400 font-bold">Copiado!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Copiar código</span>
-                    </>
-                  )}
-                </button>
-              </div>
-              <pre className="p-4 overflow-x-auto text-[12.5px] text-gray-200 font-mono leading-relaxed bg-gray-950/60 select-text">
-                <code>{code.trim()}</code>
-              </pre>
+        blocks.push(
+          <div key={`code-${i}`} className="my-4 bg-gray-950 rounded-xl overflow-hidden shadow-md border border-gray-850 w-full max-w-full">
+            <div className="bg-gray-900 px-3.5 py-2 flex items-center justify-between text-[11px] text-gray-400 border-b border-gray-800/60 select-none">
+              <span className="font-mono text-purple-400 uppercase tracking-wider font-semibold">
+                {lang || 'code'}
+              </span>
+              <button
+                onClick={() => copyToClipboard(code.trim(), codeBlockId)}
+                className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer text-xs"
+              >
+                {copiedId === codeBlockId ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-emerald-400 font-bold">Copiado!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copiar código</span>
+                  </>
+                )}
+              </button>
             </div>
-          );
-        }
+            <pre className="p-4 overflow-x-auto text-[12.5px] text-gray-200 font-mono leading-relaxed bg-gray-950/60 select-text">
+              <code>{code.trim()}</code>
+            </pre>
+          </div>
+        );
         continue;
       }
 
@@ -1539,7 +1518,7 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
   };
 
   return (
-    <div id="wsm-rendered-markdown" className="flex flex-col gap-1 w-full max-w-full">
+    <div id="wsm-rendered-markdown" className="flex flex-col gap-1 max-w-full min-w-0 overflow-x-hidden break-words">
       {renderBlocks()}
     </div>
   );

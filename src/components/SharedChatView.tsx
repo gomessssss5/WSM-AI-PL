@@ -70,23 +70,27 @@ export default function SharedChatView({ sessionId, uid }: SharedChatViewProps) 
       
       <div className="flex-1 overflow-y-auto w-full max-w-4xl mx-auto pb-24 px-4 sm:px-6">
         <div className="py-6 space-y-6">
-          {session.messages.map((msg, index) => (
-            <div key={msg.id || index} className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-gray-100 text-gray-600' : 'bg-gradient-to-br from-brand-500 to-indigo-600 text-white'}`}>
-                  {msg.role === 'user' ? <UserIcon className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
+          {session.messages.map((msg: any, index: number) => {
+            const isUser = msg.sender === 'user' || msg.role === 'user';
+            const textContent = msg.text || msg.content || '';
+            return (
+              <div key={msg.id || index} className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${isUser ? 'bg-gray-100 text-gray-600' : 'bg-gradient-to-br from-brand-500 to-indigo-600 text-white'}`}>
+                    {isUser ? <UserIcon className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
+                  </div>
+                  <span className="text-xs font-semibold text-gray-500 capitalize">{isUser ? 'Você' : 'WSM AI'}</span>
                 </div>
-                <span className="text-xs font-semibold text-gray-500 capitalize">{msg.role === 'user' ? 'Você' : 'WSM AI'}</span>
+                <div className="pl-8">
+                  {!isUser ? (
+                    <MarkdownRenderer content={textContent} />
+                  ) : (
+                    <p className="text-[15px] leading-relaxed text-gray-800 whitespace-pre-wrap">{textContent}</p>
+                  )}
+                </div>
               </div>
-              <div className="pl-8">
-                {msg.role === 'assistant' ? (
-                  <MarkdownRenderer content={msg.content} />
-                ) : (
-                  <p className="text-[15px] leading-relaxed text-gray-800 whitespace-pre-wrap">{msg.content}</p>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
       

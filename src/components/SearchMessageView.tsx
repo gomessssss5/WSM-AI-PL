@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Message, SearchStep } from '../types';
+import { Message, SearchStep, WsmDocument } from '../types';
 import { Globe, Check, ChevronDown, ChevronUp, ZoomIn } from 'lucide-react';
 import MarkdownRenderer from './MarkdownRenderer';
 import TypewriterMarkdown from './TypewriterMarkdown';
@@ -20,6 +20,7 @@ interface SearchMessageViewProps {
   onStepChange?: () => void;
   onOpenSources?: (sources: { hostname: string; title: string; url: string; snippet?: string }[], query: string, count: number) => void;
   onOpenScheduledTasks?: () => void;
+  onOpenDocument?: (doc: WsmDocument) => void;
 }
 
 export default function SearchMessageView({
@@ -29,7 +30,8 @@ export default function SearchMessageView({
   onSimulationComplete,
   onStepChange,
   onOpenSources,
-  onOpenScheduledTasks
+  onOpenScheduledTasks,
+  onOpenDocument
 }: SearchMessageViewProps) {
   const steps = message.searchSteps || [];
   const totalSteps = steps.length;
@@ -411,7 +413,7 @@ export default function SearchMessageView({
           return (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mt-3 w-full">
               {docObjs.map((doc, idx) => (
-                <DocumentCard key={idx} document={doc} />
+                <DocumentCard key={idx} document={doc} onOpenDocument={onOpenDocument} />
               ))}
             </div>
           );

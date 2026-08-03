@@ -93,6 +93,31 @@ function getFallback2GeminiClient(): GoogleGenAI {
   return fallback2AiClient;
 }
 
+function inferFormat(title?: string, explicitFormat?: string, content?: string): string {
+  if (explicitFormat && typeof explicitFormat === 'string' && explicitFormat.trim()) {
+    const fmt = explicitFormat.trim().toLowerCase().replace(/^\./, '');
+    if (fmt) return fmt;
+  }
+  if (title && typeof title === 'string') {
+    const lower = title.toLowerCase().trim();
+    if (lower.endsWith('.md') || lower.endsWith('.markdown')) return 'md';
+    if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'html';
+    if (lower.endsWith('.txt')) return 'txt';
+    if (lower.endsWith('.json')) return 'json';
+    if (lower.endsWith('.csv')) return 'csv';
+    if (lower.endsWith('.pdf')) return 'pdf';
+    if (lower.endsWith('.docx') || lower.endsWith('.doc')) return 'docx';
+    if (lower.endsWith('.js') || lower.endsWith('.ts') || lower.endsWith('.tsx') || lower.endsWith('.jsx')) return 'code';
+  }
+  if (content && typeof content === 'string') {
+    const trimmed = content.trim();
+    if (trimmed.startsWith('#') || trimmed.includes('**') || trimmed.includes('##')) return 'md';
+    if (trimmed.startsWith('<') && (trimmed.endsWith('>') || trimmed.includes('</'))) return 'html';
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) return 'json';
+  }
+  return 'md';
+}
+
 function sanitizeGeminiContents(rawContents: any[]): any[] {
   if (!Array.isArray(rawContents) || rawContents.length === 0) return [];
   
@@ -631,139 +656,7 @@ Responda de forma coerente com o idioma em que o usuário se comunicou ou solici
 ## Capacidade de Pesquisa na Web
 Você é capaz de buscar informações na internet em tempo real. Sempre que um usuário te perguntar sobre notícias, cotações, ou fatos recentes que você não sabe de cor, o sistema fará uma pesquisa automática para você.`,
 
-      'WSM 1.6 Pro': `Você é o modelo de inteligência artificial 'WSM 1.6 Pro', um assistente pessoal inteligente e agêntico, feito para tarefas de complexidade intermediária que exigem raciocínio em etapas.
-
-## WORKSPACE DE DOCUMENTOS E ARQUIVOS (FERRAMENTAS NATIVAS - CRÍTICO)
-- Você POSSUI TOTAL ACESSO INTEGRADO AO WORKSPACE DE DOCUMENTOS através das ferramentas nativas: \`create_document\`, \`read_document\`, \`edit_document\`, \`append_document\`, \`delete_document\` e \`list_documents\`.
-- Quando o usuário pedir para você criar, escrever, revisar, editar, estruturar ou gerenciar documentos, relatórios, redações, artigos, resumos, TCCs, capítulos ou múltiplos arquivos:
-  1. NÃO "imagine" apenas o texto na resposta comum de chat nem escreva blocos JSON manuais.
-  2. EXECUTE AS FERRAMENTAS DE DOCUMENTOS para criar, ler, editar ou organizar os arquivos no Workspace de forma agêntica.
-  3. Durante a mesma execução de resposta, você tem TOTAL LIBERDADE para realizar múltiplos passos: criar um documento (\`create_document\`), reler para revisar (\`read_document\`), fazer edições e aprimoramentos (\`edit_document\`), criar versões secundárias ou excluir arquivos desnecessários (\`delete_document\`).
-  4. O usuário verá as tags das suas ações em tempo real (ex: \`[Criou documento: ...]\`, \`[Editou documento: ...]\`), e o estado final limpo de todos os documentos ativos do Workspace será disponibilizado no final da sua resposta.
-
-## CAPACIDADE NATIVA DE ABRIR E NAVEGAR EM SITES (PLAYWRIGHT - CRÍTICO)
-- Você POSSUI TOTAL CAPACIDADE INTEGRADA DE ABRIR, NAVEGAR, TESTAR E INTERAGIR COM SITES REAIS NA WEB através das suas ferramentas de navegador Playwright nativas.
-- Quando o usuário pedir para você abrir um site, testar um site, navegar em uma página, clicar em botões, digitar em campos, rolar a tela, aguardar carregamentos/animações ou interagir com qualquer sistema/chat/card web (ex: "abra o site...", "teste o chat no site...", "entre na página..."), VOCÊ É ABSOLUTAMENTE CAPAZ E DEVE OBRIGATORIAMENTE USAR AS FERRAMENTAS NATIVAS DE NAVEGAÇÃO (\`open_url\`, \`click\`, \`type_text\`, \`scroll_page\`, \`wait_seconds\`).
-- É RIGOROSAMENTE PROIBIDO dizer ao usuário que você é apenas um modelo de linguagem que não consegue abrir ou navegar em sites na web. Você tem ferramentas nativas ativadas e DEVE usá-las!
-
-## ADERÊNCIA ESTRITA ÀS INSTRUÇÕES DO USUÁRIO (CRÍTICO)
-- Você DEVE seguir ABSOLUTAMENTE e FIELMENTE todas as instruções, preferências, formatos, designs, regras e caminhos solicitados pelo usuário.
-- Se o usuário pedir para fazer algo de uma forma específica, faça exatamente daquela forma. Não altere os requisitos, não tome caminhos alternativos que desrespeitem a especificação do usuário, e nunca faça algo de outro jeito só porque você acha melhor.
-- A lealdade ao pedido do usuário é a sua maior prioridade. Siga os detalhes solicitados com 100% de precisão.
-
-## Limitação de Conhecimento e Pesquisa Proativa (CRÍTICO - DIRETRIZ INTERNA)
-- Você não possui conhecimento geral atualizado em seu treinamento offline para fatos recentes, notícias, dados de mercado ou informações de tempo real de 2026.
-- Devido a essa limitação, você deve realizar pesquisas na web com alta frequência usando a ferramenta de busca para 'cobrir' essa fraqueza de conhecimento. Sempre que houver qualquer dúvida ou necessidade de confirmar dados, marcas, notícias ou tecnologias recentes, opte proativamente por realizar buscas na internet.
-- IMPORTANTE: Nunca diga ao usuário que você não sabe de algo por falta de conhecimento ou limitações do modelo. Não comente sobre essa sua fraqueza nem mencione esses limites de conhecimento de forma explícita na conversa com o usuário. Apenas use a pesquisa de forma natural para enriquecer suas respostas sem justificar que o fez por "limitação".
-- COMUNICAÇÃO DE PESQUISA (MANDATÓRIO): Quando decidir que precisa realizar uma pesquisa na web, você NÃO deve simplesmente chamar a ferramenta de busca sem avisar o usuário na sua resposta de chat. Antes de iniciar qualquer chamada da ferramenta de busca (no seu texto de resposta visível do chat, fora da tag de raciocínio), você DEVE obrigatoriamente justificar brevemente a pesquisa de forma natural e prestativa, por exemplo: "Para eu verificar [assunto], vou pesquisar na web sobre..." ou "Para eu buscar informações atualizadas sobre [assunto], vou pesquisar na internet...".
-
-## Personalidade
-Você pensa como alguém organizado e proativo: antes de sair executando, você planeja mentalmente os passos. Você é amigável, direto e extremamente prestativo, focando sempre em atender o desejo do usuário exatamente do jeito que ele pediu. Embora possa sugerir melhorias de forma educada, você nunca deve ignorar, discordar ou desobedecer às diretrizes diretas do usuário. A lealdade ao que foi solicitado é sua maior virtude.
-
-## Geração de Códigos (CRÍTICO)
-Quando o usuário solicitar a criação de um site, sistema, HTML ou qualquer outro tipo de código, você tem **LIBERDADE TOTAL PARA GERAR CÓDIGOS GIGANTES E COMPLETOS**. 
-- NUNCA gere "merrecas" ou esqueletos parciais. 
-- SE o usuário pedir um site, você DEVE gerar um arquivo contendo TUDO (todas as seções funcionais: Hero, Sobre, Serviços, Galeria, Contato, Cardápio, etc). Não deixe botões "vazios" que não levam a lugar nenhum. Se houver subpáginas imaginadas (ex: cardápio), construa a interface delas visível na mesma tela (por ex. via seções e âncoras, ou abas feitas com JS no próprio arquivo). 
-- O código DEVE ser gerado num bloco Markdown de código padrão (ex: \`\`\`html ... \`\`\`), para que o renderizador de código da interface possa mostrá-lo corretamente. NUNCA gere código dentro de tags \`<wsm_doc>\`!!
-- Entregue a solução final, funcional, extensa, com design de altíssima qualidade.
-
-## Execução Iterativa de Tarefas (Comportamento de Agente Autônomo)
-O WSM 1.6 Pro é um verdadeiro agente autônomo. Quando você gera o seu plano de ação (passo a passo de tarefas) dentro das tags <task>, você não está apenas listando para o usuário ler, você está determinando o seu próprio roteiro de execução.
-1. **Cada tarefa gerada deve se tornar uma solicitação para você mesmo processar/resolver.**
-2. **Auto-Correção e Retentativas:** Se o resultado do que você fez em uma tarefa não ficar bom (ex: um código com bug, um texto mal formatado, uma pesquisa incompleta, ou algo que não atende 100% à expectativa inicial), você DEVE REFAZER. Você não deve se contentar com resultados parciais ou defeituosos.
-3. **Iteração Contínua:** Execute, avalie o resultado internamente (no seu raciocínio), e repita/refaça (mesmo que exija múltiplas tentativas na mesma tarefa) até que a saída seja perfeita e corresponda exatamente ao que tem que ser feito. Isso é a essência do comportamento agêntico!
-4. **Atualização do Progresso (MUITO IMPORTANTE):** O sistema não adivinha quando você terminou uma tarefa do \`<task>\`. Sempre que você concluir definitivamente uma das tarefas do seu plano de ação (após testar, rodar as ferramentas necessárias e validar o resultado), você OBRIGATORIAMENTE DEVE escrever a tag \`[passo concluído]\` na sua resposta final de texto (fora do raciocínio). Se você concluiu 2 tarefas, escreva duas tags \`[passo concluído]\`. O sistema lerá isso e avançará o check verde para o usuário.
-5. **Dinamismo (Adicionar/Remover Tarefas):** Como um agente autônomo, se no meio do processo de execução você perceber que precisa adicionar um novo passo que não estava no \`<task>\` original, ou se quiser cancelar um passo que se tornou inútil, use as tags \`[nova tarefa: Descrição da Tarefa]\` ou \`[tarefa removida: Descrição da Tarefa]\` no seu texto visível.
-
-## Gerenciamento de Skills e Skill "user" (Importante!)
-O WSM 1.6 Pro tem como objetivo criar e gerenciar "skills" para personalizar e potencializar o sistema de acordo com o contexto do usuário.
-A principal e mais vital é a skill "user". O objetivo dessa skill é pegar e guardar informações sobre o usuário (nome, idade, o que ele gosta, comida preferida, rotina, profissão, como ele faz as coisas, etc).
-
-REGRAS CRÍTICAS:
-1. Não faça isso "do nada" ou de forma intrusiva. Se o usuário mandar um código HTML para corrigir, corrija o erro, não vá perguntar o nome dele sem motivo. A IA deve achar o momento perfeito e contextual para obter essas informações e editar a skill.
-2. Sempre que descobrir alguma informação importante para o futuro (do usuário, ou sobre algum outro tópico geral), você DEVE anotar isso em uma skill usando comandos pré-cadastrados no sistema (tags textuais).
-3. Escreva EXATAMENTE as seguintes tags no meio ou no final do seu texto de resposta (visível) para executar ações no Frontend:
-- [Criando Skill: NOME DA SKILL]
-- [Editando Skill: NOME DA SKILL]
-- [Excluindo Skill: NOME DA SKILL]
-- [Lendo Skill: NOME DA SKILL] (MANDATÓRIO para ler o conteúdo de uma skill disponível!)
-4. OBRIGATÓRIO: Sempre que você usar as tags "[Criando Skill: NOME]" ou "[Editando Skill: NOME]", você DEVE fornecer o conteúdo da skill correspondente envolto estritamente pelas tags \`<wsm_skill_content>\` e \`</wsm_skill_content>\`.
-   O conteúdo dentro de \`<wsm_skill_content>\` deve conter APENAS as informações úteis, organizadas e estruturadas da skill (como uma lista em Markdown ou um resumo de dados), e NUNCA a sua resposta de chat para o usuário, nem tags de raciocínio (<raciocinio>) ou de tarefas (<task>).
-   Exemplo de formato correto:
-   ---
-   Muito prazer, Luiz Gustavo! Já salvei seu nome e sua profissão aqui comigo.
-   [Editando Skill: user]
-   <wsm_skill_content>
-   # Perfil do Usuário
-   - **Nome**: Luiz Gustavo
-   - **Profissão**: Desenvolvedor Backend
-   </wsm_skill_content>
-   ---
-   NUNCA coloque sua conversa normal de chat ou pensamentos dentro de \`<wsm_skill_content>\`. Apenas dados limpos e úteis para a skill correspondente. Se o conteúdo da skill mudar, forneça a versão mais recente e completa das informações daquela skill dentro destas tags.
-   Você também pode criar novas skills quando os dados pertencerem melhor a outra (ex: "[Criando Skill: javascript_projetos]").
-
-5. LEITURA DE SKILLS (Turno Inteligente do Agente): Caso precise do conteúdo completo de qualquer skill listada na seção "BIBLIOTECA DE SKILLS DISPONÍVEIS" para guiar sua resposta (como "web-html" para gerar ou melhorar um código HTML), gere a tag exata: [Lendo Skill: NOME DA SKILL]. 
-MUITO IMPORTANTE: Ao gerar a tag [Lendo Skill: NOME], você DEVE PARAR A RESPOSTA IMEDIATAMENTE!! NÃO GERE NENHUM CÓDIGO NEM EXPLICAÇÕES ADICIONAIS NESTE MESMO TURNO!! Apenas gere o raciocínio inicial e a tag, e pare. O sistema enviará o conteúdo da skill in um turno invisível, e então, no próximo turno, você gerará o código final baseado na skill!
-
-## Nova Capacidade: Exibição de Mapas Interativos (OpenStreetMap)
-Você tem a capacidade incrível de exibir um mapa interativo do OpenStreetMap no meio da sua resposta para o usuário sempre que ele pedir localizações, caminhos, pontos turísticos, cidades, países ou informações geográficas relevantes!
-Para mostrar um mapa, basta inserir a seguinte tag personalizada em uma linha própria no seu texto de resposta (ela é processada e renderizada visualmente pelo frontend do WSM 1.6 Pro):
-<wsm_map lat="LATITUDE" lon="LONGITUDE" zoom="ZOOM" place="NOME_DO_LUGAR" [wiki="TERMO_DE_BUSCA_WIKIPEDIA"] [text="TEXTO_DESCRITIVO_OPCIONAL"] />
-
-### Parâmetros da tag <wsm_map>:
-1. lat (Obrigatório): Latitude numérica (ex: "-23.9618" ou "48.8584").
-2. lon (Obrigatório): Longitude numérica (ex: "-46.3322" ou "2.2945").
-3. zoom (Opcional): Nível de zoom do mapa de 1 a 18 (Padrão: 15 para pontos específicos, 12 para cidades, 6 para países).
-4. place (Opcional): Nome do lugar/ponto de interesse (ex: "Praia do Gonzaga, Santos" ou "Torre Eiffel, Paris").
-5. wiki (Opcional): Se você deseja que o sistema busque e mostre um card interativo com a imagem, descrição e resumo vindos diretamente da Wikipédia, digite o termo exato do artigo (ex: "Eiffel Tower" ou "Santos"). O frontend buscará as informações e criará um card flutuante maravilhoso por cima do mapa, sem precisar de nenhuma chave de API!
-6. text (Opcional): Se em vez de buscar na Wikipédia você preferir gerar um texto descritivo próprio, digite-o aqui (ex: text="Esta é uma das praias mais bonitas de São Paulo...").
-
-Escolha inteligentemente quando usar:
-- Use wiki="Artigo" quando o lugar for famoso e houver boa probabilidade de ter artigo rico na Wikipédia (com imagem e texto).
-- Use text="Sua descrição" se for um local personalizado, ou se quiser dar um toque direto e único.
-- Não envie nenhum dos dois (omita wiki e text) para exibir apenas o mapa interativo limpo com o marcador do lugar!
-
-## Nova Capacidade: Geração de Gráficos (Recharts)
-Você tem a capacidade de gerar gráficos lindíssimos (pizza, barras horizontais/verticais, linhas) DIRETAMENTE no meio da sua resposta, usando a tag personalizada <wsm_chart />.
-O frontend irá ler essa tag e renderizar o gráfico visualmente!
-
-Como usar:
-<wsm_chart type="TIPO" title="TITULO_DO_GRAFICO" data='JSON_STRING' />
-
-### Tipos suportados:
-- "pie" (Pizza - ótimo para porcentagens e fatias).
-- "bar_vertical" ou "bar" (Barras Verticais - ótimo para evolução temporal, meses, trimestres).
-- "bar_horizontal" (Barras Horizontais - ótimo para ranking, top 5, top 10).
-- "line" (Linhas - ótimo para tendências e séries históricas contínuas).
-
-### Formato do JSON (Obrigatório):
-O parâmetro \`data\` deve ser um ARRAY de OBJETOS JSON em formato de string. A primeira chave SEMPRE deve ser "name" (que aparecerá no eixo X ou como a categoria). As demais chaves devem conter os valores numéricos.
-Exemplo PIE:
-<wsm_chart type="pie" title="Linguagens mais usadas" data='[{"name":"JS","value":60},{"name":"Python","value":30},{"name":"Java","value":10}]' />
-
-Exemplo BARRAS/LINHAS (com múltiplas séries):
-<wsm_chart type="bar_vertical" title="Vendas Mensais" data='[{"name":"Jan","Produto A":400,"Produto B":240},{"name":"Fev","Produto A":300,"Produto B":139}]' />
-
-REGRAS CRÍTICAS PARA OS NOVOS RECURSOS (MAPAS, GRÁFICOS, PESQUISA WEB):
-- Você pode usar múltiplas dessas funcionalidades na mesma resposta, MAS SÓ QUANDO FOR REALMENTE NECESSÁRIO e ÚTIL.
-- Não gere um mapa ou um gráfico para responder um "Oi" ou "Tudo bem" do usuário. Avalie o contexto antes de disparar gráficos ou mapas à toa.
-
-## Ferramentas Agênticas e Funcionalidades (Obrigatório)
-Você possui ferramentas (tools/function calling) integradas que podem ser chamadas para cumprir tarefas: Pesquisa na Web, Calculadora, e Relógio.
-IMPORTANTE: Você deve usar o recurso de Function Calling fornecido pela API para usar essas ferramentas. 
-Sempre que usar a ferramenta \`web_search\`, você DEVE citar as fontes obtidas utilizando links Markdown \`[Domínio](URL)\` no meio do seu texto de resposta ao mencionar cada fato (ex: 'O atleta foi contratado em 2013 pelo Barcelona ([g1.globo.com](https://g1.globo.com/...))'). Use o hostname/domínio como o texto do link.
-NUNCA escreva comandos como "/web", "/calculadora" ou "/relogio" no seu texto de resposta. O usuário pode digitar isso, mas você DEVE usar a ferramenta chamando a função correspondente.
-NUNCA escreva tags como "[pesquisou na web]", "[calculando]" ou "[verificando relógio]" manualmente em seu texto. O sistema cuidará de renderizar essas tags visualmente de forma automática.
-A única exceção são as tags de Skill ([Criando Skill:...], etc), que VOCÊ DEVE digitar manualmente no texto como instruído acima.
-
-## Padrão de Chamada e Fluxo
-Quando decidir usar uma ferramenta, você DEVE estruturar sua resposta na seguinte ordem:
-1. **Raciocínio**: Um parágrafo descritivo inicial explicando o que você vai fazer. Ex: "Para fornecer uma visão abrangente sobre Neymar, realizarei uma pesquisa dividida nos seguintes pontos principais..."
-2. **Chamada de Função**: Imediatamente após o texto de raciocínio, você deve invocar a ferramenta correspondente através da API de Function Calling (NÃO é texto).
-3. O sistema renderizará a tag e pausará o processamento.
-4. Após o sistema retornar o resultado da função, você deve continuar sua resposta logo abaixo, relatando as descobertas. Você pode repetir o processo (Ex: texto de raciocínio -> chamada de função -> texto analisando resultado -> novo texto de raciocínio -> nova chamada de função).
-
-Seja natural, explique seu raciocínio antes de chamar as funções e continue o texto normalmente quando receber a resposta delas.`
+      'WSM 1.6 Pro': getSystemPrompt('wsm_1_6_pro_base', `Você é o modelo de inteligência artificial "WSM 1.6 Pro", um assistente pessoal agêntico, altamente inteligente e direto.`)
     };
 
     const formInstruction = "\n" + getSystemPrompt('form_generation', '');
@@ -873,7 +766,22 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
       }
     }
 
-    const activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
+    let activeSystemPrompt = "";
+    if (model === 'WSM 1.6 Pro') {
+      let modeAdditions = "";
+      if (isScheduledExecution) {
+        modeAdditions += `\n\n## ATENÇÃO CRÍTICA: EXECUÇÃO AUTOMÁTICA DE TAREFA AGENDADA\nEsta requisição é a execução de uma tarefa que JÁ FOI AGENDADA previamente. Você está ABSOLUTAMENTE PROIBIDO de gerar a tag <wsm_task ... /> nesta resposta under ANY circumstances. Apenas execute a instrução e apresente o resultado final diretamente.`;
+      }
+      if (effectiveComputerEnabled) {
+        modeAdditions += `\n\n- **MODO COMPUTADOR ATIVADO**: O usuário solicitou o Modo Computador. Utilização das ferramentas Playwright é prioridade máxima. Confirme ("✓ Modo Computador ativado") e execute 'open_url' no mesmo turno.`;
+      }
+      if (effectiveSearchEnabled) {
+        modeAdditions += `\n\n- **MODO PESQUISAR ATIVADO**: O usuário solicitou o Modo Pesquisar. Confirme ("✓ Modo Pesquisar ativado") e execute 'web_search' no mesmo turno.`;
+      }
+      activeSystemPrompt = basePrompt + (userLocationContextInstruction ? "\n\n" + userLocationContextInstruction : "") + modeAdditions;
+    } else {
+      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
+    }
 
     let mappedModel = "gemini-3.5-flash-lite";
     if (model === 'WSM 1.6 Pro') mappedModel = "gemini-3.5-flash-lite";
@@ -914,20 +822,6 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             parameters: {
               type: Type.OBJECT,
               properties: {}
-            }
-          },
-          {
-            name: "auto_debug_html",
-            description: "Sandbox de Auto-Depuração: Executa um código HTML completo gerado, simula a renderização visual berrante/mobile/desktop e analisa logs, erros e sintaxe de JS/CSS/HTML para detecção proativa de bugs.",
-            parameters: {
-              type: Type.OBJECT,
-              properties: {
-                html: {
-                  type: Type.STRING,
-                  description: "O código HTML/CSS/JS completo gerado a ser validado."
-                }
-              },
-              required: ["html"]
             }
           },
           {
@@ -1014,8 +908,9 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             parameters: {
               type: Type.OBJECT,
               properties: {
-                title: { type: Type.STRING, description: "O título ou nome do arquivo/documento (ex: 'Relatório Financeiro', 'TCC - Capítulo 1.md')." },
-                content: { type: Type.STRING, description: "O conteúdo completo em texto ou Markdown do documento." }
+                title: { type: Type.STRING, description: "O título ou nome do arquivo/documento (ex: 'index.html', 'Relatório Financeiro', 'script.py')." },
+                content: { type: Type.STRING, description: "O conteúdo completo em texto ou Markdown do documento." },
+                format: { type: Type.STRING, description: "O formato do arquivo (ex: 'html', 'pdf', 'xlsx', 'py', 'js', 'json', 'md'). Se omitido, é inferido da extensão do título." }
               },
               required: ["title", "content"]
             }
@@ -1087,7 +982,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
 
       const marteSources: any[] = [];
       const marteImages: string[] = [];
-      const workspaceDocuments = new Map<string, { title: string, content: string }>();
+      const workspaceDocuments = new Map<string, { title: string, content: string, format?: string }>();
       let fullOutput = "";
       let turnCount = 0;
       let lastDebugResult: any = null;
@@ -1110,7 +1005,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
       const promptWantsSearch = Boolean(effectiveSearchEnabled) ||
         /\b(pesquis|busc|procur|encontr)\w*\b/i.test(userStrPrompt) ||
         /\b(web|internet|google|brave|notícia|noticias|hoje|site|quem\s+[ée]|onde\s+fica|quanto\s+custa|neymar|futebol|preço|cotação)\b/i.test(userStrPrompt);
-      const promptWantsImage = /\b(gerar|crie|criar|desenhar|desenhe|pintar|pinte)\b.*\b(imagem|foto|ilustraç|arte|desenho|pintura|quadro)\b|\b(imagem|foto|ilustraç|arte|desenho|pintura)\b/i.test(userStrPrompt);
+      const promptWantsImage = /\b(gerar|crie|criar|desenhar|desenhe|pintar|pinte)\b.*\b(imagem|foto|ilustraç|arte|desenho|pintura|quadro)\b/i.test(userStrPrompt);
       const promptWantsDoc = /\b(documento|relatório|relatorio|redação|redacao|resumo|artigo|tcc|texto|capítulo|capitulo|escrever|criar\s+doc|editar\s+doc|gerar\s+doc)\b/i.test(userStrPrompt);
       const promptHasRequestedActions = !isSimpleGreetingOrMathPrompt && (promptWantsBrowser || promptWantsSearch || promptWantsImage || promptWantsDoc);
 
@@ -1135,24 +1030,11 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
           tools: marteTools,
           config: {
             systemInstruction: activeSystemPrompt + 
+              "\nREGRA PRINCIPAL E OBRIGATÓRIA DE DOCUMENTOS (PDF vs MD): A preferência absoluta de geração de documentos (redações, relatórios, artigos, resumos, ensaios, cartas, etc.) É OBRIGATORIAMENTE PDF (`format: 'pdf'` e nome do arquivo terminado em `.pdf`). O formato Markdown (`format: 'md'`) NÃO deve ser usado para documentos comuns de usuários normais — MD é estritamente exclusivo para conteúdos de TI/desenvolvimento técnico (como System Prompts, READMEs técnicos e specs de código). NUNCA crie arquivos .md para redações ou trabalhos escolares/profissionais comuns!" +
               "\nIMPORTANTE: Quando usar uma ferramenta, chame a função ANTES. NUNCA gere as tags [pesquisou na web], [calculando] ou [verificando relógio] ANTES de chamar a função. Gere a tag APENAS na sua resposta final de texto, APÓS receber o resultado da função." +
-              "\nNUNCA gere manualmente as tags em colchetes como `[pesquisou na web]`, `[calculando]`, `[verificando relógio]` ou `[código 100% verificado]` na sua resposta final de texto. O nosso sistema de backend já insere e renderiza essas tags de progresso e status automaticamente no chat. Sua tarefa é focar exclusivamente em gerar o conteúdo final explicativo e o código, sem adicionar essas tags de status ao final." +
+              "\nNUNCA gere manualmente as tags em colchetes como `[pesquisou na web]`, `[calculando]`, `[verificando relógio]` na sua resposta final de texto. O nosso sistema de backend já insere e renderiza essas tags de progresso e status automaticamente no chat. Sua tarefa é focar exclusivamente em gerar o conteúdo final explicativo e o código, sem adicionar essas tags de status ao final." +
               "\nREGRA DA CALCULADORA: SEMPRE que precisar resolver QUALQUER expressão matemática (ex: v² = 20² + 2×(-10)×(-5)), VOCÊ DEVE OBRIGATORIAMENTE chamar a ferramenta 'calculadora'. NUNCA calcule de cabeça ou deduza o valor (ex: alucinar 24.49 em vez de 22.36). Após receber o resultado exato da calculadora, escreva sua resposta final conferindo o valor retornado." +
-              "\nREGRA DA WEB SEARCH (HISTÓRIA E FATOS REAIS): SEMPRE que o usuário perguntar sobre FATOS HISTÓRICOS (ex: história do Brasil, primeira rainha da Inglaterra, revoluções, etc) ou dados do mundo real, VOCÊ DEVE OBRIGATORIAMENTE pesquisar na web ('web_search') antes para verificar e validar a informação, em vez de recorrer apenas à memória interna (para evitar alucinações)." +
-              "\nREGRA DE GERAÇÃO DE HTML (SANDBOX DE AUTO-DEPURAÇÃO):" +
-              "\nQuando o usuário solicitar a criação de um site, sistema ou código HTML, você deve seguir estritamente o seguinte fluxo de duas etapas:" +
-              "\n1. ETAPA DE VALIDAÇÃO (TURNO 1):" +
-              "\n   - Você DEVE conceber e escrever o código HTML completo dentro do seu <raciocinio>." +
-              "\n   - Você DEVE obrigatoriamente chamar a ferramenta 'auto_debug_html' passando o código HTML criado." +
-              "\n   - No texto da sua resposta deste turno, você NÃO deve incluir nenhum bloco de código Markdown (```html ... ```) ainda. Em vez disso, escreva apenas uma mensagem curta informando o início do processo, por exemplo: \"(Gerando e validando o código do site...)\"." +
-              "\n   - NUNCA diga coisas como \"Vou chamar a ferramenta\" ou \"Estou testando o código\"." +
-              "\n2. ETAPA DE ENTREGA (TURNO 2 - APÓS RECEBER O RETORNO DA FERRAMENTA):" +
-              "\n   - Assim que receber o resultado da renderização da sandbox 'auto_debug_html' na conversa:" +
-              "\n   - CRÍTICO: Se houver erros detectados (como erros de sintaxe, URLs ou imagens quebradas/falsas/placeholders instáveis), você é ABSOLUTAMENTE PROIBIDO de exibir o código final para o usuário ou encerrar o turno! Você DEVE obrigatoriamente corrigir o código em seu <raciocinio>, escrever uma mensagem curta informando o início da correção, ex: \"(Corrigindo erros detectados no código...)\", e chamar a ferramenta 'auto_debug_html' novamente com o código corrigido." +
-              "\n   - Você deve repetir essa verificação e correção até que a ferramenta 'auto_debug_html' retorne que NÃO há erros (errorsFound: false)." +
-              "\n   - Se o resultado for sucesso (sem erros), você DEVE obrigatoriamente apresentar a resposta final ao usuário contendo a explicação polida do projeto e o BLOCO DE CÓDIGO HTML COMPLETO NO FORMATO MARKDOWN (```html ... ```)." +
-              "\n   - IMPORTANTE: NÃO chame a ferramenta 'auto_debug_html' de novo caso você já tenha recebido a resposta dela com sucesso! Apresente o código completo imediatamente na sua mensagem final. Nunca finalize a conversa sem enviar o código HTML completo para o usuário no formato Markdown." +
-              "\nREGRA DE ENTREGA DE HTML (CRÍTICO): Na sua resposta final ao usuário, após validar o código com a ferramenta 'auto_debug_html', você DEVE OBRIGATORIAMENTE enviar o bloco de código HTML completo (no formato ```html ... ```) contendo o site/projeto que o usuário pediu. NUNCA termine uma resposta de criação ou edição de site sem fornecer o código HTML correspondente, even if you already validated it earlier in the conversation. O usuário necessita do código final completo na sua mensagem para poder vê-lo e usá-lo." +
+              "\nREGRA DA WEB SEARCH: Use web_search APENAS para fatos históricos, notícias e informações do mundo real. É ESTRITAMENTE PROIBIDO usar web_search para pesquisar sobre programação, HTML, CSS, JS, tutoriais, tendências de design ou como criar um site. Se o usuário pedir um site, GERE O CÓDIGO IMEDIATAMENTE sem pesquisar na web!" +
               "\nREGRA DE GERAÇÃO DE IMAGENS (AI HORDE): SEMPRE que o usuário solicitar para gerar, criar, desenhar ou pintar uma imagem, foto, ilustração ou arte visual, você DEVE OBRIGATORIAMENTE chamar a ferramenta 'gerar_imagem' IMEDIATAMENTE. IMPORTANTE: NUNCA diga 'Vou gerar a imagem' e encerre o turno sem chamar a ferramenta. Você DEVE chamar a ferramenta no MESMO turno! Ao chamar, passe o prompt descritivo detalhado em inglês (ex: 'a majestic golden retriever sitting on a mountain peak, cinematic, 8k')." +
               "\nREGRA DE SINTAXE APÓS GERAR IMAGEM: Quando 'gerar_imagem' for executada, a imagem gerada já é exibida automaticamente pela interface no componente <wsm_image>. Na sua resposta final, é ABSOLUTAMENTE PROIBIDO escrever manualmente a tag <wsm_image>, dados base64, URLs ou sintaxe markdown ![alt](url). Apenas faça um breve comentário amigável sobre a imagem gerada (o sistema já inseriu e exibiu a imagem no chat)." +
               "\nREGRA DE NAVEGAÇÃO WEB REAL (PLAYWRIGHT): SEMPRE que o usuário pedir para abrir, acessar ou navegar em qualquer site (ex: Brave Search, Google, Wikipedia, etc), VOCÊ DEVE OBRIGATORIAMENTE emitir a chamada de função 'open_url' (functionCall) no MESMO TURNO. É ABSOLUTAMENTE PROIBIDO apenas escrever texto prometendo abrir o site sem enviar a chamada da ferramenta 'open_url'!" +
@@ -1163,13 +1045,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               "\n   - APÓS RECEBER O RETORNO DE UMA FERRAMENTA (ex: 'web_search'), SE O PROMPT DO USUÁRIO SOLICITOU OUTRAS AÇÕES (ex: abrir site com 'open_url', clicar, navegar, calcular, gerar imagem), VOCÊ DEVE OBRIGATORIAMENTE EXECUTAR A PRÓXIMA FERRAMENTA NO TURNO SEGUINTE." +
               "\n   - É ABSOLUTAMENTE PROIBIDO encerrar a resposta ou parar na metade do fluxo logo após a pesquisa na web se ainda houver outras ações ou sites para abrir solicitados pelo usuário!" +
               "\n   - Apenas apresente a resposta final completa em texto quando TODAS as ferramentas e ações pedidas no prompt do usuário tiverem sido devidamente executadas." +
-              "\n3. CRÍTICO: NUNCA escreva apenas texto conversacional prometendo ações (ex: 'Vou abrir o site', 'Para atender seu pedido...') sem enviar a chamada de função (functionCall) no mesmo turno!" +
-              (lastDebugResult 
-                ? (lastDebugResult.errorsFound
-                    ? `\n\nAVISO DE ERROS ENCONTRADOS: A ferramenta 'auto_debug_html' detectou os seguintes problemas no seu HTML: ${JSON.stringify(lastDebugResult.detectedErrors)}. Você está no Turno de Correção. Você é ABSOLUTAMENTE PROIBIDO de gerar o bloco de código Markdown final (\x60\x60\x60html ... \x60\x60\x60) para o usuário agora. Em vez disso, corrija TODOS os problemas indicados, escreva apenas uma mensagem curta de status como "(Corrigindo erros detectados no código...)" e chame a ferramenta 'auto_debug_html' novamente passando o HTML 100% corrigido!`
-                    : "\n\nAVISO DE VALIDAÇÃO CONCLUÍDA: A ferramenta 'auto_debug_html' já foi executada com sucesso absoluto (sem erros). Você está na ETAPA DE ENTREGA (TURNO 2). Você DEVE obrigatoriamente gerar e exibir o código HTML completo e polido em um bloco Markdown (\x60\x60\x60html ... \x60\x60\x60) agora! NÃO chame a ferramenta 'auto_debug_html' novamente.")
-                : ""),
-            tools: marteTools,
+              "\n3. CRÍTICO: NUNCA escreva apenas texto conversacional prometendo ações (ex: 'Vou abrir o site', 'Para atender seu pedido...') sem enviar a chamada de função (functionCall) no mesmo turno!",
             ...(currentToolConfig ? { toolConfig: currentToolConfig } : {}),
             temperature: 0.7
           }
@@ -1286,13 +1162,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
           cleanText = cleanText.replace(/<call:default_api[\s\S]*?(?:\/>|>)/gi, "");
           cleanText = cleanText.replace(/call:default_api:[^\s>]+/gi, "");
 
-          // If the model is calling auto_debug_html in this turn, strip any accidental/premature markdown HTML code blocks.
-          // They should only be displayed in the final delivery turn after verification is successful.
-          if (functionCallsForThisTurn.some(fc => fc.name === "auto_debug_html")) {
-            cleanText = cleanText.replace(/```html[\s\S]*?```/gi, "");
-            cleanText = cleanText.replace(/```htm[\s\S]*?```/gi, "");
-            cleanText = cleanText.replace(/```[\s\S]*?```/gi, "");
-          }
+          
 
           if (cleanText.trim()) {
             fullOutput += cleanText;
@@ -1351,7 +1221,6 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             if (fc.name === "web_search") thinkingText = "\n\n[pesquisando...]\n\n";
             else if (fc.name === "calculadora") thinkingText = "\n\n[calculando...]\n\n";
             else if (fc.name === "relogio") thinkingText = "\n\n[verificando...]\n\n";
-            else if (fc.name === "auto_debug_html") thinkingText = "\n\n[verificando possíveis erros no código...]\n\n";
             else if (fc.name === "gerar_imagem") thinkingText = `\n\n<wsm_image prompt="${(fc.args as any)?.prompt || 'Imagem'}" imgUrl="" />\n\n`;
             else if (fc.name === "open_url") thinkingText = `\n\n[Abrindo site: ${(fc.args as any).url}...]\n\n`;
             else if (fc.name === "click") thinkingText = `\n\n[Clicando no elemento...]\n\n`;
@@ -1433,44 +1302,6 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               functionResponseParts.push({
                 functionResponse: { name: fc.name, response: { result: timeData } }
               });
-            } else if (fc.name === "auto_debug_html") {
-              const args = fc.args as any;
-              let debugResult: any = null;
-              try {
-                const evaluatorPrompt = getSystemPrompt('auto_debug_evaluator', `Você é o Visual Sandbox Render engine do WSM AI.`);
-
-                const evalResponse = await callGeminiWithFallback({
-                  model: "gemini-3.5-flash-lite",
-                  contents: `Código HTML a ser analisado e renderizado:\n\n${args.html}`,
-                  config: {
-                    systemInstruction: evaluatorPrompt,
-                    responseMimeType: "application/json"
-                  }
-                });
-                
-                let jsonText = evalResponse.text?.trim() || "{}";
-                jsonText = jsonText.replace(/^```(json)?\n?/i, '').replace(/\n?```$/i, '').trim();
-                debugResult = JSON.parse(jsonText);
-              } catch (e: any) {
-                console.error("Error during auto debug html:", e);
-                debugResult = {
-                  errorsFound: true,
-                  detectedErrors: [e.message || String(e)],
-                  visualDescription: "Falha ao iniciar o container da sandbox de renderização.",
-                  renderedWidth: "1920px",
-                  renderedHeight: "1080px",
-                  sandboxConsoleLogs: ["Erro fatal de execução: " + (e.message || String(e))]
-                };
-              }
-              
-              // Simulate artificial processing delay for maximum user immersion
-              await new Promise(r => setTimeout(r, 2000));
-              
-              functionResponseParts.push({
-                functionResponse: { name: fc.name, response: { result: debugResult } }
-              });
-              
-              lastDebugResult = debugResult;
             } else if (fc.name === "gerar_imagem") {
               const args = fc.args as any;
               promptStr = args.prompt || "";
@@ -1486,67 +1317,82 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                 await imageRankingQueue.waitForTurn(queueId);
 
                 console.log(`[Pro] AI Horde generating image with prompt: "${promptStr}"`);
-                const responseAsync = await fetch("https://aihorde.net/api/v2/generate/async", {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    "apikey": "0000000000",
-                    "Client-Agent": "WSMAI:1.0:wsmai@wsm.ai"
-                  },
-                  body: JSON.stringify({
-                    prompt: promptStr,
-                    params: {
-                      sampler_name: "k_euler",
-                      cfg_scale: 7.5,
-                      height: 512,
-                      width: 512,
-                      steps: 20,
-                      n: 1
+                try {
+                  const responseAsync = await fetch("https://aihorde.net/api/v2/generate/async", {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "apikey": "0000000000",
+                      "Client-Agent": "WSMAI:1.0:wsmai@wsm.ai"
                     },
-                    nsfw: false,
-                    censor_nsfw: true,
-                    models: ["AlbedoBase XL 3.1"]
-                  })
-                });
+                    body: JSON.stringify({
+                      prompt: promptStr,
+                      params: {
+                        sampler_name: "k_euler",
+                        cfg_scale: 7.5,
+                        height: 512,
+                        width: 512,
+                        steps: 20,
+                        n: 1
+                      },
+                      nsfw: false,
+                      censor_nsfw: true,
+                      models: ["AlbedoBase XL 3.1", "SDXL 1.0", "stable_diffusion", "Deliberate", "ICBINP - I Can't Believe It's Not Photography"]
+                    })
+                  });
 
-                if (!responseAsync.ok) {
-                  throw new Error(`AI Horde API error: ${responseAsync.statusText}`);
-                }
+                  if (responseAsync.ok) {
+                    const initData = await responseAsync.json();
+                    const requestId = initData.id;
 
-                const initData = await responseAsync.json();
-                const requestId = initData.id;
+                    if (requestId) {
+                      let isDone = false;
+                      let attempts = 0;
+                      const maxAttempts = 20; // 40 seconds max for primary provider
 
-                if (!requestId) {
-                  throw new Error("Não foi possível obter o ID da geração de imagem.");
-                }
+                      while (!isDone && attempts < maxAttempts) {
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        attempts++;
 
-                // Poll status
-                let isDone = false;
-                let attempts = 0;
-                const maxAttempts = 30; // 60 seconds max
-
-                while (!isDone && attempts < maxAttempts) {
-                  await new Promise(resolve => setTimeout(resolve, 2000));
-                  attempts++;
-
-                  const statusRes = await fetch(`https://aihorde.net/api/v2/generate/status/${requestId}`);
-                  if (statusRes.ok) {
-                    const statusData = await statusRes.json();
-                    if (statusData.done) {
-                      isDone = true;
-                      if (statusData.generations && statusData.generations.length > 0) {
-                        resultImgUrl = statusData.generations[0].img;
-                      } else {
-                        throw new Error("Nenhuma imagem gerada.");
+                        const statusRes = await fetch(`https://aihorde.net/api/v2/generate/status/${requestId}`);
+                        if (statusRes.ok) {
+                          const statusData = await statusRes.json();
+                          if (statusData.done) {
+                            isDone = true;
+                            if (statusData.generations && statusData.generations.length > 0) {
+                              resultImgUrl = statusData.generations[0].img;
+                            }
+                          } else if (statusData.faulted) {
+                            break;
+                          }
+                        }
                       }
-                    } else if (statusData.faulted) {
-                      throw new Error("Erro na geração da imagem pelo AI Horde.");
                     }
+                  }
+                } catch (hordeErr) {
+                  console.warn("[Pro] AI Horde primary attempt encountered error:", hordeErr);
+                }
+
+                // Fallback to Pollinations AI if AI Horde timed out or was busy
+                if (!resultImgUrl) {
+                  console.log(`[Pro] Triggering ultra-fast fallback image generation via Pollinations AI...`);
+                  try {
+                    const polUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(promptStr)}?width=1024&height=1024&seed=${Math.floor(Math.random() * 10000000)}&nologo=true`;
+                    const polRes = await fetch(polUrl);
+                    if (polRes.ok) {
+                      const polArrayBuf = await polRes.arrayBuffer();
+                      if (polArrayBuf.byteLength > 1000) {
+                        const base64Str = Buffer.from(polArrayBuf).toString("base64");
+                        resultImgUrl = `data:image/jpeg;base64,${base64Str}`;
+                      }
+                    }
+                  } catch (polErr) {
+                    console.error("[Pro] Pollinations AI fallback also failed:", polErr);
                   }
                 }
 
                 if (!resultImgUrl) {
-                  throw new Error("A geração de imagem expirou.");
+                  throw new Error("A geração de imagem expirou. Por favor, tente novamente.");
                 }
 
                 // Convert image to Base64 data URI & bake AI logo watermark into the bottom-right corner
@@ -1673,7 +1519,8 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               const args = fc.args as any;
               const title = String(args.title || 'Documento').trim();
               const content = String(args.content || '');
-              workspaceDocuments.set(title, { title, content });
+              const format = inferFormat(title, args.format, content);
+              workspaceDocuments.set(title, { title, content, format });
               functionResponseParts.push({
                 functionResponse: {
                   name: fc.name,
@@ -1715,7 +1562,9 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               const args = fc.args as any;
               const title = String(args.title || 'Documento').trim();
               const content = String(args.content || '');
-              workspaceDocuments.set(title, { title, content });
+              const existingDoc = workspaceDocuments.get(title);
+              const format = inferFormat(title, args.format || existingDoc?.format, content);
+              workspaceDocuments.set(title, { title, content, format });
               functionResponseParts.push({
                 functionResponse: {
                   name: fc.name,
@@ -1732,7 +1581,8 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               const textToAppend = String(args.text || '');
               const existingDoc = workspaceDocuments.get(title);
               const newContent = existingDoc ? existingDoc.content + "\n\n" + textToAppend : textToAppend;
-              workspaceDocuments.set(title, { title, content: newContent });
+              const format = inferFormat(title, existingDoc?.format, newContent);
+              workspaceDocuments.set(title, { title, content: newContent, format });
               functionResponseParts.push({
                 functionResponse: {
                   name: fc.name,
@@ -1777,16 +1627,6 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               finalTagText = "\n\n[calculando]\n\n";
             } else if (fc.name === "relogio") {
               finalTagText = "\n\n[verificando relógio]\n\n";
-            } else if (fc.name === "auto_debug_html") {
-              const htmlBase64 = fc.args && (fc.args as any).html ? Buffer.from((fc.args as any).html).toString('base64') : '';
-              if (lastDebugResult && lastDebugResult.errorsFound) {
-                let errorDesc = lastDebugResult.detectedErrors?.[0] || 'ajuste necessário';
-                // Remove brackets to avoid breaking the markdown/regex matching tags
-                errorDesc = errorDesc.replace(/[\[\]]/g, '').slice(0, 150);
-                finalTagText = `\n\n[corrigindo erro detectado no código: ${errorDesc} | HTML_BASE64:${htmlBase64}]\n\n`;
-              } else {
-                finalTagText = `\n\n[código 100% verificado: sem erros | HTML_BASE64:${htmlBase64}]\n\n`;
-              }
             } else if (fc.name === "gerar_imagem") {
               if (resultImgUrl) {
                 const escapedPrompt = (promptStr || 'Imagem').replace(/"/g, '&quot;');
@@ -1809,7 +1649,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             } else if (fc.name === "create_document") {
               finalTagText = `\n\n[Criou documento: ${(fc.args as any)?.title || 'Documento'}]\n\n`;
             } else if (fc.name === "read_document") {
-              finalTagText = `\n\n[Lêu documento: ${(fc.args as any)?.title || 'Documento'}]\n\n`;
+              finalTagText = `\n\n[Leu documento: ${(fc.args as any)?.title || 'Documento'}]\n\n`;
             } else if (fc.name === "edit_document" || fc.name === "append_document") {
               finalTagText = `\n\n[Editou documento: ${(fc.args as any)?.title || 'Documento'}]\n\n`;
             } else if (fc.name === "delete_document") {
@@ -1834,9 +1674,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
           const aiStr = (textForThisTurn || "").toLowerCase();
 
           const aiHasTaskBlock = aiStr.includes("<task>") || /\[(acessar|digitar|rolar|clicar|pesquisar|buscar|aguardar|esperar)\b/i.test(aiStr);
-          const aiPromisedBrowser = /\b(vou|irei|estou|vamos|agora|próximo|proximo|em seguida|aguarde|processando)\b/i.test(aiStr) ||
-            /\b(abrir|acessar|navegar|digitar|clicar|rolar|preencher|enviar|criar|colocar|fazer|selecionar|pressionar|aguardar|esperar|fechar)\b/i.test(aiStr) ||
-            /\b(preenchendo|enviando|clicando|digitando|abrindo|acessando|rolando|aguardando|fechando)\b/i.test(aiStr);
+          const aiPromisedBrowser = /\b(vou|irei|estou|vamos|agora|próximo|proximo)\s+(abrir|acessar|navegar|digitar|clicar|rolar|preencher|enviar|criar|colocar|fazer|selecionar|pressionar|aguardar|esperar|fechar)\b/i.test(aiStr) || /\b(preenchendo|enviando|clicando|digitando|abrindo|acessando|rolando|aguardando|fechando)\b/i.test(aiStr);
           const aiPromisedSearch = /\b(vou|irei|estou)\s+(pesquisar|buscar)\b|\bpesquisando\b/i.test(aiStr);
           const aiPromisedImage = /\b(gerando|criando|desenhando|pintando)\s+(a|uma)?\s*(imagem|foto|ilustraç|arte)\b/i.test(aiStr);
 
@@ -1852,7 +1690,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             aiPromisedBrowser ||
             aiPromisedSearch ||
             aiPromisedImage ||
-            (!isSimpleGreetingOrMath2 && (wantsBrowser || wantsSearch || wantsImage) && !aiHasFinalConclusion)
+            (turnCount === 0 && !isSimpleGreetingOrMath2 && (wantsBrowser || wantsSearch || wantsImage) && !aiHasFinalConclusion)
           );
 
           if (missingToolCall && turnCount < 100) {
@@ -1933,9 +1771,11 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
 
       if (workspaceDocuments.size > 0) {
         for (const [dTitle, dObj] of workspaceDocuments.entries()) {
-          const docJson = JSON.stringify({ title: dObj.title, content: dObj.content });
+          const docJson = JSON.stringify({ title: dObj.title, content: dObj.content, format: dObj.format });
           const tag = `<wsm_doc>${docJson}</wsm_doc>`;
-          if (!fullOutput.includes(tag)) {
+          const titlePattern = `"title"\\s*:\\s*"${dObj.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`;
+          const hasDocWithTitle = new RegExp(titlePattern, 'i').test(fullOutput);
+          if (!fullOutput.includes(tag) && !hasDocWithTitle) {
             fullOutput += `\n\n${tag}\n\n`;
           }
         }

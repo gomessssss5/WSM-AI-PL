@@ -215,7 +215,7 @@ export default function TypewriterMarkdown({
   const isTyping = enabled && displayedText.length < cleanText.length;
 
   return (
-    <div className="relative w-full">
+    <div className="relative">
       <MarkdownRenderer content={displayedText} isTyping={isTyping} />
     </div>
   );
