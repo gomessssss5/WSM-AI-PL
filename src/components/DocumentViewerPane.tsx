@@ -14,7 +14,9 @@ import {
   AlignLeft,
   Code,
   Eye,
-  ExternalLink
+  ExternalLink,
+  Copy,
+  Check
 } from 'lucide-react';
 import MarkdownRenderer from './MarkdownRenderer';
 import InteractiveSpreadsheetViewer from './InteractiveSpreadsheetViewer';
@@ -46,6 +48,15 @@ export default function DocumentViewerPane({
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [isPdfLoading, setIsPdfLoading] = useState<boolean>(false);
+  const [copied, setCopied] = useState<boolean>(false);
+
+  const handleCopy = () => {
+    if (docContent) {
+      navigator.clipboard.writeText(docContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   useEffect(() => {
     setDocContent(document.content || '');
@@ -186,32 +197,24 @@ export default function DocumentViewerPane({
             </button>
           </div>
         )}
-<div className="flex items-center gap-2.5 min-w-0 flex-1">
-          {format === 'xlsx' ? (
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
-              <FileSpreadsheet className="w-4 h-4" />
-            </div>
-          ) : isCode ? (
-            <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200/60 dark:border-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
-              <FileCode className="w-4 h-4" />
-            </div>
-          ) : format === 'txt' ? (
-            <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800/80 border border-gray-200/60 dark:border-gray-700/80 flex items-center justify-center text-gray-600 dark:text-gray-400 shrink-0">
-              <AlignLeft className="w-4 h-4" />
-            </div>
-          ) : (
-            <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200/60 dark:border-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
-              <FileText className="w-4 h-4" />
-            </div>
-          )}
-          <div className="min-w-0 flex flex-col">
-            <span className="font-bold text-[13.5px] text-gray-900 dark:text-gray-100 truncate leading-snug">
-              {document.title || 'Documento'}
-            </span>
-            <span className="text-[10.5px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-              {format === 'xlsx' ? 'Planilha' : isCode ? 'Código' : format === 'txt' ? 'Texto' : 'Documento'} · {format.toUpperCase()}
-            </span>
-          </div>
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <button
+            onClick={handleCopy}
+            className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200/80 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-semibold flex items-center gap-1.5 transition-all border border-gray-200/80 dark:border-gray-700 cursor-pointer shadow-3xs active:scale-95"
+            title="Copiar conteúdo"
+          >
+            {copied ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-emerald-600 dark:text-emerald-400 font-bold">Copiado!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
+                <span>Copiar</span>
+              </>
+            )}
+          </button>
         </div>
 
         {/* Right Action Controls */}

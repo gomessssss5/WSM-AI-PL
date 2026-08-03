@@ -164,13 +164,13 @@ export default function App() {
     const handleBeforeUnload = () => {
       if (isThinkingRef.current && currentUserRef.current?.email?.toLowerCase().endsWith('@gmail.com')) {
         const activeSession = activeSessionRef.current;
-        const lastUserMsg = activeSession?.messages.filter(m => m.role === 'user').slice(-1)[0];
-        const lastAssistantMsg = activeSession?.messages.filter(m => m.role === 'assistant').slice(-1)[0];
+        const lastUserMsg = activeSession?.messages.filter(m => m.sender === 'user').slice(-1)[0];
+        const lastAssistantMsg = activeSession?.messages.filter(m => m.sender === 'ai').slice(-1)[0];
 
         const payload = JSON.stringify({
           toEmail: currentUserRef.current.email,
-          userPrompt: lastUserMsg?.content || "Sua mensagem",
-          aiResponseSnippet: lastAssistantMsg?.content || "A resposta foi concluída no seu histórico."
+          userPrompt: lastUserMsg?.text || "Sua mensagem",
+          aiResponseSnippet: lastAssistantMsg?.text || lastAssistantMsg?.finalSynthesis || "A resposta foi concluída no seu histórico."
         });
 
         if (navigator.sendBeacon) {

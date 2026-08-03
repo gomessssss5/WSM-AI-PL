@@ -1,3 +1,19 @@
-const text = `[corrigindo erro detectado no código: Uso de imagens via 'source.unsplash.com', que está descontinuado e não retorna mais imagens válidas, causando falhas de carregamento em todo o cardápio.]`;
-const agenticRegex = /\[(pesquisou na web|calculando|verificando relógio|pesquisando\.\.\.|calculando\.\.\.|verificando\.\.\.|verificando possíveis erros no código\.\.\.|código 100% verificado: sem erros|corrigindo erro detectado no código:[\s\S]*?|sandbox de depuração:[\s\S]*?|Criando Skill:[\s\S]*?|Editando Skill:[\s\S]*?|Excluindo Skill:[\s\S]*?|Criou Skill:[\s\S]*?|Editou Skill:[\s\S]*?|Excluiu Skill:[\s\S]*?|criando skill:[\s\S]*?|editando skill:[\s\S]*?|excluindo skill:[\s\S]*?|criou skill:[\s\S]*?|editou skill:[\s\S]*?|excluiu skill:[\s\S]*?|nova tarefa:[\s\S]*?|tarefa removida:[\s\S]*?|passo concluído)\]/gi;
-console.log(text.match(agenticRegex));
+const fullOutput = `<wsm_doc format="html">
+{"title":"index.html","content":"<!doctype html>\n<html><head><title>Test</title></head><body>Hello</body></html>","format":"html"}
+</wsm_doc>`;
+let wsmImageTokens = [];
+let protectedOutput = fullOutput.replace(/<wsm_image\s+[^>]*\/>/gi, (match) => {
+  const token = `___WSM_IMAGE_PROTECTED_${wsmImageTokens.length}___`;
+  wsmImageTokens.push(match);
+  return token;
+});
+
+protectedOutput = protectedOutput
+  .replace(/!\[.*?\]\(data:image\/[^\)]+\)/gi, "")
+  .replace(/data:image\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]{80,}/gi, "")
+  .replace(/<call[\s\S]*?(?:\/>|>)/gi, "")
+  .replace(/<call:default_api[\s\S]*?(?:\/>|>)/gi, "")
+  .replace(/call:default_api:[^\s>]+/gi, "")
+  .trim();
+
+console.log(protectedOutput);

@@ -1748,11 +1748,11 @@ export default function ChatWindow({
                   )
                 )}
 
-                <div className={`flex flex-col min-w-0 ${isUser ? 'items-end max-w-[85%]' : 'items-start max-w-[95%] overflow-hidden'}`}>
+                <div className={`flex flex-col min-w-0 ${isUser ? 'items-end max-w-[85%]' : 'items-start flex-1 min-w-0 max-w-[calc(100%-2.5rem)]'}`}>
                   {/* Bubble content */}
                   {true && (
                     <div
-                      className={`rounded-xl px-3.5 py-2 text-[13.5px] leading-relaxed min-w-0 break-words ${
+                      className={`rounded-xl px-3.5 py-2 text-[13.5px] leading-relaxed min-w-0 break-words w-full ${
                         isUser
                           ? 'bg-[#f3f0ec] text-gray-800 shadow-[0_1px_1.5px_rgba(0,0,0,0.01)] border border-[#eae6e1]'
                           : 'text-gray-800'
@@ -1874,7 +1874,7 @@ export default function ChatWindow({
                                   {displayUserText(message.text)}
                                 </div>
                               ) : (
-                                <div className="prose max-w-none text-[14px] text-gray-800 min-w-0 break-words overflow-x-auto max-w-full">
+                                <div className="prose max-w-none text-[14px] text-gray-800 min-w-0 break-words overflow-x-auto max-w-full w-full">
                                   {/* 1. Reasoning Block */}
                                   {raciocinio && (
                                     <ReasoningBlock

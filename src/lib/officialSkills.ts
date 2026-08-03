@@ -18,7 +18,7 @@ Regra de ouro: **toda instrução abaixo é testável**. Antes de entregar, rode
 
 - Entregue o site **inteiro em um único arquivo**, com todas as seções que o pedido implica. Se o usuário pedir "site de restaurante", o entregável mínimo é: Header fixo, Hero, Sobre/História, Cardápio completo (mín. 8 itens reais com preço, descrição e imagem), Depoimentos, Localização/Contato, Footer.
 - Proibido: \`href="#"\` sem função, botões que não fazem nada, seções "Em breve", texto placeholder tipo "Lorem ipsum" ou "Título aqui".
-- Todo botão/link deve ter uma das três coisas: rolagem suave até uma âncora real, alternância de estado via JS (modal, tab, accordion) ou navegação funcional dentro do mesmo arquivo.
+- **DIRECIONAMENTO OBRIGATÓRIO DE BOTÃO E NAVEGAÇÃO:** TODO e QUALQUER botão ou link no site (botão de contato, menu, ver cardápio, saber mais, reserva, carrinho, etc.) DEVE SEMPRE ter direcionamento funcional para o local correto no próprio site (âncoras \`href="#contato"\`, \`href="#cardapio"\`, \`href="#sobre"\`, com \`id\` correspondente nas seções e rolagem suave \`scroll-smooth\`), ou acionar uma ação real via JavaScript (abrir modal de contato/reserva, abrir painel do carrinho, alternar abas/categorias, rolar suavemente até a seção). É ABSOLUTAMENTE PROIBIDO ter botões sem direcionamento ou sem ação funcional!
 - Formulários (contato, newsletter) precisam de validação real em JS (campos obrigatórios, formato de e-mail) e um estado de feedback visual (sucesso/erro), mesmo sem backend.
 
 ## 2. Bibliotecas Exigidas (Sempre use via CDN)

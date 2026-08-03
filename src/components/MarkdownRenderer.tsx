@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin, TvMinimalPlay, Image as ImageIcon, Loader2, Download, ZoomIn, MousePointer2, Keyboard, ScanEye, ArrowDownUp, FileText, FilePlus, FolderOpen, Edit3, Trash2 } from 'lucide-react';
+import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin, TvMinimalPlay, Image as ImageIcon, Loader2, Download, ZoomIn, MousePointer2, Keyboard, ScanEye, ArrowDownUp, FileText, FilePlus, FolderOpen, Edit3, Trash2, BookOpen } from 'lucide-react';
 import WsmMapComponent from './WsmMapComponent';
 import WsmChartComponent from './WsmChartComponent';
 import { auth, db } from '../lib/firebase';

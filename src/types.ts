@@ -116,6 +116,7 @@ export interface ChatSession {
   isUnread?: boolean;
   isScheduled?: boolean;
   isTemporary?: boolean;
+  isPublic?: boolean;
   model?: string;
 }
 

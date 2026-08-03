@@ -1384,7 +1384,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
   };
 
   // Safe KPI defaults
-  const stats = realStats || {
+  const stats: ProcessedStats = realStats || {
     totalUsers: 1,
     totalSessions: 0,
     totalMessages: 0,
@@ -1396,12 +1396,32 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
     attachmentsByType: [],
     totalDrafts: 0,
     totalWriterDocs: 0,
+    avgMessagesPerSession: 0,
+    returningUsersCount: 0,
+    estimatedTokensUsed: 0,
     modelUsage: [],
     errorsBreakdown: [],
     weeklyData: [],
+    hourlyData: [],
+    responseTimeHistory: [],
     categoryUsage: [],
     recentActivityLogs: [],
     userSessionsList: [],
+    projectedCostSeries: [],
+    satisfactionRates: [],
+    errorAlerts: [],
+    retentionCohorts: [],
+    avgSessionDuration: 0,
+    activeUsersGauge: { dau: 1, wau: 1, mau: 1 },
+    heatmapData: [],
+    costBreakdown: [],
+    longSessions: [],
+    retentionForecast: [],
+    tokenUsageSeries: [],
+    anomalies: [],
+    powerUsers: [],
+    storageUse: { usedGB: 0, totalGB: 10, percent: 0, formattedUsed: '0 GB' },
+    filteredContent: [],
     realTimeActiveUsers: []
   };
 

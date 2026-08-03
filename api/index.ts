@@ -187,20 +187,13 @@ async function executeWithAllFallbacks(options: any, isStream: boolean): Promise
     reqConfig.tools = options.tools;
   }
 
-  // Model fallback hierarchy
-  const primaryModel = options.model || "gemini-3.5-flash-lite";
-  let modelList: string[] = [primaryModel];
-  
-  if (primaryModel === "gemini-3.5-flash-lite") {
-    modelList = ["gemini-3.5-flash-lite", "gemini-2.5-flash-lite", "gemini-2.5-flash"];
-  } else {
-    if (!modelList.includes("gemini-3.5-flash-lite")) {
-      modelList.push("gemini-3.5-flash-lite");
-    }
-    if (!modelList.includes("gemini-2.5-flash-lite")) {
-      modelList.push("gemini-2.5-flash-lite");
-    }
-  }
+  // Model fallback hierarchy as requested: Gemini 3.5 flash lite -> gemini-3.1-flash-lite
+  const requestedModel = options.model || "gemini-3.5-flash-lite";
+  const modelList: string[] = Array.from(new Set([
+    requestedModel,
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite"
+  ]));
 
   // Collect all available API keys
   const keys: { name: string; key: string }[] = [];
@@ -219,7 +212,7 @@ async function executeWithAllFallbacks(options: any, isStream: boolean): Promise
   for (const modelToTry of modelList) {
     for (const keyItem of keys) {
       if (!firstAttempt) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
       firstAttempt = false;
 
@@ -255,7 +248,7 @@ async function executeWithAllFallbacks(options: any, isStream: boolean): Promise
     }
   }
 
-  throw new Error("WSM 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.");
+  throw lastError || new Error("WSM 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.");
 }
 
 async function callGeminiWithFallback(options: any): Promise<any> {
@@ -990,6 +983,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
+      res.flushHeaders();
       const sendEvent = (data: any) => res.write(`data: ${JSON.stringify(data)}\n\n`);
 
       let lastFunctionCallsStr = "";
@@ -998,16 +992,30 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
 
       const userStrPrompt = (typeof text === 'string' ? text : JSON.stringify(text)).toLowerCase();
       const isSimpleGreetingOrMathPrompt = /^(ol[áa]|oi|tudo\s+bem|boa\s+(tarde|noite|dia)|quanto\s+[ée]|calcul[ae]|1\+[123456789]|2\+2)$/i.test(userStrPrompt.trim());
-      const promptWantsBrowser = (Boolean(effectiveComputerEnabled) && !isSimpleGreetingOrMathPrompt) || 
+
+      const isHtmlSiteRequest = (
+        userStrPrompt.includes("web-html") ||
+        userStrPrompt.includes("wsm_skill_content") ||
+        userStrPrompt.includes("skill_content") ||
+        userStrPrompt.includes("[sistema: skill requisitada]") ||
+        userStrPrompt.includes("<html") ||
+        userStrPrompt.includes("<!doctype html>") ||
+        userStrPrompt.includes("<wsm_doc>") ||
+        ((/\b(site|html|página|pagina|hamburgueria|landing\s*page|layout|css|web-html)\b/i.test(userStrPrompt)) &&
+         (/\b(gerar|crie|criar|faça|fazer|monte|montar|desenvolva|desenvolver|código|codigo|construir|construa)\b/i.test(userStrPrompt))) ||
+        /\b(site\s+de\s+[a-z0-9_-]+|site\s+html|pagina\s+html|página\s+html|cri\w*\s+site|gera\w*\s+site|desenvolv\w*\s+site)\b/i.test(userStrPrompt)
+      );
+
+      const promptWantsBrowser = !isHtmlSiteRequest && ((Boolean(effectiveComputerEnabled) && !isSimpleGreetingOrMathPrompt) || 
         /\b(abrir|acesse|acessar|navegar|entrar|ir\s+at[ée]|visit\w*|abra)\b/i.test(userStrPrompt) ||
-        /\b(site|link|url|pagina|página|navegador|google|youtube|wikipedia|github|brave|twitter|x\.com)\b/i.test(userStrPrompt) ||
-        /https?:\/\/|www\./i.test(userStrPrompt);
-      const promptWantsSearch = Boolean(effectiveSearchEnabled) ||
+        /\b(link|url|navegador|google|youtube|wikipedia|github|brave|twitter|x\.com)\b/i.test(userStrPrompt) ||
+        (/https?:\/\/|www\./i.test(userStrPrompt) && !/tailwindcss\.com|googleapis\.com|unpkg\.com|cdnjs\.com/i.test(userStrPrompt)));
+      const promptWantsSearch = !isHtmlSiteRequest && (Boolean(effectiveSearchEnabled) ||
         /\b(pesquis|busc|procur|encontr)\w*\b/i.test(userStrPrompt) ||
-        /\b(web|internet|google|brave|notícia|noticias|hoje|site|quem\s+[ée]|onde\s+fica|quanto\s+custa|neymar|futebol|preço|cotação)\b/i.test(userStrPrompt);
+        /\b(web|internet|google|brave|notícia|noticias|hoje|site|quem\s+[ée]|onde\s+fica|quanto\s+custa|neymar|futebol|preço|cotação)\b/i.test(userStrPrompt));
       const promptWantsImage = /\b(gerar|crie|criar|desenhar|desenhe|pintar|pinte)\b.*\b(imagem|foto|ilustraç|arte|desenho|pintura|quadro)\b/i.test(userStrPrompt);
       const promptWantsDoc = /\b(documento|relatório|relatorio|redação|redacao|resumo|artigo|tcc|texto|capítulo|capitulo|escrever|criar\s+doc|editar\s+doc|gerar\s+doc)\b/i.test(userStrPrompt);
-      const promptHasRequestedActions = !isSimpleGreetingOrMathPrompt && (promptWantsBrowser || promptWantsSearch || promptWantsImage || promptWantsDoc);
+      const promptHasRequestedActions = !isHtmlSiteRequest && !isSimpleGreetingOrMathPrompt && (promptWantsBrowser || promptWantsSearch || promptWantsImage || promptWantsDoc);
 
       while (turnCount < 100) {
         if (turnCount > 0) {
@@ -1016,7 +1024,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
         }
 
         let currentToolConfig: any = undefined;
-        if (forceNextTurnModeAny || (turnCount === 0 && promptHasRequestedActions)) {
+        if (!isHtmlSiteRequest && (forceNextTurnModeAny || (turnCount === 0 && promptHasRequestedActions))) {
           currentToolConfig = {
             functionCallingConfig: {
               mode: "ANY"
@@ -1079,14 +1087,27 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             let fnArgs: any = {};
             if (pseudoCallMatch[2] || pseudoCallMatch[3]) {
               const rawArgs = pseudoCallMatch[2] || pseudoCallMatch[3];
+              try {
+                // Tenta parsear como JSON se estiver entre chaves
+                if (pseudoCallMatch[2]) {
+                  fnArgs = JSON.parse(`{${rawArgs}}`);
+                }
+              } catch (e) {
+                console.warn("[Auto-Recover] Failed to parse JSON args from pseudo call:", e);
+                // Fallback para tentar extrair content e title manualmente caso o JSON esteja quebrado (ex: HTML não escapado)
+                const titleMatch = rawArgs.match(/"title"\s*:\s*"([^"]+)"/i);
+                if (titleMatch) fnArgs.title = titleMatch[1];
+                const contentMatch = rawArgs.match(/"content"\s*:\s*"([\s\S]*?)"(?:\s*,|\s*$)/i);
+                if (contentMatch) fnArgs.content = contentMatch[1];
+              }
               const urlM = rawArgs.match(/url:\s*(https?:\/\/[^\s,}]|www\.[^\s,}]|[a-zA-Z0-9-]+\.(com|org|net|io|br|gov|edu|ai|app)[^\s,}]*)/i);
-              if (urlM) {
+              if (urlM && !fnArgs.url) {
                 let u = urlM[1];
                 if (!u.startsWith('http')) u = 'https://' + u;
-                fnArgs = { url: u };
+                fnArgs.url = u;
               }
             }
-            if (['open_url', 'click', 'type_text', 'scroll_page', 'web_search', 'gerar_imagem'].includes(fnName)) {
+            if (['open_url', 'click', 'type_text', 'scroll_page', 'web_search', 'gerar_imagem', 'create_document', 'edit_document', 'read_document', 'append_document', 'delete_document', 'list_documents'].includes(fnName)) {
               if (fnName === 'open_url' && !fnArgs.url) {
                 const urlM = textForThisTurn.match(/(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|org|net|io|br|gov|edu|ai|app)[^\s]*)/i);
                 if (urlM) {
@@ -1106,9 +1127,11 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
           const userStr = (typeof text === 'string' ? text : JSON.stringify(text)).toLowerCase();
           const aiStr = (textForThisTurn || "").toLowerCase();
 
+          const isHtmlRequestThisTurn = isHtmlSiteRequest || aiStr.includes("[lendo skill: web-html]") || aiStr.includes("web-html") || aiStr.includes("<html") || aiStr.includes("<!doctype html>");
+
           const isSimpleGreetingOrMath = /^(ol[áa]|oi|tudo\s+bem|boa\s+(tarde|noite|dia)|quanto\s+[ée]|calcul[ae]|1\+[123456789]|2\+2)$/i.test(userStr.trim());
-          const wantsBrowser = (Boolean(effectiveComputerEnabled) && !isSimpleGreetingOrMath) || 
-            /\b(abrir|acesse|acessar|navegar|entrar\s+no|ir\s+at[ée]|visit\w*|abra)\s+(o\s+)?(site|link|url|pagina|página|navegador)\b|\b(abrir|acesse|acessar|entrar\s+no|visitar|pesquisar\s+no|procurar\s+no)\s+(youtube|google|wikipedia|github|brave|twitter|x\.com)\b|\b(ativ\w*|us\w*|habilit\w*)\s+.*(computador|agente|navegador)\b|\bmodo\s+computador\b|https?:\/\/|www\./i.test(userStr);
+          const wantsBrowser = !isHtmlRequestThisTurn && ((Boolean(effectiveComputerEnabled) && !isSimpleGreetingOrMath) || 
+            /\b(abrir|acesse|acessar|navegar|entrar\s+no|ir\s+at[ée]|visit\w*|abra)\s+(o\s+)?(link|url|navegador)\b|\b(abrir|acesse|acessar|entrar\s+no|visitar|pesquisar\s+no|procurar\s+no)\s+(youtube|google|wikipedia|github|brave|twitter|x\.com)\b|\b(ativ\w*|us\w*|habilit\w*)\s+.*(computador|agente|navegador)\b|\bmodo\s+computador\b/i.test(userStr));
           const browserAlreadyCalled = currentContents.some((c: any) => 
             c.parts?.some((p: any) => 
               p.functionCall?.name === "open_url" || p.functionResponse?.name === "open_url" ||
@@ -1121,7 +1144,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
 
           if (wantsBrowser && !browserAlreadyCalled && turnCount === 0) {
             let targetUrl = "";
-            const urlMatch = (userStr + " " + aiStr).match(/(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|org|net|io|br|gov|edu|ai|app)[^\s]*)/i);
+            const urlMatch = (userStr + " " + aiStr).match(/(https?:\/\/(?!cdn\.|fonts\.|unpkg\.|cdnjs\.|jsdelivr\.)[^\s<>"'\)]+|www\.[^\s<>"'\)]+)/i);
             if (urlMatch) {
               targetUrl = urlMatch[0].replace(/[\)"'\s\.,;]+$/, '');
               if (!targetUrl.startsWith('http')) targetUrl = 'https://' + targetUrl;
@@ -1136,7 +1159,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             } else if (/google/i.test(userStr + " " + aiStr)) {
               targetUrl = "https://www.google.com";
             } else {
-              const openSiteMatch = userStr.match(/(?:abra|acesse|acessar|entrar no|site do|site da)\s+([a-zA-Z0-9-]+)/i);
+              const openSiteMatch = userStr.match(/(?:abra|acesse|acessar|entrar no)\s+([a-zA-Z0-9-]+)/i);
               if (openSiteMatch) {
                 const sName = openSiteMatch[1].toLowerCase();
                 if (sName === 'youtube') targetUrl = 'https://www.youtube.com';
@@ -1673,19 +1696,21 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
           const userStr = (typeof text === 'string' ? text : JSON.stringify(text)).toLowerCase();
           const aiStr = (textForThisTurn || "").toLowerCase();
 
+          const isHtmlRequestThisTurn = isHtmlSiteRequest || aiStr.includes("[lendo skill: web-html]") || aiStr.includes("web-html") || aiStr.includes("<html") || aiStr.includes("<!doctype html>");
+
           const aiHasTaskBlock = aiStr.includes("<task>") || /\[(acessar|digitar|rolar|clicar|pesquisar|buscar|aguardar|esperar)\b/i.test(aiStr);
-          const aiPromisedBrowser = /\b(vou|irei|estou|vamos|agora|próximo|proximo)\s+(abrir|acessar|navegar|digitar|clicar|rolar|preencher|enviar|criar|colocar|fazer|selecionar|pressionar|aguardar|esperar|fechar)\b/i.test(aiStr) || /\b(preenchendo|enviando|clicando|digitando|abrindo|acessando|rolando|aguardando|fechando)\b/i.test(aiStr);
-          const aiPromisedSearch = /\b(vou|irei|estou)\s+(pesquisar|buscar)\b|\bpesquisando\b/i.test(aiStr);
+          const aiPromisedBrowser = !isHtmlRequestThisTurn && (/\b(vou|irei|estou|vamos|agora|próximo|proximo)\s+(abrir|acessar|navegar|digitar|clicar|rolar|preencher|enviar|colocar|selecionar|pressionar|aguardar|esperar|fechar)\b/i.test(aiStr) || /\b(preenchendo|enviando|clicando|digitando|abrindo|acessando|rolando|aguardando|fechando)\b/i.test(aiStr));
+          const aiPromisedSearch = !isHtmlRequestThisTurn && (/\b(vou|irei|estou)\s+(pesquisar|buscar)\b|\bpesquisando\b/i.test(aiStr));
           const aiPromisedImage = /\b(gerando|criando|desenhando|pintando)\s+(a|uma)?\s*(imagem|foto|ilustraç|arte)\b/i.test(aiStr);
 
           const isSimpleGreetingOrMath2 = /^(ol[áa]|oi|tudo\s+bem|boa\s+(tarde|noite|dia)|quanto\s+[ée]|calcul[ae]|1\+[123456789]|2\+2)$/i.test(userStr.trim());
-          const wantsBrowser = (Boolean(effectiveComputerEnabled) && !isSimpleGreetingOrMath2) || promptWantsBrowser;
-          const wantsSearch = Boolean(effectiveSearchEnabled) || promptWantsSearch;
+          const wantsBrowser = !isHtmlRequestThisTurn && ((Boolean(effectiveComputerEnabled) && !isSimpleGreetingOrMath2) || promptWantsBrowser);
+          const wantsSearch = !isHtmlRequestThisTurn && (Boolean(effectiveSearchEnabled) || promptWantsSearch);
           const wantsImage = promptWantsImage;
 
           const aiHasFinalConclusion = /\b(concluí|conclui|concluído|concluido|finalizei|finalizado|tudo certo|sucesso no teste|teste concluído)\b/i.test(aiStr);
 
-          const missingToolCall = (
+          const missingToolCall = !isHtmlRequestThisTurn && (
             aiHasTaskBlock ||
             aiPromisedBrowser ||
             aiPromisedSearch ||
@@ -1746,6 +1771,25 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               textOutsideReasoning === "" &&
               (!functionCallsForThisTurn || functionCallsForThisTurn.length === 0)
             );
+
+            const modelGeneratedNothing = (textForThisTurn || "").trim() === "" && (!functionCallsForThisTurn || functionCallsForThisTurn.length === 0);
+
+            if (modelGeneratedNothing && turnCount < 10) {
+              console.warn(`[Pro/Flash] Model outputted NOTHING on turn ${turnCount}! Prompting to retry...`);
+              
+              currentContents.push({ 
+                role: "model", 
+                parts: [{ text: " " }] 
+              });
+
+              currentContents.push({
+                role: "user",
+                parts: [{ text: "SISTEMA (ERRO DE RESPOSTA VAZIA): Você não gerou nenhum texto nem chamou nenhuma função! Se você está tentando criar um site/HTML, OBRIGATORIAMENTE gere o código completo dentro da tag `<wsm_doc format=\"html\">{\"title\":\"index.html\",\"content\":\"código html aqui\",\"format\":\"html\"}</wsm_doc>` ou use a ferramenta 'create_document' agora. Não deixe a resposta em branco." }]
+              });
+
+              turnCount++;
+              continue;
+            }
 
             if (modelOnlyReasonedWithoutAnswer && turnCount < 100) {
               console.warn(`[Pro/Flash] Model outputted only <raciocinio> block without final answer on turn ${turnCount}! Prompting for final answer...`);
@@ -1859,10 +1903,16 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
     console.error("Chat API Error:", error);
     
     const errorMessage = error.message || String(error);
-    let errorText = "WSM 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.";
+    let errorText = "WSM 1.6 está temporariamente indisponível. Tente novamente em alguns instantes.";
 
-    if (errorMessage.includes("No content returned") || errorMessage.includes("empty response") || errorMessage.includes("blocked") || errorMessage.includes("finishReason")) {
-      errorText = "⚠️ **Nenhuma resposta foi gerada pelo modelo.** O pedido pode ter sido longo demais ou complexo demais (por favor, tente dividir seu pedido em partes menores).";
+    if (errorMessage.includes("safety") || errorMessage.includes("SAFETY") || errorMessage.includes("BLOCKED")) {
+      errorText = "⚠️ **A mensagem solicitada foi bloqueada pelas diretrizes de segurança da IA.** Por favor, reformule seu pedido.";
+    } else if (errorMessage.includes("quota") || errorMessage.includes("RATE_LIMIT") || errorMessage.includes("429") || errorMessage.includes("resource_exhausted") || errorMessage.includes("RESOURCE_EXHAUSTED")) {
+      errorText = "⚠️ **Limite de cota ou requisições por minuto atingido na API do Gemini.** Aguarde alguns instantes antes de enviar uma nova mensagem.";
+    } else if (errorMessage.includes("No content returned") || errorMessage.includes("empty response") || errorMessage.includes("finishReason")) {
+      errorText = "⚠️ **Nenhuma resposta foi gerada pelo modelo nesta tentativa.** O pedido pode ter sido longo demais ou ter excedido os limites do modelo.";
+    } else if (errorMessage) {
+      errorText = `⚠️ **Ocorreu um erro na geração da resposta:** ${errorMessage}`;
     }
 
     if (res.headersSent) {
@@ -1886,7 +1936,7 @@ app.post("/api/test-keys", async (req: express.Request, res: express.Response) =
     key3: { success: false, message: "" }
   };
 
-  const modelName = "gemini-3.5-flash-lite";
+  const modelName = "gemini-2.5-flash";
 
   // Teste da chave 1 (IA_API_KEY)
   const key1 = process.env.IA_API_KEY;
