@@ -8,129 +8,6 @@ import WsmChartComponent from './WsmChartComponent';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
-interface WsmImageComponentProps {
-  key?: string;
-  prompt: string;
-  imgUrl?: string;
-}
-
-export function WsmImageComponent({ prompt, imgUrl }: WsmImageComponentProps) {
-  const [currentImgUrl, setCurrentImgUrl] = React.useState<string | undefined>(imgUrl);
-  const [showFull, setShowFull] = React.useState(false);
-  const [loading, setLoading] = React.useState(!imgUrl);
-
-  React.useEffect(() => {
-    if (imgUrl) {
-      setCurrentImgUrl(imgUrl);
-      setLoading(false);
-      return;
-    }
-
-    let isMounted = true;
-    const fetchImage = async () => {
-      try {
-        setLoading(true);
-        const res = await fetch('/api/get-or-generate-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.imgUrl && isMounted) {
-            setCurrentImgUrl(data.imgUrl);
-          }
-        }
-      } catch (err) {
-        console.warn('Erro ao obter/gerar imagem:', err);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    fetchImage();
-
-    return () => { isMounted = false; };
-  }, [imgUrl, prompt]);
-
-  const handleDownload = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const targetUrl = currentImgUrl || imgUrl;
-    if (!targetUrl) return;
-    const a = document.createElement('a');
-    a.href = targetUrl;
-    a.download = `wsm-ai-image-${Date.now()}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  };
-
-  const activeUrl = currentImgUrl || imgUrl;
-
-  if (loading || !activeUrl) {
-    return (
-      <div className="my-4 w-full max-w-[340px] aspect-square rounded-[18px] bg-gray-100 dark:bg-gray-800 border-2 border-blue-500 flex flex-col items-center justify-center gap-3 p-6 shadow-sm select-none shrink-0 animate-pulse">
-        <div className="w-12 h-12 rounded-2xl bg-white dark:bg-gray-700 border border-blue-200 dark:border-blue-700 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-sm">
-          <Loader2 className="w-6 h-6 text-blue-600 dark:text-blue-400 animate-spin" />
-        </div>
-        <div className="flex flex-col items-center text-center">
-          <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">Gerando imagem...</span>
-          <span className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Processando em segundo plano</span>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="my-4 w-full max-w-[340px] aspect-square rounded-[18px] overflow-hidden shadow-sm hover:shadow-md transition-shadow shrink-0 relative group">
-      <img
-        src={activeUrl}
-        alt={prompt}
-        referrerPolicy="no-referrer"
-        className="w-full h-full object-cover rounded-[18px] cursor-pointer transition-transform duration-300 group-hover:scale-[1.01]"
-        onClick={() => setShowFull(true)}
-      />
-
-      {/* Quick Download Overlay Button */}
-      <button
-        onClick={handleDownload}
-        title="Baixar imagem com selo oficial"
-        className="absolute top-3 right-3 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full opacity-0 group-hover:opacity-100 backdrop-blur-md transition-all shadow-md cursor-pointer"
-      >
-        <Download className="w-4 h-4" />
-      </button>
-
-      {showFull && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={() => setShowFull(false)}>
-          <div className="absolute top-4 right-4 flex items-center gap-2">
-            <button
-              className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md transition-colors cursor-pointer"
-              onClick={handleDownload}
-              title="Baixar imagem com selo oficial"
-            >
-              <Download className="w-5 h-5" />
-            </button>
-            <button
-              className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md transition-colors cursor-pointer"
-              onClick={() => setShowFull(false)}
-              title="Fechar"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <img
-            src={imgUrl}
-            alt={prompt}
-            referrerPolicy="no-referrer"
-            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
 interface AgenticSkillTagProps {
   key?: string;
   text: string;
@@ -1094,7 +971,7 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
     
     // Ensure wsm tags are on their own lines so text before/after them doesn't get swallowed
     let formattedContent = cleanedContent;
-    const tagNames = ['wsm_chart', 'wsm_map', 'wsm_image', 'wsm_form', 'wsm_task'];
+    const tagNames = ['wsm_chart', 'wsm_map', 'wsm_form', 'wsm_task'];
     tagNames.forEach(tagName => {
       // Matches both self-closing <wsm_chart ... /> and matching <wsm_chart ...>...</wsm_chart>
       const selfClosingRegex = new RegExp(`(<${tagName}[\\s\\S]*?\\/>)`, 'gi');
@@ -1367,43 +1244,6 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
             {renderNodes(roots, renderInlineContent)}
           </div>
         );
-        continue;
-      }
-
-      // 7.5 Custom Image Tag: <wsm_image prompt="..." imgUrl="..." />
-      if (trimmed.startsWith('<wsm_image') || trimmed.includes('<wsm_image')) {
-        let imageLine = line;
-        while (i < lines.length && !imageLine.includes('/>') && !imageLine.includes('</wsm_image>')) {
-          i++;
-          if (i < lines.length) {
-            imageLine += '\n' + lines[i];
-          }
-        }
-
-        const parseAttr = (str: string, attr: string): string => {
-          const regexSingle = new RegExp(`${attr}\\s*=\\s*\'([^\']*)\'`, 'i');
-          const regexDouble = new RegExp(`${attr}\\s*=\\s*"([^"]*)"`, 'i');
-          
-          const matchSingle = str.match(regexSingle);
-          if (matchSingle) return matchSingle[1];
-          
-          const matchDouble = str.match(regexDouble);
-          if (matchDouble) return matchDouble[1];
-          
-          return '';
-        };
-
-        const promptVal = parseAttr(imageLine, 'prompt');
-        const imgUrlVal = parseAttr(imageLine, 'imgUrl');
-
-        blocks.push(
-          <WsmImageComponent
-            key={`image-${i}`}
-            prompt={promptVal}
-            imgUrl={imgUrlVal || undefined}
-          />
-        );
-        i++;
         continue;
       }
 

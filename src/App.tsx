@@ -581,37 +581,7 @@ $$ \\frac{d}{dx}F(x) = f(x) $$
       };
     }
 
-    // 2. Image Generation Response
-    if (
-      lower.includes('imagem') || 
-      lower.includes('crie uma imagem') || 
-      lower.includes('gerar imagem') || 
-      lower.includes('desenhe') || 
-      lower.includes('paisagem') || 
-      lower.includes('cyberpunk')
-    ) {
-      return {
-        text: `## 🎨 Geração de Imagem Concluída
-
-Utilizei o motor gráfico **WSM Image Gen** integrado ao **${selectedModel}** para processar sua instrução.
-
-### 🛠️ Parâmetros do Prompt
-- **Estilo:** Futurista / Cyberpunk de alta fidelidade
-- **Dimensões:** $1024 \\times 1024$ pixels (Proporção $1:1$)
-- **Paleta de Cores:** Tons de roxo neon, ciano profundo e detalhes dourados.
-
-### 🔬 Análise de Composição Gráfica
-1. **Ponto de Fuga Central:** O horizonte converge para uma torre de dados flutuante.
-2. **Iluminação de Raytracing:** Reflexos dinâmicos gerados em superfícies molhadas.
-3. **Escala Fractal:** Geometria urbana calculada usando a equação de Mandelbrot:
-   $$ Z_{n+1} = Z_n^2 + C $$
-
-Veja o resultado da renderização em tempo real abaixo:`,
-        imageUrl: 'cyberpunk_city',
-      };
-    }
-
-    // 3. Code Block Response
+    // 2. Code Block Response
     if (
       lower.includes('codigo') || 
       lower.includes('código') || 

@@ -2,7 +2,6 @@ import express from "express";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import sharp from "sharp";
-import { imageRankingQueue, saveGeneratedImageAndSyncSession, getCachedGeneratedImage } from "./imageQueue.js";
 import { openUrl, clickSelector, typeText, scrollPage, extractText, waitSeconds } from "./playwrightAgent.js";
 import { 
   sendScheduledEmail, 
@@ -761,20 +760,6 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             }
           },
           {
-            name: "gerar_imagem",
-            description: "MANDATÓRIO: Chame esta ferramenta SEMPRE que o usuário pedir para gerar, criar, desenhar ou imaginar uma imagem, foto ou ilustração. NÃO responda apenas com texto, chame a ferramenta obrigatoriamente neste turno.",
-            parameters: {
-              type: Type.OBJECT,
-              properties: {
-                prompt: {
-                  type: Type.STRING,
-                  description: "O prompt visual em inglês (ex: 'a majestic golden retriever sitting on a mountain peak, cinematic, 8k')."
-                }
-              },
-              required: ["prompt"]
-            }
-          },
-          {
             name: "open_url",
             description: "Abre uma URL no navegador real em background e retorna o conteúdo da página com os elementos interativos.",
             parameters: {
@@ -956,9 +941,8 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
       const promptWantsSearch = !isHtmlSiteRequest && (Boolean(effectiveSearchEnabled) ||
         /\b(pesquis|busc|procur|encontr)\w*\b/i.test(userStrPrompt) ||
         /\b(web|internet|google|brave|notícia|noticias|hoje|site|quem\s+[ée]|onde\s+fica|quanto\s+custa|neymar|futebol|preço|cotação)\b/i.test(userStrPrompt));
-      const promptWantsImage = /\b(gerar|crie|criar|desenhar|desenhe|pintar|pinte)\b.*\b(imagem|foto|ilustraç|arte|desenho|pintura|quadro)\b/i.test(userStrPrompt);
       const promptWantsDoc = /\b(documento|relatório|relatorio|redação|redacao|resumo|artigo|tcc|texto|capítulo|capitulo|escrever|criar\s+doc|editar\s+doc|gerar\s+doc)\b/i.test(userStrPrompt);
-      const promptHasRequestedActions = !isHtmlSiteRequest && !isSimpleGreetingOrMathPrompt && (promptWantsBrowser || promptWantsSearch || promptWantsImage || promptWantsDoc);
+      const promptHasRequestedActions = !isHtmlSiteRequest && !isSimpleGreetingOrMathPrompt && (promptWantsBrowser || promptWantsSearch || promptWantsDoc);
 
       while (turnCount < 100) {
         if (turnCount > 0) {
@@ -986,14 +970,12 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               "\nNUNCA gere manualmente as tags em colchetes como `[pesquisou na web]`, `[calculando]`, `[verificando relógio]` na sua resposta final de texto. O nosso sistema de backend já insere e renderiza essas tags de progresso e status automaticamente no chat. Sua tarefa é focar exclusivamente em gerar o conteúdo final explicativo e o código, sem adicionar essas tags de status ao final." +
               "\nREGRA DA CALCULADORA: SEMPRE que precisar resolver QUALQUER expressão matemática (ex: v² = 20² + 2×(-10)×(-5)), VOCÊ DEVE OBRIGATORIAMENTE chamar a ferramenta 'calculadora'. NUNCA calcule de cabeça ou deduza o valor (ex: alucinar 24.49 em vez de 22.36). Após receber o resultado exato da calculadora, escreva sua resposta final conferindo o valor retornado." +
               "\nREGRA DA WEB SEARCH: Use web_search APENAS para fatos históricos, notícias e informações do mundo real. É ESTRITAMENTE PROIBIDO usar web_search para pesquisar sobre programação, HTML, CSS, JS, tutoriais, tendências de design ou como criar um site. Se o usuário pedir um site, GERE O CÓDIGO IMEDIATAMENTE sem pesquisar na web!" +
-              "\nREGRA DE GERAÇÃO DE IMAGENS (AI HORDE): SEMPRE que o usuário solicitar para gerar, criar, desenhar ou pintar uma imagem, foto, ilustração ou arte visual, você DEVE OBRIGATORIAMENTE chamar a ferramenta 'gerar_imagem' IMEDIATAMENTE. IMPORTANTE: NUNCA diga 'Vou gerar a imagem' e encerre o turno sem chamar a ferramenta. Você DEVE chamar a ferramenta no MESMO turno! Ao chamar, passe o prompt descritivo detalhado em inglês (ex: 'a majestic golden retriever sitting on a mountain peak, cinematic, 8k')." +
-              "\nREGRA DE SINTAXE APÓS GERAR IMAGEM: Quando 'gerar_imagem' for executada, a imagem gerada já é exibida automaticamente pela interface no componente <wsm_image>. Na sua resposta final, é ABSOLUTAMENTE PROIBIDO escrever manualmente a tag <wsm_image>, dados base64, URLs ou sintaxe markdown ![alt](url). Apenas faça um breve comentário amigável sobre a imagem gerada (o sistema já inseriu e exibiu a imagem no chat)." +
               "\nREGRA DE NAVEGAÇÃO WEB REAL (PLAYWRIGHT): SEMPRE que o usuário pedir para abrir, acessar ou navegar em qualquer site (ex: Brave Search, Google, Wikipedia, etc), VOCÊ DEVE OBRIGATORIAMENTE emitir a chamada de função 'open_url' (functionCall) no MESMO TURNO. É ABSOLUTAMENTE PROIBIDO apenas escrever texto prometendo abrir o site sem enviar a chamada da ferramenta 'open_url'!" +
               "\nREGRAS OBRIGATÓRIAS DE AGENTE SEQUENCIAL MULTI-ETAPAS (PASSO A PASSO):" +
               "\n1. Atue como um AGENTE SEQUENCIAL AUTÔNOMO que executa tarefas complexas em múltiplos turnos encadeados." +
-              "\n2. Se o usuário solicitou MÚLTIPLAS ETAPAS no prompt (ex: 'pesquise na web X e depois abra o site Y', 'gerar imagem e depois pesquisar', 'pesquisar e depois abrir navegador', etc.):" +
+              "\n2. Se o usuário solicitou MÚLTIPLAS ETAPAS no prompt (ex: 'pesquise na web X e depois abra o site Y', 'pesquisar e depois abrir navegador', etc.):" +
               "\n   - Execute UMA FERRAMENTA POR TURNO de forma organizada." +
-              "\n   - APÓS RECEBER O RETORNO DE UMA FERRAMENTA (ex: 'web_search'), SE O PROMPT DO USUÁRIO SOLICITOU OUTRAS AÇÕES (ex: abrir site com 'open_url', clicar, navegar, calcular, gerar imagem), VOCÊ DEVE OBRIGATORIAMENTE EXECUTAR A PRÓXIMA FERRAMENTA NO TURNO SEGUINTE." +
+              "\n   - APÓS RECEBER O RETORNO DE UMA FERRAMENTA (ex: 'web_search'), SE O PROMPT DO USUÁRIO SOLICITOU OUTRAS AÇÕES (ex: abrir site com 'open_url', clicar, navegar, calcular), VOCÊ DEVE OBRIGATORIAMENTE EXECUTAR A PRÓXIMA FERRAMENTA NO TURNO SEGUINTE." +
               "\n   - É ABSOLUTAMENTE PROIBIDO encerrar a resposta ou parar na metade do fluxo logo após a pesquisa na web se ainda houver outras ações ou sites para abrir solicitados pelo usuário!" +
               "\n   - Apenas apresente a resposta final completa em texto quando TODAS as ferramentas e ações pedidas no prompt do usuário tiverem sido devidamente executadas." +
               "\n3. CRÍTICO: NUNCA escreva apenas texto conversacional prometendo ações (ex: 'Vou abrir o site', 'Para atender seu pedido...') sem enviar a chamada de função (functionCall) no mesmo turno!",
@@ -1050,7 +1032,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                 fnArgs.url = u;
               }
             }
-            if (['open_url', 'click', 'type_text', 'scroll_page', 'web_search', 'gerar_imagem', 'create_document', 'edit_document', 'read_document', 'append_document', 'delete_document', 'list_documents'].includes(fnName)) {
+            if (['open_url', 'click', 'type_text', 'scroll_page', 'web_search', 'create_document', 'edit_document', 'read_document', 'append_document', 'delete_document', 'list_documents'].includes(fnName)) {
               if (fnName === 'open_url' && !fnArgs.url) {
                 const urlM = textForThisTurn.match(/(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|org|net|io|br|gov|edu|ai|app)[^\s]*)/i);
                 if (urlM) {
@@ -1268,176 +1250,6 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               functionResponseParts.push({
                 functionResponse: { name: fc.name, response: { result: timeData } }
               });
-            } else if (fc.name === "gerar_imagem") {
-              const args = fc.args as any;
-              promptStr = args.prompt || "";
-              resultImgUrl = "";
-              errorMsg = "";
-
-              let queueId = "";
-              try {
-                // 1. Enter Virtual Ranking Queue in Database
-                queueId = await imageRankingQueue.enqueue(promptStr, userInfo);
-
-                // 2. Wait until request enters Top 3 in ranking and a slot opens
-                await imageRankingQueue.waitForTurn(queueId);
-
-                console.log(`[Pro] AI Horde generating image with prompt: "${promptStr}"`);
-                try {
-                  const responseAsync = await fetch("https://aihorde.net/api/v2/generate/async", {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      "apikey": "0000000000",
-                      "Client-Agent": "WSMAI:1.0:wsmai@wsm.ai"
-                    },
-                    body: JSON.stringify({
-                      prompt: promptStr,
-                      params: {
-                        sampler_name: "k_euler",
-                        cfg_scale: 7.5,
-                        height: 512,
-                        width: 512,
-                        steps: 20,
-                        n: 1
-                      },
-                      nsfw: false,
-                      censor_nsfw: true,
-                      models: ["AlbedoBase XL 3.1", "SDXL 1.0", "stable_diffusion", "Deliberate", "ICBINP - I Can't Believe It's Not Photography"]
-                    })
-                  });
-
-                  if (responseAsync.ok) {
-                    const initData = await responseAsync.json();
-                    const requestId = initData.id;
-
-                    if (requestId) {
-                      let isDone = false;
-                      let attempts = 0;
-                      const maxAttempts = 20; // 40 seconds max for primary provider
-
-                      while (!isDone && attempts < maxAttempts) {
-                        await new Promise(resolve => setTimeout(resolve, 2000));
-                        attempts++;
-
-                        const statusRes = await fetch(`https://aihorde.net/api/v2/generate/status/${requestId}`);
-                        if (statusRes.ok) {
-                          const statusData = await statusRes.json();
-                          if (statusData.done) {
-                            isDone = true;
-                            if (statusData.generations && statusData.generations.length > 0) {
-                              resultImgUrl = statusData.generations[0].img;
-                            }
-                          } else if (statusData.faulted) {
-                            break;
-                          }
-                        }
-                      }
-                    }
-                  }
-                } catch (hordeErr) {
-                  console.warn("[Pro] AI Horde primary attempt encountered error:", hordeErr);
-                }
-
-                // Fallback to Pollinations AI if AI Horde timed out or was busy
-                if (!resultImgUrl) {
-                  console.log(`[Pro] Triggering ultra-fast fallback image generation via Pollinations AI...`);
-                  try {
-                    const polUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(promptStr)}?width=1024&height=1024&seed=${Math.floor(Math.random() * 10000000)}&nologo=true`;
-                    const polRes = await fetch(polUrl);
-                    if (polRes.ok) {
-                      const polArrayBuf = await polRes.arrayBuffer();
-                      if (polArrayBuf.byteLength > 1000) {
-                        const base64Str = Buffer.from(polArrayBuf).toString("base64");
-                        resultImgUrl = `data:image/jpeg;base64,${base64Str}`;
-                      }
-                    }
-                  } catch (polErr) {
-                    console.error("[Pro] Pollinations AI fallback also failed:", polErr);
-                  }
-                }
-
-                if (!resultImgUrl) {
-                  throw new Error("A geração de imagem expirou. Por favor, tente novamente.");
-                }
-
-                // Convert image to Base64 data URI & bake AI logo watermark into the bottom-right corner
-                if (resultImgUrl) {
-                  try {
-                    let inputBuffer: Buffer;
-                    if (resultImgUrl.startsWith("data:")) {
-                      const commaIdx = resultImgUrl.indexOf(",");
-                      inputBuffer = Buffer.from(resultImgUrl.substring(commaIdx + 1), "base64");
-                    } else {
-                      const imgRes = await fetch(resultImgUrl);
-                      if (!imgRes.ok) throw new Error("Falha ao carregar imagem para marca d'água.");
-                      inputBuffer = Buffer.from(await imgRes.arrayBuffer());
-                    }
-
-                    const logoBuffer = await getWatermarkLogoBuffer();
-                    if (logoBuffer) {
-                      const mainImage = sharp(inputBuffer);
-                      const metadata = await mainImage.metadata();
-                      const imgWidth = metadata.width || 512;
-                      const imgHeight = metadata.height || 512;
-
-                      // Logo size: ~8% of image width (min 28px, max 80px)
-                      const logoWidth = Math.max(28, Math.min(80, Math.round(imgWidth * 0.08)));
-
-                      // Apply ~45% opacity to logo
-                      const logoResized = await sharp(logoBuffer)
-                        .resize(logoWidth, logoWidth, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-                        .ensureAlpha()
-                        .composite([{
-                          input: Buffer.from(`<svg width="${logoWidth}" height="${logoWidth}"><rect width="100%" height="100%" fill="#ffffff" fill-opacity="0.45"/></svg>`),
-                          blend: 'dest-in'
-                        }])
-                        .toBuffer();
-
-                      // Position in the bottom right corner with small margin
-                      const margin = Math.max(10, Math.round(imgWidth * 0.025));
-                      const top = Math.max(0, imgHeight - logoWidth - margin);
-                      const left = Math.max(0, imgWidth - logoWidth - margin);
-
-                      const watermarkedBuffer = await mainImage
-                        .composite([{ input: logoResized, top, left }])
-                        .webp({ quality: 92 })
-                        .toBuffer();
-
-                      resultImgUrl = `data:image/webp;base64,${watermarkedBuffer.toString("base64")}`;
-                    } else {
-                      const base64 = inputBuffer.toString("base64");
-                      resultImgUrl = `data:image/webp;base64,${base64}`;
-                    }
-                  } catch (convErr) {
-                    console.warn("[Pro] Watermarking/Base64 conversion failed, keeping original URL:", convErr);
-                  }
-                }
-
-                // Image generated successfully -> exit ranking queue and release slot for next in line
-                await imageRankingQueue.complete(queueId, true, resultImgUrl);
-                await saveGeneratedImageAndSyncSession(promptStr, resultImgUrl, userInfo, sessionId).catch(() => {});
-
-              } catch (e: any) {
-                console.error("Erro ao gerar imagem no AI Horde:", e);
-                errorMsg = e.message || String(e);
-                if (queueId) {
-                  await imageRankingQueue.complete(queueId, false, undefined, errorMsg);
-                }
-              }
-
-              functionResponseParts.push({
-                functionResponse: { 
-                  name: fc.name, 
-                  response: { 
-                    result: resultImgUrl ? { 
-                      success: true, 
-                      message: "A imagem foi gerada e já está sendo exibida na interface pelo componente <wsm_image>. NÃO repita a URL/base64 e NÃO use sintaxe markdown de imagem ![alt](url) na sua resposta final.", 
-                      prompt: promptStr 
-                    } : { success: false, error: errorMsg }
-                  } 
-                }
-              });
             } else if (fc.name === "open_url" || fc.name === "click" || fc.name === "type_text" || fc.name === "scroll_page" || fc.name === "extract_visible_text" || fc.name === "wait_seconds") {
               let result: any = {};
               if (fc.name === "open_url") {
@@ -1645,12 +1457,10 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
           const aiHasTaskBlock = aiStr.includes("<task>") || /\[(acessar|digitar|rolar|clicar|pesquisar|buscar|aguardar|esperar)\b/i.test(aiStr);
           const aiPromisedBrowser = !isHtmlRequestThisTurn && (/\b(vou|irei|estou|vamos|agora|próximo|proximo)\s+(abrir|acessar|navegar|digitar|clicar|rolar|preencher|enviar|colocar|selecionar|pressionar|aguardar|esperar|fechar)\b/i.test(aiStr) || /\b(preenchendo|enviando|clicando|digitando|abrindo|acessando|rolando|aguardando|fechando)\b/i.test(aiStr));
           const aiPromisedSearch = !isHtmlRequestThisTurn && (/\b(vou|irei|estou)\s+(pesquisar|buscar)\b|\bpesquisando\b/i.test(aiStr));
-          const aiPromisedImage = /\b(gerando|criando|desenhando|pintando)\s+(a|uma)?\s*(imagem|foto|ilustraç|arte)\b/i.test(aiStr);
 
           const isSimpleGreetingOrMath2 = /^(ol[áa]|oi|tudo\s+bem|boa\s+(tarde|noite|dia)|quanto\s+[ée]|calcul[ae]|1\+[123456789]|2\+2)$/i.test(userStr.trim());
           const wantsBrowser = !isHtmlRequestThisTurn && ((Boolean(effectiveComputerEnabled) && !isSimpleGreetingOrMath2) || promptWantsBrowser);
           const wantsSearch = !isHtmlRequestThisTurn && (Boolean(effectiveSearchEnabled) || promptWantsSearch);
-          const wantsImage = promptWantsImage;
 
           const aiHasFinalConclusion = /\b(concluí|conclui|concluído|concluido|finalizei|finalizado|tudo certo|sucesso no teste|teste concluído)\b/i.test(aiStr);
 
@@ -1658,8 +1468,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             aiHasTaskBlock ||
             aiPromisedBrowser ||
             aiPromisedSearch ||
-            aiPromisedImage ||
-            (turnCount === 0 && !isSimpleGreetingOrMath2 && (wantsBrowser || wantsSearch || wantsImage) && !aiHasFinalConclusion)
+            (turnCount === 0 && !isSimpleGreetingOrMath2 && (wantsBrowser || wantsSearch) && !aiHasFinalConclusion)
           );
 
           if (missingToolCall && turnCount < 100) {
@@ -1689,8 +1498,6 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               }
 
               reminderMsg = `SISTEMA (AÇÃO DE FERRAMENTA OBRIGATÓRIA - PLAN → ACT → OBSERVE → REFLECT): Você mencionou um próximo passo ou descreveu ações ("${(textForThisTurn || "").slice(0, 100)}..."), mas NENHUMA função (functionCall) foi disparada neste turno! Você DEVE OBRIGATORIAMENTE invocar a ferramenta necessária ('open_url'${targetUrl ? ` com "${targetUrl}"` : ''}, 'type_text', 'click', 'scroll_page', 'wait_seconds' ou 'web_search') via Function Call agora para continuar a tarefa até a conclusão. É estritamente PROIBIDO parar ou apenas responder com texto sem disparar a função!`;
-            } else if (wantsImage || aiPromisedImage) {
-              reminderMsg = "SISTEMA (GERAÇÃO DE IMAGEM OBRIGATÓRIA): Execute a ferramenta 'gerar_imagem' (functionCall) com o prompt descritivo em inglês agora. NÃO responda apenas com texto.";
             } else {
               reminderMsg = "SISTEMA (PESQUISA WEB OBRIGATÓRIA): Execute a ferramenta 'web_search' (functionCall) para pesquisar as informações na web agora. NÃO responda apenas com texto.";
             }
@@ -2045,139 +1852,6 @@ app.post("/api/notify-interrupted-response", async (req: express.Request, res: e
   } catch (error: any) {
     console.error("Erro ao enviar e-mail de resposta interrompida:", error);
     return res.status(500).json({ success: false, message: error?.message || "Erro ao disparar e-mail." });
-  }
-});
-
-// Endpoint para obter ou gerar imagem em segundo plano
-app.post("/api/get-or-generate-image", async (req: express.Request, res: express.Response) => {
-  try {
-    const { prompt, userInfo, sessionId } = req.body;
-    if (!prompt || typeof prompt !== 'string') {
-      return res.status(400).json({ error: "Prompt é obrigatório." });
-    }
-
-    // 1. Verificar cache primeiro
-    const cachedUrl = await getCachedGeneratedImage(prompt);
-    if (cachedUrl) {
-      if (userInfo?.uid && sessionId) {
-        saveGeneratedImageAndSyncSession(prompt, cachedUrl, userInfo, sessionId).catch(() => {});
-      }
-      return res.json({ success: true, imgUrl: cachedUrl });
-    }
-
-    // 2. Gerar imagem em segundo plano se não existir no cache
-    let promptStr = prompt;
-    let resultImgUrl = "";
-    let queueId = "";
-    
-    try {
-      queueId = await imageRankingQueue.enqueue(promptStr, userInfo);
-      await imageRankingQueue.waitForTurn(queueId);
-
-      const responseAsync = await fetch("https://aihorde.net/api/v2/generate/async", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": "0000000000",
-          "Client-Agent": "WSMAI:1.0:wsmai@wsm.ai"
-        },
-        body: JSON.stringify({
-          prompt: promptStr,
-          params: { sampler_name: "k_euler", cfg_scale: 7.5, height: 512, width: 512, steps: 20, n: 1 },
-          nsfw: false, censor_nsfw: true,
-          models: ["AlbedoBase XL 3.1", "SDXL 1.0", "stable_diffusion", "Deliberate"]
-        })
-      });
-
-      if (responseAsync.ok) {
-        const initData = await responseAsync.json();
-        const requestId = initData.id;
-        if (requestId) {
-          let isDone = false;
-          let attempts = 0;
-          while (!isDone && attempts < 20) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            attempts++;
-            const statusRes = await fetch(`https://aihorde.net/api/v2/generate/status/${requestId}`);
-            if (statusRes.ok) {
-              const statusData = await statusRes.json();
-              if (statusData.done && statusData.generations?.length > 0) {
-                isDone = true;
-                resultImgUrl = statusData.generations[0].img;
-              } else if (statusData.faulted) {
-                break;
-              }
-            }
-          }
-        }
-      }
-    } catch (e) {}
-
-    // Fallback Pollinations AI
-    if (!resultImgUrl) {
-      try {
-        const polUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(promptStr)}?width=1024&height=1024&seed=${Math.floor(Math.random() * 10000000)}&nologo=true`;
-        const polRes = await fetch(polUrl);
-        if (polRes.ok) {
-          const polArrayBuf = await polRes.arrayBuffer();
-          if (polArrayBuf.byteLength > 1000) {
-            const base64Str = Buffer.from(polArrayBuf).toString("base64");
-            resultImgUrl = `data:image/jpeg;base64,${base64Str}`;
-          }
-        }
-      } catch (e) {}
-    }
-
-    if (queueId) {
-      await imageRankingQueue.complete(queueId, Boolean(resultImgUrl), resultImgUrl);
-    }
-
-    if (!resultImgUrl) {
-      return res.status(500).json({ error: "Falha ao gerar imagem." });
-    }
-
-    // Marca d'água
-    try {
-      let inputBuffer: Buffer;
-      if (resultImgUrl.startsWith("data:")) {
-        const commaIdx = resultImgUrl.indexOf(",");
-        inputBuffer = Buffer.from(resultImgUrl.substring(commaIdx + 1), "base64");
-      } else {
-        const imgRes = await fetch(resultImgUrl);
-        inputBuffer = Buffer.from(await imgRes.arrayBuffer());
-      }
-      const logoBuffer = await getWatermarkLogoBuffer();
-      if (logoBuffer) {
-        const mainImage = sharp(inputBuffer);
-        const metadata = await mainImage.metadata();
-        const imgWidth = metadata.width || 512;
-        const imgHeight = metadata.height || 512;
-        const logoWidth = Math.max(28, Math.min(80, Math.round(imgWidth * 0.08)));
-        const logoResized = await sharp(logoBuffer)
-          .resize(logoWidth, logoWidth, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-          .ensureAlpha()
-          .composite([{
-            input: Buffer.from(`<svg width="${logoWidth}" height="${logoWidth}"><rect width="100%" height="100%" fill="#ffffff" fill-opacity="0.45"/></svg>`),
-            blend: 'dest-in'
-          }])
-          .toBuffer();
-        const margin = Math.max(10, Math.round(imgWidth * 0.025));
-        const top = Math.max(0, imgHeight - logoWidth - margin);
-        const left = Math.max(0, imgWidth - logoWidth - margin);
-        const watermarkedBuffer = await mainImage
-          .composite([{ input: logoResized, top, left }])
-          .webp({ quality: 92 })
-          .toBuffer();
-        resultImgUrl = `data:image/webp;base64,${watermarkedBuffer.toString("base64")}`;
-      }
-    } catch (err) {}
-
-    // Salvar no cache e sincronizar sessão no Firestore
-    await saveGeneratedImageAndSyncSession(promptStr, resultImgUrl, userInfo, sessionId);
-
-    return res.json({ success: true, imgUrl: resultImgUrl });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Erro interno ao gerar imagem." });
   }
 });
 
