@@ -12,6 +12,7 @@ import {
   isGmailUser 
 } from "./emailService.js";
 import { runAllEmailAutomations } from "./emailAutomation.js";
+import { processBackgroundTasks } from "./scheduledTasksBackground.js";
 import { getAllSystemPrompts, getSystemPrompt, updateSystemPrompt } from "./systemPromptsManager.js";
 
 dotenv.config();
@@ -2205,5 +2206,10 @@ setTimeout(() => {
 setInterval(() => {
   runAllEmailAutomations().catch(err => console.warn("[EmailAutomation] Falha na execução periódica:", err));
 }, 2 * 60 * 60 * 1000);
+
+// Background tasks executor (every 15 seconds)
+setInterval(() => {
+  processBackgroundTasks().catch(err => console.warn("[ScheduledTasks] Failed periodic background processing:", err));
+}, 15000);
 
 export default app;
