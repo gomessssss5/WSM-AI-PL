@@ -1734,9 +1734,12 @@ export default function ChatWindow({
             if (message.isHidden) return null;
             const isUser = message.sender === 'user';
             return (
-              <div
+              <motion.div
                 key={message.id}
                 id={`msg-container-${message.id}`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                 className={`flex gap-3 group w-full min-w-0 ${isUser ? 'justify-end' : 'justify-start'}`}
               >
                 {/* AI Avatar */}
@@ -2183,7 +2186,7 @@ export default function ChatWindow({
                     </div>
                   )}
                 </div>
-              </div>
+              </motion.div>
             );
           })}
 

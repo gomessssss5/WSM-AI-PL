@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import Sidebar from './components/Sidebar';
 import SearchModal from './components/SearchModal';
 import MainHome from './components/MainHome';
@@ -1588,128 +1589,146 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
 
       {/* Main View Area (Responsive) */}
       <div className={`flex-1 flex flex-col h-full overflow-hidden min-w-0 ${isMobileHistoryOpen ? 'hidden md:flex' : 'flex'}`}>
-        {isAdminView ? (
-          <AdminDashboard 
-            onBack={() => setIsAdminView(false)} 
-            actualSessionsCount={sessions.filter((s) => !s.isTemporary).length}
-          />
-        ) : isTranslatorMode ? (
-          <Translator 
-            onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
-            onBack={() => {
-              setIsTranslatorMode(false);
-              setIsToolsView(true);
-            }}
-          />
-        ) : isToolsView ? (
-          <ToolsDashboard
-            onOpenTranslator={handleOpenTranslator}
-          />
-        ) : isScheduledTasksView ? (
-          <ScheduledTasksDashboard
-            tasks={scheduledTasks}
-            executions={taskExecutions}
-            sessions={sessions.filter((s) => !s.isTemporary)}
-            onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
-            onSaveTask={async (task) => {
-              if (currentUser) {
-                await saveScheduledTask(currentUser.uid, task);
-              }
-            }}
-            onDeleteTask={async (taskId) => {
-              if (currentUser) {
-                await deleteScheduledTask(currentUser.uid, taskId);
-              }
-            }}
-            onToggleTask={async (taskId, isActive) => {
-              if (currentUser) {
-                const task = scheduledTasks.find(t => t.id === taskId);
-                if (task) {
-                  await saveScheduledTask(currentUser.uid, { ...task, isActive });
-                }
-              }
-            }}
-            onOpenSession={(sessionId) => {
-              handleSelectSession(sessionId);
-            }}
-          />
-        ) : isImagesView ? (
-          <ImagesGallery onBackToHome={() => { handleNewChat(); setIsMobileHistoryOpen(true); }} />
-        ) : activeSession ? (
-          <ChatWindow
-            key={activeSession.id}
-            messages={activeSession.messages}
-            title={activeSession.title}
-            isThinking={isThinking}
-            onSendMessage={handleSendMessage}
-            onBackToHome={() => { handleNewChat(); setIsMobileHistoryOpen(true); }}
-            selectedModel={activeSession.model || selectedModel}
-            setSelectedModel={setSelectedModel}
-            reasoningLevel={reasoningLevel}
-            setReasoningLevel={setReasoningLevel}
-            onSearchSimulationComplete={handleSearchSimulationComplete}
-            onCancelGeneration={handleCancelGeneration}
-            onEditMessage={handleEditMessage}
-            onShareSession={async () => {
-              if (activeSessionId && currentUser) {
-                try {
-                  await saveSession(currentUser.uid, { ...activeSession, isPublic: true });
-                  const url = `${window.location.origin}/share/${activeSessionId}?uid=${currentUser.uid}`;
-                  await navigator.clipboard.writeText(url);
-                  alert("Link de compartilhamento copiado para a área de transferência!");
-                } catch(e) {
-                  console.error(e);
-                  alert("Erro ao compartilhar chat.");
-                }
-              }
-            }}
-            onDeleteSession={() => {
-              if (activeSessionId) {
-                handleDeleteSession(activeSessionId);
-              }
-            }}
-            onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
-            initialDraft={activeSessionId ? drafts[activeSessionId] : undefined}
-            onSaveDraft={(draft) => { if (currentUser && activeSessionId) saveDraft(currentUser.uid, activeSessionId, draft) }}
-            onDeleteDraft={() => { if (currentUser && activeSessionId) deleteDraft(currentUser.uid, activeSessionId) }}
-            skills={skills}
-            onOpenStore={() => setIsStoreModalOpen(true)}
-            onSaveTask={async (task) => {
-              if (currentUser) {
-                await saveScheduledTask(currentUser.uid, task);
-              }
-            }}
-            onOpenScheduledTasks={() => setIsScheduledTasksView(true)}
-            isTemporary={!!activeSession.isTemporary}
-            isScheduled={!!activeSession.isScheduled}
-            onStartTemporaryChat={handleNewTemporaryChat}
-            onOpenUpdateModal={() => setIsUpdateModalOpen(true)}
-          />
-        ) : (
-          <MainHome
-            onSendMessage={handleSendMessage}
-            onSuggestionClick={handleSuggestionClick}
-            selectedModel={selectedModel}
-            setSelectedModel={setSelectedModel}
-            reasoningLevel={reasoningLevel}
-            setReasoningLevel={setReasoningLevel}
-            onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
-            initialDraft={drafts['new_chat']}
-            onSaveDraft={(draft) => currentUser && saveDraft(currentUser.uid, 'new_chat', draft)}
-            onDeleteDraft={() => currentUser && deleteDraft(currentUser.uid, 'new_chat')}
-            userProfile={userProfile}
-            onDismissNewsCard={() => {
-              if (currentUser) {
-                dismissNewsCardForUser(currentUser.uid);
-              }
-            }}
-            skills={skills}
-            onOpenStore={() => setIsStoreModalOpen(true)}
-            onStartTemporaryChat={handleNewTemporaryChat}
-            isProfileLoading={!isProfileLoaded}
-            onOpenUpdateModal={() => setIsUpdateModalOpen(true)}
-          />
-        )}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={
+              isAdminView ? 'admin' :
+              isTranslatorMode ? 'translator' :
+              isToolsView ? 'tools' :
+              isScheduledTasksView ? 'scheduled' :
+              isImagesView ? 'images' :
+              activeSession ? activeSession.id : 'home'
+            }
+            initial={{ opacity: 0, y: 6, scale: 0.996 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.996 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="w-full h-full flex flex-col min-w-0 flex-1 overflow-hidden"
+          >
+            {isAdminView ? (
+              <AdminDashboard 
+                onBack={() => setIsAdminView(false)} 
+                actualSessionsCount={sessions.filter((s) => !s.isTemporary).length}
+              />
+            ) : isTranslatorMode ? (
+              <Translator 
+                onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
+                onBack={() => {
+                  setIsTranslatorMode(false);
+                  setIsToolsView(true);
+                }}
+              />
+            ) : isToolsView ? (
+              <ToolsDashboard
+                onOpenTranslator={handleOpenTranslator}
+              />
+            ) : isScheduledTasksView ? (
+              <ScheduledTasksDashboard
+                tasks={scheduledTasks}
+                executions={taskExecutions}
+                sessions={sessions.filter((s) => !s.isTemporary)}
+                onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
+                onSaveTask={async (task) => {
+                  if (currentUser) {
+                    await saveScheduledTask(currentUser.uid, task);
+                  }
+                }}
+                onDeleteTask={async (taskId) => {
+                  if (currentUser) {
+                    await deleteScheduledTask(currentUser.uid, taskId);
+                  }
+                }}
+                onToggleTask={async (taskId, isActive) => {
+                  if (currentUser) {
+                    const task = scheduledTasks.find(t => t.id === taskId);
+                    if (task) {
+                      await saveScheduledTask(currentUser.uid, { ...task, isActive });
+                    }
+                  }
+                }}
+                onOpenSession={(sessionId) => {
+                  handleSelectSession(sessionId);
+                }}
+              />
+            ) : isImagesView ? (
+              <ImagesGallery onBackToHome={() => { handleNewChat(); setIsMobileHistoryOpen(true); }} />
+            ) : activeSession ? (
+              <ChatWindow
+                key={activeSession.id}
+                messages={activeSession.messages}
+                title={activeSession.title}
+                isThinking={isThinking}
+                onSendMessage={handleSendMessage}
+                onBackToHome={() => { handleNewChat(); setIsMobileHistoryOpen(true); }}
+                selectedModel={activeSession.model || selectedModel}
+                setSelectedModel={setSelectedModel}
+                reasoningLevel={reasoningLevel}
+                setReasoningLevel={setReasoningLevel}
+                onSearchSimulationComplete={handleSearchSimulationComplete}
+                onCancelGeneration={handleCancelGeneration}
+                onEditMessage={handleEditMessage}
+                onShareSession={async () => {
+                  if (activeSessionId && currentUser) {
+                    try {
+                      await saveSession(currentUser.uid, { ...activeSession, isPublic: true });
+                      const url = `${window.location.origin}/share/${activeSessionId}?uid=${currentUser.uid}`;
+                      await navigator.clipboard.writeText(url);
+                      alert("Link de compartilhamento copiado para a área de transferência!");
+                    } catch(e) {
+                      console.error(e);
+                      alert("Erro ao compartilhar chat.");
+                    }
+                  }
+                }}
+                onDeleteSession={() => {
+                  if (activeSessionId) {
+                    handleDeleteSession(activeSessionId);
+                  }
+                }}
+                onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
+                initialDraft={activeSessionId ? drafts[activeSessionId] : undefined}
+                onSaveDraft={(draft) => { if (currentUser && activeSessionId) saveDraft(currentUser.uid, activeSessionId, draft) }}
+                onDeleteDraft={() => { if (currentUser && activeSessionId) deleteDraft(currentUser.uid, activeSessionId) }}
+                skills={skills}
+                onOpenStore={() => setIsStoreModalOpen(true)}
+                onSaveTask={async (task) => {
+                  if (currentUser) {
+                    await saveScheduledTask(currentUser.uid, task);
+                  }
+                }}
+                onOpenScheduledTasks={() => setIsScheduledTasksView(true)}
+                isTemporary={!!activeSession.isTemporary}
+                isScheduled={!!activeSession.isScheduled}
+                onStartTemporaryChat={handleNewTemporaryChat}
+                onOpenUpdateModal={() => setIsUpdateModalOpen(true)}
+              />
+            ) : (
+              <MainHome
+                onSendMessage={handleSendMessage}
+                onSuggestionClick={handleSuggestionClick}
+                selectedModel={selectedModel}
+                setSelectedModel={setSelectedModel}
+                reasoningLevel={reasoningLevel}
+                setReasoningLevel={setReasoningLevel}
+                onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
+                initialDraft={drafts['new_chat']}
+                onSaveDraft={(draft) => currentUser && saveDraft(currentUser.uid, 'new_chat', draft)}
+                onDeleteDraft={() => currentUser && deleteDraft(currentUser.uid, 'new_chat')}
+                userProfile={userProfile}
+                onDismissNewsCard={() => {
+                  if (currentUser) {
+                    dismissNewsCardForUser(currentUser.uid);
+                  }
+                }}
+                skills={skills}
+                onOpenStore={() => setIsStoreModalOpen(true)}
+                onStartTemporaryChat={handleNewTemporaryChat}
+                isProfileLoading={!isProfileLoaded}
+                onOpenUpdateModal={() => setIsUpdateModalOpen(true)}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </div>
       
       {showAdminAuth && (
@@ -1738,43 +1757,58 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         <WelcomeCardModal onClose={handleCloseWelcomeCard} />
       )}
 
-      {sessionToDeleteId && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-[#eae6e1] rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center border border-red-100 text-red-500 shrink-0">
-                <Trash2 className="w-5 h-5" />
+      <AnimatePresence>
+        {sessionToDeleteId && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSessionToDeleteId(null)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.94, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 10 }}
+              transition={{ type: 'spring', duration: 0.35, bounce: 0.1 }}
+              className="bg-white border border-[#eae6e1] rounded-2xl p-6 max-w-sm w-full shadow-2xl z-10 relative flex flex-col gap-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center border border-red-100 text-red-500 shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <h3 className="font-sans text-base font-bold text-gray-900">
+                  Excluir Conversa?
+                </h3>
               </div>
-              <h3 className="font-sans text-base font-bold text-gray-900">
-                Excluir Conversa?
-              </h3>
-            </div>
-            
-            <p className="text-xs text-gray-500 leading-relaxed font-medium">
-              {sessionToDeleteId?.startsWith('temp-session-') || sessions.find(s => s.id === sessionToDeleteId)?.isTemporary ? (
-                "Tem certeza que deseja encerrar e excluir este chat temporário? Todas as mensagens serão perdidas e não são salvas em nenhum servidor."
-              ) : (
-                "Tem certeza que deseja excluir esta conversa? Esta ação é irreversível e todas as mensagens serão apagadas permanentemente do servidor."
-              )}
-            </p>
-            
-            <div className="flex items-center justify-end gap-2.5 mt-2">
-              <button
-                onClick={() => setSessionToDeleteId(null)}
-                className="px-4 py-2 bg-gray-50 border border-[#eae6e1] rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-all cursor-pointer active:scale-[0.98]"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={confirmDeleteSession}
-                className="px-4 py-2 bg-red-500 border border-red-600 rounded-xl text-xs font-semibold text-white hover:bg-red-600 transition-all cursor-pointer active:scale-[0.98] shadow-sm"
-              >
-                Excluir
-              </button>
-            </div>
+              
+              <p className="text-xs text-gray-500 leading-relaxed font-medium">
+                {sessionToDeleteId?.startsWith('temp-session-') || sessions.find(s => s.id === sessionToDeleteId)?.isTemporary ? (
+                  "Tem certeza que deseja encerrar e excluir este chat temporário? Todas as mensagens serão perdidas e não são salvas em nenhum servidor."
+                ) : (
+                  "Tem certeza que deseja excluir esta conversa? Esta ação é irreversível e todas as mensagens serão apagadas permanentemente do servidor."
+                )}
+              </p>
+              
+              <div className="flex items-center justify-end gap-2.5 mt-2">
+                <button
+                  onClick={() => setSessionToDeleteId(null)}
+                  className="px-4 py-2 bg-gray-50 border border-[#eae6e1] rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-all cursor-pointer active:scale-[0.98]"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmDeleteSession}
+                  className="px-4 py-2 bg-red-500 border border-red-600 rounded-xl text-xs font-semibold text-white hover:bg-red-600 transition-all cursor-pointer active:scale-[0.98] shadow-sm"
+                >
+                  Excluir
+                </button>
+              </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 }

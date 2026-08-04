@@ -25,31 +25,33 @@ export default function UpdateModal({ isOpen, onClose }: UpdateModalProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, lightboxImage, onClose]);
 
-  if (!isOpen) return null;
-
   const handleImageClick = (src: string, title: string) => {
     setLightboxImage({ src, title });
   };
 
   return (
     <AnimatePresence>
-      {/* Backdrop */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4"
-      >
-        {/* Modal Card */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 15 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          transition={{ type: "spring", duration: 0.4 }}
-          onClick={(e) => e.stopPropagation()}
-          className="bg-white border border-[#eae6e1] w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
-        >
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 select-none">
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+          />
+
+          {/* Modal Card */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 15 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 15 }}
+            transition={{ type: "spring", duration: 0.35, bounce: 0.08 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white border border-[#eae6e1] w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden z-10 relative"
+          >
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-[#f3efe9] shrink-0 bg-[#fdfcfb]">
             <div className="flex items-center gap-2">
@@ -179,7 +181,8 @@ export default function UpdateModal({ isOpen, onClose }: UpdateModalProps) {
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
+        </div>
+      )}
     </AnimatePresence>
   );
 }
