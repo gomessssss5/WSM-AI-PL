@@ -448,7 +448,7 @@ export default function MainHome({
     const val = e.target.value;
     setInputValue(val);
 
-    if (selectedModel !== 'WSM 1.6 Pro') {
+    if (selectedModel !== 'WSM 1.6' && selectedModel !== 'WSM 1.6') {
       if (slashMenuOpen) setSlashMenuOpen(false);
       return;
     }
@@ -507,13 +507,11 @@ export default function MainHome({
   };
 
   const modelsList = [
-    'WSM 1.6 Flash',
-    'WSM 1.6 Pro'
+    'WSM 1.6'
   ];
 
   const modelDescriptions: Record<string, string> = {
-    'WSM 1.6 Flash': 'Para uso do dia-a-dia',
-    'WSM 1.6 Pro': 'Para tarefas complexas'
+    'WSM 1.6': 'Modelo ultra-inteligente e agêntico'
   };
 
   const getFileType = (file: File) => {
@@ -788,112 +786,16 @@ export default function MainHome({
             <Menu className="w-5 h-5" />
           </button>
           
-          {/* Model Dropdown Pill */}
+          {/* Model Display Pill */}
           <div className="relative">
-            <button
-            id="model-selector-pill"
-            onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#eae6e1] hover:border-gray-300 rounded-full text-[13px] font-semibold text-gray-700 shadow-2xs cursor-pointer transition-all duration-150 active:scale-[0.98]"
-          >
-            <Sparkles className="w-3 h-3 text-[#2563eb] fill-[#2563eb]/20 animate-pulse" />
-            {selectedModel === 'WSM 1.6 Flash' ? (
-              <>
-                <span className="font-bold text-gray-900">WSM 1.6 Flash</span>
-                {reasoningLevel !== 'Nenhum' && (
-                  <span className="text-gray-400 font-normal ml-0.5">{reasoningLevel}</span>
-                )}
-              </>
-            ) : (
-              <span>{selectedModel}</span>
-            )}
-            <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-          </button>
-
-          {isModelDropdownOpen && (
-            <>
-              {/* Backdrop for mobile to close the selector when clicking outside */}
-              <div 
-                className="fixed inset-0 bg-black/40 z-40 md:hidden" 
-                onClick={() => setIsModelDropdownOpen(false)} 
-              />
-              <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 md:absolute md:inset-auto md:left-0 md:top-full md:mt-1.5 md:translate-y-0 w-auto max-w-[calc(100vw-2rem)] md:w-56 bg-white border border-gray-150 rounded-xl shadow-2xl md:shadow-lg z-50 p-1 animate-in fade-in zoom-in-95 duration-150">
-                <div className="flex flex-col gap-0.5">
-                  {modelsList.map((model) => {
-                    const isClickable = model === 'WSM 1.6 Flash' || model === 'WSM 1.6 Pro';
-                    if (!isClickable) return null;
-                    const isActive = selectedModel === model;
-                    return (
-                      <button 
-                        key={model}
-                        disabled={!isClickable}
-                        onClick={() => handleSelectModel(model)}
-                        className={`w-full flex flex-col gap-0.5 px-3 py-2 text-left rounded-lg transition-colors ${
-                          isActive 
-                            ? 'bg-[#f0ede8] text-gray-900 font-semibold' 
-                            : 'text-gray-600 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between w-full">
-                          <div className="flex items-center gap-1.5 text-[13px] font-semibold">
-                            <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-[#2563eb]' : 'bg-transparent'}`} />
-                            <span>{model}</span>
-                          </div>
-                        </div>
-                        <p className="text-[11px] text-gray-400 pl-3 leading-tight font-normal">
-                          {modelDescriptions[model]}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Mobile Esforço Selector Button (shows up only for WSM 1.6 Flash on mobile) */}
-        {selectedModel === 'WSM 1.6 Flash' && (
-          <div className="relative md:hidden">
-            <button
-              type="button"
-              onClick={() => setIsEffortDropdownOpen(!isEffortDropdownOpen)}
-              className="flex items-center gap-1 px-3 py-1.5 bg-white border border-[#eae6e1] hover:border-gray-300 rounded-full text-[12px] font-semibold text-gray-700 shadow-2xs transition-all cursor-pointer active:scale-95"
-              title="Seletor de esforço de raciocínio"
+            <div
+              id="model-selector-pill"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-[#eae6e1] rounded-full text-[13px] font-bold text-gray-900 shadow-2xs select-none"
             >
-              <span>{reasoningLevel}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-            </button>
-
-            {isEffortDropdownOpen && (
-              <>
-                <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setIsEffortDropdownOpen(false)} />
-                <div className="absolute top-full left-0 mt-1.5 w-44 bg-white rounded-xl shadow-xl border border-gray-150 z-50 p-1 animate-in fade-in slide-in-from-top-2 duration-150">
-                  <div className="flex flex-col gap-0.5">
-                    {['Nenhum', 'Mínimo', 'Baixo', 'Médio', 'Alto'].map((level) => (
-                      <button
-                        key={level}
-                        type="button"
-                        onClick={() => {
-                          if (setReasoningLevel) {
-                            setReasoningLevel(level);
-                          }
-                          setIsEffortDropdownOpen(false);
-                        }}
-                        className={`w-full text-left px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors cursor-pointer ${
-                          reasoningLevel === level
-                            ? 'bg-gray-50 text-[#2563eb] font-semibold'
-                            : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        {level}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
+              <Sparkles className="w-3.5 h-3.5 text-[#2563eb] fill-[#2563eb]/20" />
+              <span>WSM 1.6</span>
+            </div>
           </div>
-        )}
         </div>
 
         {/* Right side controls / Chat temporário */}
@@ -1473,51 +1375,6 @@ export default function MainHome({
 
                 {/* Right Controls: Mic & Send Circular Button */}
                 <div className="flex items-center gap-1.5">
-                  {/* Esforço Dropdown/Pill Selector (shows up only for WSM 1.6 Flash - desktop only, mobile is in header) */}
-                  {selectedModel === 'WSM 1.6 Flash' && (
-                    <div className="relative hidden md:block">
-                      <button
-                        type="button"
-                        onClick={() => setIsEffortDropdownOpen(!isEffortDropdownOpen)}
-                        className="flex items-center gap-1 px-3 py-1 bg-white border border-[#eae6e1] hover:border-gray-300 rounded-full text-[12px] font-bold text-gray-700 shadow-2xs transition-all cursor-pointer"
-                        title="Seletor de esforço de raciocínio"
-                      >
-                        <span>Esforço</span>
-                        <span className="text-gray-500 font-normal ml-0.5">{reasoningLevel}</span>
-                        <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
-                      </button>
-
-                      {isEffortDropdownOpen && (
-                        <>
-                          {/* Backdrop to close the dropdown */}
-                          <div className="fixed inset-0 z-40" onClick={() => setIsEffortDropdownOpen(false)} />
-                          <div className="absolute bottom-full right-0 mb-2 w-44 bg-white rounded-xl shadow-xl z-50 p-1 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                            <div className="flex flex-col gap-0.5">
-                              {['Nenhum', 'Mínimo', 'Baixo', 'Médio', 'Alto'].map((level) => (
-                                <button
-                                  key={level}
-                                  type="button"
-                                  onClick={() => {
-                                    if (setReasoningLevel) {
-                                      setReasoningLevel(level);
-                                    }
-                                    setIsEffortDropdownOpen(false);
-                                  }}
-                                  className={`w-full text-left px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors cursor-pointer ${
-                                    reasoningLevel === level
-                                      ? 'bg-gray-50 text-[#2563eb] font-semibold'
-                                      : 'text-gray-700 hover:bg-gray-50'
-                                  }`}
-                                >
-                                  {level}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
 
                   <button
                     type="button"
@@ -1623,10 +1480,10 @@ export default function MainHome({
                       </div>
                       <div className="flex flex-col text-left min-w-0 flex-1">
                         <h3 className="font-sans font-bold text-gray-900 text-[13.5px] md:text-[14.5px] tracking-tight leading-snug truncate">
-                          Novos modelos: WSM 1.6 Flash e Pro
+                          Conheça o WSM 1.6
                         </h3>
                         <p className="font-sans text-gray-500 text-[11.5px] md:text-[12px] leading-relaxed mt-0.5 line-clamp-1">
-                          Conheça nossos 2 novos modelos da família 1.6, mais inteligentes e poderosos.
+                          Nosso modelo agêntico ultra-inteligente e poderoso.
                         </p>
                       </div>
                     </div>
@@ -1654,7 +1511,7 @@ export default function MainHome({
                       </div>
                       <div className="flex flex-col text-left min-w-0 flex-1">
                         <h3 className="font-sans font-bold text-gray-900 text-[13.5px] md:text-[14.5px] tracking-tight leading-snug truncate">
-                          WSM 1.6 Pro vs. GPT e Gemini
+                          WSM 1.6 vs. GPT e Gemini
                         </h3>
                         <p className="font-sans text-gray-500 text-[11.5px] md:text-[12px] leading-relaxed mt-0.5 line-clamp-1">
                           Veja a avaliação completa e os benchmarks com dezenas de testes.
@@ -1755,7 +1612,7 @@ export default function MainHome({
                 <div className="w-full bg-gray-50 flex items-center justify-center p-6 border-b border-[#eae6e1]/40">
                   <img 
                     src="https://i.ibb.co/tw9yWNfj/38003.png" 
-                    alt="Novos modelos" 
+                    alt="WSM 1.6" 
                     className="max-w-full h-auto max-h-[400px] object-contain rounded-xl shadow-sm"
                     referrerPolicy="no-referrer"
                   />
@@ -1764,11 +1621,11 @@ export default function MainHome({
                 {/* Content area */}
                 <div className="p-8 md:p-10">
                   <p className="font-sans text-gray-700 text-[15px] md:text-[16px] leading-relaxed whitespace-pre-line">
-                    Conheça os dois novos membros da família WSM 1.6, criados para acompanhar você em qualquer desafio do dia. O Flash é aquele amigo rápido e prático, sempre pronto pra te tirar de um aperto: escreve aquele e-mail urgente, resume um texto longo, traduz uma frase, dá uma ideia criativa e te ajuda a organizar a cabeça quando o tempo está correndo. Ele é leve, direto e não te deixa esperando — perfeito para o dia a dia, seja no trabalho, nos estudos ou na vida pessoal.
+                    Conheça o WSM 1.6, o pensador da casa. Ele raciocina e executa com profundidade. Diante de um problema complexo, ele não solta a primeira resposta que aparece: ele estrutura o pensamento, testa caminhos, analisa variáveis e só então entrega uma solução bem fundamentada.
                     {"\n\n"}
-                    O Pro, por outro lado, é o pensador da casa. Ele raciocina. Diante de um problema complexo, ele não solta a primeira resposta que aparece: ele estrutura o pensamento, testa caminhos, analisa variáveis e só então entrega uma solução bem fundamentada. Quer programar uma aplicação completa? Resolver uma equação difícil? Escrever um contrato jurídico? Fazer uma análise crítica de um texto? Criar uma estratégia de negócio? O Pro é o seu parceiro intelectual, e o melhor: com um clique no botão "Raciocínio", você consegue ver todo o passo a passo dele, como se estivesse ouvindo um especialista pensar em voz alta.
+                    Quer programar uma aplicação completa? Resolver uma equação difícil? Escrever um contrato jurídico? Fazer uma análise crítica de um texto? Criar uma estratégia de negócio? O Pro é o seu parceiro intelectual, com um clique no botão "Raciocínio" você consegue ver todo o passo a passo dele, como se estivesse ouvindo um especialista pensar em voz alta.
                     {"\n\n"}
-                    Os dois modelos têm acesso às mesmas ferramentas poderosas: pesquisa em tempo real na web com dezenas de fontes verificáveis, leitura de PDFs e imagens com extração de texto, editor de documentos integrado com IA, memória de contexto que mantém a coerência ao longo de toda a conversa, e tudo isso em português brasileiro nativo. Escolha o Flash quando precisar de velocidade, e o Pro quando precisar de profundidade. E não se preocupe: você pode alternar entre eles quando quiser, na mesma conversa, sem perder nada do que já foi discutido.
+                    O modelo tem acesso a ferramentas poderosas: pesquisa em tempo real na web com dezenas de fontes verificáveis, navegação real em sites via navegador, leitura de PDFs e imagens com extração de texto, editor de documentos integrado com IA, memória de contexto que mantém a coerência ao longo de toda a conversa, e tudo isso em português brasileiro nativo.
                   </p>
                 </div>
               </div>

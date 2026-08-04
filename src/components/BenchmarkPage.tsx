@@ -212,7 +212,7 @@ export default function BenchmarkPage() {
       {/* Main Content */}
       <main className={`flex-1 w-full ${selectedBenchmark !== 'Benchmark 01' ? 'max-w-7xl xl:max-w-[1400px]' : 'max-w-4xl'} mx-auto px-5 py-10 md:py-16 flex flex-col items-center transition-all duration-300`}>
         <h2 className="text-[28px] md:text-4xl font-bold tracking-tight text-gray-900 text-center mb-8">
-          Desempenho WSM 1.6 Pro
+          Desempenho WSM 1.6
         </h2>
 
         {/* Benchmark Selector */}

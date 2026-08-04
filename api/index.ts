@@ -2,7 +2,7 @@ import express from "express";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import sharp from "sharp";
-import { imageRankingQueue } from "./imageQueue.js";
+import { imageRankingQueue, saveGeneratedImageAndSyncSession, getCachedGeneratedImage } from "./imageQueue.js";
 import { openUrl, clickSelector, typeText, scrollPage, extractText, waitSeconds } from "./playwrightAgent.js";
 import { 
   sendScheduledEmail, 
@@ -262,7 +262,7 @@ async function callGeminiStreamWithFallback(options: any): Promise<any> {
 
 // API endpoint for chatbot communication and Web Search
 app.post("/api/chat", async (req: express.Request, res: express.Response) => {
-  const { text, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution } = req.body;
+  const { text, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution, sessionId } = req.body;
 
   const userEmail = userInfo?.email || userContext?.email || req.body?.userEmail;
   let clientDisconnected = false;
@@ -328,7 +328,7 @@ Instruções Importantes:
     let shouldSearch = effectiveSearchEnabled;
 
     // Pro uses its own agentic flow for autonomous tool use, but if search is explicitly enabled (manual toggle, scheduled task, or text prompt request), we let it use the structured search flow!
-    if (model === 'WSM 1.6 Pro' && !effectiveSearchEnabled) {
+    if (model === 'WSM 1.6' && !effectiveSearchEnabled) {
       shouldSearch = false;
     } else if (!shouldSearch && process.env.TAVILY_API_KEY) {
       // AI autonomously decides if it needs to search the web for this query
@@ -633,24 +633,7 @@ ${contextInfo}`;
     console.log(`Normal chat request using Gemini with model: ${model}`);
 
     const modelSystemPrompts: Record<string, string> = {
-      'WSM 1.6 Flash': `Você é o modelo de inteligência artificial 'WSM 1.6 Flash', um assistente pessoal ultra-inteligente, rápido e prestativo.
-
-## Personalidade
-Você não é um robô genérico repetindo respostas de manual. Você tem seu próprio jeito de pensar, gosta de conversar, e trata o usuário como um amigo esperto trataria: direto, sem enrolação, mas simpático. Você pode ter opiniões sobre assuntos do dia a dia (filmes, tecnologia, decisões simples, gostos) e não tem problema em dizer "eu acho que..." quando fizer sentido. Se o usuário discordar de algo que você disse e você continuar achando que está certo, explique seu raciocínio com confiança — você não muda de ideia só pra agradar, mas também não é teimoso: se o usuário trouxer um argumento ou fato novo e melhor, você reconhece e ajusta. Fale de um jeito natural, como uma pessoa real fala, evitando frases robóticas tipo "como uma IA, eu não tenho opiniões".
-
-## Formatação
-Responda de forma coerente com o idioma em que o usuário se comunicou ou solicitou (português se for em português, francês se for francês, japonês se for japonês, etc.). Formate suas respostas de forma bonita e profissional:
-- Use **negrito**, *itálico* e listas.
-- Use títulos (#) e subtítulos (##) para estruturar respostas longas.
-- NÃO use equações ou formatação matemática via LaTeX, a menos que o assunto seja estritamente matemático, físico ou científico. Nunca coloque equações em respostas cotidianas comuns.
-- Se o usuário pedir códigos de programação, use blocos de código com a linguagem correspondente (ex: \`\`\`javascript).
-- Se pedir análises ou comparações, monte tabelas organizadas.
-- Para o dia a dia, prefira respostas curtas e objetivas — só se estenda quando o assunto realmente precisar.
-
-## Capacidade de Pesquisa na Web
-Você é capaz de buscar informações na internet em tempo real. Sempre que um usuário te perguntar sobre notícias, cotações, ou fatos recentes que você não sabe de cor, o sistema fará uma pesquisa automática para você.`,
-
-      'WSM 1.6 Pro': getSystemPrompt('wsm_1_6_pro_base', `Você é o modelo de inteligência artificial "WSM 1.6 Pro", um assistente pessoal agêntico, altamente inteligente e direto.`)
+      'WSM 1.6': getSystemPrompt('wsm_1_6_pro_base', `Você é o modelo de inteligência artificial "WSM 1.6", um assistente pessoal agêntico, altamente inteligente e direto.`)
     };
 
     const formInstruction = "\n" + getSystemPrompt('form_generation', '');
@@ -660,51 +643,10 @@ Você é capaz de buscar informações na internet em tempo real. Sempre que um 
       ? `\n## ATENÇÃO CRÍTICA: EXECUÇÃO AUTOMÁTICA DE TAREFA AGENDADA\nEsta requisição é a execução de uma tarefa que JÁ FOI AGENDADA previamente. Você está ABSOLUTAMENTE PROIBIDO de gerar a tag <wsm_task ... /> nesta resposta under ANY circumstances. Apenas execute a instrução e apresente o resultado final diretamente.`
       : "\n" + getSystemPrompt('autonomous_tasks', '');
 
-    let basePrompt = modelSystemPrompts[model] || modelSystemPrompts['WSM 1.6 Flash'];
+    let basePrompt = modelSystemPrompts[model] || modelSystemPrompts['WSM 1.6'];
     let reasoningInstruction = "";
-    if (model === 'WSM 1.6 Flash') {
-      const level = reasoningLevel || 'Mínimo';
-      console.log(`[Reasoning Level] WSM 1.6 Flash requested with level: ${level}`);
-      if (level === 'Nenhum') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Desativado)
-Você está no modo sem raciocínio / esforço Nenhum. 
-Você está ABSOLUTAMENTE PROIBIDO de gerar qualquer tag de raciocínio como <raciocinio>, </raciocinio>, <task> ou </task>. 
-Não faça nenhuma etapa de planejamento mental, nem mostre tarefas em colchetes. 
-Você deve responder diretamente ao usuário. Comece sua resposta imediatamente com a resposta final.`;
-      } else if (level === 'Mínimo') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Mínimo - Limite estrito de no máximo 100 Tokens)
-IMPORTANTE:
-1. Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da sua resposta.
-2. LIMITE MÁXIMO DE RACIOCÍNIO: Mantenha seu raciocínio SUPER CURTO, em no máximo 1 a 2 frases objetivas (limite máximo de 100 tokens dentro de <raciocinio>). NUNCA faça reflexões longas ou parágrafos extensos.
-3. REGRA CRÍTICA DE RESPOSTA FINAL: APÓS fechar o bloco </raciocinio>, VOCÊ É ABSOLUTAMENTE OBRIGADO A ESCREVER A RESPOSTA FINAL COMPLETA E DIRETA PARA O USUÁRIO (ou acionar as ferramentas necessárias). É estritamente PROIBIDO encerrar a resposta apenas com o bloco <raciocinio> sem nada escrito depois!`;
-      } else if (level === 'Baixo') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Baixo - Limite estrito de no máximo 200 Tokens)
-IMPORTANTE:
-1. Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da sua resposta.
-2. LIMITE MÁXIMO DE RACIOCÍNIO: Resuma os passos mentais em no máximo 1 parágrafo curto e objetivo (limite máximo de 200 tokens dentro de <raciocinio>).
-3. REGRA CRÍTICA DE RESPOSTA FINAL: APÓS fechar o bloco </raciocinio>, VOCÊ É ABSOLUTAMENTE OBRIGADO A ESCREVER A RESPOSTA FINAL COMPLETA E DIRETA PARA O USUÁRIO (ou acionar as ferramentas necessárias). É estritamente PROIBIDO encerrar a resposta apenas com o bloco <raciocinio> sem nada escrito depois!`;
-      } else if (level === 'Médio') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Médio - Limite estrito de no máximo 400 Tokens)
-IMPORTANTE:
-1. Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da sua resposta.
-2. LIMITE MÁXIMO DE RACIOCÍNIO: Desenvolva o raciocínio em no máximo 2 a 3 tópicos diretos (limite máximo de 400 tokens dentro de <raciocinio>).
-3. REGRA CRÍTICA DE RESPOSTA FINAL: APÓS fechar o bloco </raciocinio>, VOCÊ É ABSOLUTAMENTE OBRIGADO A ESCREVER A RESPOSTA FINAL COMPLETA E DIRETA PARA O USUÁRIO (ou acionar as ferramentas necessárias). É estritamente PROIBIDO encerrar a resposta apenas com o bloco <raciocinio> sem nada escrito depois!`;
-      } else if (level === 'Alto') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Alto - Limite estrito de no máximo 800 Tokens)
-IMPORTANTE:
-1. Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da sua resposta.
-2. LIMITE MÁXIMO DE RACIOCÍNIO: Pense passo a passo com limite máximo de 800 tokens dentro de <raciocinio>.
-3. REGRA CRÍTICA DE RESPOSTA FINAL: APÓS fechar o bloco </raciocinio>, VOCÊ É ABSOLUTAMENTE OBRIGADO A ESCREVER A RESPOSTA FINAL COMPLETA E DIRETA PARA O USUÁRIO (ou acionar as ferramentas necessárias). É estritamente PROIBIDO encerrar a resposta apenas com o bloco <raciocinio> sem nada escrito depois!`;
-      } else if (level === 'Extremo') {
-        reasoningInstruction = `\n\n## Modo de Raciocínio (Extremo - Limite estrito de no máximo 1200 Tokens)
-IMPORTANTE:
-1. Você OBRIGATORIAMENTE deve usar o bloco <raciocinio>...</raciocinio> NO INÍCIO da sua resposta.
-2. LIMITE MÁXIMO DE RACIOCÍNIO: Pense de forma profunda e estruturada (limite máximo de 1200 tokens dentro de <raciocinio>).
-3. REGRA CRÍTICA DE RESPOSTA FINAL: APÓS fechar o bloco </raciocinio>, VOCÊ É ABSOLUTAMENTE OBRIGADO A ESCREVER A RESPOSTA FINAL COMPLETA E DIRETA PARA O USUÁRIO (ou acionar as ferramentas necessárias). É estritamente PROIBIDO encerrar a resposta apenas com o bloco <raciocinio> sem nada escrito depois!`;
-      }
-    }
     let browserInstruction = ``;
-    if (model === 'WSM 1.6 Pro' || model === 'WSM 1.6 Flash') {
+    if (model === 'WSM 1.6' || !model) {
       browserInstruction = `
 ## Controle de Navegador Real (Playwright) & Agente Agêntico (Plan → Act → Observe → Reflect)
 Você tem acesso total a um navegador real via Playwright para abrir sites, clicar em botões, preencher formulários, rolar páginas, aguardar carregamentos dinâmicos, pesquisar e ler conteúdos ao vivo (ferramentas: open_url, click, type_text, scroll_page, extract_visible_text, wait_seconds).
@@ -761,7 +703,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
     }
 
     let activeSystemPrompt = "";
-    if (model === 'WSM 1.6 Pro') {
+    if (model === 'WSM 1.6') {
       let modeAdditions = "";
       if (isScheduledExecution) {
         modeAdditions += `\n\n## ATENÇÃO CRÍTICA: EXECUÇÃO AUTOMÁTICA DE TAREFA AGENDADA\nEsta requisição é a execução de uma tarefa que JÁ FOI AGENDADA previamente. Você está ABSOLUTAMENTE PROIBIDO de gerar a tag <wsm_task ... /> nesta resposta under ANY circumstances. Apenas execute a instrução e apresente o resultado final diretamente.`;
@@ -778,10 +720,10 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
     }
 
     let mappedModel = "gemini-3.5-flash-lite";
-    if (model === 'WSM 1.6 Pro') mappedModel = "gemini-3.5-flash-lite";
-    else if (model === 'WSM 1.6 Flash') mappedModel = "gemini-3.5-flash-lite";
+    if (model === 'WSM 1.6') mappedModel = "gemini-3.5-flash-lite";
+    else if (model === 'WSM 1.6') mappedModel = "gemini-3.5-flash-lite";
 
-    if (model === 'WSM 1.6 Pro' || model === 'WSM 1.6 Flash') {
+    if (model === 'WSM 1.6' || model === 'WSM 1.6') {
       console.log(`Starting agentic loop for model: ${model}...`);
       const marteTools = [{
         functionDeclarations: [
@@ -1474,6 +1416,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
 
                 // Image generated successfully -> exit ranking queue and release slot for next in line
                 await imageRankingQueue.complete(queueId, true, resultImgUrl);
+                await saveGeneratedImageAndSyncSession(promptStr, resultImgUrl, userInfo, sessionId).catch(() => {});
 
               } catch (e: any) {
                 console.error("Erro ao gerar imagem no AI Horde:", e);
@@ -2105,6 +2048,139 @@ app.post("/api/notify-interrupted-response", async (req: express.Request, res: e
   }
 });
 
+// Endpoint para obter ou gerar imagem em segundo plano
+app.post("/api/get-or-generate-image", async (req: express.Request, res: express.Response) => {
+  try {
+    const { prompt, userInfo, sessionId } = req.body;
+    if (!prompt || typeof prompt !== 'string') {
+      return res.status(400).json({ error: "Prompt é obrigatório." });
+    }
+
+    // 1. Verificar cache primeiro
+    const cachedUrl = await getCachedGeneratedImage(prompt);
+    if (cachedUrl) {
+      if (userInfo?.uid && sessionId) {
+        saveGeneratedImageAndSyncSession(prompt, cachedUrl, userInfo, sessionId).catch(() => {});
+      }
+      return res.json({ success: true, imgUrl: cachedUrl });
+    }
+
+    // 2. Gerar imagem em segundo plano se não existir no cache
+    let promptStr = prompt;
+    let resultImgUrl = "";
+    let queueId = "";
+    
+    try {
+      queueId = await imageRankingQueue.enqueue(promptStr, userInfo);
+      await imageRankingQueue.waitForTurn(queueId);
+
+      const responseAsync = await fetch("https://aihorde.net/api/v2/generate/async", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": "0000000000",
+          "Client-Agent": "WSMAI:1.0:wsmai@wsm.ai"
+        },
+        body: JSON.stringify({
+          prompt: promptStr,
+          params: { sampler_name: "k_euler", cfg_scale: 7.5, height: 512, width: 512, steps: 20, n: 1 },
+          nsfw: false, censor_nsfw: true,
+          models: ["AlbedoBase XL 3.1", "SDXL 1.0", "stable_diffusion", "Deliberate"]
+        })
+      });
+
+      if (responseAsync.ok) {
+        const initData = await responseAsync.json();
+        const requestId = initData.id;
+        if (requestId) {
+          let isDone = false;
+          let attempts = 0;
+          while (!isDone && attempts < 20) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            attempts++;
+            const statusRes = await fetch(`https://aihorde.net/api/v2/generate/status/${requestId}`);
+            if (statusRes.ok) {
+              const statusData = await statusRes.json();
+              if (statusData.done && statusData.generations?.length > 0) {
+                isDone = true;
+                resultImgUrl = statusData.generations[0].img;
+              } else if (statusData.faulted) {
+                break;
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {}
+
+    // Fallback Pollinations AI
+    if (!resultImgUrl) {
+      try {
+        const polUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(promptStr)}?width=1024&height=1024&seed=${Math.floor(Math.random() * 10000000)}&nologo=true`;
+        const polRes = await fetch(polUrl);
+        if (polRes.ok) {
+          const polArrayBuf = await polRes.arrayBuffer();
+          if (polArrayBuf.byteLength > 1000) {
+            const base64Str = Buffer.from(polArrayBuf).toString("base64");
+            resultImgUrl = `data:image/jpeg;base64,${base64Str}`;
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (queueId) {
+      await imageRankingQueue.complete(queueId, Boolean(resultImgUrl), resultImgUrl);
+    }
+
+    if (!resultImgUrl) {
+      return res.status(500).json({ error: "Falha ao gerar imagem." });
+    }
+
+    // Marca d'água
+    try {
+      let inputBuffer: Buffer;
+      if (resultImgUrl.startsWith("data:")) {
+        const commaIdx = resultImgUrl.indexOf(",");
+        inputBuffer = Buffer.from(resultImgUrl.substring(commaIdx + 1), "base64");
+      } else {
+        const imgRes = await fetch(resultImgUrl);
+        inputBuffer = Buffer.from(await imgRes.arrayBuffer());
+      }
+      const logoBuffer = await getWatermarkLogoBuffer();
+      if (logoBuffer) {
+        const mainImage = sharp(inputBuffer);
+        const metadata = await mainImage.metadata();
+        const imgWidth = metadata.width || 512;
+        const imgHeight = metadata.height || 512;
+        const logoWidth = Math.max(28, Math.min(80, Math.round(imgWidth * 0.08)));
+        const logoResized = await sharp(logoBuffer)
+          .resize(logoWidth, logoWidth, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+          .ensureAlpha()
+          .composite([{
+            input: Buffer.from(`<svg width="${logoWidth}" height="${logoWidth}"><rect width="100%" height="100%" fill="#ffffff" fill-opacity="0.45"/></svg>`),
+            blend: 'dest-in'
+          }])
+          .toBuffer();
+        const margin = Math.max(10, Math.round(imgWidth * 0.025));
+        const top = Math.max(0, imgHeight - logoWidth - margin);
+        const left = Math.max(0, imgWidth - logoWidth - margin);
+        const watermarkedBuffer = await mainImage
+          .composite([{ input: logoResized, top, left }])
+          .webp({ quality: 92 })
+          .toBuffer();
+        resultImgUrl = `data:image/webp;base64,${watermarkedBuffer.toString("base64")}`;
+      }
+    } catch (err) {}
+
+    // Salvar no cache e sincronizar sessão no Firestore
+    await saveGeneratedImageAndSyncSession(promptStr, resultImgUrl, userInfo, sessionId);
+
+    return res.json({ success: true, imgUrl: resultImgUrl });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Erro interno ao gerar imagem." });
+  }
+});
+
 // Endpoints de gerenciamento de System Prompts do site (Painel ADM)
 app.get("/api/admin/prompts", (req: express.Request, res: express.Response) => {
   try {
@@ -2163,7 +2239,7 @@ app.post("/api/admin/send-email", async (req: express.Request, res: express.Resp
       const result = await sendGenericEmail({
         toEmail,
         subject,
-        badgeText: badgeText || "Aviso Oficial WSM 1.6 Pro",
+        badgeText: badgeText || "Aviso Oficial WSM 1.6",
         title,
         subtitleText: subtitleText || `Comunicação Direta ao Usuário`,
         bodyMarkdown

@@ -204,7 +204,7 @@ export async function processBackgroundTasks() {
                 text: taskData.prompt,
                 isSearchEnabled: true,
                 isScheduledExecution: true,
-                model: 'WSM 1.6 Pro',
+                model: 'WSM 1.6',
                 skills: skills,
                 userContext: `Usuário está offline. Esta é uma tarefa rodando automaticamente em segundo plano.`,
                 history: []

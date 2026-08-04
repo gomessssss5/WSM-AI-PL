@@ -80,21 +80,21 @@ export default function UpdateModal({ isOpen, onClose }: UpdateModalProps) {
               </div>
 
               <h3 className="text-lg font-normal text-gray-900">
-                WSM 1.6 Pro agora é <strong className="font-extrabold text-[#2563eb]">AGENTE</strong>
+                WSM 1.6 agora é <strong className="font-extrabold text-[#2563eb]">AGENTE</strong>
               </h3>
 
               <p className="text-sm text-gray-600 leading-relaxed">
-                agora, WSM 1.6 Pro consegue mexer e navegar em sites, clicando em botões, escrevendo textos, como se fosse um usuário.
+                agora, WSM 1.6 consegue mexer e navegar em sites, clicando em botões, escrevendo textos, como se fosse um usuário.
               </p>
 
               {/* Image */}
               <div 
-                onClick={() => handleImageClick("https://i.ibb.co/xtVwXdHQ/tech-ad-poster-wsm.webp", "WSM 1.6 Pro agora é AGENTE")}
+                onClick={() => handleImageClick("https://i.ibb.co/xtVwXdHQ/tech-ad-poster-wsm.webp", "WSM 1.6 agora é AGENTE")}
                 className="group relative bg-gray-950 rounded-xl border border-gray-800 overflow-hidden cursor-pointer shadow-3xs w-full flex justify-center p-2"
               >
                 <img
                   src="https://i.ibb.co/xtVwXdHQ/tech-ad-poster-wsm.webp"
-                  alt="WSM 1.6 Pro agora é AGENTE"
+                  alt="WSM 1.6 agora é AGENTE"
                   referrerPolicy="no-referrer"
                   className="w-full h-auto max-h-[500px] object-contain rounded-lg transition-transform duration-300 group-hover:scale-[1.01]"
                 />
@@ -117,7 +117,7 @@ export default function UpdateModal({ isOpen, onClose }: UpdateModalProps) {
               <div className="space-y-3">
                 <h3 className="text-md font-bold text-gray-900">Bugs arrumados e melhora na geração de códigos</h3>
                 <p className="text-sm text-gray-600 leading-relaxed">
-                  A <strong>WSM 1.6 Pro</strong> está mais apta para geração de códigos. Agora, na criação de sites, ela analisa o próprio site que criou, encontra bugs, erros, e analisa se está de acordo com o que o usuário pediu de forma autônoma e iterativa.
+                  A <strong>WSM 1.6</strong> está mais apta para geração de códigos. Agora, na criação de sites, ela analisa o próprio site que criou, encontra bugs, erros, e analisa se está de acordo com o que o usuário pediu de forma autônoma e iterativa.
                 </p>
 
                 <h3 className="text-md font-bold text-gray-900 pt-2">Melhora do conhecimento do WSM 1.6</h3>

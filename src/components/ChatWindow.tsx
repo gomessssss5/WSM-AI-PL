@@ -994,7 +994,7 @@ export default function ChatWindow({
     const val = e.target.value;
     setInputValue(val);
 
-    if (selectedModel !== 'WSM 1.6 Pro') {
+    if (selectedModel !== 'WSM 1.6' && selectedModel !== 'WSM 1.6') {
       if (slashMenuOpen) setSlashMenuOpen(false);
       return;
     }
@@ -1142,13 +1142,11 @@ export default function ChatWindow({
   };
 
   const modelsList = [
-    'WSM 1.6 Flash',
-    'WSM 1.6 Pro'
+    'WSM 1.6'
   ];
 
   const modelDescriptions: Record<string, string> = {
-    'WSM 1.6 Flash': 'Para uso do dia-a-dia',
-    'WSM 1.6 Pro': 'Para tarefas complexas'
+    'WSM 1.6': 'Modelo ultra-inteligente e agêntico'
   };
 
   const isUserScrollingRef = useRef(false);
@@ -1426,134 +1424,11 @@ export default function ChatWindow({
           </button>
           {/* AI Model Selector Pill */}
           <div className="relative z-50">
-            {(() => {
-              const hasMessages = messages && messages.length > 0;
-              if (hasMessages) {
-                return (
-                  <div className="flex items-center px-1.5 py-1.5 text-[13px] font-extrabold text-gray-600 select-none tracking-tight">
-                    {selectedModel === 'WSM 1.6 Flash' ? (
-                      <>
-                        <span className="font-extrabold text-gray-900">WSM 1.6 Flash</span>
-                        {reasoningLevel !== 'Nenhum' && (
-                          <span className="text-gray-400 font-normal ml-1">{reasoningLevel}</span>
-                        )}
-                      </>
-                    ) : (
-                      <span>{selectedModel}</span>
-                    )}
-                  </div>
-                );
-              }
-              return (
-                <button
-                  onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-[#eae6e1] rounded-full text-[13px] font-semibold text-gray-800 shadow-2xs hover:border-gray-300 cursor-pointer active:scale-95 transition-all"
-                  title="Selecione o modelo"
-                >
-                  <div className="w-6 h-6 bg-gradient-to-br from-[#2563eb] to-[#3b82f6] rounded-md flex items-center justify-center shadow-xs shrink-0">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3 text-white">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-                    </svg>
-                  </div>
-                  <span className="font-bold tracking-tight text-gray-900">
-                    {selectedModel}
-                  </span>
-                  {selectedModel === 'WSM 1.6 Flash' && reasoningLevel !== 'Nenhum' && (
-                    <span className="text-gray-400 font-normal ml-0.5">{reasoningLevel}</span>
-                  )}
-                  <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-                </button>
-              );
-            })()}
-
-            {isModelDropdownOpen && (
-              <>
-                {/* Backdrop for mobile to close the selector when clicking outside */}
-                <div 
-                  className="fixed inset-0 bg-black/40 z-40 md:hidden" 
-                  onClick={() => setIsModelDropdownOpen(false)} 
-                />
-                <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 md:absolute md:inset-auto md:left-0 md:top-full md:mt-1.5 md:translate-y-0 w-auto max-w-[calc(100vw-2rem)] md:w-80 bg-white border border-gray-150 rounded-xl shadow-2xl md:shadow-lg z-50 p-1 animate-in fade-in zoom-in-95 duration-150">
-                  {modelsList.map((model) => {
-                    const isClickable = model === 'WSM 1.6 Flash' || model === 'WSM 1.6 Pro';
-                    if (!isClickable) return null;
-                    const isActive = selectedModel === model;
-                    return (
-                      <button
-                        key={model}
-                        disabled={!isClickable}
-                        onClick={() => {
-                          if (isClickable) {
-                            setSelectedModel(model);
-                            setIsModelDropdownOpen(false);
-                          }
-                        }}
-                        className={`w-full flex flex-col gap-0.5 px-3 py-2 text-left rounded-lg transition-colors ${
-                          isActive 
-                             ? 'bg-[#f0ede8] text-gray-900 font-semibold' 
-                             : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between w-full">
-                          <div className="flex items-center gap-1.5 text-[13px] font-semibold">
-                            <div className={`w-1 h-1 rounded-full ${isActive ? 'bg-[#2563eb]' : 'bg-transparent'}`} />
-                            <span>{model}</span>
-                          </div>
-                        </div>
-                        <p className="text-[11px] text-gray-400 pl-2.5 leading-tight font-normal">
-                          {modelDescriptions[model]}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Mobile Esforço Selector Button (shows up only for WSM 1.6 Flash on mobile) */}
-          {selectedModel === 'WSM 1.6 Flash' && (
-            <div className="relative md:hidden">
-              <button
-                type="button"
-                onClick={() => setIsEffortDropdownOpen(!isEffortDropdownOpen)}
-                className="flex items-center gap-1 px-2.5 py-1.5 bg-white border border-[#eae6e1] rounded-full text-[12px] font-semibold text-gray-700 shadow-2xs transition-all cursor-pointer active:scale-95"
-                title="Seletor de esforço de raciocínio"
-              >
-                <span>{reasoningLevel}</span>
-                <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-              </button>
-
-              {isEffortDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setIsEffortDropdownOpen(false)} />
-                  <div className="absolute top-full left-0 mt-1.5 w-44 bg-white rounded-xl shadow-xl border border-gray-150 z-50 p-1 animate-in fade-in slide-in-from-top-2 duration-150">
-                    <div className="flex flex-col gap-0.5">
-                      {['Nenhum', 'Mínimo', 'Baixo', 'Médio', 'Alto'].map((level) => (
-                        <button
-                          key={level}
-                          type="button"
-                          onClick={() => {
-                            if (setReasoningLevel) {
-                              setReasoningLevel(level);
-                            }
-                            setIsEffortDropdownOpen(false);
-                          }}
-                          className={`w-full text-left px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors cursor-pointer ${
-                            reasoningLevel === level
-                              ? 'bg-gray-50 text-[#2563eb] font-semibold'
-                              : 'text-gray-700 hover:bg-gray-50'
-                          }`}
-                        >
-                          {level}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
+            <div className="flex items-center px-1.5 py-1.5 text-[13px] font-extrabold text-gray-900 select-none tracking-tight gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-[#2563eb] fill-[#2563eb]/20" />
+              <span>WSM 1.6</span>
             </div>
-          )}
+          </div>
 
           {isTemporary && (
             <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-extrabold rounded-full tracking-tight shadow-3xs select-none animate-pulse shrink-0">
@@ -2250,7 +2125,7 @@ export default function ChatWindow({
         {(() => {
           const lastVisibleMsg = visibleMessages[visibleMessages.length - 1];
           const lastMessageText = lastVisibleMsg?.text || "";
-          const isPro = selectedModel === 'WSM 1.6 Pro';
+          const isPro = selectedModel === 'WSM 1.6' || selectedModel === 'WSM 1.6';
           const taskProgress = (lastVisibleMsg?.sender === 'ai')
             ? getTaskProgress(lastMessageText)
             : null;
@@ -2930,51 +2805,6 @@ export default function ChatWindow({
 
                 {/* Right Controls */}
                 <div className="flex items-center gap-1.5">
-                  {/* Esforço Dropdown/Pill Selector (shows up only for WSM 1.6 Flash - desktop only, mobile is in header) */}
-                  {selectedModel === 'WSM 1.6 Flash' && (
-                    <div className="relative hidden md:block">
-                      <button
-                        type="button"
-                        onClick={() => setIsEffortDropdownOpen(!isEffortDropdownOpen)}
-                        className="flex items-center gap-1 px-3 py-1 bg-white border border-[#eae6e1] hover:border-gray-300 rounded-full text-[12px] font-bold text-gray-700 shadow-2xs transition-all cursor-pointer"
-                        title="Seletor de esforço de raciocínio"
-                      >
-                        <span>Esforço</span>
-                        <span className="text-gray-500 font-normal ml-0.5">{reasoningLevel}</span>
-                        <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
-                      </button>
-
-                      {isEffortDropdownOpen && (
-                        <>
-                          {/* Backdrop to close the dropdown */}
-                          <div className="fixed inset-0 z-40" onClick={() => setIsEffortDropdownOpen(false)} />
-                          <div className="absolute bottom-full right-0 mb-2 w-44 bg-white rounded-xl shadow-xl z-50 p-1 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                            <div className="flex flex-col gap-0.5">
-                              {['Nenhum', 'Mínimo', 'Baixo', 'Médio', 'Alto'].map((level) => (
-                                <button
-                                  key={level}
-                                  type="button"
-                                  onClick={() => {
-                                    if (setReasoningLevel) {
-                                      setReasoningLevel(level);
-                                    }
-                                    setIsEffortDropdownOpen(false);
-                                  }}
-                                  className={`w-full text-left px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors cursor-pointer ${
-                                    reasoningLevel === level
-                                      ? 'bg-gray-50 text-[#2563eb] font-semibold'
-                                      : 'text-gray-700 hover:bg-gray-50'
-                                  }`}
-                                >
-                                  {level}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
 
                   <button
                     type="button"
@@ -3367,7 +3197,7 @@ export default function ChatWindow({
                 </div>
               ) : (
                 messages.filter(m => m.sender === 'ai').map((msg, index) => {
-                  const displayModel = msg.model || selectedModel || 'WSM 1.6 Flash';
+                  const displayModel = msg.model || selectedModel || 'WSM 1.6';
                   const displayGemini = msg.geminiModel || 'gemini-3.5-flash-lite';
                   const rawSnippet = (msg.text || msg.finalSynthesis || 'Resposta da IA').replace(/<[^>]*>?/gm, '').trim();
                   const previewText = rawSnippet ? rawSnippet.slice(0, 110) : 'Resposta da IA gerada';

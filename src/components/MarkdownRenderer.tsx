@@ -15,27 +15,67 @@ interface WsmImageComponentProps {
 }
 
 export function WsmImageComponent({ prompt, imgUrl }: WsmImageComponentProps) {
+  const [currentImgUrl, setCurrentImgUrl] = React.useState<string | undefined>(imgUrl);
   const [showFull, setShowFull] = React.useState(false);
+  const [loading, setLoading] = React.useState(!imgUrl);
+
+  React.useEffect(() => {
+    if (imgUrl) {
+      setCurrentImgUrl(imgUrl);
+      setLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    const fetchImage = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch('/api/get-or-generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.imgUrl && isMounted) {
+            setCurrentImgUrl(data.imgUrl);
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao obter/gerar imagem:', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchImage();
+
+    return () => { isMounted = false; };
+  }, [imgUrl, prompt]);
 
   const handleDownload = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!imgUrl) return;
+    const targetUrl = currentImgUrl || imgUrl;
+    if (!targetUrl) return;
     const a = document.createElement('a');
-    a.href = imgUrl;
+    a.href = targetUrl;
     a.download = `wsm-ai-image-${Date.now()}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
   };
 
-  if (!imgUrl) {
+  const activeUrl = currentImgUrl || imgUrl;
+
+  if (loading || !activeUrl) {
     return (
-      <div className="my-4 w-full max-w-[340px] aspect-square rounded-[18px] bg-gray-100 dark:bg-gray-800 border-2 border-blue-500 flex flex-col items-center justify-center gap-3 p-6 shadow-sm select-none shrink-0">
+      <div className="my-4 w-full max-w-[340px] aspect-square rounded-[18px] bg-gray-100 dark:bg-gray-800 border-2 border-blue-500 flex flex-col items-center justify-center gap-3 p-6 shadow-sm select-none shrink-0 animate-pulse">
         <div className="w-12 h-12 rounded-2xl bg-white dark:bg-gray-700 border border-blue-200 dark:border-blue-700 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-sm">
-          <ImageIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+          <Loader2 className="w-6 h-6 text-blue-600 dark:text-blue-400 animate-spin" />
         </div>
         <div className="flex flex-col items-center text-center">
           <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">Gerando imagem...</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Processando em segundo plano</span>
         </div>
       </div>
     );
@@ -44,7 +84,7 @@ export function WsmImageComponent({ prompt, imgUrl }: WsmImageComponentProps) {
   return (
     <div className="my-4 w-full max-w-[340px] aspect-square rounded-[18px] overflow-hidden shadow-sm hover:shadow-md transition-shadow shrink-0 relative group">
       <img
-        src={imgUrl}
+        src={activeUrl}
         alt={prompt}
         referrerPolicy="no-referrer"
         className="w-full h-full object-cover rounded-[18px] cursor-pointer transition-transform duration-300 group-hover:scale-[1.01]"

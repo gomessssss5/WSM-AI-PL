@@ -99,10 +99,10 @@ export const WelcomeCardModal: React.FC<WelcomeCardModalProps> = ({ onClose }) =
                 >
                   <div className="bg-blue-50/50 border border-blue-100/80 rounded-2xl p-3.5 text-center">
                     <h3 className="text-base sm:text-lg font-normal text-gray-900">
-                      WSM 1.6 Pro agora é <strong className="font-extrabold text-[#2563eb]">AGENTE</strong>
+                      WSM 1.6 agora é <strong className="font-extrabold text-[#2563eb]">AGENTE</strong>
                     </h3>
                     <p className="text-xs sm:text-sm text-gray-600 leading-relaxed mt-1.5">
-                      agora, WSM 1.6 Pro consegue mexer e navegar em sites, clicando em botões, escrevendo textos, como se fosse um usuário.
+                      agora, WSM 1.6 consegue mexer e navegar em sites, clicando em botões, escrevendo textos, como se fosse um usuário.
                     </p>
                   </div>
 
@@ -110,7 +110,7 @@ export const WelcomeCardModal: React.FC<WelcomeCardModalProps> = ({ onClose }) =
                   <div className="bg-gray-950 rounded-2xl p-2 border border-gray-800 flex items-center justify-center overflow-hidden">
                     <img
                       src={imgSrc162}
-                      alt="WSM 1.6 Pro agora é AGENTE"
+                      alt="WSM 1.6 agora é AGENTE"
                       onError={handleImageError162}
                       referrerPolicy="no-referrer"
                       className="w-full h-auto max-h-[48vh] sm:max-h-[52vh] object-contain rounded-xl shadow-md transition-transform duration-300 hover:scale-[1.01]"
@@ -131,7 +131,7 @@ export const WelcomeCardModal: React.FC<WelcomeCardModalProps> = ({ onClose }) =
                       Bugs arrumados e melhora na geração de códigos
                     </h3>
                     <p className="text-xs text-gray-600 leading-relaxed">
-                      A <strong>WSM 1.6 Pro</strong> está mais apta para geração de códigos. Agora, na criação de sites, ela analisa o próprio site que criou, encontra bugs, erros, e analisa se está de acordo com o que o usuário pediu de forma autônoma e iterativa.
+                      A <strong>WSM 1.6</strong> está mais apta para geração de códigos. Agora, na criação de sites, ela analisa o próprio site que criou, encontra bugs, erros, e analisa se está de acordo com o que o usuário pediu de forma autônoma e iterativa.
                     </p>
                   </div>
 

@@ -326,7 +326,7 @@ export async function generatePdfBlob(title: string, content: string): Promise<B
 
   for (let i = 0; i < totalPages; i++) {
     const p = pages[i];
-    const footerText = sanitizePdfText(`Página ${i + 1} de ${totalPages} • WSM 1.6 Pro`);
+    const footerText = sanitizePdfText(`Página ${i + 1} de ${totalPages} • WSM 1.6`);
     const footerFontSize = 8;
     const textWidth = fontRegular.widthOfTextAtSize(footerText, footerFontSize);
     

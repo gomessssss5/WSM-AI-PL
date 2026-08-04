@@ -2,7 +2,9 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getFirestore, 
   doc, 
+  getDoc,
   setDoc,
+  updateDoc,
   deleteDoc
 } from 'firebase/firestore';
 import fs from 'fs';
@@ -10,7 +12,7 @@ import path from 'path';
 
 let dbInstance: any = null;
 
-function getDb() {
+export function getDb() {
   if (dbInstance) return dbInstance;
   try {
     const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
@@ -33,6 +35,82 @@ function getDb() {
     console.warn('[Ranking Virtual] Erro ao conectar Firestore backend:', err);
   }
   return dbInstance;
+}
+
+export async function getCachedGeneratedImage(prompt: string): Promise<string | null> {
+  const db = getDb();
+  if (!db || !prompt) return null;
+  try {
+    const promptHash = Buffer.from(prompt.trim().toLowerCase()).toString('hex').substring(0, 40);
+    const docSnap = await getDoc(doc(db, 'generated_images', promptHash));
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      if (data && data.imgUrl) {
+        return data.imgUrl;
+      }
+    }
+  } catch (e) {
+    console.warn('[ImagePersistence] Failed to get cached image:', e);
+  }
+  return null;
+}
+
+export async function saveGeneratedImageAndSyncSession(
+  prompt: string,
+  imgUrl: string,
+  userInfo?: { uid?: string; email?: string; displayName?: string },
+  sessionId?: string
+): Promise<void> {
+  const db = getDb();
+  if (!db || !prompt || !imgUrl) return;
+  try {
+    const promptHash = Buffer.from(prompt.trim().toLowerCase()).toString('hex').substring(0, 40);
+    
+    // 1. Save image to global cache
+    await setDoc(doc(db, 'generated_images', promptHash), {
+      prompt,
+      imgUrl,
+      createdAt: new Date().toISOString(),
+      userId: userInfo?.uid || '',
+      userEmail: userInfo?.email || ''
+    }, { merge: true });
+
+    // 2. Sync to session document in Firestore if userId & sessionId exist
+    if (userInfo?.uid && sessionId) {
+      const sessionRef = doc(db, 'users', userInfo.uid, 'sessions', sessionId);
+      const sessionSnap = await getDoc(sessionRef);
+      if (sessionSnap.exists()) {
+        const sessionData = sessionSnap.data();
+        if (Array.isArray(sessionData.messages)) {
+          let updated = false;
+          const escapedPrompt = prompt.replace(/"/g, '&quot;');
+          const updatedMessages = sessionData.messages.map((m: any) => {
+            if (typeof m.text === 'string' && m.text.includes('<wsm_image')) {
+              const replacedText = m.text
+                .replace(/<wsm_image\s+prompt="[^"]*"\s+imgUrl=""\s*\/>/gi, `<wsm_image prompt="${escapedPrompt}" imgUrl="${imgUrl}" />`)
+                .replace(/<wsm_image\s+prompt="[^"]*"\s+imgUrl=''\s*\/>/gi, `<wsm_image prompt="${escapedPrompt}" imgUrl="${imgUrl}" />`);
+              
+              if (replacedText !== m.text) {
+                updated = true;
+                return { ...m, text: replacedText };
+              }
+            }
+            return m;
+          });
+
+          if (updated) {
+            await updateDoc(sessionRef, {
+              messages: updatedMessages,
+              updatedAt: new Date().toISOString()
+            });
+            console.log(`[ImagePersistence] Session ${sessionId} for user ${userInfo.uid} directly synced in Firestore!`);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[ImagePersistence] Failed to sync generated image to Firestore session:', err);
+  }
 }
 
 export interface QueueItem {

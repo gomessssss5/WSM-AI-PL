@@ -115,8 +115,7 @@ export default function App() {
   });
 
   const [selectedModel, setSelectedModel] = useState<string>(() => {
-    const saved = localStorage.getItem('wsm_selected_model');
-    return saved || 'WSM 1.6 Flash';
+    return 'WSM 1.6';
   });
 
   const [reasoningLevel, setReasoningLevel] = useState<string>(() => {
@@ -1082,6 +1081,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         },
         body: JSON.stringify({
           text: requestText,
+          sessionId: sessionToUpdate.id,
           isSearchEnabled,
           isComputerEnabled,
           isTranslatorMode,

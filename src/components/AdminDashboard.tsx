@@ -110,16 +110,16 @@ interface ProcessedStats {
 const EMAIL_TEMPLATES = [
   {
     id: 'welcome',
-    name: 'Boas-Vindas ao WSM 1.6 Pro',
+    name: 'Boas-Vindas ao WSM 1.6',
     badge: 'Boas-Vindas',
-    subject: '[WSM 1.6 Pro] Bem-vindo ao WSM 1.6 Pro! 🚀',
+    subject: '[WSM 1.6] Bem-vindo ao WSM 1.6! 🚀',
     title: 'Sua conta foi criada com sucesso!',
     subtitle: 'Seja muito bem-vindo à nossa plataforma',
     body: `Olá!
 
-Sua conta no **WSM 1.6 Pro** já está ativa e pronta para potencializar suas pesquisas e ideias.
+Sua conta no **WSM 1.6** já está ativa e pronta para potencializar suas pesquisas e ideias.
 
-### 🌟 O que você pode fazer no WSM 1.6 Pro:
+### 🌟 O que você pode fazer no WSM 1.6:
 - 🌐 **Navegação Web em Tempo Real:** Pesquise notícias, acesse sites ao vivo e obtenha fatos atualizados instantaneamente.
 - 📅 **Tarefas Agendadas:** Programe pesquisas recorrentes ou lembretes que a IA executa sozinha e envia o relatório para o seu e-mail.
 - ⚡ **Agentes de Alta Performance:** Respostas rápidas, execução de código e assistentes especializados.
@@ -130,12 +130,12 @@ Estamos muito felizes em ter você aqui. Quando quiser começar, basta fazer uma
     id: 'inactivity',
     name: 'Lembrete de Inatividade (Saudades)',
     badge: 'Lembrete de Inatividade',
-    subject: '[WSM 1.6 Pro] Sentimos sua falta no WSM 1.6 Pro',
+    subject: '[WSM 1.6] Sentimos sua falta no WSM 1.6',
     title: 'Sentimos sua falta! O que você quer criar hoje?',
     subtitle: 'Seu assistente IA está te esperando',
     body: `Olá!
 
-Notamos que faz alguns dias desde a sua última interação com o **WSM 1.6 Pro**.
+Notamos que faz alguns dias desde a sua última interação com o **WSM 1.6**.
 
 ### 💡 Lembre-se do que você pode fazer:
 - Consultar fatos em tempo real na internet
@@ -148,12 +148,12 @@ O que acha de voltar hoje mesmo e dar continuidade aos seus projetos?`
     id: 'feature_highlight',
     name: 'Destaque de Recurso (Navegação Web)',
     badge: 'Recurso Exclusivo',
-    subject: '[WSM 1.6 Pro] Sabia que o WSM 1.6 Pro navega em sites em tempo real?',
+    subject: '[WSM 1.6] Sabia que o WSM 1.6 navega em sites em tempo real?',
     title: 'Acesse informações atualizadas e ao vivo na Web',
     subtitle: 'Navegação em tempo real em qualquer link',
-    body: `Passando para te lembrar de um dos recursos mais poderosos do **WSM 1.6 Pro**:
+    body: `Passando para te lembrar de um dos recursos mais poderosos do **WSM 1.6**:
 
-Diferente de IAs estáticas com dados desatualizados, o **WSM 1.6 Pro** navega diretamente na web, acessa links, pesquisa notícias do dia e interage com sites em tempo real.
+Diferente de IAs estáticas com dados desatualizados, o **WSM 1.6** navega diretamente na web, acessa links, pesquisa notícias do dia e interage com sites em tempo real.
 
 ### 💡 Experimente pedir no chat:
 - *"Acesse o site do G1 e faça um resumo das 3 principais notícias de hoje"*
@@ -165,31 +165,31 @@ Acesse agora e experimente a navegação ao vivo!`
   {
     id: 'monthly_campaign',
     name: 'Campanha Mensal (WSM vs Outras IAs)',
-    badge: 'WSM 1.6 Pro vs Outras IAs',
-    subject: '[WSM 1.6 Pro] E aí, vamos parar de usar IAs ruins?',
+    badge: 'WSM 1.6 vs Outras IAs',
+    subject: '[WSM 1.6] E aí, vamos parar de usar IAs ruins?',
     title: 'E aí, vamos parar de usar IAs ruins e começar a me usar?',
-    subtitle: 'Por que o WSM 1.6 Pro é a melhor escolha',
-    body: `E aí, vamos parar de usar IAs ruins e começar a usar o **WSM 1.6 Pro**?
+    subtitle: 'Por que o WSM 1.6 é a melhor escolha',
+    body: `E aí, vamos parar de usar IAs ruins e começar a usar o **WSM 1.6**?
 
 Você sabe que a nossa IA tem superpoderes que outras plataformas não oferecem, né? 😉
 
-### 🚀 Por que escolher o WSM 1.6 Pro?
+### 🚀 Por que escolher o WSM 1.6?
 - 🌐 **Navegação Real em Sites:** Acesso ao vivo à internet sem bloqueios.
 - 📅 **Agendamento Inteligente:** A IA pesquisa e trabalha para você em segundo plano.
 - ⚡ **Respostas Precisas:** Baseadas em fatos reais e atualizados.
 
-Acesse agora o WSM 1.6 Pro e comprove a diferença!`
+Acesse agora o WSM 1.6 e comprove a diferença!`
   },
   {
     id: 'system_notice',
     name: 'Comunicado Oficial do Sistema',
     badge: 'Aviso Importante',
-    subject: '[WSM 1.6 Pro] Atualizações e Melhorias no Sistema',
+    subject: '[WSM 1.6] Atualizações e Melhorias no Sistema',
     title: 'Novidades e Otimizações na Plataforma',
     subtitle: 'Melhorias de desempenho e estabilidade',
     body: `Prezado usuário,
 
-Gostaríamos de informar que realizamos importantes melhorias de desempenho e estabilidade no **WSM 1.6 Pro**.
+Gostaríamos de informar que realizamos importantes melhorias de desempenho e estabilidade no **WSM 1.6**.
 
 ### 🛠️ O que mudou:
 - **Respostas Mais Rápidas:** Otimização dos servidores e rotas de IA.
@@ -208,12 +208,12 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
   // Email Broadcast State
   const [emailSendMode, setEmailSendMode] = useState<'custom' | 'template'>('custom');
   const [emailTemplateId, setEmailTemplateId] = useState<string>('welcome');
-  const [emailSubject, setEmailSubject] = useState<string>('[WSM 1.6 Pro] Aviso Oficial e Novidades');
-  const [emailTitle, setEmailTitle] = useState<string>('Nova Comunicação do WSM 1.6 Pro');
+  const [emailSubject, setEmailSubject] = useState<string>('[WSM 1.6] Aviso Oficial e Novidades');
+  const [emailTitle, setEmailTitle] = useState<string>('Nova Comunicação do WSM 1.6');
   const [emailBadgeText, setEmailBadgeText] = useState<string>('Comunicação Oficial');
-  const [emailSubtitleText, setEmailSubtitleText] = useState<string>('WSM 1.6 Pro • Notificação ao Usuário');
+  const [emailSubtitleText, setEmailSubtitleText] = useState<string>('WSM 1.6 • Notificação ao Usuário');
   const [emailBodyMarkdown, setEmailBodyMarkdown] = useState<string>(
-    'Olá!\n\nEstamos entrando em contato para informar sobre as novas atualizações do **WSM 1.6 Pro**.\n\n### 🚀 Destaques:\n- **Navegação Web em Tempo Real**\n- **Automação de Agendamentos e Relatórios por E-mail**\n- **Respostas Ultrarrápidas**\n\nAcesse agora e confira!'
+    'Olá!\n\nEstamos entrando em contato para informar sobre as novas atualizações do **WSM 1.6**.\n\n### 🚀 Destaques:\n- **Navegação Web em Tempo Real**\n- **Automação de Agendamentos e Relatórios por E-mail**\n- **Respostas Ultrarrápidas**\n\nAcesse agora e confira!'
   );
 
   const [recipientMode, setRecipientMode] = useState<'all_gmail' | 'selected_gmail' | 'single_test'>('all_gmail');
@@ -455,8 +455,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
       };
 
       const modelCounts: Record<string, number> = {
-        'WSM 1.6 Flash': 0,
-        'WSM 1.6 Pro': 0
+        'WSM 1.6': 0
       };
 
       const errorCounts: Record<string, number> = {
@@ -635,9 +634,8 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
 
               // Infer model usage
               const textLower = (m.text || '').toLowerCase();
-              let inferredModel = 'WSM 1.6 Flash';
-              if (textLower.includes('pro')) inferredModel = 'WSM 1.6 Pro';
-              modelCounts[inferredModel]++;
+              let inferredModel = 'WSM 1.6';
+              modelCounts[inferredModel] = (modelCounts[inferredModel] || 0) + 1;
 
               // Check if message is an error
               const isError = textLower.includes('⚠️') || textLower.includes('erro') || textLower.includes('falhou') || textLower.includes('excedido');
@@ -721,10 +719,8 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
       });
 
       // Format model usage data
-      const totalInferredModelRequests = Object.values(modelCounts).reduce((a, b) => a + b, 0);
       const formattedModels = [
-        { name: 'WSM 1.6 Flash', value: totalInferredModelRequests > 0 ? Math.round((modelCounts['WSM 1.6 Flash'] / totalInferredModelRequests) * 100) : 100, requests: modelCounts['WSM 1.6 Flash'], label: 'Standard/Equilibrado' },
-        { name: 'WSM 1.6 Pro', value: totalInferredModelRequests > 0 ? Math.round((modelCounts['WSM 1.6 Pro'] / totalInferredModelRequests) * 100) : 0, requests: modelCounts['WSM 1.6 Pro'], label: 'Agêntico/Multitarefas' }
+        { name: 'WSM 1.6', value: 100, requests: modelCounts['WSM 1.6'] || 0, label: 'Agêntico/Multitarefas' }
       ];
 
       // Format errors breakdown
@@ -1130,7 +1126,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
         
         let latestMsgTimestamp = 0;
         let latestMsgText = '';
-        let latestMsgModel = 'WSM 1.6 Flash';
+        let latestMsgModel = 'WSM 1.6';
         let latestSessionTitle = 'Nenhuma sessão';
         let isUserLastAction = false;
 
@@ -1157,7 +1153,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
             
             if (latestMsg.sender === 'ai' || latestMsg.sender === 'model') {
               const textLower = (latestMsg.text || '').toLowerCase();
-              if (textLower.includes('pro')) latestMsgModel = 'WSM 1.6 Pro';
+              if (textLower.includes('pro')) latestMsgModel = 'WSM 1.6';
             }
           } else {
             latestMsgTimestamp = convertToDate(latestSession.timestamp).getTime();
@@ -1217,9 +1213,9 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
       // If we don't have enough users, add a few realistic ones to fill the workspace
       if (activeUsersList.length < 3) {
         const fallbackUsers = [
-          { email: 'gestao_rh@wsm.ai', sessionTitle: 'Análise de Desempenho 2026', model: 'WSM 1.6 Pro', text: 'Resuma os pontos fortes do feedback de liderança' },
-          { email: 'maria.souza@yahoo.com.br', sessionTitle: 'Coprodução de Romance', model: 'WSM 1.6 Flash', text: 'Escreva um parágrafo dramático sobre a descoberta do segredo' },
-          { email: 'dev_tech@gmail.com', sessionTitle: 'Refatoração Express Router', model: 'WSM 1.6 Pro', text: 'Otimize essa query assíncrona do firebase' }
+          { email: 'gestao_rh@wsm.ai', sessionTitle: 'Análise de Desempenho 2026', model: 'WSM 1.6', text: 'Resuma os pontos fortes do feedback de liderança' },
+          { email: 'maria.souza@yahoo.com.br', sessionTitle: 'Coprodução de Romance', model: 'WSM 1.6', text: 'Escreva um parágrafo dramático sobre a descoberta do segredo' },
+          { email: 'dev_tech@gmail.com', sessionTitle: 'Refatoração Express Router', model: 'WSM 1.6', text: 'Otimize essa query assíncrona do firebase' }
         ];
 
         fallbackUsers.forEach((f, idx) => {
@@ -1427,7 +1423,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
 
   const mostUsedModel = stats.modelUsage.length > 0 
     ? stats.modelUsage.reduce((max, model) => model.requests > max.requests ? model : max, stats.modelUsage[0])
-    : { name: 'WSM 1.6 Flash', requests: 0, value: 100 };
+    : { name: 'WSM 1.6', requests: 0, value: 100 };
 
   const mostCommonError = stats.errorsBreakdown.length > 0
     ? stats.errorsBreakdown.reduce((max, err) => err.count > max.count ? err : max, stats.errorsBreakdown[0])
@@ -4209,7 +4205,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                         type="text"
                         value={emailSubtitleText}
                         onChange={(e) => setEmailSubtitleText(e.target.value)}
-                        placeholder="Ex: WSM 1.6 Pro • Notificação Especial"
+                        placeholder="Ex: WSM 1.6 • Notificação Especial"
                         className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-xs font-medium focus:outline-none focus:border-blue-500 bg-gray-50 focus:bg-white"
                       />
                     </div>
@@ -4223,7 +4219,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       type="text"
                       value={emailSubject}
                       onChange={(e) => setEmailSubject(e.target.value)}
-                      placeholder="Ex: [WSM 1.6 Pro] Novidades da Semana"
+                      placeholder="Ex: [WSM 1.6] Novidades da Semana"
                       className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-xs font-bold text-gray-900 focus:outline-none focus:border-blue-500 bg-gray-50 focus:bg-white"
                     />
                   </div>
@@ -4500,13 +4496,13 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                     {/* Simulated Email Header */}
                     <div className="bg-[#2563eb] text-white p-5">
                       <div className="text-[10px] font-extrabold uppercase tracking-widest opacity-85 mb-1 text-blue-100">
-                        {emailBadgeText || 'Aviso Oficial WSM 1.6 Pro'}
+                        {emailBadgeText || 'Aviso Oficial WSM 1.6'}
                       </div>
                       <h4 className="text-base font-bold text-white leading-snug">
                         {emailTitle || 'Título da Comunicação'}
                       </h4>
                       <p className="text-[11px] opacity-90 mt-1 text-blue-100">
-                        {emailSubtitleText || 'WSM 1.6 Pro • Notificação ao Usuário'}
+                        {emailSubtitleText || 'WSM 1.6 • Notificação ao Usuário'}
                       </p>
                     </div>
 
@@ -4545,13 +4541,13 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                         rel="noopener noreferrer"
                         className="inline-block bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs px-6 py-2.5 rounded-lg shadow-2xs transition-colors"
                       >
-                        Acessar WSM 1.6 Pro
+                        Acessar WSM 1.6
                       </a>
                     </div>
 
                     {/* Simulated Email Footer */}
                     <div className="bg-slate-50 p-3 text-center text-[10px] text-slate-500 border-t border-slate-200">
-                      Este e-mail foi enviado automaticamente pelo WSM 1.6 Pro para [usuario@gmail.com].
+                      Este e-mail foi enviado automaticamente pelo WSM 1.6 para [usuario@gmail.com].
                     </div>
 
                   </div>
