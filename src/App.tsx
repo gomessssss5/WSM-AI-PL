@@ -1018,7 +1018,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
       // Add 45-second timeout to prevent eternal loading if the request hangs
       const timeoutId = setTimeout(() => {
         if (abortControllerRef.current) {
-          console.warn("Request timed out after 45 seconds. Aborting.");
+          console.warn("Request timed out after 4 minutes. Aborting.");
           abortControllerRef.current.abort();
           setSessions((prev) => {
             const currentSess = prev.find((s) => s.id === sessionToUpdate.id);

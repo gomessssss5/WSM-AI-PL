@@ -8,10 +8,11 @@ import { generateExcelBlob } from '../utils/excelGenerator';
 interface DocumentCardProps {
   document: WsmDocument;
   onOpenDocument?: (doc: WsmDocument) => void;
+  attachedImages?: string[];
   key?: React.Key;
 }
 
-export default function DocumentCard({ document, onOpenDocument }: DocumentCardProps) {
+export default function DocumentCard({ document, onOpenDocument, attachedImages }: DocumentCardProps) {
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Format determined by AI: 'pdf' (default), 'md', 'xlsx', 'txt', 'html', etc.
@@ -54,7 +55,7 @@ export default function DocumentCard({ document, onOpenDocument }: DocumentCardP
     } else {
       try {
         setIsGenerating(true);
-        const pdfBlob = await generatePdfBlob(document.title || 'Documento', document.content || '');
+        const pdfBlob = await generatePdfBlob(document.title || 'Documento', document.content || '', attachedImages || (document as any).images || (document as any).attachedImages);
         const url = URL.createObjectURL(pdfBlob);
         const link = window.document.createElement('a');
         link.href = url;

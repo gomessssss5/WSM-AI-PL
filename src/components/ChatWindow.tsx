@@ -273,6 +273,10 @@ export default function ChatWindow({
   const [completedReasoningMsgIds, setCompletedReasoningMsgIds] = useState<Set<string>>(new Set());
   const [completedTypewriterMsgIds, setCompletedTypewriterMsgIds] = useState<Set<string>>(new Set());
 
+  const allSessionImages = useMemo(() => {
+    return messages.flatMap(m => m.attachments?.filter(a => (a.type === 'image' && a.base64)).map(a => `data:${a.mimeType || 'image/png'};base64,${a.base64}`) || []);
+  }, [messages]);
+
   const allScreenshots = useMemo(() => {
     return messages.flatMap(m => m.browserScreenshots || []);
   }, [messages]);
@@ -1719,6 +1723,7 @@ export default function ChatWindow({
                           setDrawerSources({ sources, query, count });
                         }}
                         onOpenDocument={(doc) => setActiveDocument({ doc, isFullscreen: false })}
+                        attachedImages={allSessionImages}
                       />
                     ) : (
                       <>
@@ -1811,6 +1816,7 @@ export default function ChatWindow({
                                             <DocumentCard 
                                               key={idx} 
                                               document={doc} 
+                                              attachedImages={allSessionImages}
                                               onOpenDocument={(d) => setActiveDocument({ doc: d, isFullscreen: false })} 
                                             />
                                           ))}
@@ -3255,6 +3261,7 @@ export default function ChatWindow({
           <DocumentViewerPane
             document={activeDocument.doc}
             isFullscreen={activeDocument.isFullscreen}
+            attachedImages={allSessionImages}
             onToggleFullscreen={() => setActiveDocument(prev => prev ? { ...prev, isFullscreen: !prev.isFullscreen } : null)}
             onClose={() => setActiveDocument(null)}
           />

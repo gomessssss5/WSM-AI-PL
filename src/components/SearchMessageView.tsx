@@ -21,6 +21,7 @@ interface SearchMessageViewProps {
   onOpenSources?: (sources: { hostname: string; title: string; url: string; snippet?: string }[], query: string, count: number) => void;
   onOpenScheduledTasks?: () => void;
   onOpenDocument?: (doc: WsmDocument) => void;
+  attachedImages?: string[];
 }
 
 export default function SearchMessageView({
@@ -31,7 +32,8 @@ export default function SearchMessageView({
   onStepChange,
   onOpenSources,
   onOpenScheduledTasks,
-  onOpenDocument
+  onOpenDocument,
+  attachedImages
 }: SearchMessageViewProps) {
   const steps = message.searchSteps || [];
   const totalSteps = steps.length;
@@ -413,7 +415,7 @@ export default function SearchMessageView({
           return (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mt-3 w-full">
               {docObjs.map((doc, idx) => (
-                <DocumentCard key={idx} document={doc} onOpenDocument={onOpenDocument} />
+                <DocumentCard key={idx} document={doc} onOpenDocument={onOpenDocument} attachedImages={attachedImages} />
               ))}
             </div>
           );

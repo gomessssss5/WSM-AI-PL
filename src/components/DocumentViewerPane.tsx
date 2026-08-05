@@ -33,6 +33,7 @@ interface DocumentViewerPaneProps {
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
   onClose: () => void;
+  attachedImages?: string[];
 }
 
 export default function DocumentViewerPane({
@@ -40,10 +41,16 @@ export default function DocumentViewerPane({
   isFullscreen,
   onToggleFullscreen,
   onClose,
+  attachedImages,
 }: DocumentViewerPaneProps) {
   const [zoom, setZoom] = useState<number>(100);
   const [isGenerating, setIsGenerating] = useState(false);
   const [docContent, setDocContent] = useState<string>(document.content || '');
+  
+  useEffect(() => {
+    setDocContent(document.content || '');
+  }, [document.content]);
+
   const [htmlPreviewMode, setHtmlPreviewMode] = useState<boolean>(true);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
@@ -91,7 +98,7 @@ export default function DocumentViewerPane({
     
     if (format === 'pdf') {
       setIsPdfLoading(true);
-      generatePdfBlob(document.title || 'Documento', docContent)
+      generatePdfBlob(document.title || 'Documento', docContent, attachedImages || (document as any).images || (document as any).attachedImages)
         .then(blob => {
           if (isMounted) {
             setPdfBlob(blob);
@@ -149,7 +156,7 @@ export default function DocumentViewerPane({
     } else {
       try {
         setIsGenerating(true);
-        const pdfBlob = await generatePdfBlob(document.title || 'Documento', docContent);
+        const pdfBlob = await generatePdfBlob(document.title || 'Documento', docContent, attachedImages || (document as any).images || (document as any).attachedImages);
         const url = URL.createObjectURL(pdfBlob);
         const link = window.document.createElement('a');
         link.href = url;
