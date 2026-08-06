@@ -45,7 +45,7 @@ export const WelcomeCardModal: React.FC<WelcomeCardModalProps> = ({ onClose }) =
                 <Sparkles size={18} />
               </div>
               <h2 className="text-base sm:text-lg font-black text-gray-900 tracking-tight">
-                Atualização: WSM 1.6.2
+                Atualização: Ominx 1.6.2
               </h2>
             </div>
             <button
@@ -69,7 +69,7 @@ export const WelcomeCardModal: React.FC<WelcomeCardModalProps> = ({ onClose }) =
               }`}
             >
               <Bot size={14} />
-              <span>WSM 1.6.2</span>
+              <span>Ominx 1.6.2</span>
               <span className="bg-[#2563eb] text-white text-[9px] px-1.5 py-0.2 rounded-full uppercase tracking-wider ml-0.5">Novo</span>
             </button>
             <button
@@ -81,7 +81,7 @@ export const WelcomeCardModal: React.FC<WelcomeCardModalProps> = ({ onClose }) =
               }`}
             >
               <Code2 size={14} />
-              <span>WSM 1.6.1</span>
+              <span>Ominx 1.6.1</span>
             </button>
           </div>
 
@@ -99,10 +99,10 @@ export const WelcomeCardModal: React.FC<WelcomeCardModalProps> = ({ onClose }) =
                 >
                   <div className="bg-blue-50/50 border border-blue-100/80 rounded-2xl p-3.5 text-center">
                     <h3 className="text-base sm:text-lg font-normal text-gray-900">
-                      WSM 1.6 agora é <strong className="font-extrabold text-[#2563eb]">AGENTE</strong>
+                      Ominx 1.6 agora é <strong className="font-extrabold text-[#2563eb]">AGENTE</strong>
                     </h3>
                     <p className="text-xs sm:text-sm text-gray-600 leading-relaxed mt-1.5">
-                      agora, WSM 1.6 consegue mexer e navegar em sites, clicando em botões, escrevendo textos, como se fosse um usuário.
+                      agora, Ominx 1.6 consegue mexer e navegar em sites, clicando em botões, escrevendo textos, como se fosse um usuário.
                     </p>
                   </div>
 
@@ -110,7 +110,7 @@ export const WelcomeCardModal: React.FC<WelcomeCardModalProps> = ({ onClose }) =
                   <div className="bg-gray-950 rounded-2xl p-2 border border-gray-800 flex items-center justify-center overflow-hidden">
                     <img
                       src={imgSrc162}
-                      alt="WSM 1.6 agora é AGENTE"
+                      alt="Ominx 1.6 agora é AGENTE"
                       onError={handleImageError162}
                       referrerPolicy="no-referrer"
                       className="w-full h-auto max-h-[48vh] sm:max-h-[52vh] object-contain rounded-xl shadow-md transition-transform duration-300 hover:scale-[1.01]"
@@ -131,16 +131,16 @@ export const WelcomeCardModal: React.FC<WelcomeCardModalProps> = ({ onClose }) =
                       Bugs arrumados e melhora na geração de códigos
                     </h3>
                     <p className="text-xs text-gray-600 leading-relaxed">
-                      A <strong>WSM 1.6</strong> está mais apta para geração de códigos. Agora, na criação de sites, ela analisa o próprio site que criou, encontra bugs, erros, e analisa se está de acordo com o que o usuário pediu de forma autônoma e iterativa.
+                      A <strong>Ominx 1.6</strong> está mais apta para geração de códigos. Agora, na criação de sites, ela analisa o próprio site que criou, encontra bugs, erros, e analisa se está de acordo com o que o usuário pediu de forma autônoma e iterativa.
                     </p>
                   </div>
 
                   <div className="bg-gray-50 border border-gray-200/80 rounded-2xl p-4 space-y-2">
                     <h3 className="text-sm font-bold text-gray-900">
-                      Melhora do conhecimento do WSM 1.6
+                      Melhora do conhecimento do Ominx 1.6
                     </h3>
                     <p className="text-xs text-gray-600 leading-relaxed">
-                      WSM 1.6 agora tem conhecimento atualizado, além de conseguir fazer buscas na web pra aprimorar seus conhecimentos.
+                      Ominx 1.6 agora tem conhecimento atualizado, além de conseguir fazer buscas na web pra aprimorar seus conhecimentos.
                     </p>
                   </div>
                 </motion.div>

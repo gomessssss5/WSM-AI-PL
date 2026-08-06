@@ -615,7 +615,7 @@ html, body, #root {
   animation: wsmSuckIn 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 }
 
-/* --- WSM 1.6 response card & shimmer text --- */
+/* --- Ominx 1.6 response card & shimmer text --- */
 .wsm-response-card {
   background: transparent;
   width: 100%;

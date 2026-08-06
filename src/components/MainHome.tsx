@@ -447,7 +447,7 @@ export default function MainHome({
     const val = e.target.value;
     setInputValue(val);
 
-    if (selectedModel !== 'WSM 1.6' && selectedModel !== 'WSM 1.6') {
+    if (selectedModel !== 'Ominx 1.6' && selectedModel !== 'Ominx 1.6') {
       if (slashMenuOpen) setSlashMenuOpen(false);
       return;
     }
@@ -506,11 +506,11 @@ export default function MainHome({
   };
 
   const modelsList = [
-    'WSM 1.6'
+    'Ominx 1.6'
   ];
 
   const modelDescriptions: Record<string, string> = {
-    'WSM 1.6': 'Modelo ultra-inteligente e agêntico'
+    'Ominx 1.6': 'Modelo ultra-inteligente e agêntico'
   };
 
   const getFileType = (file: File) => {
@@ -792,21 +792,21 @@ export default function MainHome({
               className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-[#eae6e1] rounded-full text-[13px] font-bold text-gray-900 shadow-2xs select-none"
             >
               <Sparkles className="w-3.5 h-3.5 text-[#2563eb] fill-[#2563eb]/20" />
-              <span>WSM 1.6</span>
+              <span>Ominx 1.6</span>
             </div>
           </div>
         </div>
 
         {/* Right side controls / Chat temporário */}
         <div className="flex items-center gap-2 relative z-50">
-          {/* Tag WSM 1.6.2 - Desktop Only */}
+          {/* Tag Ominx 1.6.2 - Desktop Only */}
           <button
             onClick={onOpenUpdateModal}
             className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-blue-50/40 border border-[#eae6e1] rounded-full text-xs font-bold text-gray-700 hover:text-[#2563eb] transition-colors cursor-pointer shadow-3xs active:scale-95"
             title="Ver novidades da versão 1.6.2"
           >
             <Sparkles className="w-3.5 h-3.5 text-[#2563eb] shrink-0" />
-            <span>Atualização: WSM 1.6.2</span>
+            <span>Atualização: Ominx 1.6.2</span>
           </button>
 
           <button
@@ -1479,7 +1479,7 @@ export default function MainHome({
                       </div>
                       <div className="flex flex-col text-left min-w-0 flex-1">
                         <h3 className="font-sans font-bold text-gray-900 text-[13.5px] md:text-[14.5px] tracking-tight leading-snug truncate">
-                          Conheça o WSM 1.6
+                          Conheça o Ominx 1.6
                         </h3>
                         <p className="font-sans text-gray-500 text-[11.5px] md:text-[12px] leading-relaxed mt-0.5 line-clamp-1">
                           Nosso modelo agêntico ultra-inteligente e poderoso.
@@ -1509,7 +1509,7 @@ export default function MainHome({
                       </div>
                       <div className="flex flex-col text-left min-w-0 flex-1">
                         <h3 className="font-sans font-bold text-gray-900 text-[13.5px] md:text-[14.5px] tracking-tight leading-snug truncate">
-                          WSM 1.6 vs. GPT e Gemini
+                          Ominx 1.6 vs. GPT e Gemini
                         </h3>
                         <p className="font-sans text-gray-500 text-[11.5px] md:text-[12px] leading-relaxed mt-0.5 line-clamp-1">
                           Veja a avaliação completa e os benchmarks com dezenas de testes.
@@ -1569,7 +1569,7 @@ export default function MainHome({
                 <div className="w-full bg-gray-50 flex items-center justify-center p-6 border-b border-[#eae6e1]/40">
                   <img 
                     src="https://i.ibb.co/tw9yWNfj/38003.png" 
-                    alt="WSM 1.6" 
+                    alt="Ominx 1.6" 
                     className="max-w-full h-auto max-h-[400px] object-contain rounded-xl shadow-sm"
                     referrerPolicy="no-referrer"
                   />
@@ -1578,7 +1578,7 @@ export default function MainHome({
                 {/* Content area */}
                 <div className="p-8 md:p-10">
                   <p className="font-sans text-gray-700 text-[15px] md:text-[16px] leading-relaxed whitespace-pre-line">
-                    Conheça o WSM 1.6, o pensador da casa. Ele raciocina e executa com profundidade. Diante de um problema complexo, ele não solta a primeira resposta que aparece: ele estrutura o pensamento, testa caminhos, analisa variáveis e só então entrega uma solução bem fundamentada.
+                    Conheça o Ominx 1.6, o pensador da casa. Ele raciocina e executa com profundidade. Diante de um problema complexo, ele não solta a primeira resposta que aparece: ele estrutura o pensamento, testa caminhos, analisa variáveis e só então entrega uma solução bem fundamentada.
                     {"\n\n"}
                     Quer programar uma aplicação completa? Resolver uma equação difícil? Escrever um contrato jurídico? Fazer uma análise crítica de um texto? Criar uma estratégia de negócio? O Pro é o seu parceiro intelectual, com um clique no botão "Raciocínio" você consegue ver todo o passo a passo dele, como se estivesse ouvindo um especialista pensar em voz alta.
                     {"\n\n"}

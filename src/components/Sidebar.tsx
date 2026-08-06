@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Image as ImageIcon, MessageSquare, Trash2, LogOut, Clock, BookOpen, Folder, MessageSquarePlus, User, X, Languages, Wrench, Menu, Download } from 'lucide-react';
 import { ChatSession } from '../types';
+import { getCleanSessionTitle } from '../utils/sessionUtils';
 
 interface SidebarProps {
   sessions: ChatSession[];
@@ -320,7 +321,7 @@ export default function Sidebar(props: SidebarProps) {
                   >
                     <MessageSquare className="w-3.5 h-3.5 text-gray-400 group-hover:text-gray-600 shrink-0" />
                     <span className="text-[12px] truncate pr-5 block flex-1">
-                      {session.title}
+                      {getCleanSessionTitle(session)}
                     </span>
                     {session.isUnread && (
                       <div className="absolute right-7 w-1.5 h-1.5 bg-blue-500 rounded-full"></div>

@@ -98,7 +98,7 @@ export default function ImagesGallery({ onBackToHome }: ImagesGalleryProps) {
             Suas criações visuais
           </h2>
           <p className="text-xs text-gray-400">
-            Explore as imagens conceituais projetadas pela inteligência artificial WSM 1.6.
+            Explore as imagens conceituais projetadas pela inteligência artificial Ominx 1.6.
           </p>
         </div>
 
@@ -146,7 +146,7 @@ export default function ImagesGallery({ onBackToHome }: ImagesGalleryProps) {
                   </p>
                 </div>
                 <div className="text-[8px] font-mono text-gray-400 pt-1.5 border-t border-gray-50 flex justify-between items-center">
-                  <span>Modelo: WSM 1.6</span>
+                  <span>Modelo: Ominx 1.6</span>
                   <span>1K Resolution</span>
                 </div>
               </div>

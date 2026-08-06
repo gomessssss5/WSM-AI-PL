@@ -22,6 +22,7 @@ import BenchmarkPage from './components/BenchmarkPage';
 import { Skill, subscribeSkills, saveSkill, deleteSkillFromDb } from './lib/skills';
 import { OFFICIAL_SKILLS } from './lib/officialSkills';
 import { subscribeScheduledTasks, subscribeTaskExecutions, saveScheduledTask, deleteScheduledTask, saveTaskExecution, calculateNextRunAt } from './lib/scheduledTasks';
+import { getCleanSessionTitle } from './utils/sessionUtils';
 
 import { OfficialSkillsStore } from './components/OfficialSkillsStore';
 import CustomCursor from './components/CustomCursor';
@@ -48,6 +49,12 @@ export default function App() {
 
   // Check if welcome announcement card should be shown for the account (once per user account)
   useEffect(() => {
+    const hasSeen162 = localStorage.getItem('wsm_see_1.6.2') === 'true';
+    if (hasSeen162) {
+      setIsWelcomeCardOpen(false);
+      return;
+    }
+
     if (currentUser && isProfileLoaded) {
       const localSeen = localStorage.getItem(`wsm_welcome_card_seen_${currentUser.uid}`) === 'true';
       const remoteSeen = !!userProfile?.seenWelcomeCard;
@@ -56,13 +63,14 @@ export default function App() {
       } else {
         setIsWelcomeCardOpen(false);
       }
-    } else {
-      setIsWelcomeCardOpen(false);
+    } else if (!currentUser) {
+      setIsWelcomeCardOpen(true);
     }
   }, [currentUser, userProfile, isProfileLoaded]);
 
   const handleCloseWelcomeCard = () => {
     setIsWelcomeCardOpen(false);
+    localStorage.setItem('wsm_see_1.6.2', 'true');
     if (currentUser) {
       localStorage.setItem(`wsm_welcome_card_seen_${currentUser.uid}`, 'true');
       dismissWelcomeCardForUser(currentUser.uid);
@@ -117,7 +125,7 @@ export default function App() {
   });
 
   const [selectedModel, setSelectedModel] = useState<string>(() => {
-    return 'WSM 1.6';
+    return 'Ominx 1.6';
   });
 
   const [reasoningLevel, setReasoningLevel] = useState<string>(() => {
@@ -906,13 +914,18 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
 
     if (!currentActiveSessionId) {
       // Create a brand new session locally first
-      let titleText = text;
-      if (!titleText && attachments && attachments.length > 0) {
-        titleText = `Anexo: ${attachments[0].name}`;
-      } else if (!titleText) {
-        titleText = "Nova conversa";
+      let cleanTitleText = text || '';
+      cleanTitleText = cleanTitleText.replace(/^\[Utilize as seguintes skills:[\s\S]*?\]\n\n/i, '');
+      cleanTitleText = cleanTitleText.replace(/^\[SISTEMA:[\s\S]*?\]\n\n/i, '');
+      cleanTitleText = cleanTitleText.replace(/^\[Texto Anexado do Editor:\n"[\s\S]*?"\]\n\n/i, '');
+      cleanTitleText = cleanTitleText.trim();
+
+      if (!cleanTitleText && attachments && attachments.length > 0) {
+        cleanTitleText = `Anexo: ${attachments[0].name}`;
+      } else if (!cleanTitleText) {
+        cleanTitleText = "Nova conversa";
       }
-      const truncatedTitle = titleText.length > 28 ? `${titleText.substring(0, 28)}...` : titleText;
+      const truncatedTitle = cleanTitleText.length > 28 ? `${cleanTitleText.substring(0, 28)}...` : cleanTitleText;
       const newId = `session-${Date.now()}`;
       const newSession: ChatSession = {
         id: newId,
@@ -939,16 +952,25 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         return;
       }
       
-      const isFirstMessage = currentSession.messages.length === 0;
       let titleText = currentSession.title;
-      if (isFirstMessage) {
-        let textForTitle = text;
-        if (!textForTitle && attachments && attachments.length > 0) {
-          textForTitle = `Anexo: ${attachments[0].name}`;
-        } else if (!textForTitle) {
-          textForTitle = "Chat temporário";
+      const needsTitleUpdate = !titleText || 
+        ['nova conversa', 'chat temporário', 'conversa', 'chat', 'undefined'].includes(titleText.toLowerCase().trim()) ||
+        titleText.startsWith('[SISTEMA') ||
+        titleText.startsWith('[Utilize') ||
+        titleText.startsWith('Olá!');
+
+      if (needsTitleUpdate) {
+        let cleanText = text || '';
+        cleanText = cleanText.replace(/^\[Utilize as seguintes skills:[\s\S]*?\]\n\n/i, '');
+        cleanText = cleanText.replace(/^\[SISTEMA:[\s\S]*?\]\n\n/i, '');
+        cleanText = cleanText.replace(/^\[Texto Anexado do Editor:\n"[\s\S]*?"\]\n\n/i, '');
+        cleanText = cleanText.trim();
+
+        if (cleanText) {
+          titleText = cleanText.length > 28 ? `${cleanText.substring(0, 28)}...` : cleanText;
+        } else if (attachments && attachments.length > 0) {
+          titleText = `Anexo: ${attachments[0].name}`;
         }
-        titleText = textForTitle.length > 28 ? `${textForTitle.substring(0, 28)}...` : textForTitle;
       }
 
       sessionToUpdate = {
@@ -1619,6 +1641,10 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
             ) : isToolsView ? (
               <ToolsDashboard
                 onOpenTranslator={handleOpenTranslator}
+                onSelectPrompt={(prompt) => {
+                  setIsToolsView(false);
+                  handleSendMessage(prompt, false);
+                }}
               />
             ) : isScheduledTasksView ? (
               <ScheduledTasksDashboard

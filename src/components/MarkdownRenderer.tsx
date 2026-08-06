@@ -825,11 +825,22 @@ export default function MarkdownRenderer({
     });
 
     // 1. Extract inline math: $...$ or \(...\)
-    const inlineMathRegex = /\$((?:[^$]|\\\$)+?)\$|\\\((.*?)\\\)/g;
+    const inlineMathRegex = /(?<![A-Za-z0-9\\$])\$([^\s$]|(?:[^\s$](?:[^$]|\\\$)*?[^\s$]))\$(?![0-9])|\\\((.*?)\\\)/g;
     currentText = currentText.replace(inlineMathRegex, (match, p1, p2) => {
       let tex = (p1 !== undefined ? p1 : p2) || '';
       tex = tex.trim();
       if (!tex) return match;
+
+      // Ignore currency expressions (e.g. "R$ 50,00 e R$ 10,00", "$10 e $20", etc.)
+      if (p1 !== undefined) {
+        if (/\b(e|ou|and|or|de|com|por|em|para|desconto|preço|preco|custo|valor|totais|total|reais|dólares|dolares)\b/i.test(tex)) {
+          return match;
+        }
+        if (/^\d[\d.,]*\b[\s\S]*\b\d[\d.,]*$/.test(tex) && !/[=+\-*\/\\^_<>≤≥≠≈±÷×]/.test(tex)) {
+          return match;
+        }
+      }
+
       const id = `:::MATHTOKEN-${mathTokens.length}:::`;
       mathTokens.push({ id, tex });
       return id;

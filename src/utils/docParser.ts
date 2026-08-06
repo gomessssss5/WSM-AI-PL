@@ -178,32 +178,7 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
     }
   }
 
-  // 3. Intercept markdown code blocks and convert them to wsm_doc
-  const codeBlockRegex = /```([a-z]+)\n([\s\S]*?)(?:```|$)/gi;
-  let match;
-  while ((match = codeBlockRegex.exec(currentText)) !== null) {
-    const rawFmt = match[1].toLowerCase();
-    const supportedCodeFormats = ['html', 'json', 'js', 'ts', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'css', 'sql', 'md', 'markdown', 'txt'];
-    if (supportedCodeFormats.includes(rawFmt)) {
-       const fmt = (rawFmt === 'markdown' ? 'md' : rawFmt);
-       const titlePrefix = (fmt === 'md' ? 'Documento Markdown' : fmt === 'txt' ? 'Documento de Texto' : 'Código ' + fmt.toUpperCase());
-       rawDocObjs.push({
-         title: titlePrefix,
-         content: match[2].trim(),
-         format: fmt
-       });
-       currentText = currentText.replace(match[0], '');
-       codeBlockRegex.lastIndex = 0;
-    }
-  }
-
-  // 4. Clean leftover orphaned code headers or html tags
-  currentText = currentText
-    .replace(/(?:^|\n)\s*```(?:html|xml|javascript|json|css|py|js|ts)?\s*(?=\n|$)/gi, '')
-    .replace(/(?:^|\n)\s*html\s*(?=\n+<!DOCTYPE|\n+<html|\n+$)/gi, '')
-    .replace(/(?:^|\n)\s*```\s*$/g, '');
-
-  // Deduplicate docObjs by title / content signature
+  // 3. Deduplicate docObjs by title / content signature
   const docObjs: WsmDocument[] = [];
   const seenKeys = new Set<string>();
 

@@ -58,7 +58,7 @@ export default function UpdateModal({ isOpen, onClose }: UpdateModalProps) {
               <div className="p-1.5 bg-blue-50 text-[#2563eb] rounded-lg">
                 <Sparkles className="w-5 h-5" />
               </div>
-              <h2 className="text-lg font-bold text-gray-900">Atualização: WSM 1.6.2</h2>
+              <h2 className="text-lg font-bold text-gray-900">Atualização: Ominx 1.6.2</h2>
             </div>
             <button
               onClick={onClose}
@@ -71,7 +71,7 @@ export default function UpdateModal({ isOpen, onClose }: UpdateModalProps) {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            {/* WSM 1.6.2 Section */}
+            {/* Ominx 1.6.2 Section */}
             <div className="bg-blue-50/40 border border-blue-100 rounded-2xl p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <span className="bg-[#2563eb] text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
@@ -80,21 +80,21 @@ export default function UpdateModal({ isOpen, onClose }: UpdateModalProps) {
               </div>
 
               <h3 className="text-lg font-normal text-gray-900">
-                WSM 1.6 agora é <strong className="font-extrabold text-[#2563eb]">AGENTE</strong>
+                Ominx 1.6 agora é <strong className="font-extrabold text-[#2563eb]">AGENTE</strong>
               </h3>
 
               <p className="text-sm text-gray-600 leading-relaxed">
-                agora, WSM 1.6 consegue mexer e navegar em sites, clicando em botões, escrevendo textos, como se fosse um usuário.
+                agora, Ominx 1.6 consegue mexer e navegar em sites, clicando em botões, escrevendo textos, como se fosse um usuário.
               </p>
 
               {/* Image */}
               <div 
-                onClick={() => handleImageClick("https://i.ibb.co/xtVwXdHQ/tech-ad-poster-wsm.webp", "WSM 1.6 agora é AGENTE")}
+                onClick={() => handleImageClick("https://i.ibb.co/xtVwXdHQ/tech-ad-poster-wsm.webp", "Ominx 1.6 agora é AGENTE")}
                 className="group relative bg-gray-950 rounded-xl border border-gray-800 overflow-hidden cursor-pointer shadow-3xs w-full flex justify-center p-2"
               >
                 <img
                   src="https://i.ibb.co/xtVwXdHQ/tech-ad-poster-wsm.webp"
-                  alt="WSM 1.6 agora é AGENTE"
+                  alt="Ominx 1.6 agora é AGENTE"
                   referrerPolicy="no-referrer"
                   className="w-full h-auto max-h-[500px] object-contain rounded-lg transition-transform duration-300 group-hover:scale-[1.01]"
                 />
@@ -108,7 +108,7 @@ export default function UpdateModal({ isOpen, onClose }: UpdateModalProps) {
             {/* Separator */}
             <div className="border-t border-[#f3efe9]"></div>
 
-            {/* WSM 1.6.1 Section */}
+            {/* Ominx 1.6.1 Section */}
             <div className="space-y-4">
               <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
                 Histórico - Versão 1.6.1
@@ -117,12 +117,12 @@ export default function UpdateModal({ isOpen, onClose }: UpdateModalProps) {
               <div className="space-y-3">
                 <h3 className="text-md font-bold text-gray-900">Bugs arrumados e melhora na geração de códigos</h3>
                 <p className="text-sm text-gray-600 leading-relaxed">
-                  A <strong>WSM 1.6</strong> está mais apta para geração de códigos. Agora, na criação de sites, ela analisa o próprio site que criou, encontra bugs, erros, e analisa se está de acordo com o que o usuário pediu de forma autônoma e iterativa.
+                  A <strong>Ominx 1.6</strong> está mais apta para geração de códigos. Agora, na criação de sites, ela analisa o próprio site que criou, encontra bugs, erros, e analisa se está de acordo com o que o usuário pediu de forma autônoma e iterativa.
                 </p>
 
-                <h3 className="text-md font-bold text-gray-900 pt-2">Melhora do conhecimento do WSM 1.6</h3>
+                <h3 className="text-md font-bold text-gray-900 pt-2">Melhora do conhecimento do Ominx 1.6</h3>
                 <p className="text-sm text-gray-600 leading-relaxed">
-                  WSM 1.6 agora tem conhecimento atualizado, além de conseguir fazer buscas na web pra aprimorar seus conhecimentos.
+                  Ominx 1.6 agora tem conhecimento atualizado, além de conseguir fazer buscas na web pra aprimorar seus conhecimentos.
                 </p>
               </div>
             </div>

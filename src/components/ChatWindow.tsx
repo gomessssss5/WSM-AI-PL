@@ -218,8 +218,25 @@ interface ChatWindowProps {
 }
 
 const displayUserText = (text: string) => {
-  const match = text.match(/^\[Texto Anexado do Editor:\n"[\s\S]*?"\]\n\n([\s\S]*)$/);
-  return match ? match[1] : text;
+  if (!text) return "";
+  let clean = text;
+
+  // Clean attached text tag
+  const matchAttached = clean.match(/^\[Texto Anexado do Editor:\n"[\s\S]*?"\]\n\n([\s\S]*)$/);
+  if (matchAttached) {
+    clean = matchAttached[1];
+  }
+
+  // Clean active skills or system tags if present at top
+  clean = clean.replace(/^\[Utilize as seguintes skills:[\s\S]*?\]\n\n/i, '');
+  clean = clean.replace(/^\[SISTEMA:[\s\S]*?\]\n\n/i, '');
+
+  // Convert literal \n sequences to actual newline characters for whitespace-pre-wrap
+  if (clean.includes('\\n')) {
+    clean = clean.replace(/\\n/g, '\n');
+  }
+
+  return clean;
 };
 
 export default function ChatWindow({
@@ -715,7 +732,7 @@ export default function ChatWindow({
       if (!exportedText && !msg.imageUrl && !msg.codeBlock) return;
       if (exportedText.startsWith('[SISTEMA:') || exportedText.startsWith('SISTEMA (') || /^\[Lendo Skill:.*?\]$/is.test(exportedText)) return;
 
-      const senderName = msg.sender === 'user' ? 'Usuário' : 'WSM 1.6';
+      const senderName = msg.sender === 'user' ? 'Usuário' : 'Ominx 1.6';
       const senderEmoji = msg.sender === 'user' ? '👤' : '🤖';
       md += `### ${senderEmoji} **${senderName}** (${new Date(msg.timestamp).toLocaleTimeString()})\n\n`;
       if (exportedText) {
@@ -1045,7 +1062,7 @@ export default function ChatWindow({
     const val = e.target.value;
     setInputValue(val);
 
-    if (selectedModel !== 'WSM 1.6' && selectedModel !== 'WSM 1.6') {
+    if (selectedModel !== 'Ominx 1.6' && selectedModel !== 'Ominx 1.6') {
       if (slashMenuOpen) setSlashMenuOpen(false);
       return;
     }
@@ -1193,11 +1210,11 @@ export default function ChatWindow({
   };
 
   const modelsList = [
-    'WSM 1.6'
+    'Ominx 1.6'
   ];
 
   const modelDescriptions: Record<string, string> = {
-    'WSM 1.6': 'Modelo ultra-inteligente e agêntico'
+    'Ominx 1.6': 'Modelo ultra-inteligente e agêntico'
   };
 
   const isUserScrollingRef = useRef(false);
@@ -1477,7 +1494,7 @@ export default function ChatWindow({
           <div className="relative z-50">
             <div className="flex items-center px-1.5 py-1.5 text-[13px] font-extrabold text-gray-900 select-none tracking-tight gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-[#2563eb] fill-[#2563eb]/20" />
-              <span>WSM 1.6</span>
+              <span>Ominx 1.6</span>
             </div>
           </div>
 
@@ -1491,14 +1508,14 @@ export default function ChatWindow({
 
         {/* Right side controls */}
         <div className="flex items-center gap-2 relative z-50">
-          {/* Tag WSM 1.6.2 - Desktop Only */}
+          {/* Tag Ominx 1.6.2 - Desktop Only */}
           <button
             onClick={onOpenUpdateModal}
             className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-blue-50/40 border border-[#eae6e1] rounded-full text-xs font-bold text-gray-700 hover:text-[#2563eb] transition-colors cursor-pointer shadow-3xs active:scale-95"
             title="Ver novidades da versão 1.6.2"
           >
             <Sparkles className="w-3.5 h-3.5 text-[#2563eb] shrink-0" />
-            <span>Atualização: WSM 1.6.2</span>
+            <span>Atualização: Ominx 1.6.2</span>
           </button>
 
           <button
@@ -1681,9 +1698,9 @@ export default function ChatWindow({
                   {!isUser && (
                     <div className="wsm-header">
                       <div className="wsm-icon-wrap">
-                        <img src="https://i.ibb.co/Q34b6rBW/37990-removebg-preview.png" alt="WSM 1.6" />
+                        <img src="https://i.ibb.co/Q34b6rBW/37990-removebg-preview.png" alt="Ominx 1.6" />
                       </div>
-                      <span className="wsm-brand-name">WSM 1.6</span>
+                      <span className="wsm-brand-name">Ominx 1.6</span>
                     </div>
                   )}
 
@@ -1801,7 +1818,7 @@ export default function ChatWindow({
                               {/* Render rich formats if present */}
                               {message.text === "" && isThinking && message.id === messages[messages.length - 1].id ? (
                                 <div className="wsm-thinking-state">
-                                  <span className="shimmer-text">WSM 1.6 está trabalhando...</span>
+                                  <span className="shimmer-text">Ominx 1.6 está trabalhando...</span>
                                 </div>
                               ) : message.text === "Você cancelou essa resposta" ? (
                                 <div className="bg-red-50 text-red-600 border border-red-200 rounded-lg p-3 text-sm font-medium flex items-center gap-2 w-fit">
@@ -1843,13 +1860,13 @@ export default function ChatWindow({
                                   
                                   {/* 3. Main AI Text response - only after reasoning sequence completes */}
                                   {isReasoningDone && (
-                                    message.text.includes("WSM 1.6 está muito sobrecarregado") ? (
+                                    message.text.includes("Ominx 1.6 está muito sobrecarregado") ? (
                                       <div className="bg-amber-50/90 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 p-5 rounded-2xl flex items-start gap-3.5 shadow-xs my-1 animate-in fade-in duration-300">
                                         <AlertTriangle className="text-amber-500 dark:text-amber-400 mt-0.5 shrink-0" size={20} />
                                         <div className="space-y-1">
                                           <p className="font-extrabold text-amber-900 dark:text-amber-100 text-[14px]">Alerta de Sobrecarga</p>
                                           <p className="text-[13px] text-amber-800 dark:text-amber-200 leading-relaxed font-semibold">
-                                            WSM 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.
+                                            Ominx 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.
                                           </p>
                                         </div>
                                       </div>
@@ -2188,7 +2205,7 @@ export default function ChatWindow({
         {(() => {
           const lastVisibleMsg = visibleMessages[visibleMessages.length - 1];
           const lastMessageText = lastVisibleMsg?.text || "";
-          const isPro = selectedModel === 'WSM 1.6' || selectedModel === 'WSM 1.6';
+          const isPro = selectedModel === 'Ominx 1.6' || selectedModel === 'Ominx 1.6';
           const taskProgress = (lastVisibleMsg?.sender === 'ai')
             ? getTaskProgress(lastMessageText)
             : null;
@@ -2343,7 +2360,7 @@ export default function ChatWindow({
                       <>
                         <img
                           src={latestScreenshot.screenshot}
-                          alt="Navegação WSM 1.6"
+                          alt="Navegação Ominx 1.6"
                           className="w-full h-full object-cover transition-transform group-hover/btn:scale-105"
                         />
                         <div className="absolute inset-0 bg-black/0 group-hover/btn:bg-black/10 transition-colors" />
@@ -2357,7 +2374,7 @@ export default function ChatWindow({
                   <div className="flex items-center gap-2 min-w-0">
                     <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isThinking ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-emerald-500'}`} />
                     <span className="text-[14px] font-bold text-gray-800 dark:text-gray-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                      {isThinking ? "WSM 1.6 está usando o Computador" : "WSM 1.6 Usou o computador"}
+                      {isThinking ? "Ominx 1.6 está usando o Computador" : "Ominx 1.6 Usou o computador"}
                     </span>
                   </div>
                 </div>
@@ -3260,7 +3277,7 @@ export default function ChatWindow({
                 </div>
               ) : (
                 messages.filter(m => m.sender === 'ai').map((msg, index) => {
-                  const displayModel = msg.model || selectedModel || 'WSM 1.6';
+                  const displayModel = msg.model || selectedModel || 'Ominx 1.6';
                   const displayGemini = msg.geminiModel || 'gemini-3.5-flash-lite';
                   const rawSnippet = (msg.text || msg.finalSynthesis || 'Resposta da IA').replace(/<[^>]*>?/gm, '').trim();
                   const previewText = rawSnippet ? rawSnippet.slice(0, 110) : 'Resposta da IA gerada';

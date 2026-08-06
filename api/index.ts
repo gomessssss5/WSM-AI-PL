@@ -725,10 +725,9 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
     }
 
     let mappedModel = "gemini-3.5-flash-lite";
-    if (model === 'WSM 1.6') mappedModel = "gemini-3.5-flash-lite";
-    else if (model === 'WSM 1.6') mappedModel = "gemini-3.5-flash-lite";
+    if (model === 'Ominx 1.6' || model === 'WSM 1.6') mappedModel = "gemini-3.5-flash-lite";
 
-    if (model === 'WSM 1.6' || model === 'WSM 1.6') {
+    if (model === 'Ominx 1.6' || model === 'WSM 1.6') {
       console.log(`Starting agentic loop for model: ${model}...`);
       const marteTools = [{
         functionDeclarations: [
@@ -945,10 +944,11 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
         /\b(link|url|navegador|google|youtube|wikipedia|github|brave|twitter|x\.com)\b/i.test(userStrPrompt) ||
         (/https?:\/\/|www\./i.test(userStrPrompt) && !/tailwindcss\.com|googleapis\.com|unpkg\.com|cdnjs\.com/i.test(userStrPrompt)));
       const promptWantsSearch = !isHtmlSiteRequest && (Boolean(effectiveSearchEnabled) ||
-        /\b(pesquis|busc|procur|encontr)\w*\b/i.test(userStrPrompt) ||
-        /\b(web|internet|google|brave|notícia|noticias|hoje|site|quem\s+[ée]|onde\s+fica|quanto\s+custa|neymar|futebol|preço|cotação)\b/i.test(userStrPrompt));
+        /\b(pesquis\w*|busc\w*|procur\w*)\s+(na\s+web|na\s+internet|no\s+google|sobre|por)\b/i.test(userStrPrompt) ||
+        /\b(pesquise|pesquisar|busque|buscar|procure|procurar)\s+(na\s+web|na\s+internet|sobre|por)\b/i.test(userStrPrompt) ||
+        /\b(últimas\s+notícias|noticias\s+de\s+hoje|notícias\s+recentes|cotação\s+do\s+dólar|cotação\s+do\s+euro)\b/i.test(userStrPrompt));
       const promptWantsDoc = /\b(documento|relatório|relatorio|redação|redacao|resumo|artigo|tcc|texto|capítulo|capitulo|escrever|criar\s+doc|editar\s+doc|gerar\s+doc)\b/i.test(userStrPrompt);
-      const promptHasRequestedActions = !isHtmlSiteRequest && !isSimpleGreetingOrMathPrompt && (promptWantsBrowser || promptWantsSearch || promptWantsDoc);
+      const promptHasRequestedActions = !isHtmlSiteRequest && !isSimpleGreetingOrMathPrompt && (promptWantsBrowser || promptWantsSearch);
 
       while (turnCount < 100) {
         if (turnCount > 0) {
@@ -957,7 +957,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
         }
 
         let currentToolConfig: any = undefined;
-        if (!isHtmlSiteRequest && (forceNextTurnModeAny || (turnCount === 0 && promptHasRequestedActions))) {
+        if (!isHtmlSiteRequest && (forceNextTurnModeAny || (turnCount === 0 && promptWantsBrowser))) {
           currentToolConfig = {
             functionCallingConfig: {
               mode: "ANY"
@@ -973,8 +973,8 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             systemInstruction: activeSystemPrompt + 
               "\nREGRA PRINCIPAL E OBRIGATÓRIA DE DOCUMENTOS (PDF vs MD vs TEXTO): A preferência absoluta de geração de documentos longos (redações, relatórios, artigos, manuais, planilhas) É OBRIGATORIAMENTE PDF (ou XLSX). NUNCA crie PDFs ou documentos para pedidos simples de escrita criativa (ex: pequenos contos, poemas, letras de música, roteiros curtos, piadas); estes devem ser entregues APENAS em texto puro inline no chat. O formato Markdown (`format: 'md'`) NÃO deve ser usado para documentos comuns, sendo exclusivo para conteúdos de TI/desenvolvimento técnico (System Prompts, READMEs). NUNCA crie arquivos .md para trabalhos escolares/profissionais!" +
               "\nNUNCA gere manualmente as tags em colchetes como `[pesquisou na web]`, `[calculando]`, `[verificando relógio]` na sua resposta final de texto. O nosso sistema de backend já insere e renderiza essas tags de progresso e status automaticamente no chat. Sua tarefa é focar exclusivamente em gerar o conteúdo final explicativo e o código, sem adicionar essas tags de status ao final." +
-              "\nREGRA DA CALCULADORA: SEMPRE que precisar resolver QUALQUER expressão matemática (ex: v² = 20² + 2×(-10)×(-5)), VOCÊ DEVE OBRIGATORIAMENTE chamar a ferramenta 'calculadora'. NUNCA calcule de cabeça ou deduza o valor (ex: alucinar 24.49 em vez de 22.36). Após receber o resultado exato da calculadora, escreva sua resposta final conferindo o valor retornado." +
-              "\nREGRA DA WEB SEARCH: Use web_search APENAS para fatos históricos, notícias e informações do mundo real. É ESTRITAMENTE PROIBIDO usar web_search para pesquisar sobre programação, HTML, CSS, JS, tutoriais, tendências de design ou como criar um site. Se o usuário pedir um site, GERE O CÓDIGO IMEDIATAMENTE sem pesquisar na web!" +
+              "\nREGRA DA CALCULADORA: Chame a ferramenta 'calculadora' EXCLUSIVAMENTE quando o usuário solicitar explicitamente a resolução de uma conta ou expressão matemática (ex: v² = 20² + 2a, quanto é 154 * 32, porcentagens). É ESTRITAMENTE PROIBIDO chamar a 'calculadora' durante a leitura de arquivos, resumos de texto, análises de código ou conversas gerais." +
+              "\nREGRA DA WEB SEARCH: Use web_search EXCLUSIVAMENTE para pesquisas de fatos do mundo real, notícias atualizadas ou quando o usuário pedir explicitamente para buscar algo na web. É ESTRITAMENTE PROIBIDO usar web_search para ler textos colados pelo usuário, resumir documentos, responder dúvidas de programação ou gerar códigos." +
               "\nREGRA DE NAVEGAÇÃO WEB REAL (PLAYWRIGHT): SEMPRE que o usuário pedir para abrir, acessar ou navegar em qualquer site (ex: Brave Search, Google, Wikipedia, etc), VOCÊ DEVE OBRIGATORIAMENTE emitir a chamada de função 'open_url' (functionCall) no MESMO TURNO. É ABSOLUTAMENTE PROIBIDO apenas escrever texto prometendo abrir o site sem enviar a chamada da ferramenta 'open_url'!" +
               "\nREGRAS OBRIGATÓRIAS DE AGENTE SEQUENCIAL MULTI-ETAPAS (PASSO A PASSO):" +
               "\n1. Atue como um AGENTE SEQUENCIAL AUTÔNOMO que executa tarefas complexas em múltiplos turnos encadeados." +
