@@ -67,8 +67,17 @@ export function parseTableDataFromContent(content: string): TableData {
       return cells.map(cell => {
         const cleanCell = cell.replace(/[*_`]/g, '');
         // Convert to number if numeric
-        const num = Number(cleanCell.replace(',', '.'));
-        if (!isNaN(num) && cleanCell !== '' && !cleanCell.startsWith('0') && cleanCell.length < 15) {
+        const isCurrency = /^R?\$\s*[\d.,]+$/.test(cleanCell.trim());
+        const cleanedStr = isCurrency ? cleanCell.replace(/[^\d.,]/g, '') : cleanCell;
+        // If it looks like Brazilian format (1.000,00), convert to standard (1000.00)
+        const parseNumStr = cleanedStr.includes(',') && cleanedStr.indexOf(',') > cleanedStr.lastIndexOf('.')
+          ? cleanedStr.replace(/\./g, '').replace(',', '.')
+          : cleanedStr.replace(/,/g, '');
+          
+        const num = Number(parseNumStr);
+        if (!isNaN(num) && cleanedStr !== '' && !cleanedStr.startsWith('0') && cleanedStr.length < 15) {
+          // If it was currency, we prepend a special marker to know it's currency
+          if (isCurrency) return '___CURRENCY___' + num;
           return num;
         }
         return cleanCell;
@@ -179,6 +188,10 @@ export async function generateExcelBlob(title: string, content: string): Promise
       };
 
       if (typeof cell.value === 'number') {
+        cell.alignment = { vertical: 'middle', horizontal: 'right' };
+      } else if (typeof cell.value === 'string' && cell.value.startsWith('___CURRENCY___')) {
+        cell.value = Number(cell.value.replace('___CURRENCY___', ''));
+        cell.numFmt = '"R$" #,##0.00';
         cell.alignment = { vertical: 'middle', horizontal: 'right' };
       } else {
         cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };

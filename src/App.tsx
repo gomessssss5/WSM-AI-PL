@@ -20,6 +20,7 @@ import AdminDashboard from './components/AdminDashboard';
 import AdminAuthModal from './components/AdminAuthModal';
 import BenchmarkPage from './components/BenchmarkPage';
 import { Skill, subscribeSkills, saveSkill, deleteSkillFromDb } from './lib/skills';
+import { OFFICIAL_SKILLS } from './lib/officialSkills';
 import { subscribeScheduledTasks, subscribeTaskExecutions, saveScheduledTask, deleteScheduledTask, saveTaskExecution, calculateNextRunAt } from './lib/scheduledTasks';
 
 import { OfficialSkillsStore } from './components/OfficialSkillsStore';
@@ -845,7 +846,8 @@ Apresente essa resposta e opções de forma amigável para o usuário.`;
     const skillName = rawSkillName.replace(/\]/g, '').trim();
 
     // Look up skill
-    const skill = skills.find(
+    const allAvailableSkills = [...OFFICIAL_SKILLS, ...skills];
+    const skill = allAvailableSkills.find(
       (s) => s.name.toLowerCase() === skillName.toLowerCase() || s.id.toLowerCase() === skillName.toLowerCase()
     );
 
@@ -864,7 +866,7 @@ Por favor, prossiga e execute a solicitação do usuário utilizando os conhecim
       return true;
     } else {
       console.log(`[skills-loading-error] Skill "${skillName}" not found in current skills list.`);
-      const listStr = skills.map(s => `- ${s.name}`).join("\n");
+      const listStr = allAvailableSkills.map(s => `- ${s.name}`).join("\n");
       const systemMessage = `[SISTEMA: ERRO DE SKILL] A skill "${skillName}" não foi encontrada na sua biblioteca.
 As skills disponíveis no momento são:
 ${listStr || 'Nenhuma skill cadastrada.'}
@@ -1031,7 +1033,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                   m.id === initialAiMsg.id
                     ? {
                         ...m,
-                        text: `⚠️ **Tempo limite de conexão excedido.** O servidor não respondeu a tempo. Por favor, tente novamente utilizando o botão "Tentar novamente" abaixo.`,
+                        text: "Houve um problema ao gerar a resposta. Tente novamente.",
                         isSimulatingSearch: false,
                         searchIntro: "Tempo limite excedido.",
                       }
@@ -1041,7 +1043,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
             });
           });
         }
-      }, 240000); // 4 minutes timeout for deep reasoning, image generation & web search
+      }, 90000); // Bug #05: 90 seconds timeout
 
       fetch("/api/chat", {
         method: "POST",
@@ -1288,6 +1290,12 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                   
                   let textToSave = eventData.text || "";
                   let finalSynthesisToSave = eventData.finalSynthesis || "";
+
+                  // Bug #05: If both are completely empty, show explicit error
+                  if (!textToSave.trim() && !finalSynthesisToSave.trim()) {
+                    textToSave = "⚠️ Houve um erro na geração da resposta (Retorno vazio do modelo). Por favor, tente novamente.";
+                    accumulatedFinalText = textToSave;
+                  }
                   
                   setSessions((prev) => {
                     const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
@@ -1452,7 +1460,9 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
     const idx = currentSession.messages.findIndex((m) => m.id === msgId);
     if (idx === -1) return;
     const overrideMessages = currentSession.messages.slice(0, idx);
-    await handleSendMessage(newText, false, overrideMessages);
+    
+    const userMessage = currentSession.messages[idx];
+    await handleSendMessage(newText, isSearchActiveRef.current, overrideMessages, userMessage.attachments, false, false);
   };
 
   const handleCancelGeneration = () => {

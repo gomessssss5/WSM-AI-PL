@@ -1610,6 +1610,7 @@ export default function ChatWindow({
           <div className="max-w-2xl mx-auto space-y-4 w-full min-w-0 overflow-x-hidden">
             {messages.map((message, index) => {
             if (message.isHidden) return null;
+            if (message.text && /^\[Lendo Skill:.*?\]$/is.test(message.text.trim())) return null;
             const isUser = message.sender === 'user';
             return (
               <motion.div
@@ -2048,7 +2049,7 @@ export default function ChatWindow({
                           <button onClick={() => handleEvaluate(message.id, 'down')} className={`p-0.5 transition-colors ${evaluations[message.id] === 'down' ? 'text-red-600' : 'text-gray-400 hover:text-red-600'}`} title="Resposta ruim">
                             <ThumbsDown size={12} />
                           </button>
-                          {message.id === messages[messages.length - 1]?.id && !isThinking && (
+                          {message.id === messages[messages.length - 1]?.id && !isThinking && message.text?.includes('⚠️') && (
                             <button
                               onClick={() => {
                                 const lastUser = [...messages].reverse().find(m => m.sender === 'user');

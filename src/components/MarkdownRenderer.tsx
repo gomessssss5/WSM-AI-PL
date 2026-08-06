@@ -818,10 +818,11 @@ export default function MarkdownRenderer({
     });
 
     // 1. Extract inline math: $...$ or \(...\)
-    const inlineMathRegex = /\$(.*?)\$|\\\\\((.*?)\\\\\)/g;
+    const inlineMathRegex = /\$((?:[^$]|\\\$)+?)\$|\\\((.*?)\\\)/g;
     currentText = currentText.replace(inlineMathRegex, (match, p1, p2) => {
-      const tex = p1 || p2 || '';
-      if (!tex.trim()) return match;
+      let tex = (p1 !== undefined ? p1 : p2) || '';
+      tex = tex.trim();
+      if (!tex) return match;
       const id = `:::MATHTOKEN-${mathTokens.length}:::`;
       mathTokens.push({ id, tex });
       return id;
@@ -1209,10 +1210,12 @@ export default function MarkdownRenderer({
       }
 
       // 3. Math Block: $$ math $$
-      if (trimmed.startsWith('$$')) {
+      if (trimmed.startsWith('$$') || trimmed.startsWith('\\[')) {
+        const isBracket = trimmed.startsWith('\\[');
+        const endStr = isBracket ? '\\]' : '$$';
         let mathContent = trimmed.slice(2);
         // If it closes on the same line
-        if (mathContent.endsWith('$$') && mathContent.length >= 2) {
+        if (mathContent.endsWith(endStr) && mathContent.length >= 2) {
           mathContent = mathContent.slice(0, -2);
           const html = renderMathToHtml(mathContent, true);
           blocks.push(
@@ -1228,11 +1231,18 @@ export default function MarkdownRenderer({
 
         // Multi-line math block
         i++;
-        while (i < lines.length && !lines[i].trim().startsWith('$$')) {
+        while (i < lines.length && !lines[i].trim().startsWith(endStr)) {
+          if (lines[i].trim().endsWith(endStr)) {
+            mathContent += '\n' + lines[i].replace(new RegExp(endStr.replace(/\\/g, '\\\\') + '$'), '');
+            i++;
+            break;
+          }
           mathContent += '\n' + lines[i];
           i++;
         }
-        i++; // skip ending $$
+        if (i < lines.length && lines[i].trim().startsWith(endStr)) {
+           i++; // skip ending line if it was just the end string
+        }
         const html = renderMathToHtml(mathContent, true);
         blocks.push(
           <div

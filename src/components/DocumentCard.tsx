@@ -34,7 +34,9 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
       const url = URL.createObjectURL(blob);
       const link = window.document.createElement('a');
       link.href = url;
-      link.download = `${document.title || 'arquivo'}.${format}`;
+      let fname = document.title || 'arquivo';
+      if (!fname.toLowerCase().endsWith('.' + format)) fname += '.' + format;
+      link.download = fname;
       link.click();
       URL.revokeObjectURL(url);
     } else if (format === 'xlsx') {
@@ -44,7 +46,9 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
         const url = URL.createObjectURL(excelBlob);
         const link = window.document.createElement('a');
         link.href = url;
-        link.download = `${document.title || 'planilha'}.xlsx`;
+        let fname = document.title || 'planilha';
+        if (!fname.toLowerCase().endsWith('.xlsx')) fname += '.xlsx';
+        link.download = fname;
         link.click();
         URL.revokeObjectURL(url);
       } catch (err) {
@@ -59,7 +63,9 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
         const url = URL.createObjectURL(pdfBlob);
         const link = window.document.createElement('a');
         link.href = url;
-        link.download = `${document.title || 'documento'}.pdf`;
+        let fname = document.title || 'documento';
+        if (!fname.toLowerCase().endsWith('.pdf')) fname += '.pdf';
+        link.download = fname;
         link.click();
         URL.revokeObjectURL(url);
       } catch (err) {

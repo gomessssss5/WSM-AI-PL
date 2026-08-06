@@ -32,20 +32,36 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
   const rawDocObjs: WsmDocument[] = [];
 
   // 1. Extract <wsm_doc>...</wsm_doc> tags first
+  const regex = /<(wsm_doc)(?:\s+[^>]*)?>([\s\S]*?)<\/\1>/i;
+  
   while (true) {
-    const startIndex = currentText.indexOf(openTag);
-    if (startIndex === -1) break;
-
-    const endIndex = currentText.indexOf(closeTag, startIndex);
-    if (endIndex !== -1) {
-      // Full doc is present
-      const jsonStr = currentText.substring(startIndex + openTag.length, endIndex).trim();
-      currentText = currentText.substring(0, startIndex) + currentText.substring(endIndex + closeTag.length);
+    const match = regex.exec(currentText);
+    if (match) {
+      const [fullMatch, tagName, innerContent] = match;
+      const startIndex = match.index;
+      const endIndex = startIndex + fullMatch.length;
+      
+      const jsonStr = innerContent.trim();
+      currentText = currentText.substring(0, startIndex) + currentText.substring(endIndex);
       try {
         const parsed = JSON.parse(jsonStr);
         if (parsed) {
           const title = (parsed.title || 'Documento').trim();
-          const content = parsed.content || '';
+          let content = parsed.content || '';
+          
+          if (typeof content === 'string') {
+            // Unescape double escaped JSON strings (literal \n, \", \t, \\)
+            try {
+              if (content.trim().startsWith('"') && content.trim().endsWith('"')) {
+                content = JSON.parse(content);
+              } else {
+                content = content.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\');
+              }
+            } catch (e) {
+              content = content.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\');
+            }
+          }
+          
           let rawFormat = (parsed.format || parsed.type || '').toString().toLowerCase();
 
           if (!rawFormat || rawFormat === 'pdf' || rawFormat === 'documento') {
@@ -80,7 +96,11 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
       }
     } else {
       // Partial form (streaming doc tag) - strip from openTag onwards
-      currentText = currentText.substring(0, startIndex);
+      const openRegex = /<(wsm_doc)(?:\s+[^>]*)?>/i;
+      const openMatch = openRegex.exec(currentText);
+      if (openMatch) {
+        currentText = currentText.substring(0, openMatch.index);
+      }
       break;
     }
   }
