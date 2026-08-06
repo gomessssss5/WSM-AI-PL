@@ -581,7 +581,7 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
 
       // Step 3: Call Gemini to synthesize final answer with grounding info
       const contextInfo = uniqueSources
-        .slice(0, 15)
+        .slice(0, 20)
         .map(
           (r, idx) =>
             `[Fonte #${idx + 1}] Título: ${r.title}\nURL: ${r.url}\nConteúdo: ${r.snippet}`
@@ -595,6 +595,9 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
 - **Localização do Usuário (Cidade)**: ${userCity}
 - **Data e Dia Atual**: ${userDate}
 - **Horário Exato Local**: ${userTime} (${userTimezone})
+
+--- REGRA OBRIGATÓRIA DE CITAÇÃO INLINE ---
+CITE ATIVAMENTE as fontes fornecidas inserindo links Markdown [Nome da Fonte](URL) diretamente no corpo do texto ao final das frases/parágrafos correspondentes. Exemplo: "Segundo os dados mais recentes [Globo Rural](https://globorural.globo.com)...". É OBRIGATÓRIO espalhar as citações em formato de link [Nome da Fonte](URL) ao longo de todo o texto.
 
 --- Informações de Pesquisa ---
 ${contextInfo}`;

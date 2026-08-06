@@ -1620,23 +1620,23 @@ export default function ChatWindow({
                 transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                 className={`flex gap-3 group w-full min-w-0 ${isUser ? 'justify-end' : 'justify-start'}`}
               >
-                {/* AI Avatar */}
-                {!isUser && (
-                  !(message.text === "" && isThinking && message.id === messages[messages.length - 1]?.id) ? (
-                    <UiverseLoader isThinking={false} />
-                  ) : (
-                    <div className="w-7 h-7 shrink-0" />
-                  )
-                )}
+                <div className={`flex flex-col min-w-0 ${isUser ? 'items-end max-w-[85%]' : 'items-start flex-1 min-w-0 max-w-full'}`}>
+                  {!isUser && (
+                    <div className="wsm-header">
+                      <div className="wsm-icon-wrap">
+                        <img src="https://i.ibb.co/Q34b6rBW/37990-removebg-preview.png" alt="WSM 1.6" />
+                      </div>
+                      <span className="wsm-brand-name">WSM 1.6</span>
+                    </div>
+                  )}
 
-                <div className={`flex flex-col min-w-0 ${isUser ? 'items-end max-w-[85%]' : 'items-start flex-1 min-w-0 max-w-[calc(100%-2.5rem)]'}`}>
                   {/* Bubble content */}
                   {true && (
                     <div
-                      className={`rounded-xl px-3.5 py-2 text-[13.5px] leading-relaxed min-w-0 break-words w-full ${
+                      className={`min-w-0 break-words w-full ${
                         isUser
-                          ? 'bg-[#f3f0ec] text-gray-800 shadow-[0_1px_1.5px_rgba(0,0,0,0.01)] border border-[#eae6e1]'
-                          : 'text-gray-800'
+                          ? 'rounded-xl px-3.5 py-2 text-[13.5px] leading-relaxed bg-[#f3f0ec] text-gray-800 shadow-[0_1px_1.5px_rgba(0,0,0,0.01)] border border-[#eae6e1]'
+                          : 'wsm-body-text'
                       }`}
                     >
                     {message.attachments && message.attachments.length > 0 && (
@@ -1743,8 +1743,8 @@ export default function ChatWindow({
 
                               {/* Render rich formats if present */}
                               {message.text === "" && isThinking && message.id === messages[messages.length - 1].id ? (
-                                <div className="flex items-center gap-2 text-gray-500 text-xs py-1">
-                                  <PacmanLoadingAnimation />
+                                <div className="wsm-thinking-state">
+                                  <span className="shimmer-text">WSM 1.6 está trabalhando...</span>
                                 </div>
                               ) : message.text === "Você cancelou essa resposta" ? (
                                 <div className="bg-red-50 text-red-600 border border-red-200 rounded-lg p-3 text-sm font-medium flex items-center gap-2 w-fit">
@@ -1756,7 +1756,7 @@ export default function ChatWindow({
                                   {displayUserText(message.text)}
                                 </div>
                               ) : (
-                                <div className="prose max-w-none text-[14px] text-gray-800 min-w-0 break-words overflow-x-auto max-w-full w-full">
+                                <div className="wsm-answer-state fade-in prose max-w-none text-[14.5px] text-black dark:text-gray-100 min-w-0 break-words overflow-x-auto max-w-full w-full">
                                   {/* 1. Reasoning Block */}
                                   {raciocinio && (
                                     <ReasoningBlock
@@ -1776,9 +1776,8 @@ export default function ChatWindow({
                                     if (match) {
                                       const rawSkillName = match[1].replace(/\]/g, '').trim();
                                       return (
-                                        <div className="inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-gray-500 dark:text-slate-300 bg-gray-50/80 dark:bg-slate-800/50 border-gray-150 dark:border-slate-700 mb-3 w-fit shadow-3xs">
-                                          <BookOpen className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400 shrink-0" />
-                                          <span>Lendo Skill: <strong className="font-semibold text-gray-600 dark:text-slate-200">{rawSkillName}</strong></span>
+                                        <div className="inline-block text-[14px] font-medium select-none my-1">
+                                          <span className="shimmer-text">Lendo Skill: {rawSkillName}</span>
                                         </div>
                                       );
                                     }
@@ -1800,6 +1799,8 @@ export default function ChatWindow({
                                     ) : (
                                       <TypewriterMarkdown
                                         content={cleanSkillTags(cleanTaskTags(cleanWriterUpdateTags(cleanRaciocinioTags(message.text))))}
+                                        searchSources={message.searchSources}
+                                        searchSteps={message.searchSteps}
                                         enabled={!isHistorical}
                                         onComplete={() => handleTypewriterComplete(message.id)}
                                       />
@@ -2079,7 +2080,7 @@ export default function ChatWindow({
       </div>
 
       {/* Floating Input Area */}
-      <footer className="p-0 md:p-3 bg-transparent md:bg-white border-none md:border-t border-[#eae6e1] relative z-10 flex flex-col items-center pb-4 md:pb-3">
+      <footer className="p-0 md:p-3 bg-transparent border-none relative z-10 flex flex-col items-center pb-4 md:pb-3">
         <AnimatePresence>
         {activeForm && (
           <motion.div 

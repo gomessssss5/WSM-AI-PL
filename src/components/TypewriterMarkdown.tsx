@@ -7,12 +7,16 @@ interface TypewriterMarkdownProps {
   content: string;
   enabled?: boolean;
   onComplete?: () => void;
+  searchSources?: Array<{ title: string; url: string; snippet?: string }>;
+  searchSteps?: Array<{ tag: string; sources: Array<{ title: string; url: string }> }>;
 }
 
 export default function TypewriterMarkdown({
   content,
   enabled = true,
-  onComplete
+  onComplete,
+  searchSources,
+  searchSteps
 }: TypewriterMarkdownProps) {
   let { cleanText } = extractWsmForm(content);
   cleanText = extractWsmDoc(cleanText).cleanText;
@@ -216,7 +220,12 @@ export default function TypewriterMarkdown({
 
   return (
     <div className="relative">
-      <MarkdownRenderer content={displayedText} isTyping={isTyping} />
+      <MarkdownRenderer
+        content={displayedText}
+        isTyping={isTyping}
+        searchSources={searchSources}
+        searchSteps={searchSteps}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Message, SearchStep, WsmDocument } from '../types';
-import { Globe, Check, ChevronDown, ChevronUp, ZoomIn } from 'lucide-react';
+import { Globe, Check, ChevronDown, ChevronUp, ChevronRight, CheckCircle2 } from 'lucide-react';
 import MarkdownRenderer from './MarkdownRenderer';
 import TypewriterMarkdown from './TypewriterMarkdown';
 import { extractWsmForm } from '../utils/formParser';
@@ -240,24 +240,23 @@ export default function SearchMessageView({
           {totalSteps === 0 ? (
             !message.isSimulatingSearch ? (
               <div className="w-full flex flex-col space-y-3.5 animate-fade-in">
-                <div className="prose max-w-none text-[14px] text-gray-800 leading-relaxed w-full">
+                <div className="prose max-w-none text-[14.5px] text-black dark:text-gray-100 leading-relaxed w-full">
                   <MarkdownRenderer content={extractWsmDoc(extractWsmForm(cleanRaciocinioTags(message.text || message.finalSynthesis || "Erro na pesquisa.")).cleanText).cleanText} />
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col space-y-3.5 w-full animate-fade-in py-1">
-                <div className="flex items-center gap-2.5 text-gray-500 text-[14px] font-medium select-none">
-                  <Globe className="w-4.5 h-4.5 text-purple-500 animate-spin" />
-                  <span className="italic">Planejando a melhor estratégia de pesquisa na web...</span>
+              <div className="flex flex-col space-y-2 w-full animate-fade-in py-1">
+                <div className="flex items-center gap-1.5 text-[14px] font-medium select-none searching">
+                  <Globe className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0" />
+                  <span className="shimmer-text">Planejando a melhor estratégia de pesquisa na web...</span>
                 </div>
-                <div className="h-14 w-full bg-gray-50/55 border border-gray-150 rounded-xl animate-pulse" />
               </div>
             )
           ) : (
             <>
               {/* 2. Introduction Narrative Paragraph */}
               {message.searchIntro && (
-                <div className="prose max-w-none text-[14px] text-gray-800 leading-relaxed w-full">
+                <div className="prose max-w-none text-[14.5px] text-black dark:text-gray-100 leading-relaxed w-full">
                   <MarkdownRenderer content={message.searchIntro} />
                 </div>
               )}
@@ -274,73 +273,57 @@ export default function SearchMessageView({
           <div key={idx} className="flex flex-col space-y-1.5 w-full animate-fade-in">
             {/* Tag Pill Row */}
             <div className="flex items-center justify-start py-0.5">
-              <button
-                type="button"
-                onClick={() => isDone && toggleExpand(idx)}
-                disabled={!isDone}
-                className={`inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-2.5 rounded-full border transition-all select-none ${
-                  isActive
-                    ? 'text-purple-600 bg-purple-50/30 border-purple-150 italic cursor-default'
-                    : isDone
-                    ? 'text-gray-500 bg-gray-50/50 hover:bg-gray-100/50 border-gray-150 cursor-pointer active:scale-97 shadow-3xs'
-                    : 'text-gray-400 bg-transparent border-transparent cursor-default'
-                }`}
-              >
-                {isActive ? (
-                  <>
-                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-ping" />
-                    <span>Pesquisando na web: <strong className="font-semibold text-purple-700">"{step.tag}"</strong></span>
-                  </>
-                ) : (
-                  <>
-                    <Globe className="w-3.5 h-3.5 text-gray-400" />
-                    <span>Pesquisou na web: <strong className="font-semibold text-gray-600">"{step.tag}"</strong></span>
-                    {isExpanded ? (
-                      <ChevronUp className="w-3.5 h-3.5 text-gray-400 ml-1 shrink-0" />
-                    ) : (
-                      <ChevronDown className="w-3.5 h-3.5 text-gray-400 ml-1 shrink-0" />
-                    )}
-                  </>
-                )}
-              </button>
+              {isActive ? (
+                <div className="inline-flex items-center gap-1.5 text-[14px] font-medium select-none searching">
+                  <Globe className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0" />
+                  <span className="shimmer-text">Pesquisando na web</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => isDone && toggleExpand(idx)}
+                  disabled={!isDone}
+                  className="inline-flex items-center gap-1.5 text-[14px] font-medium transition-colors select-none border-0 bg-transparent p-0 cursor-pointer text-[#6b7076] hover:text-black dark:text-gray-400 dark:hover:text-white"
+                >
+                  <Globe className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0" />
+                  <span>Pesquisou na web</span>
+                  {isExpanded ? (
+                    <ChevronDown className="w-3.5 h-3.5 text-[#6b7076] dark:text-gray-400 shrink-0" />
+                  ) : (
+                    <ChevronRight className="w-3.5 h-3.5 text-[#6b7076] dark:text-gray-400 shrink-0" />
+                  )}
+                </button>
+              )}
             </div>
 
             {/* Timeline expanded detail view */}
             {isDone && isExpanded && (
-              <div className="flex gap-3 pl-3.5 py-1.5 animate-fade-in w-full">
-                {/* Left timeline thread column */}
-                <div className="flex flex-col items-center shrink-0 w-6">
-                  {/* Globe circle */}
-                  <div className="w-5 h-5 rounded-full bg-gray-50 flex items-center justify-center border border-gray-200 mt-1 select-none">
-                    <Globe className="w-3 h-3 text-gray-400 shrink-0" />
+              <div className="flex gap-3 pl-1 py-1.5 animate-fade-in w-full max-w-2xl">
+                {/* Left vertical timeline column */}
+                <div className="flex flex-col items-center shrink-0 w-5">
+                  <div className="w-5 h-5 flex items-center justify-center shrink-0 my-0.5">
+                    <Globe className="w-4 h-4 text-[#8e9099] shrink-0" />
                   </div>
-                  {/* Connector line */}
-                  <div className="w-[1.5px] flex-1 bg-gray-150/70 my-1" />
-                  {/* Check circle */}
-                  <div className="w-5 h-5 rounded-full bg-green-50/50 flex items-center justify-center border border-green-150 mb-1 select-none">
-                    <Check className="w-2.5 h-2.5 text-green-500 shrink-0" />
+                  <div className="w-[1px] flex-1 bg-gray-200 dark:bg-zinc-700 my-1" />
+                  <div className="w-5 h-5 flex items-center justify-center shrink-0 my-0.5">
+                    <CheckCircle2 className="w-4 h-4 text-[#8e9099] shrink-0" />
                   </div>
                 </div>
 
-                {/* Right content box */}
-                <div className="flex-1 min-w-0">
-                  {/* Header text */}
-                  <div className="text-[11px] text-gray-400 font-medium select-none mb-0.5">
-                    Pesquisou na web
-                  </div>
-
-                  {/* Subtitle tag and count */}
-                  <div className="flex items-center justify-between mb-2 select-none pr-1">
-                    <span className="text-[13px] font-bold text-gray-700 truncate mr-2">
+                {/* Right content column */}
+                <div className="flex-1 min-w-0 pr-1">
+                  {/* Top row: step tag (query) on left, count on right */}
+                  <div className="flex items-center justify-between mb-2 select-none h-5">
+                    <span className="text-[13.5px] font-medium text-gray-800 dark:text-gray-200 truncate mr-2">
                       {step.tag}
                     </span>
-                    <span className="text-[11px] text-gray-400 shrink-0">
-                      {step.sources.length} resultados
+                    <span className="text-[12px] text-gray-400 dark:text-gray-500 shrink-0">
+                      {step.sources.length} {step.sources.length === 1 ? 'resultado' : 'resultados'}
                     </span>
                   </div>
 
-                  {/* Sources List Box */}
-                  <div className="border border-gray-150 rounded-xl bg-[#faf9f6]/40 overflow-hidden shadow-2xs divide-y divide-gray-150/40">
+                  {/* White Card containing sources */}
+                  <div className="bg-white dark:bg-zinc-900 rounded-xl p-1.5 shadow-[0_2px_10px_rgba(0,0,0,0.04)] border-0 my-1 w-full space-y-0.5">
                     {step.sources.map((src, sIdx) => {
                       const domain = getDomain(src.url);
                       return (
@@ -349,24 +332,22 @@ export default function SearchMessageView({
                           href={src.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center justify-between p-2.5 hover:bg-gray-100/50 transition-colors text-left"
+                          className="flex items-center justify-between py-2 px-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800/60 transition-colors text-left group"
                         >
-                          <div className="flex items-center gap-2 min-w-0 pr-3">
-                            <div className="w-4.5 h-4.5 rounded-full bg-white border border-gray-200 flex items-center justify-center shrink-0 overflow-hidden shadow-3xs">
-                              <img
-                                src={getFaviconUrl(src.url)}
-                                alt=""
-                                className="w-2.5 h-2.5 object-contain rounded-full"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="%23999" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>';
-                                }}
-                              />
-                            </div>
-                            <span className="text-[12px] font-semibold text-gray-700 truncate hover:text-[#2563eb]">
+                          <div className="flex items-center gap-2.5 min-w-0 pr-3">
+                            <img
+                              src={getFaviconUrl(src.url)}
+                              alt=""
+                              className="w-4 h-4 object-contain rounded-xs shrink-0"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%23888" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>';
+                              }}
+                            />
+                            <span className="text-[13px] font-normal text-gray-800 dark:text-gray-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">
                               {src.title}
                             </span>
                           </div>
-                          <span className="text-[10.5px] text-gray-400 hover:text-gray-600 font-mono shrink-0 select-none">
+                          <span className="text-[12px] text-gray-400 dark:text-gray-500 font-normal shrink-0">
                             {domain}
                           </span>
                         </a>
@@ -374,9 +355,11 @@ export default function SearchMessageView({
                     })}
                   </div>
 
-                  {/* Concluído row */}
-                  <div className="text-[11.5px] text-gray-400/95 font-bold mt-2 select-none">
-                    Concluído
+                  {/* Bottom row: Concluído */}
+                  <div className="flex items-center h-5 mt-1 select-none">
+                    <span className="text-[13px] font-medium text-[#8e9099] dark:text-gray-400">
+                      Concluído
+                    </span>
                   </div>
                 </div>
               </div>
@@ -402,6 +385,8 @@ export default function SearchMessageView({
         <div className="prose max-w-none text-[14px] text-gray-800 leading-relaxed w-full mt-3 pt-3 border-t border-gray-150/50 animate-fade-in">
           <TypewriterMarkdown
             content={extractWsmDoc(extractWsmForm(message.finalSynthesis || message.text || "").cleanText).cleanText}
+            searchSources={message.searchSources}
+            searchSteps={message.searchSteps}
             enabled={message.isSimulatingSearch}
             onComplete={onStepChange}
           />

@@ -90,22 +90,24 @@ export function ReasoningBlock({
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 font-semibold text-[13px] transition-colors cursor-pointer select-none py-1 group focus:outline-none"
+          className="flex items-center gap-1.5 text-[14px] font-medium transition-colors cursor-pointer select-none py-0.5 group focus:outline-none border-0 bg-transparent p-0"
         >
           {isCurrentlyStreaming ? (
-            <Brain className="w-4.5 h-4.5 text-gray-400 dark:text-gray-500 animate-pulse" />
+            <Brain className="w-4 h-4 text-gray-400 dark:text-gray-500 animate-pulse shrink-0" />
           ) : (
-            <Brain className="w-4.5 h-4.5 text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-400" />
+            <Brain className="w-4 h-4 text-[#6b7076] dark:text-gray-400 shrink-0" />
           )}
           <span>
-            {!isSequenceDone && isCurrentlyStreaming
-              ? "Pensando passo a passo..."
-              : `Pensou por ${estimatedSeconds} segundos`}
+            {!isSequenceDone && isCurrentlyStreaming ? (
+              <span className="shimmer-text">Pensando passo a passo...</span>
+            ) : (
+              <span className="text-[#6b7076] dark:text-gray-400">Pensou por {estimatedSeconds} segundos</span>
+            )}
           </span>
           {isExpanded ? (
-            <ChevronDown className="w-3.5 h-3.5 text-gray-400 group-hover:text-gray-500" />
+            <ChevronDown className="w-3.5 h-3.5 text-[#6b7076] dark:text-gray-400" />
           ) : (
-            <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-gray-500" />
+            <ChevronRight className="w-3.5 h-3.5 text-[#6b7076] dark:text-gray-400" />
           )}
         </button>
       </div>

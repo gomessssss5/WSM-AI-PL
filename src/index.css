@@ -595,6 +595,163 @@ html, body, #root {
   animation: wsmSuckIn 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 }
 
+/* --- WSM 1.6 response card & shimmer text --- */
+.wsm-response-card {
+  background: transparent;
+  width: 100%;
+  padding: 2px 0;
+}
+
+.wsm-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.wsm-icon-wrap {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  overflow: hidden;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wsm-icon-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.wsm-brand-name {
+  font-family: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #1f2124;
+  letter-spacing: 0.1px;
+}
+
+.dark .wsm-brand-name {
+  color: #f3f4f6;
+}
+
+.wsm-body-text {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: #000000;
+  padding-left: 28px;
+  min-height: 20px;
+}
+
+.dark .wsm-body-text {
+  color: #e5e7eb;
+}
+
+/* --- shimmer text (pesquisando/pensando) --- */
+.shimmer-text {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  font-weight: 500;
+  color: #c9cad0;
+  background: linear-gradient(
+    90deg,
+    #8e9099 0%,
+    #8e9099 35%,
+    #000000 50%,
+    #8e9099 65%,
+    #8e9099 100%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 2s linear infinite;
+}
+
+.dark .shimmer-text {
+  color: #6b7280;
+  background: linear-gradient(
+    90deg,
+    #6b7280 0%,
+    #6b7280 35%,
+    #ffffff 50%,
+    #6b7280 65%,
+    #6b7280 100%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.searching {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+}
+
+.searching::after {
+  content: "";
+  position: absolute;
+  top: -40%;
+  left: -35%;
+  width: 35%;
+  height: 180%;
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0) 0%,
+    rgba(255,255,255,0.95) 50%,
+    rgba(255,255,255,0) 100%
+  );
+  transform: skewX(-25deg);
+  mix-blend-mode: overlay;
+  animation: shine 2s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes shine {
+  from {
+    left: -40%;
+  }
+  to {
+    left: 130%;
+  }
+}
+
+/* --- fade transition between states --- */
+.wsm-thinking-state, .wsm-answer-state {
+  transition: opacity 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.wsm-thinking-state.fade-out {
+  opacity: 0;
+}
+
+.wsm-answer-state {
+  opacity: 1;
+}
+
+.wsm-answer-state.fade-in {
+  display: block;
+  opacity: 1;
+}
+
 
 
 

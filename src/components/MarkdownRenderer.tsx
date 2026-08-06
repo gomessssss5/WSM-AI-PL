@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin, TvMinimalPlay, Image as ImageIcon, Loader2, Download, ZoomIn, MousePointer2, Keyboard, ScanEye, ArrowDownUp, FileText, FilePlus, FolderOpen, Edit3, Trash2, BookOpen } from 'lucide-react';
+import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin, TvMinimalPlay, Image as ImageIcon, Loader2, Download, ZoomIn, MousePointer2, Keyboard, ScanEye, ArrowDownUp, FileText, FilePlus, FolderOpen, Edit3, Trash2, BookOpen, ChevronDown, ChevronRight } from 'lucide-react';
 import WsmMapComponent from './WsmMapComponent';
 import WsmChartComponent from './WsmChartComponent';
 import { auth, db } from '../lib/firebase';
@@ -94,9 +94,8 @@ export function AgenticSkillTag({ text, type }: AgenticSkillTagProps) {
 
   if (status === 'active') {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-gray-500 dark:text-slate-300 bg-gray-50/80 dark:bg-slate-800/50 border-gray-150 dark:border-slate-700 cursor-default shadow-3xs mx-0 my-2">
-        <BookOpen className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400 shrink-0" />
-        <span><strong className="font-semibold text-gray-600 dark:text-slate-200">{labelText}</strong></span>
+      <span className="inline-block text-[14px] font-medium select-none my-1.5">
+        <span className="shimmer-text">{labelText}</span>
       </span>
     );
   }
@@ -108,12 +107,11 @@ export function AgenticSkillTag({ text, type }: AgenticSkillTagProps) {
       <button
         onClick={isClickable ? handleOpenModal : undefined}
         disabled={!isClickable}
-        className={`inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-gray-500 dark:text-slate-300 bg-gray-50/80 dark:bg-slate-800/50 border-gray-150 dark:border-slate-700 shadow-3xs mx-0 my-2 ${isClickable ? 'cursor-pointer hover:bg-gray-100/80 dark:hover:bg-slate-800 hover:border-gray-200 active:scale-98' : 'cursor-default opacity-80'}`}
+        className={`inline-flex items-center gap-1 text-[14px] font-medium text-[#6b7076] dark:text-gray-400 transition-colors select-none p-0 bg-transparent border-0 my-1.5 ${isClickable ? 'cursor-pointer hover:text-black dark:hover:text-white' : 'cursor-default'}`}
       >
-        <BookOpen className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400 shrink-0" />
-        <span><strong className="font-semibold text-gray-600 dark:text-slate-200">{labelText}</strong></span>
+        <span>{labelText}</span>
         {isClickable && (
-          <span className="text-[10px] text-gray-400 dark:text-slate-400 font-normal ml-0.5">(Ver Skill)</span>
+          <span className="text-[12px] text-gray-400 font-normal ml-0.5">(Ver Skill)</span>
         )}
       </button>
 
@@ -196,6 +194,179 @@ export function AgenticSkillTag({ text, type }: AgenticSkillTagProps) {
         document.body
       )}
     </>
+  );
+}
+
+interface AgenticSearchTagProps {
+  key?: string;
+  text: string;
+  isActive: boolean;
+  fullContent?: string;
+  searchSources?: Array<{ title: string; url: string; snippet?: string }>;
+  searchSteps?: Array<{ tag: string; sources: Array<{ title: string; url: string }> }>;
+}
+
+export function AgenticSearchTag({
+  text,
+  isActive,
+  fullContent = '',
+  searchSources,
+  searchSteps
+}: AgenticSearchTagProps) {
+  const [isOpen, setIsOpen] = React.useState(false);
+
+  // Extract sources from props AND fullContent markdown links
+  const sources = React.useMemo(() => {
+    const result: { title: string; url: string }[] = [];
+
+    // 1. Add from searchSources prop if provided
+    if (searchSources && Array.isArray(searchSources)) {
+      searchSources.forEach(s => {
+        if (s && s.url) {
+          result.push({ title: s.title || s.url, url: s.url });
+        }
+      });
+    }
+
+    // 2. Add from searchSteps prop if provided
+    if (searchSteps && Array.isArray(searchSteps)) {
+      searchSteps.forEach(st => {
+        if (st && Array.isArray(st.sources)) {
+          st.sources.forEach(s => {
+            if (s && s.url) {
+              result.push({ title: s.title || s.url, url: s.url });
+            }
+          });
+        }
+      });
+    }
+
+    // 3. Extract markdown links [title](url) from fullContent
+    if (fullContent) {
+      const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g;
+      let match;
+      while ((match = linkRegex.exec(fullContent)) !== null) {
+        if (match[1] && match[2]) {
+          result.push({ title: match[1], url: match[2] });
+        }
+      }
+    }
+
+    // Deduplicate by URL
+    return result.filter((v, i, a) => a.findIndex(t => t.url === v.url) === i);
+  }, [searchSources, searchSteps, fullContent]);
+
+  const cleanDisplay = isActive ? 'Pesquisando na web' : 'Pesquisou na web';
+
+  if (isActive) {
+    return (
+      <div className="inline-flex items-center gap-1.5 text-[14px] font-medium select-none my-1 searching">
+        <Globe className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0" />
+        <span className="shimmer-text">{cleanDisplay}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col space-y-1.5 w-full my-1 animate-fade-in">
+      {/* Tag button with Globe icon and arrow */}
+      <div className="flex items-center justify-start py-0.5">
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="inline-flex items-center gap-1.5 text-[14px] font-medium text-[#6b7076] hover:text-black dark:text-gray-400 dark:hover:text-white transition-colors select-none p-0 bg-transparent border-0 cursor-pointer"
+        >
+          <Globe className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0" />
+          <span>{cleanDisplay}</span>
+          {isOpen ? (
+            <ChevronDown className="w-3.5 h-3.5 text-[#6b7076] dark:text-gray-400 shrink-0" />
+          ) : (
+            <ChevronRight className="w-3.5 h-3.5 text-[#6b7076] dark:text-gray-400 shrink-0" />
+          )}
+        </button>
+      </div>
+
+      {/* Expanded invisible card with white background interior */}
+      {isOpen && (
+        <div className="flex gap-3 pl-1 py-1.5 animate-fade-in w-full max-w-2xl">
+          {/* Left timeline thread */}
+          <div className="flex flex-col items-center shrink-0 w-5">
+            <div className="w-5 h-5 flex items-center justify-center shrink-0 my-0.5">
+              <Globe className="w-4 h-4 text-[#8e9099] shrink-0" />
+            </div>
+            <div className="w-[1px] flex-1 bg-gray-200 dark:bg-zinc-700 my-1" />
+            <div className="w-5 h-5 flex items-center justify-center shrink-0 my-0.5">
+              <CheckCircle2 className="w-4 h-4 text-[#8e9099] shrink-0" />
+            </div>
+          </div>
+
+          {/* Right content column */}
+          <div className="flex-1 min-w-0 pr-1">
+            {/* Header row */}
+            <div className="flex items-center justify-between mb-2 select-none h-5">
+              <span className="text-[13.5px] font-medium text-gray-800 dark:text-gray-200 truncate mr-2">
+                pesquisa na web
+              </span>
+              <span className="text-[12px] text-gray-400 dark:text-gray-500 shrink-0">
+                {sources.length} {sources.length === 1 ? 'resultado' : 'resultados'}
+              </span>
+            </div>
+
+            {/* White card containing sources */}
+            <div className="bg-white dark:bg-zinc-900 rounded-xl p-1.5 shadow-[0_2px_10px_rgba(0,0,0,0.04)] border-0 my-1 w-full space-y-0.5">
+              {sources.length > 0 ? (
+                sources.map((src, sIdx) => {
+                  let domain = '';
+                  try {
+                    domain = new URL(src.url).hostname.replace(/^www\./, '');
+                  } catch {
+                    domain = src.url;
+                  }
+                  const favicon = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+                  return (
+                    <a
+                      key={sIdx}
+                      href={src.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between py-2 px-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800/60 transition-colors text-left group"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 pr-3">
+                        <img
+                          src={favicon}
+                          alt=""
+                          className="w-4 h-4 object-contain rounded-xs shrink-0 bg-white"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%23888" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>';
+                          }}
+                        />
+                        <span className="text-[13px] font-normal text-gray-800 dark:text-gray-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                          {src.title}
+                        </span>
+                      </div>
+                      <span className="text-[12px] text-gray-400 dark:text-gray-500 font-normal shrink-0">
+                        {domain}
+                      </span>
+                    </a>
+                  );
+                })
+              ) : (
+                <div className="py-2 px-2.5 text-[12.5px] text-gray-400 italic select-none">
+                  Fontes pesquisadas na web
+                </div>
+              )}
+            </div>
+
+            {/* Bottom row */}
+            <div className="flex items-center h-5 mt-1 select-none">
+              <span className="text-[13px] font-medium text-[#8e9099] dark:text-gray-400">
+                Concluído
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -290,44 +461,23 @@ export function AgenticDebugTag({ text, fullContent, isTyping = false }: Agentic
   );
 
   if (isActive) {
-    const activeColorClass = isVerified 
-      ? 'text-emerald-700 bg-emerald-50/50 border-emerald-200' 
-      : 'text-purple-700 bg-purple-50/50 border-purple-200';
-    const dotBgClass = isVerified ? 'bg-emerald-500' : 'bg-purple-500';
-
     return (
-      <span className={`inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none shadow-3xs mx-0 my-3 ${activeColorClass}`}>
-        <span className={`w-1.5 h-1.5 rounded-full animate-ping shrink-0 ${dotBgClass}`} />
-        <span><strong className="font-semibold">{displayType}</strong></span>
+      <span className="inline-block text-[14px] font-medium select-none my-1.5">
+        <span className="shimmer-text">{displayType}</span>
       </span>
     );
   }
 
   const hasHtml = !!verifiedHtml;
 
-  const btnColorClass = isVerified
-    ? (isOpen 
-        ? 'text-emerald-800 bg-emerald-50 border-emerald-300 ring-2 ring-emerald-100' 
-        : 'text-emerald-700 bg-emerald-50/50 border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300'
-      )
-    : (isOpen
-        ? 'text-indigo-800 bg-indigo-50 border-indigo-300 ring-2 ring-indigo-100'
-        : 'text-indigo-700 bg-indigo-50/50 border-indigo-200 hover:bg-indigo-50 hover:border-indigo-300'
-      );
-
-  const Icon = isVerified ? CheckCircle2 : TvMinimalPlay;
-  const iconColorClass = isVerified ? 'text-emerald-500' : 'text-indigo-500';
-
   return (
-    <div className="w-full flex flex-col items-start gap-2.5 my-3">
-      {/* Clickable Tag Button styled exactly like other pills but with interaction */}
+    <div className="w-full flex flex-col items-start gap-2 my-2">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none shadow-3xs active:scale-98 cursor-pointer ${btnColorClass}`}
+        className="inline-flex items-center gap-1 text-[14px] font-medium text-[#6b7076] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors select-none p-0 bg-transparent border-0 cursor-pointer"
       >
-        <Icon className={`w-3.5 h-3.5 ${iconColorClass}`} />
-        <span><strong className="font-semibold">{displayType}</strong></span>
-        <span className="text-[10px] opacity-75 font-normal ml-0.5">
+        <span>{displayType}</span>
+        <span className="text-[12px] text-gray-400 font-normal ml-0.5">
           {isOpen ? '(Ocultar visualização)' : '(Clique para abrir visualização)'}
         </span>
       </button>
@@ -487,7 +637,7 @@ const renderNodes = (
       {groups.map((group, groupIdx) => {
         if (group.type === 'ordered') {
           return (
-            <ol key={`ol-${depth}-${groupIdx}`} className="list-none space-y-1 text-gray-700 text-[13.5px]">
+            <ol key={`ol-${depth}-${groupIdx}`} className="list-none space-y-1 text-black dark:text-gray-100 text-[14.5px]">
               {group.items.map((node, nodeIdx) => {
                 let markerColor = 'text-[#2563eb]';
                 if (depth === 1) {
@@ -557,9 +707,16 @@ const renderNodes = (
 interface MarkdownRendererProps {
   content: string;
   isTyping?: boolean;
+  searchSources?: Array<{ title: string; url: string; snippet?: string }>;
+  searchSteps?: Array<{ tag: string; sources: Array<{ title: string; url: string }> }>;
 }
 
-export default function MarkdownRenderer({ content, isTyping = false }: MarkdownRendererProps) {
+export default function MarkdownRenderer({
+  content,
+  isTyping = false,
+  searchSources,
+  searchSteps
+}: MarkdownRendererProps) {
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
 
   const cleanStepTags = (text: string) => {
@@ -853,25 +1010,37 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
                   isActive = isTyping && token.text.includes('...');
                 }
 
+                if (token.type === 'web' || displayType.startsWith('Pesquis')) {
+                  return (
+                    <AgenticSearchTag
+                      key={`search-tag-${pIdx}-${keyIndex++}`}
+                      text={token.text}
+                      isActive={isActive}
+                      fullContent={content}
+                      searchSources={searchSources}
+                      searchSteps={searchSteps}
+                    />
+                  );
+                }
+
                 if (isActive) {
                   return (
-                    <span
+                    <div
                       key={`agentic-${pIdx}-${keyIndex++}`}
-                      className="flex w-fit items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-purple-700 bg-purple-50/50 border-purple-200 cursor-default shadow-3xs mx-0 my-3"
+                      className="inline-flex items-center gap-1.5 text-[14px] font-medium select-none my-1 searching"
                     >
-                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-ping shrink-0" />
-                      <span><strong className="font-semibold">{displayType}</strong></span>
-                    </span>
+                      <Icon className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0" />
+                      <span className="shimmer-text">{displayType}</span>
+                    </div>
                   );
                 }
 
                 return (
                   <span
                     key={`agentic-${pIdx}-${keyIndex++}`}
-                    className="flex w-fit items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-gray-500 bg-gray-50/50 hover:bg-gray-100/50 border-gray-150 cursor-default shadow-3xs mx-0 my-3"
+                    className="inline-block text-[14px] font-medium text-[#6b7076] dark:text-gray-400 select-none my-1"
                   >
-                    <Icon className="w-3.5 h-3.5 text-gray-400" />
-                    <span><strong className="font-semibold text-gray-600">{displayType}</strong></span>
+                    <span>{displayType}</span>
                   </span>
                 );
               }
@@ -1356,7 +1525,7 @@ export default function MarkdownRenderer({ content, isTyping = false }: Markdown
 
       // 10. Paragraph default
       blocks.push(
-        <div key={`p-${i}`} className="text-gray-700 leading-relaxed text-[13.5px] mb-3 select-text">
+        <div key={`p-${i}`} className="text-black dark:text-gray-100 leading-relaxed text-[14.5px] mb-3 select-text">
           {renderInlineContent(line)}
         </div>
       );
