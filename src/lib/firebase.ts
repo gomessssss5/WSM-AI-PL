@@ -11,8 +11,7 @@ import {
   User,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  updateProfile,
-  sendPasswordResetEmail
+  updateProfile
 } from 'firebase/auth';
 import { 
   getFirestore, 

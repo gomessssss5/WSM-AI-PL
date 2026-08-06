@@ -43,56 +43,104 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
       
       const jsonStr = innerContent.trim();
       currentText = currentText.substring(0, startIndex) + currentText.substring(endIndex);
-      try {
-        const parsed = JSON.parse(jsonStr);
-        if (parsed) {
-          const title = (parsed.title || 'Documento').trim();
-          let content = parsed.content || '';
-          
-          if (typeof content === 'string') {
-            // Unescape double escaped JSON strings (literal \n, \", \t, \\)
-            try {
-              if (content.trim().startsWith('"') && content.trim().endsWith('"')) {
-                content = JSON.parse(content);
-              } else {
+
+      // Check if innerContent is raw HTML / XML without JSON wrapping
+      if (jsonStr.startsWith('<!DOCTYPE') || jsonStr.startsWith('<html') || (jsonStr.includes('<head>') && jsonStr.includes('</body>'))) {
+        let docTitle = 'index.html';
+        const titleTagMatch = jsonStr.match(/<title>([^<]+)<\/title>/i);
+        if (titleTagMatch && titleTagMatch[1].trim()) {
+          docTitle = titleTagMatch[1].trim() + '.html';
+        }
+        rawDocObjs.push({
+          title: docTitle,
+          content: jsonStr,
+          format: 'html'
+        });
+      } else {
+        try {
+          const parsed = JSON.parse(jsonStr);
+          if (parsed) {
+            const title = (parsed.title || 'Documento').trim();
+            let content = parsed.content || '';
+            
+            if (typeof content === 'string') {
+              // Unescape double escaped JSON strings (literal \n, \", \t, \\)
+              try {
+                if (content.trim().startsWith('"') && content.trim().endsWith('"')) {
+                  content = JSON.parse(content);
+                } else {
+                  content = content.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\');
+                }
+              } catch (e) {
                 content = content.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\');
               }
-            } catch (e) {
-              content = content.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\');
             }
-          }
-          
-          let rawFormat = (parsed.format || parsed.type || '').toString().toLowerCase();
+            
+            let rawFormat = (parsed.format || parsed.type || '').toString().toLowerCase();
 
-          if (!rawFormat || rawFormat === 'pdf' || rawFormat === 'documento') {
-            const inferred = inferFormatFromTitle(title, '');
-            if (inferred) {
-              rawFormat = inferred;
-            } else {
-              const trimmedContent = content.trim().toLowerCase();
-              if (trimmedContent.startsWith('<!doctype html') || trimmedContent.startsWith('<html') || (trimmedContent.includes('<head>') && trimmedContent.includes('</body>'))) {
-                rawFormat = 'html';
+            if (!rawFormat || rawFormat === 'pdf' || rawFormat === 'documento') {
+              const inferred = inferFormatFromTitle(title, '');
+              if (inferred) {
+                rawFormat = inferred;
               } else {
-                rawFormat = rawFormat || 'pdf';
+                const trimmedContent = content.trim().toLowerCase();
+                if (trimmedContent.startsWith('<!doctype html') || trimmedContent.startsWith('<html') || (trimmedContent.includes('<head>') && trimmedContent.includes('</body>'))) {
+                  rawFormat = 'html';
+                } else {
+                  rawFormat = rawFormat || 'pdf';
+                }
               }
             }
+
+            let format = rawFormat;
+            if (rawFormat === 'markdown') {
+              format = 'md';
+            } else if (rawFormat === 'excel' || rawFormat === 'csv' || rawFormat === 'sheet' || rawFormat === 'planilha') {
+              format = 'xlsx';
+            }
+
+            rawDocObjs.push({
+              title,
+              content,
+              format
+            });
+          }
+        } catch (e) {
+          console.warn("Failed to parse wsm_doc JSON directly, attempting recovery...", e);
+          let recoveredDoc: WsmDocument | null = null;
+          
+          // Fallback 1: Extract content using string bounds or regex
+          const titleMatch = jsonStr.match(/"title"\s*:\s*"([^"]+)"/i);
+          const formatMatch = jsonStr.match(/"format"\s*:\s*"([^"]+)"/i);
+          const contentMatch = jsonStr.match(/"content"\s*:\s*"([\s\S]*)"/i);
+
+          let rawContent = "";
+          if (contentMatch) {
+            rawContent = contentMatch[1];
+            // If rawContent ends with JSON closing markup like '", "format"...}' or '", "title"...}' or '"}'
+            rawContent = rawContent.replace(/",\s*"format"[\s\S]*$/i, '')
+                                  .replace(/",\s*"title"[\s\S]*$/i, '')
+                                  .replace(/"\s*}\s*$/i, '');
+          } else {
+            rawContent = jsonStr;
           }
 
-          let format = rawFormat;
-          if (rawFormat === 'markdown') {
-            format = 'md';
-          } else if (rawFormat === 'excel' || rawFormat === 'csv' || rawFormat === 'sheet' || rawFormat === 'planilha') {
-            format = 'xlsx';
+          if (rawContent.length > 0) {
+            const cleanContent = rawContent.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\');
+            const docTitle = titleMatch ? titleMatch[1].trim() : 'index.html';
+            const docFormat = formatMatch ? formatMatch[1].toLowerCase() : (cleanContent.includes('<!DOCTYPE') || cleanContent.includes('<html') ? 'html' : 'txt');
+            
+            recoveredDoc = {
+              title: docTitle,
+              content: cleanContent,
+              format: docFormat
+            };
           }
 
-          rawDocObjs.push({
-            title,
-            content,
-            format
-          });
+          if (recoveredDoc) {
+            rawDocObjs.push(recoveredDoc);
+          }
         }
-      } catch (e) {
-        console.error("Failed to parse wsm_doc JSON", e);
       }
     } else {
       // Partial form (streaming doc tag) - strip from openTag onwards
@@ -134,13 +182,15 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
   const codeBlockRegex = /```([a-z]+)\n([\s\S]*?)(?:```|$)/gi;
   let match;
   while ((match = codeBlockRegex.exec(currentText)) !== null) {
-    const format = match[1].toLowerCase();
-    const supportedCodeFormats = ['html', 'json', 'js', 'ts', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'css', 'sql'];
-    if (supportedCodeFormats.includes(format)) {
+    const rawFmt = match[1].toLowerCase();
+    const supportedCodeFormats = ['html', 'json', 'js', 'ts', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'css', 'sql', 'md', 'markdown', 'txt'];
+    if (supportedCodeFormats.includes(rawFmt)) {
+       const fmt = (rawFmt === 'markdown' ? 'md' : rawFmt);
+       const titlePrefix = (fmt === 'md' ? 'Documento Markdown' : fmt === 'txt' ? 'Documento de Texto' : 'Código ' + fmt.toUpperCase());
        rawDocObjs.push({
-         title: 'Código ' + format.toUpperCase(),
+         title: titlePrefix,
          content: match[2].trim(),
-         format: format
+         format: fmt
        });
        currentText = currentText.replace(match[0], '');
        codeBlockRegex.lastIndex = 0;

@@ -281,15 +281,37 @@ export default function ChatWindow({
     return messages.flatMap(m => m.browserScreenshots || []);
   }, [messages]);
 
-  const latestScreenshot = allScreenshots.length > 0 ? allScreenshots[allScreenshots.length - 1] : null;
+  const lastAssistantMessage = useMemo(() => {
+    return [...messages].reverse().find(m => m.sender === 'ai');
+  }, [messages]);
+
+  const latestScreenshot = useMemo(() => {
+    if (lastAssistantMessage?.browserScreenshots && lastAssistantMessage.browserScreenshots.length > 0) {
+      return lastAssistantMessage.browserScreenshots[lastAssistantMessage.browserScreenshots.length - 1];
+    }
+    const lastMsgWithScreenshots = [...messages].reverse().find(m => m.browserScreenshots && m.browserScreenshots.length > 0);
+    if (lastMsgWithScreenshots?.browserScreenshots) {
+      return lastMsgWithScreenshots.browserScreenshots[lastMsgWithScreenshots.browserScreenshots.length - 1];
+    }
+    return null;
+  }, [lastAssistantMessage, messages]);
   
-  // Check if current messages or history chat utilized the browser/computer
+  // Check if LATEST turn or active turn utilized the browser/computer
   const hasUsedComputer = useMemo(() => {
-    if (allScreenshots.length > 0) return true;
-    return messages.some(m => {
-      if (m.browserScreenshots && m.browserScreenshots.length > 0) return true;
-      if (!m.text) return false;
-      const lower = m.text.toLowerCase();
+    if (isThinking) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg && lastMsg.browserScreenshots && lastMsg.browserScreenshots.length > 0) return true;
+      if (lastMsg && lastMsg.text) {
+        const lower = lastMsg.text.toLowerCase();
+        if (lower.includes('[abrindo site:') || lower.includes('[clicando no elemento') || lower.includes('[digitando') || lower.includes('[rolando página') || lower.includes('[lendo página') || lower.includes('[aguardando')) return true;
+      }
+      return false;
+    }
+
+    if (!lastAssistantMessage) return false;
+    if (lastAssistantMessage.browserScreenshots && lastAssistantMessage.browserScreenshots.length > 0) return true;
+    if (lastAssistantMessage.text) {
+      const lower = lastAssistantMessage.text.toLowerCase();
       return (
         lower.includes('[abrindo site:') ||
         lower.includes('[clicando no elemento') ||
@@ -298,12 +320,18 @@ export default function ChatWindow({
         lower.includes('[lendo página') ||
         lower.includes('[aguardando') ||
         lower.includes('pw_click') ||
-        lower.includes('pw_open') ||
-        lower.includes('wsm 1.6 está usando o computador') ||
-        lower.includes('wsm 1.6 usou o computador')
+        lower.includes('pw_open')
       );
-    });
-  }, [allScreenshots, messages]);
+    }
+    return false;
+  }, [isThinking, lastAssistantMessage, messages]);
+
+  // Auto-close split-screen navigation panel when navigating to non-computer turns
+  useEffect(() => {
+    if (!hasUsedComputer) {
+      setIsSplitScreenOpen(false);
+    }
+  }, [hasUsedComputer]);
 
   const browserStepCount = useMemo(() => {
     if (allScreenshots.length > 0) return allScreenshots.length;
@@ -670,9 +698,29 @@ export default function ChatWindow({
 
     messages.forEach((msg) => {
       if (msg.isHidden) return;
-      const senderName = msg.sender === 'user' ? 'Usuário' : 'WSM AI';
-      md += `### 👤 **${senderName}** (${new Date(msg.timestamp).toLocaleTimeString()})\n\n`;
-      md += `${msg.text}\n\n`;
+
+      // Clean internal skill protocol tags, system tags, reasoning tags from exported text
+      const rawTextToClean = cleanSkillTags(cleanRaciocinioTags(cleanTaskTags(cleanWriterUpdateTags(msg.text || ''))));
+      const { cleanText: docCleanText, docObjs } = extractWsmDoc(rawTextToClean);
+      let exportedText = docCleanText.trim();
+      
+      if (docObjs && docObjs.length > 0) {
+        docObjs.forEach(d => {
+          exportedText += `\n\n📄 **Documento Gerado:** ${d.title} (Formato: ${(d.format || 'pdf').toUpperCase()})`;
+        });
+        exportedText = exportedText.trim();
+      }
+      
+      // Skip messages that consist ONLY of internal protocol tags or system messages
+      if (!exportedText && !msg.imageUrl && !msg.codeBlock) return;
+      if (exportedText.startsWith('[SISTEMA:') || exportedText.startsWith('SISTEMA (') || /^\[Lendo Skill:.*?\]$/is.test(exportedText)) return;
+
+      const senderName = msg.sender === 'user' ? 'Usuário' : 'WSM 1.6';
+      const senderEmoji = msg.sender === 'user' ? '👤' : '🤖';
+      md += `### ${senderEmoji} **${senderName}** (${new Date(msg.timestamp).toLocaleTimeString()})\n\n`;
+      if (exportedText) {
+        md += `${exportedText}\n\n`;
+      }
       
       if (msg.imageUrl) {
         md += `![Imagem Gerada](${msg.imageUrl})\n\n`;
@@ -1610,8 +1658,16 @@ export default function ChatWindow({
           <div className="max-w-2xl mx-auto space-y-4 w-full min-w-0 overflow-x-hidden">
             {messages.map((message, index) => {
             if (message.isHidden) return null;
-            if (message.text && /^\[Lendo Skill:.*?\]$/is.test(message.text.trim())) return null;
             const isUser = message.sender === 'user';
+
+            const rawText = message.text || '';
+            const cleanedMsgText = cleanSkillTags(cleanRaciocinioTags(cleanTaskTags(cleanWriterUpdateTags(rawText)))).trim();
+            const { docObjs: msgDocObjs } = extractWsmDoc(extractWsmForm(cleanRaciocinioTags(rawText)).cleanText);
+            const hasVisualContent = (message.attachments && message.attachments.length > 0) || (msgDocObjs && msgDocObjs.length > 0) || Boolean(message.imageUrl) || Boolean(message.codeBlock) || (Boolean(message.searchSteps) && message.searchSteps!.length > 0) || (Boolean(message.browserScreenshots) && message.browserScreenshots!.length > 0) || (Boolean(message.searchImages) && message.searchImages!.length > 0);
+
+            // Skip rendering AI messages that consist purely of internal protocol tags with no visual content
+            if (!isUser && !cleanedMsgText && !hasVisualContent && !isThinking) return null;
+            if (!isUser && (rawText.trim().startsWith('[SISTEMA:') || /^\[Lendo Skill:.*?\]$/is.test(rawText.trim())) && !hasVisualContent) return null;
             return (
               <motion.div
                 key={message.id}
@@ -1799,7 +1855,7 @@ export default function ChatWindow({
                                       </div>
                                     ) : (
                                       <TypewriterMarkdown
-                                        content={cleanSkillTags(cleanTaskTags(cleanWriterUpdateTags(cleanRaciocinioTags(message.text))))}
+                                        content={cleanSkillTags(cleanTaskTags(cleanWriterUpdateTags(extractWsmDoc(extractWsmForm(cleanRaciocinioTags(message.text)).cleanText).cleanText)))}
                                         searchSources={message.searchSources}
                                         searchSteps={message.searchSteps}
                                         enabled={!isHistorical}

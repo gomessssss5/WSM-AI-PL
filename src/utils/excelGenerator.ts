@@ -119,7 +119,7 @@ export async function generateExcelBlob(title: string, content: string): Promise
   workbook.creator = 'WSM AI';
   workbook.created = new Date();
 
-  const sheetName = (title || 'Planilha').replace(/[*?:/\\[\]]/g, '').substring(0, 31) || 'Planilha1';
+  const sheetName = (title || 'Planilha').replace(/\.xlsx$/i, '').replace(/[*?:/\\[\\]]/g, '').substring(0, 31) || 'Planilha1';
   const worksheet = workbook.addWorksheet(sheetName, {
     views: [{ showGridLines: true }]
   });

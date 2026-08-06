@@ -265,8 +265,9 @@ export async function getPageState() {
       }).filter(Boolean);
       
       let bodyText = document.body.innerText || "";
+      bodyText = bodyText.replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n\n').trim();
       return {
-        bodyText: bodyText.substring(0, 2500),
+        bodyText: bodyText.substring(0, 4000),
         elements: elementsList.slice(0, 40)
       };
     }).catch(() => ({ bodyText: '', elements: [] }));

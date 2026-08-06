@@ -24,6 +24,7 @@ import { OFFICIAL_SKILLS } from './lib/officialSkills';
 import { subscribeScheduledTasks, subscribeTaskExecutions, saveScheduledTask, deleteScheduledTask, saveTaskExecution, calculateNextRunAt } from './lib/scheduledTasks';
 
 import { OfficialSkillsStore } from './components/OfficialSkillsStore';
+import CustomCursor from './components/CustomCursor';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -1059,7 +1060,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           isTranslatorMode,
           model: sessionToUpdate.model || selectedModel,
           reasoningLevel: reasoningLevel,
-          skills: skills,
+          skills: [...OFFICIAL_SKILLS, ...skills],
           userContext: getUserContext(),
           userInfo: currentUser ? {
             uid: currentUser.uid,
@@ -1503,17 +1504,28 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
     const sessionId = shareMatch[1];
     const uid = new URLSearchParams(window.location.search).get("uid");
     if (uid && sessionId) {
-      return <SharedChatView sessionId={sessionId} uid={uid} />;
+      return (
+        <>
+          <CustomCursor />
+          <SharedChatView sessionId={sessionId} uid={uid} />
+        </>
+      );
     }
   }
 
   if (isBenchmarkRoute) {
-    return <BenchmarkPage />;
+    return (
+      <>
+        <CustomCursor />
+        <BenchmarkPage />
+      </>
+    );
   }
 
   if (authLoading) {
     return (
       <div id="wsm-loading-screen" className="flex h-[100dvh] w-screen flex-col items-center justify-center bg-[#fcfbfa] select-none dot-grid">
+        <CustomCursor />
         <div className="w-12 h-12 bg-gradient-to-br from-[#2563eb] to-[#3b82f6] rounded-xl flex items-center justify-center shadow-md animate-spin mb-4">
           <svg 
             viewBox="0 0 24 24" 
@@ -1534,11 +1546,17 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
 
   // If no user is authenticated, force them to Login
   if (!currentUser) {
-    return <Login onLoginSuccess={() => {}} />;
+    return (
+      <>
+        <CustomCursor />
+        <Login onLoginSuccess={() => {}} />
+      </>
+    );
   }
 
   return (
     <div className="flex h-[100dvh] w-screen bg-[#faf9f6] text-gray-800 font-sans overflow-hidden">
+      <CustomCursor />
       {/* Sidebar Area */}
       <Sidebar
         sessions={sessions.filter((s) => !s.isTemporary)}
@@ -1669,7 +1687,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                 initialDraft={activeSessionId ? drafts[activeSessionId] : undefined}
                 onSaveDraft={(draft) => { if (currentUser && activeSessionId) saveDraft(currentUser.uid, activeSessionId, draft) }}
                 onDeleteDraft={() => { if (currentUser && activeSessionId) deleteDraft(currentUser.uid, activeSessionId) }}
-                skills={skills}
+                skills={[...OFFICIAL_SKILLS, ...skills]}
                 onOpenStore={() => setIsStoreModalOpen(true)}
                 onSaveTask={async (task) => {
                   if (currentUser) {
@@ -1700,7 +1718,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                     dismissNewsCardForUser(currentUser.uid);
                   }
                 }}
-                skills={skills}
+                skills={[...OFFICIAL_SKILLS, ...skills]}
                 onOpenStore={() => setIsStoreModalOpen(true)}
                 onStartTemporaryChat={handleNewTemporaryChat}
                 isProfileLoading={!isProfileLoaded}

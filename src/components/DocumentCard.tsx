@@ -98,6 +98,10 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
           <div className="w-11 h-13 md:w-12 md:h-14 bg-gray-50 dark:bg-gray-800/80 border border-gray-200/80 dark:border-gray-700/80 rounded-xl shadow-3xs flex flex-col items-center justify-center shrink-0 relative overflow-hidden group-hover:scale-105 transition-transform p-1.5 text-gray-600 dark:text-gray-400">
             <AlignLeft className="w-6 h-6" />
           </div>
+        ) : (format === 'md' || format === 'markdown') ? (
+          <div className="w-11 h-13 md:w-12 md:h-14 bg-purple-50 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/80 rounded-xl shadow-3xs flex flex-col items-center justify-center shrink-0 relative overflow-hidden group-hover:scale-105 transition-transform p-1.5 text-purple-600 dark:text-purple-400">
+            <FileText className="w-6 h-6" />
+          </div>
         ) : (
           <div className="w-11 h-13 md:w-12 md:h-14 bg-white dark:bg-gray-800 border border-gray-200/90 dark:border-gray-700 rounded-xl shadow-3xs flex flex-col items-center justify-center shrink-0 relative overflow-hidden group-hover:scale-105 transition-transform p-1.5">
             <div className="w-6 h-1 bg-blue-500/80 rounded-full mb-1.5" />
@@ -114,7 +118,7 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
             {document.title || 'Documento'}
           </span>
           <span className="text-[12px] text-gray-500 dark:text-gray-400 font-normal mt-0.5">
-            {format === 'xlsx' ? 'Planilha' : isCode ? 'Código' : format === 'txt' ? 'Texto' : 'Documento'} · {format.toUpperCase()}
+            {format === 'xlsx' ? 'Planilha' : isCode ? 'Código' : format === 'txt' ? 'Texto' : (format === 'md' || format === 'markdown') ? 'Markdown' : 'Documento'} · {format.toUpperCase()}
           </span>
         </div>
       </div>

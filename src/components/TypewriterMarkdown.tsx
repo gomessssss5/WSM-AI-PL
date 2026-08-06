@@ -63,6 +63,7 @@ export default function TypewriterMarkdown({
       setDisplayedText("");
       currentIndexRef.current = 0;
       prevContentRef.current = cleanText;
+      onCompleteRef.current?.();
       return;
     }
 

@@ -783,6 +783,7 @@ export default function MarkdownRenderer({
 
     // 0. Extract agentic tags: [pesquisou na web], [calculando], [verificando relógio], and active/completed states
     const agenticRegex = /\[(pesquisou na web|calculando|verificando relógio|pesquisando\.\.\.|calculando\.\.\.|verificando\.\.\.|verificando possíveis erros no código\.\.\.|código 100% verificado: sem erros[\s\S]*?|corrigindo erro detectado no código:[\s\S]*?|sandbox de depuração:[\s\S]*?|Criando Skill:[\s\S]*?|Editando Skill:[\s\S]*?|Excluindo Skill:[\s\S]*?|Criou Skill:[\s\S]*?|Editou Skill:[\s\S]*?|Excluiu Skill:[\s\S]*?|criando skill:[\s\S]*?|editando skill:[\s\S]*?|excluindo skill:[\s\S]*?|criou skill:[\s\S]*?|editou skill:[\s\S]*?|excluiu skill:[\s\S]*?|nova tarefa:[\s\S]*?|tarefa removida:[\s\S]*?|passo concluído|Abrindo site:[\s\S]*?|Clicando no elemento[\s\S]*?|Digitando[\s\S]*?|Rolando página[\s\S]*?|Lendo página atualizada[\s\S]*?|Aguardando[\s\S]*?|Aguardou[\s\S]*?|Criando documento:[\s\S]*?|Criou documento:[\s\S]*?|Lendo documento:[\s\S]*?|Leu documento:[\s\S]*?|Editando documento:[\s\S]*?|Editou documento:[\s\S]*?|Excluindo documento:[\s\S]*?|Excluiu documento:[\s\S]*?|Listando documentos[\s\S]*?|Listou documentos[\s\S]*?|Documento não encontrado:[\s\S]*?)\]/gi;
+    const seenAgenticTypes = new Set<string>();
     currentText = currentText.replace(agenticRegex, (match, tagContent) => {
       const id = `:::AGENTICTOKEN-${agenticTokens.length}:::`;
       let type = 'web';
@@ -805,7 +806,13 @@ export default function MarkdownRenderer({
       else if (lower.includes('editando documento:') || lower.includes('editou documento:')) type = 'doc_edit';
       else if (lower.includes('excluindo documento:') || lower.includes('excluiu documento:')) type = 'doc_delete';
       else if (lower.includes('listando documentos') || lower.includes('listou documentos')) type = 'doc_list';
+
+      if (seenAgenticTypes.has(tagContent.toLowerCase())) {
+        return ''; // Completely remove duplicate tag from text
+      }
+      seenAgenticTypes.add(tagContent.toLowerCase());
       agenticTokens.push({ id, type, text: tagContent });
+      
       return id;
     });
 

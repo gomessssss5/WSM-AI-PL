@@ -662,6 +662,9 @@ CICLO AGÊNTICO DE EXECUÇÃO (Plan → Act → Observe → Reflect):
 REGRA ABSOLUTA DE FORMATAÇÃO DE CHAMADAS DE FUNÇÃO:
 - NUNCA escreva textos como '<call:.../>', '<call:default_api:.../>' ou pseudo-código de função no seu texto visível. As ferramentas devem ser invocadas SOMENTE de forma nativa via Function Call.
 
+REGRA ABSOLUTA DE FIDELIDADE AO TEXTO DO SITE (ANTI-ALUCINAÇÃO):
+- Ao ler ou abrir qualquer site (via open_url, click, type_text, scroll_page, extract_visible_text), você DEVE utilizar e citar EXCLUSIVAMENTE o texto exato retornado no campo 'text' da resposta da ferramenta. É ESTRITAMENTE PROIBIDO inventar, fabricar de memória, parafrasear com alteração de sentido ou alterar qualquer frase ou palavra do texto do site. Transcreva ou cite o texto literal exatamente como retornado pela ferramenta de navegação.
+
 REGRA ABSOLUTA DE BUSCADOR EM NAVEGADOR:
 - SEMPRE que você for realizar uma pesquisa na web utilizando o navegador real (via Playwright), VOCÊ É PROIBIDO DE USAR O GOOGLE. VOCÊ DEVE OBRIGATORIAMENTE USAR O BRAVE SEARCH (\`https://search.brave.com/\`).
 
@@ -764,7 +767,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
           },
           {
             name: "open_url",
-            description: "Abre uma URL no navegador real em background e retorna o conteúdo da página com os elementos interativos.",
+            description: "Abre uma URL no navegador real em background e retorna o texto exato e literal da página no campo 'text'. Você deve obrigatoriamente ler e citar esse texto exatamente sem alterar ou inventar palavras de memória.",
             parameters: {
               type: Type.OBJECT,
               properties: {
@@ -968,8 +971,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
           tools: marteTools,
           config: {
             systemInstruction: activeSystemPrompt + 
-              "\nREGRA PRINCIPAL E OBRIGATÓRIA DE DOCUMENTOS (PDF vs MD): A preferência absoluta de geração de documentos (redações, relatórios, artigos, resumos, ensaios, cartas, etc.) É OBRIGATORIAMENTE PDF (`format: 'pdf'` e nome do arquivo terminado em `.pdf`). O formato Markdown (`format: 'md'`) NÃO deve ser usado para documentos comuns de usuários normais — MD é estritamente exclusivo para conteúdos de TI/desenvolvimento técnico (como System Prompts, READMEs técnicos e specs de código). NUNCA crie arquivos .md para redações ou trabalhos escolares/profissionais comuns!" +
-              "\nIMPORTANTE: Quando usar uma ferramenta, chame a função ANTES. NUNCA gere as tags [pesquisou na web], [calculando] ou [verificando relógio] ANTES de chamar a função. Gere a tag APENAS na sua resposta final de texto, APÓS receber o resultado da função." +
+              "\nREGRA PRINCIPAL E OBRIGATÓRIA DE DOCUMENTOS (PDF vs MD vs TEXTO): A preferência absoluta de geração de documentos longos (redações, relatórios, artigos, manuais, planilhas) É OBRIGATORIAMENTE PDF (ou XLSX). NUNCA crie PDFs ou documentos para pedidos simples de escrita criativa (ex: pequenos contos, poemas, letras de música, roteiros curtos, piadas); estes devem ser entregues APENAS em texto puro inline no chat. O formato Markdown (`format: 'md'`) NÃO deve ser usado para documentos comuns, sendo exclusivo para conteúdos de TI/desenvolvimento técnico (System Prompts, READMEs). NUNCA crie arquivos .md para trabalhos escolares/profissionais!" +
               "\nNUNCA gere manualmente as tags em colchetes como `[pesquisou na web]`, `[calculando]`, `[verificando relógio]` na sua resposta final de texto. O nosso sistema de backend já insere e renderiza essas tags de progresso e status automaticamente no chat. Sua tarefa é focar exclusivamente em gerar o conteúdo final explicativo e o código, sem adicionar essas tags de status ao final." +
               "\nREGRA DA CALCULADORA: SEMPRE que precisar resolver QUALQUER expressão matemática (ex: v² = 20² + 2×(-10)×(-5)), VOCÊ DEVE OBRIGATORIAMENTE chamar a ferramenta 'calculadora'. NUNCA calcule de cabeça ou deduza o valor (ex: alucinar 24.49 em vez de 22.36). Após receber o resultado exato da calculadora, escreva sua resposta final conferindo o valor retornado." +
               "\nREGRA DA WEB SEARCH: Use web_search APENAS para fatos históricos, notícias e informações do mundo real. É ESTRITAMENTE PROIBIDO usar web_search para pesquisar sobre programação, HTML, CSS, JS, tutoriais, tendências de design ou como criar um site. Se o usuário pedir um site, GERE O CÓDIGO IMEDIATAMENTE sem pesquisar na web!" +
@@ -1461,9 +1463,13 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
           const aiPromisedBrowser = !isHtmlRequestThisTurn && (/\b(vou|irei|estou|vamos|agora|próximo|proximo)\s+(abrir|acessar|navegar|digitar|clicar|rolar|preencher|enviar|colocar|selecionar|pressionar|aguardar|esperar|fechar)\b/i.test(aiStr) || /\b(preenchendo|enviando|clicando|digitando|abrindo|acessando|rolando|aguardando|fechando)\b/i.test(aiStr));
           const aiPromisedSearch = !isHtmlRequestThisTurn && (/\b(vou|irei|estou)\s+(pesquisar|buscar)\b|\bpesquisando\b/i.test(aiStr));
 
+          const isCreativeOrSubjectiveTask = /\b(poema|poesia|piada|hist[óo]ria|conto|m[úu]sica|letra|rap|reda[çc][ãa]o|ensaio|livro|cap[íi]tulo|script|c[óo]digo|fun[çc][ãa]o|algoritmo|traduza|traduzir|resuma|resumo|reescreva|mude|mudar|crie um document|crie um arquivo|crie uma planilha|gerar imagem|desenhe|ilustre)\b/i.test(userStr);
+          const promptExplicitlyWantsSearch = /\b(pesquis[ae]|busqu[ae]|procur[ae]|pesquisa|busca|google|brave|not[íi]cia|noticias|fonte|links?|sites?|pre[çc]o|cota[çc][ãa]o)\b/i.test(userStr);
+          const skipAutoSearchForce = isCreativeOrSubjectiveTask && !promptExplicitlyWantsSearch;
+
           const isSimpleGreetingOrMath2 = /^(ol[áa]|oi|tudo\s+bem|boa\s+(tarde|noite|dia)|quanto\s+[ée]|calcul[ae]|1\+[123456789]|2\+2)$/i.test(userStr.trim());
           const wantsBrowser = !isHtmlRequestThisTurn && ((Boolean(effectiveComputerEnabled) && !isSimpleGreetingOrMath2) || promptWantsBrowser);
-          const wantsSearch = !isHtmlRequestThisTurn && (Boolean(effectiveSearchEnabled) || promptWantsSearch);
+          const wantsSearch = !isHtmlRequestThisTurn && !skipAutoSearchForce && (Boolean(effectiveSearchEnabled) || promptWantsSearch);
 
           const aiHasFinalConclusion = /\b(concluí|conclui|concluído|concluido|finalizei|finalizado|tudo certo|sucesso no teste|teste concluído)\b/i.test(aiStr);
 

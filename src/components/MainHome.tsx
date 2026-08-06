@@ -98,7 +98,7 @@ export default function MainHome({
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentCardIndex((prev) => (prev + 1) % 3);
+      setCurrentCardIndex((prev) => (prev + 1) % 2);
     }, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -1491,10 +1491,9 @@ export default function MainHome({
                     <div className="flex items-center gap-1 shrink-0 self-end mb-0.5 mr-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-gray-800 transition-all duration-300" />
                       <span className="w-1.5 h-1.5 rounded-full bg-gray-300 transition-all duration-300" />
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-300 transition-all duration-300" />
                     </div>
                   </motion.div>
-                ) : currentCardIndex === 1 ? (
+                ) : (
                   <motion.div 
                     key="card-1"
                     initial={{ x: '100%', opacity: 0 }}
@@ -1521,48 +1520,7 @@ export default function MainHome({
                     {/* Pagination indicators */}
                     <div className="flex items-center gap-1 shrink-0 self-end mb-0.5 mr-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-gray-300 transition-all duration-300" />
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-800 transition-all duration-300" />
                       <span className="w-1.5 h-1.5 rounded-full bg-gray-300 transition-all duration-300" />
-                    </div>
-                  </motion.div>
-                ) : (
-                  <motion.div 
-                    key="card-2"
-                    initial={{ x: '100%', opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    exit={{ x: '-100%', opacity: 0 }}
-                    transition={{ duration: 0.38, ease: [0.25, 1, 0.5, 1] }}
-                    onClick={() => {
-                      setInputValue("Gere uma imagem de ");
-                      const el = document.getElementById("chat-input-textarea");
-                      if (el) el.focus();
-                    }}
-                    className="w-full h-full bg-gray-100/65 border border-black/5 rounded-2xl p-3.5 md:p-4 flex items-center justify-between gap-3.5 select-none cursor-pointer hover:bg-gray-100/90 active:scale-[0.99] transition-colors relative"
-                  >
-                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                      <div className="w-24 md:w-32 h-14 md:h-16 shrink-0 flex items-center justify-center bg-white border border-[#eae6e1] rounded-xl shadow-2xs overflow-hidden p-1">
-                        <img
-                          src="https://i.ibb.co/HptN09Wc/099453ef-f352-4d92-91d5-0ca21965c7db-removebg-preview.png"
-                          alt="WSM Image 1.0"
-                          className="w-full h-full object-contain"
-                          referrerPolicy="no-referrer"
-                        />
-                      </div>
-                      <div className="flex flex-col text-left min-w-0 flex-1">
-                        <h3 className="font-sans font-bold text-gray-900 text-[13.5px] md:text-[14.5px] tracking-tight leading-snug truncate">
-                          Gere imagens com WSM Image 1.0
-                        </h3>
-                        <p className="font-sans text-gray-500 text-[11.5px] md:text-[12px] leading-relaxed mt-0.5 line-clamp-1">
-                          Crie imagens criativas usando nosso novo modelo de geração de imagem
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Pagination indicators */}
-                    <div className="flex items-center gap-1 shrink-0 self-end mb-0.5 mr-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-300 transition-all duration-300" />
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-300 transition-all duration-300" />
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-800 transition-all duration-300" />
                     </div>
                   </motion.div>
                 )}
