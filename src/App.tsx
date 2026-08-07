@@ -4,14 +4,11 @@ import Sidebar from './components/Sidebar';
 import SearchModal from './components/SearchModal';
 import MainHome from './components/MainHome';
 import ChatWindow from './components/ChatWindow';
-import UpdateModal from './components/UpdateModal';
 import ImagesGallery from './components/ImagesGallery';
-import Translator from './components/Translator';
-import ToolsDashboard from './components/ToolsDashboard';
+import Library from './components/Library';
 import Login from './components/Login';
 import { auth, onAuthStateChanged, signOut, User, getRedirectResult } from './lib/firebase';
 import { subscribeSessions, saveSession, deleteSessionFromDb, subscribeDrafts, saveDraft, deleteDraft, subscribeUserProfile, dismissNewsCardForUser, dismissWelcomeCardForUser } from './lib/chatService';
-import WelcomeCardModal from './components/WelcomeCardModal';
 import { ChatSession, Message, Draft, ScheduledTask, TaskExecution } from './types';
 import { Sparkles, Trash2 } from 'lucide-react';
 import ScheduledTasksDashboard from './components/ScheduledTasksDashboard';
@@ -36,46 +33,13 @@ export default function App() {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isImagesView, setIsImagesView] = useState(false);
-  const [isToolsView, setIsToolsView] = useState(false);
+  const [isLibraryView, setIsLibraryView] = useState(false);
   const [isScheduledTasksView, setIsScheduledTasksView] = useState(false);
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
   const [taskExecutions, setTaskExecutions] = useState<TaskExecution[]>([]);
-  const [isTranslatorMode, setIsTranslatorMode] = useState(false);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
-  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
-  const [isWelcomeCardOpen, setIsWelcomeCardOpen] = useState(false);
-
-  // Check if welcome announcement card should be shown for the account (once per user account)
-  useEffect(() => {
-    const hasSeen162 = localStorage.getItem('wsm_see_1.6.2') === 'true';
-    if (hasSeen162) {
-      setIsWelcomeCardOpen(false);
-      return;
-    }
-
-    if (currentUser && isProfileLoaded) {
-      const localSeen = localStorage.getItem(`wsm_welcome_card_seen_${currentUser.uid}`) === 'true';
-      const remoteSeen = !!userProfile?.seenWelcomeCard;
-      if (!localSeen && !remoteSeen) {
-        setIsWelcomeCardOpen(true);
-      } else {
-        setIsWelcomeCardOpen(false);
-      }
-    } else if (!currentUser) {
-      setIsWelcomeCardOpen(true);
-    }
-  }, [currentUser, userProfile, isProfileLoaded]);
-
-  const handleCloseWelcomeCard = () => {
-    setIsWelcomeCardOpen(false);
-    localStorage.setItem('wsm_see_1.6.2', 'true');
-    if (currentUser) {
-      localStorage.setItem(`wsm_welcome_card_seen_${currentUser.uid}`, 'true');
-      dismissWelcomeCardForUser(currentUser.uid);
-    }
-  };
 
   // Listen to User Skills from Firestore
   useEffect(() => {
@@ -125,7 +89,7 @@ export default function App() {
   });
 
   const [selectedModel, setSelectedModel] = useState<string>(() => {
-    return 'Ominx 1.6';
+    return 'Omnix 1.6';
   });
 
   const [reasoningLevel, setReasoningLevel] = useState<string>(() => {
@@ -198,7 +162,7 @@ export default function App() {
   const sendCompletionNotification = () => {
     if (document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
       try {
-        const title = "Resposta do WSM AI está pronta!";
+        const title = "Resposta do Omnix AI está pronta!";
         const options: any = {
           body: `O modelo ${selectedModel} terminou de processar a sua resposta.`,
           icon: '/favicon.ico',
@@ -399,9 +363,8 @@ export default function App() {
     }
 
     setIsImagesView(false);
-    setIsToolsView(false);
+    setIsLibraryView(false);
     setIsScheduledTasksView(false);
-    setIsTranslatorMode(false);
     setActiveSessionId(id);
   };
 
@@ -413,9 +376,8 @@ export default function App() {
     // Discard all temporary chats
     setSessions((prev) => prev.filter((s) => !s.isTemporary));
     setIsImagesView(false);
-    setIsToolsView(false);
+    setIsLibraryView(false);
     setIsScheduledTasksView(false);
-    setIsTranslatorMode(false);
     setActiveSessionId(null);
   };
 
@@ -441,9 +403,8 @@ export default function App() {
     setActiveSessionId(tempId);
     
     setIsImagesView(false);
-    setIsToolsView(false);
+    setIsLibraryView(false);
     setIsScheduledTasksView(false);
-    setIsTranslatorMode(false);
     setIsMobileHistoryOpen(false);
   };
 
@@ -451,36 +412,23 @@ export default function App() {
   const handleToggleImagesView = () => {
     setSessions((prev) => prev.filter((s) => !s.isTemporary));
     setIsImagesView(!isImagesView);
-    setIsToolsView(false);
+    setIsLibraryView(false);
     setIsScheduledTasksView(false);
-    setIsTranslatorMode(false);
-  };
-  
-  // Translator Handler
-  const handleOpenTranslator = () => {
-    setSessions((prev) => prev.filter((s) => !s.isTemporary));
-    setIsImagesView(false);
-    setIsToolsView(false);
-    setIsScheduledTasksView(false);
-    setActiveSessionId(null);
-    setIsTranslatorMode(true);
   };
 
-  const handleOpenToolsView = () => {
+  const handleOpenLibraryView = () => {
     setSessions((prev) => prev.filter((s) => !s.isTemporary));
     setIsImagesView(false);
-    setIsTranslatorMode(false);
     setActiveSessionId(null);
     setIsScheduledTasksView(false);
-    setIsToolsView(true);
+    setIsLibraryView(true);
   };
 
   const handleOpenTasksView = () => {
     setSessions((prev) => prev.filter((s) => !s.isTemporary));
     setIsImagesView(false);
-    setIsTranslatorMode(false);
     setActiveSessionId(null);
-    setIsToolsView(false);
+    setIsLibraryView(false);
     setIsScheduledTasksView(true);
   };
 
@@ -685,7 +633,7 @@ O motor de análise estatística do **${selectedModel}** processou os dados brut
       : '';
     
     return {
-      text: `${searchStatus}# 👋 Bem-vindo ao WSM AI Hub!
+      text: `${searchStatus}# 👋 Bem-vindo ao Omnix AI Hub!
 
 Olá! Eu sou o **${selectedModel}**, uma inteligência artificial desenvolvida para fornecer respostas com velocidade de resposta ultrarrápida, raciocínio lógico apurado e recursos multimodais avançados.
 
@@ -1079,7 +1027,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           sessionId: sessionToUpdate.id,
           isSearchEnabled,
           isComputerEnabled,
-          isTranslatorMode,
+          isTranslatorMode: false,
           model: sessionToUpdate.model || selectedModel,
           reasoningLevel: reasoningLevel,
           skills: [...OFFICIAL_SKILLS, ...skills],
@@ -1087,7 +1035,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           userInfo: currentUser ? {
             uid: currentUser.uid,
             email: currentUser.email,
-            displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Usuário WSM'
+            displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Usuário Omnix'
           } : undefined,
           history: sessionToUpdate.messages.map(m => {
             let msgText = m.text || m.finalSynthesis || "";
@@ -1500,7 +1448,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
     let text = '';
     switch (type) {
       case 'write':
-        text = `Escreva um e-mail formal e amigável parabenizando a equipe WSM AI pelo design compacto e alta performance do ${selectedModel}`;
+        text = `Escreva um e-mail formal e amigável parabenizando a equipe Omnix AI pelo design compacto e alta performance do ${selectedModel}`;
         break;
       case 'code':
         text = 'Escreva uma função rápida em Javascript para ordenar uma lista de objetos';
@@ -1560,7 +1508,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           </svg>
         </div>
         <p className="text-[13px] text-gray-400 font-semibold tracking-wide animate-pulse">
-          Inicializando WSM AI Hub...
+          Inicializando Omnix AI Hub...
         </p>
       </div>
     );
@@ -1582,7 +1530,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
       {/* Sidebar Area */}
       <Sidebar
         sessions={sessions.filter((s) => !s.isTemporary)}
-        activeSessionId={isTranslatorMode ? null : activeSessionId}
+        activeSessionId={activeSessionId}
         onSelectSession={(id) => { handleSelectSession(id); setIsMobileHistoryOpen(false); }}
         onDeleteSession={handleDeleteSession}
         onNewChat={() => { handleNewChat(); setIsMobileHistoryOpen(false); }}
@@ -1591,7 +1539,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         userEmail={currentUser.email}
         userName={currentUser.displayName}
         onSignOut={handleSignOut}
-        onOpenTools={() => { handleOpenToolsView(); setIsMobileHistoryOpen(false); }}
+        onOpenLibrary={() => { handleOpenLibraryView(); setIsMobileHistoryOpen(false); }}
         onOpenTasks={() => { handleOpenTasksView(); setIsMobileHistoryOpen(false); }}
         isMobileHistoryOpen={isMobileHistoryOpen}
         onCloseMobileHistory={() => setIsMobileHistoryOpen(false)}
@@ -1613,8 +1561,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           <motion.div
             key={
               isAdminView ? 'admin' :
-              isTranslatorMode ? 'translator' :
-              isToolsView ? 'tools' :
+              isLibraryView ? 'library' :
               isScheduledTasksView ? 'scheduled' :
               isImagesView ? 'images' :
               activeSession ? activeSession.id : 'home'
@@ -1630,21 +1577,12 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                 onBack={() => setIsAdminView(false)} 
                 actualSessionsCount={sessions.filter((s) => !s.isTemporary).length}
               />
-            ) : isTranslatorMode ? (
-              <Translator 
+            ) : isLibraryView ? (
+              <Library
+                sessions={sessions}
                 onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
-                onBack={() => {
-                  setIsTranslatorMode(false);
-                  setIsToolsView(true);
-                }}
-              />
-            ) : isToolsView ? (
-              <ToolsDashboard
-                onOpenTranslator={handleOpenTranslator}
-                onSelectPrompt={(prompt) => {
-                  setIsToolsView(false);
-                  handleSendMessage(prompt, false);
-                }}
+                onSelectSession={(id) => { handleSelectSession(id); setIsLibraryView(false); }}
+                onNewChat={() => { handleNewChat(); setIsLibraryView(false); }}
               />
             ) : isScheduledTasksView ? (
               <ScheduledTasksDashboard
@@ -1724,7 +1662,6 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                 isTemporary={!!activeSession.isTemporary}
                 isScheduled={!!activeSession.isScheduled}
                 onStartTemporaryChat={handleNewTemporaryChat}
-                onOpenUpdateModal={() => setIsUpdateModalOpen(true)}
               />
             ) : (
               <MainHome
@@ -1748,7 +1685,6 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                 onOpenStore={() => setIsStoreModalOpen(true)}
                 onStartTemporaryChat={handleNewTemporaryChat}
                 isProfileLoading={!isProfileLoaded}
-                onOpenUpdateModal={() => setIsUpdateModalOpen(true)}
               />
             )}
           </motion.div>
@@ -1770,15 +1706,6 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           onClose={() => setIsStoreModalOpen(false)}
           userSkills={skills}
         />
-      )}
-
-      <UpdateModal 
-        isOpen={isUpdateModalOpen} 
-        onClose={() => setIsUpdateModalOpen(false)} 
-      />
-
-      {isWelcomeCardOpen && (
-        <WelcomeCardModal onClose={handleCloseWelcomeCard} />
       )}
 
       <AnimatePresence>

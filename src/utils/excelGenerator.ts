@@ -114,102 +114,165 @@ export function parseTableDataFromContent(content: string): TableData {
   };
 }
 
+export interface SheetData {
+  name: string;
+  headers: string[];
+  rows: (string | number)[][];
+}
+
+export function parseMultiSheetData(content: string): SheetData[] {
+  if (!content) return [];
+  const trimmed = content.trim();
+
+  try {
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      const parsed = JSON.parse(trimmed);
+      
+      // Check if top level object has 'sheets' array
+      if (parsed && Array.isArray(parsed.sheets) && parsed.sheets.length > 0) {
+        return parsed.sheets.map((s: any, idx: number) => {
+          const sheetName = (s.name || `Aba ${idx + 1}`).replace(/[*?:/\\[\\]]/g, '').substring(0, 31);
+          let headers: string[] = [];
+          let rows: (string | number)[][] = [];
+
+          if (Array.isArray(s.headers)) {
+            headers = s.headers.map((h: any) => String(h));
+          } else if (Array.isArray(s.columns)) {
+            headers = s.columns.map((c: any) => String(c));
+          }
+
+          if (Array.isArray(s.rows)) {
+            rows = s.rows.map((r: any) => Array.isArray(r) ? r : [String(r)]);
+          }
+
+          if (headers.length === 0 && rows.length > 0) {
+            headers = rows[0].map((_, i) => `Coluna ${i + 1}`);
+          }
+
+          return { name: sheetName, headers, rows };
+        });
+      }
+    }
+  } catch (e) {
+    // Fall back
+  }
+
+  return [];
+}
+
 export async function generateExcelBlob(title: string, content: string): Promise<Blob> {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'WSM AI';
+  workbook.creator = 'Omnix AI';
   workbook.created = new Date();
 
-  const sheetName = (title || 'Planilha').replace(/\.xlsx$/i, '').replace(/[*?:/\\[\\]]/g, '').substring(0, 31) || 'Planilha1';
-  const worksheet = workbook.addWorksheet(sheetName, {
-    views: [{ showGridLines: true }]
-  });
+  const multiSheets = parseMultiSheetData(content);
 
-  const { headers, rows } = parseTableDataFromContent(content);
+  const buildWorksheet = (worksheet: ExcelJS.Worksheet, headers: string[], rows: (string | number)[][]) => {
+    // Set columns
+    worksheet.columns = headers.map(h => ({
+      header: h,
+      key: h,
+      width: Math.max(h.length + 6, 14)
+    }));
 
-  // Set columns
-  worksheet.columns = headers.map(h => ({
-    header: h,
-    key: h,
-    width: Math.max(h.length + 6, 14)
-  }));
-
-  // Style header row
-  const headerRow = worksheet.getRow(1);
-  headerRow.height = 28;
-  headerRow.eachCell((cell) => {
-    cell.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: '1F4E78' } // Dark Navy
-    };
-    cell.font = {
-      name: 'Arial',
-      size: 11,
-      bold: true,
-      color: { argb: 'FFFFFF' }
-    };
-    cell.alignment = {
-      vertical: 'middle',
-      horizontal: 'center',
-      wrapText: true
-    };
-    cell.border = {
-      top: { style: 'thin', color: { argb: '103050' } },
-      left: { style: 'thin', color: { argb: '103050' } },
-      bottom: { style: 'medium', color: { argb: '0A2035' } },
-      right: { style: 'thin', color: { argb: '103050' } }
-    };
-  });
-
-  // Add Data Rows
-  rows.forEach((rowValues, rowIndex) => {
-    const row = worksheet.addRow(rowValues);
-    row.height = 22;
-
-    const isEven = rowIndex % 2 === 0;
-    const bgArgb = isEven ? 'FFFFFF' : 'F4F7FA';
-
-    row.eachCell((cell) => {
+    // Style header row
+    const headerRow = worksheet.getRow(1);
+    headerRow.height = 28;
+    headerRow.eachCell((cell) => {
       cell.fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: bgArgb }
+        fgColor: { argb: '1F4E78' } // Dark Navy
       };
       cell.font = {
         name: 'Arial',
-        size: 10,
-        color: { argb: '222222' }
+        size: 11,
+        bold: true,
+        color: { argb: 'FFFFFF' }
+      };
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: 'center',
+        wrapText: true
       };
       cell.border = {
-        top: { style: 'thin', color: { argb: 'E0E0E0' } },
-        left: { style: 'thin', color: { argb: 'E0E0E0' } },
-        bottom: { style: 'thin', color: { argb: 'E0E0E0' } },
-        right: { style: 'thin', color: { argb: 'E0E0E0' } }
+        top: { style: 'thin', color: { argb: '103050' } },
+        left: { style: 'thin', color: { argb: '103050' } },
+        bottom: { style: 'medium', color: { argb: '0A2035' } },
+        right: { style: 'thin', color: { argb: '103050' } }
       };
-
-      if (typeof cell.value === 'number') {
-        cell.alignment = { vertical: 'middle', horizontal: 'right' };
-      } else if (typeof cell.value === 'string' && cell.value.startsWith('___CURRENCY___')) {
-        cell.value = Number(cell.value.replace('___CURRENCY___', ''));
-        cell.numFmt = '"R$" #,##0.00';
-        cell.alignment = { vertical: 'middle', horizontal: 'right' };
-      } else {
-        cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
-      }
     });
-  });
 
-  // Auto-adjust column widths based on maximum length of cell content
-  worksheet.columns.forEach(col => {
-    let maxLen = col.header ? String(col.header).length : 10;
-    col.eachCell!({ includeEmpty: false }, cell => {
-      const valStr = cell.value !== null && cell.value !== undefined ? String(cell.value) : '';
-      if (valStr.length > maxLen) {
-        maxLen = valStr.length;
-      }
+    // Add Data Rows
+    rows.forEach((rowValues, rowIndex) => {
+      const row = worksheet.addRow(rowValues.map(val => {
+        if (typeof val === 'string' && val.startsWith('=')) {
+          return { formula: val.substring(1) };
+        }
+        return val;
+      }));
+      row.height = 22;
+
+      const isEven = rowIndex % 2 === 0;
+      const bgArgb = isEven ? 'FFFFFF' : 'F4F7FA';
+
+      row.eachCell((cell) => {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: bgArgb }
+        };
+        cell.font = {
+          name: 'Arial',
+          size: 10,
+          color: { argb: '222222' }
+        };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'E0E0E0' } },
+          left: { style: 'thin', color: { argb: 'E0E0E0' } },
+          bottom: { style: 'thin', color: { argb: 'E0E0E0' } },
+          right: { style: 'thin', color: { argb: 'E0E0E0' } }
+        };
+
+        if (typeof cell.value === 'number') {
+          cell.alignment = { vertical: 'middle', horizontal: 'right' };
+        } else if (typeof cell.value === 'string' && cell.value.startsWith('___CURRENCY___')) {
+          cell.value = Number(cell.value.replace('___CURRENCY___', ''));
+          cell.numFmt = '"R$" #,##0.00';
+          cell.alignment = { vertical: 'middle', horizontal: 'right' };
+        } else {
+          cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+        }
+      });
     });
-    col.width = Math.min(Math.max(maxLen + 4, 12), 50);
-  });
+
+    // Auto-adjust column widths based on maximum length of cell content
+    worksheet.columns.forEach(col => {
+      let maxLen = col.header ? String(col.header).length : 10;
+      col.eachCell!({ includeEmpty: false }, cell => {
+        const valStr = cell.value !== null && cell.value !== undefined ? String(cell.value) : '';
+        if (valStr.length > maxLen) {
+          maxLen = valStr.length;
+        }
+      });
+      col.width = Math.min(Math.max(maxLen + 4, 12), 50);
+    });
+  };
+
+  if (multiSheets.length > 0) {
+    multiSheets.forEach((sd) => {
+      const ws = workbook.addWorksheet(sd.name, { views: [{ showGridLines: true }] });
+      buildWorksheet(ws, sd.headers, sd.rows);
+    });
+  } else {
+    const sheetName = (title || 'Planilha').replace(/\.xlsx$/i, '').replace(/[*?:/\\[\\]]/g, '').substring(0, 31) || 'Planilha1';
+    const worksheet = workbook.addWorksheet(sheetName, {
+      views: [{ showGridLines: true }]
+    });
+
+    const { headers, rows } = parseTableDataFromContent(content);
+    buildWorksheet(worksheet, headers, rows);
+  }
 
   const buffer = await workbook.xlsx.writeBuffer();
   return new Blob([buffer], {

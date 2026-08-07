@@ -14,7 +14,7 @@ interface SidebarProps {
   userEmail?: string | null;
   userName?: string | null;
   onSignOut?: () => void;
-  onOpenTools?: () => void;
+  onOpenLibrary?: () => void;
   onOpenTasks?: () => void;
   isMobileHistoryOpen?: boolean;
   onCloseMobileHistory?: () => void;
@@ -33,7 +33,7 @@ export default function Sidebar(props: SidebarProps) {
     userEmail,
     userName,
     onSignOut,
-    onOpenTools,
+    onOpenLibrary,
     onOpenTasks,
     isMobileHistoryOpen,
     onCloseMobileHistory,
@@ -113,9 +113,9 @@ export default function Sidebar(props: SidebarProps) {
           </button>
 
           {/* Logo */}
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
+          <div className="w-5 h-5 rounded-md flex items-center justify-center overflow-hidden shrink-0">
             <img 
-              src="https://i.ibb.co/Q34b6rBW/37990-removebg-preview.png" 
+              src="https://i.ibb.co/jvfRYXDR/cone-Circular-Abstrato-em-Espiral-removebg-preview.png" 
               alt="Logo" 
               className="w-full h-full object-contain"
               referrerPolicy="no-referrer"
@@ -136,11 +136,11 @@ export default function Sidebar(props: SidebarProps) {
             </button>
 
             <button
-              onClick={() => { if (onOpenTools) onOpenTools(); }}
+              onClick={() => { if (onOpenLibrary) onOpenLibrary(); }}
               className="w-9 h-9 flex items-center justify-center bg-white hover:bg-[#fafaf9] text-gray-800 rounded-full border border-[#eae6e1] shadow-2xs transition-all duration-200 active:scale-[0.95] cursor-pointer"
-              title="Ferramentas"
+              title="Biblioteca"
             >
-              <Wrench className="w-4 h-4 text-gray-600" />
+              <BookOpen className="w-4 h-4 text-gray-600" />
             </button>
 
             <button
@@ -178,8 +178,8 @@ export default function Sidebar(props: SidebarProps) {
           )}
 
           <div 
-            className="w-7 h-7 bg-gradient-to-tr from-[#2563eb] to-indigo-400 rounded-full flex items-center justify-center text-white font-bold text-[10px] shadow-xs select-none shrink-0"
-            title={userName || userEmail || 'Usuário WSM AI'}
+            className="w-7 h-7 bg-gradient-to-tr from-black to-neutral-800 rounded-full flex items-center justify-center text-white font-bold text-[10px] shadow-xs select-none shrink-0"
+            title={userName || userEmail || 'Usuário Omnix AI'}
           >
             {userName 
               ? userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() 
@@ -203,16 +203,16 @@ export default function Sidebar(props: SidebarProps) {
         {/* Brand Header */}
         <div className="p-4 pb-1.5 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
+            <div className="w-5.5 h-5.5 rounded-md flex items-center justify-center overflow-hidden shrink-0">
               <img 
-                src="https://i.ibb.co/Q34b6rBW/37990-removebg-preview.png" 
+                src="https://i.ibb.co/jvfRYXDR/cone-Circular-Abstrato-em-Espiral-removebg-preview.png" 
                 alt="Logo" 
                 className="w-full h-full object-contain"
                 referrerPolicy="no-referrer"
               />
             </div>
             <span className="font-sans font-bold text-sm text-gray-900 tracking-tight">
-              WSM AI
+              Omnix AI
             </span>
           </div>
           
@@ -275,14 +275,14 @@ export default function Sidebar(props: SidebarProps) {
             <span>Nova conversa</span>
           </button>
           <button
-            id="btn-tools"
+            id="btn-library"
             onClick={() => {
-              if (onOpenTools) onOpenTools();
+              if (onOpenLibrary) onOpenLibrary();
             }}
             className="w-full flex items-center justify-start gap-3 bg-transparent hover:bg-black/5 text-gray-700 hover:text-gray-900 py-2 px-3.5 rounded-lg border border-transparent transition-all duration-150 cursor-pointer text-left font-medium text-[13.5px] group"
           >
-            <Wrench className="w-4.5 h-4.5 text-gray-500 group-hover:text-gray-800 transition-colors" />
-            <span>Ferramentas</span>
+            <BookOpen className="w-4.5 h-4.5 text-gray-500 group-hover:text-gray-800 transition-colors" />
+            <span>Biblioteca</span>
           </button>
           <button
             onClick={() => {
@@ -293,7 +293,7 @@ export default function Sidebar(props: SidebarProps) {
             <Clock className="w-4.5 h-4.5 text-gray-500 group-hover:text-gray-800 transition-colors" />
             <span>Tarefas Agendadas</span>
             {sessions.some(s => s.isScheduled && s.isUnread) && (
-              <span className="absolute right-3.5 top-1/2 -translate-y-1/2 w-2 h-2 bg-[#2563eb] rounded-full animate-pulse"></span>
+              <span className="absolute right-3.5 top-1/2 -translate-y-1/2 w-2 h-2 bg-black rounded-full animate-pulse"></span>
             )}
           </button>
         </div>
@@ -324,7 +324,7 @@ export default function Sidebar(props: SidebarProps) {
                       {getCleanSessionTitle(session)}
                     </span>
                     {session.isUnread && (
-                      <div className="absolute right-7 w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                      <div className="absolute right-7 w-1.5 h-1.5 bg-gray-1000 rounded-full"></div>
                     )}
                     {/* Delete Button */}
                     <button
@@ -349,7 +349,7 @@ export default function Sidebar(props: SidebarProps) {
         <div className="px-3 py-2 border-t border-[#eae6e1] bg-[#fbfbfa]">
           <button
             onClick={() => setShowInstallModal(true)}
-            className="w-full flex items-center justify-center gap-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white py-2 px-3 rounded-lg shadow-sm transition-all duration-200 active:scale-[0.98] cursor-pointer font-semibold text-[12px]"
+            className="w-full flex items-center justify-center gap-2 bg-black hover:bg-neutral-800 text-white py-2 px-3 rounded-lg shadow-sm transition-all duration-200 active:scale-[0.98] cursor-pointer font-semibold text-[12px]"
           >
             <Download className="w-3.5 h-3.5" />
             Instalar App
@@ -359,14 +359,14 @@ export default function Sidebar(props: SidebarProps) {
         {/* User Footer Profile */}
         <div className="p-3 border-t border-[#eae6e1] bg-[#f0ede8] flex items-center justify-between gap-1.5">
           <div className="flex items-center gap-2 truncate">
-            <div className="w-8 h-8 bg-gradient-to-tr from-[#2563eb] to-indigo-400 rounded-full flex items-center justify-center text-white font-bold text-[12px] shadow-xs select-none shrink-0">
+            <div className="w-8 h-8 bg-gradient-to-tr from-black to-neutral-800 rounded-full flex items-center justify-center text-white font-bold text-[12px] shadow-xs select-none shrink-0">
               {userName 
                 ? userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() 
                 : (userEmail ? userEmail.substring(0, 2).toUpperCase() : 'AI')}
             </div>
             <div className="flex flex-col truncate">
               <span className="text-[12px] font-bold text-gray-800 truncate">
-                {userName || userEmail || 'Usuário WSM AI'}
+                {userName || userEmail || 'Usuário Omnix AI'}
               </span>
               <span className="text-[9px] text-gray-400 uppercase tracking-wide font-semibold truncate">
                 {userEmail || 'Conectado'}
@@ -398,24 +398,24 @@ export default function Sidebar(props: SidebarProps) {
               <X className="w-5 h-5" />
             </button>
             <div className="flex flex-col items-center text-center gap-4">
-              <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-sm">
+              <div className="w-12 h-12 rounded-xl overflow-hidden shadow-xs flex items-center justify-center p-1 bg-white">
                 <img 
-                  src="https://i.ibb.co/Q34b6rBW/37990-removebg-preview.png" 
-                  alt="WSM AI Logo" 
-                  className="w-full h-full object-cover"
+                  src="https://i.ibb.co/jvfRYXDR/cone-Circular-Abstrato-em-Espiral-removebg-preview.png" 
+                  alt="Omnix AI Logo" 
+                  className="w-full h-full object-contain"
                 />
               </div>
               <div>
-                <h3 className="font-sans font-bold text-gray-900 text-lg">Instalar WSM AI</h3>
+                <h3 className="font-sans font-bold text-gray-900 text-lg">Instalar Omnix AI</h3>
                 <p className="text-gray-500 text-sm mt-1 leading-relaxed">
-                  Instale o WSM AI no seu celular para acessar de forma mais rápida, direto da sua tela inicial e ter uma experiência melhor.
+                  Instale o Omnix AI no seu celular para acessar de forma mais rápida, direto da sua tela inicial e ter uma experiência melhor.
                 </p>
               </div>
               
               {deferredPrompt ? (
                 <button
                   onClick={handleInstallApp}
-                  className="w-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all active:scale-[0.98] mt-2"
+                  className="w-full bg-black hover:bg-neutral-800 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all active:scale-[0.98] mt-2"
                 >
                   Instalar Agora
                 </button>

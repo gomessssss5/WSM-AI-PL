@@ -88,7 +88,7 @@ export function OfficialSkillsStore({ onClose, userSkills }: OfficialSkillsStore
                     <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
                       <span className="bg-brand-50 text-brand-600 px-1.5 py-0.5 rounded font-medium">Oficial</span>
                       <span>•</span>
-                      <span className="flex items-center gap-1">WSM AI</span>
+                      <span className="flex items-center gap-1">Omnix AI</span>
                     </div>
                   </div>
                   <div className="flex gap-2">

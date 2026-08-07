@@ -110,16 +110,16 @@ interface ProcessedStats {
 const EMAIL_TEMPLATES = [
   {
     id: 'welcome',
-    name: 'Boas-Vindas ao Ominx 1.6',
+    name: 'Boas-Vindas ao Omnix 1.6',
     badge: 'Boas-Vindas',
-    subject: '[Ominx 1.6] Bem-vindo ao Ominx 1.6! 🚀',
+    subject: '[Omnix 1.6] Bem-vindo ao Omnix 1.6! 🚀',
     title: 'Sua conta foi criada com sucesso!',
     subtitle: 'Seja muito bem-vindo à nossa plataforma',
     body: `Olá!
 
-Sua conta no **Ominx 1.6** já está ativa e pronta para potencializar suas pesquisas e ideias.
+Sua conta no **Omnix 1.6** já está ativa e pronta para potencializar suas pesquisas e ideias.
 
-### 🌟 O que você pode fazer no Ominx 1.6:
+### 🌟 O que você pode fazer no Omnix 1.6:
 - 🌐 **Navegação Web em Tempo Real:** Pesquise notícias, acesse sites ao vivo e obtenha fatos atualizados instantaneamente.
 - 📅 **Tarefas Agendadas:** Programe pesquisas recorrentes ou lembretes que a IA executa sozinha e envia o relatório para o seu e-mail.
 - ⚡ **Agentes de Alta Performance:** Respostas rápidas, execução de código e assistentes especializados.
@@ -130,12 +130,12 @@ Estamos muito felizes em ter você aqui. Quando quiser começar, basta fazer uma
     id: 'inactivity',
     name: 'Lembrete de Inatividade (Saudades)',
     badge: 'Lembrete de Inatividade',
-    subject: '[Ominx 1.6] Sentimos sua falta no Ominx 1.6',
+    subject: '[Omnix 1.6] Sentimos sua falta no Omnix 1.6',
     title: 'Sentimos sua falta! O que você quer criar hoje?',
     subtitle: 'Seu assistente IA está te esperando',
     body: `Olá!
 
-Notamos que faz alguns dias desde a sua última interação com o **Ominx 1.6**.
+Notamos que faz alguns dias desde a sua última interação com o **Omnix 1.6**.
 
 ### 💡 Lembre-se do que você pode fazer:
 - Consultar fatos em tempo real na internet
@@ -148,12 +148,12 @@ O que acha de voltar hoje mesmo e dar continuidade aos seus projetos?`
     id: 'feature_highlight',
     name: 'Destaque de Recurso (Navegação Web)',
     badge: 'Recurso Exclusivo',
-    subject: '[Ominx 1.6] Sabia que o Ominx 1.6 navega em sites em tempo real?',
+    subject: '[Omnix 1.6] Sabia que o Omnix 1.6 navega em sites em tempo real?',
     title: 'Acesse informações atualizadas e ao vivo na Web',
     subtitle: 'Navegação em tempo real em qualquer link',
-    body: `Passando para te lembrar de um dos recursos mais poderosos do **Ominx 1.6**:
+    body: `Passando para te lembrar de um dos recursos mais poderosos do **Omnix 1.6**:
 
-Diferente de IAs estáticas com dados desatualizados, o **Ominx 1.6** navega diretamente na web, acessa links, pesquisa notícias do dia e interage com sites em tempo real.
+Diferente de IAs estáticas com dados desatualizados, o **Omnix 1.6** navega diretamente na web, acessa links, pesquisa notícias do dia e interage com sites em tempo real.
 
 ### 💡 Experimente pedir no chat:
 - *"Acesse o site do G1 e faça um resumo das 3 principais notícias de hoje"*
@@ -164,32 +164,32 @@ Acesse agora e experimente a navegação ao vivo!`
   },
   {
     id: 'monthly_campaign',
-    name: 'Campanha Mensal (WSM vs Outras IAs)',
-    badge: 'Ominx 1.6 vs Outras IAs',
-    subject: '[Ominx 1.6] E aí, vamos parar de usar IAs ruins?',
+    name: 'Campanha Mensal (Omnix vs Outras IAs)',
+    badge: 'Omnix 1.6 vs Outras IAs',
+    subject: '[Omnix 1.6] E aí, vamos parar de usar IAs ruins?',
     title: 'E aí, vamos parar de usar IAs ruins e começar a me usar?',
-    subtitle: 'Por que o Ominx 1.6 é a melhor escolha',
-    body: `E aí, vamos parar de usar IAs ruins e começar a usar o **Ominx 1.6**?
+    subtitle: 'Por que o Omnix 1.6 é a melhor escolha',
+    body: `E aí, vamos parar de usar IAs ruins e começar a usar o **Omnix 1.6**?
 
 Você sabe que a nossa IA tem superpoderes que outras plataformas não oferecem, né? 😉
 
-### 🚀 Por que escolher o Ominx 1.6?
+### 🚀 Por que escolher o Omnix 1.6?
 - 🌐 **Navegação Real em Sites:** Acesso ao vivo à internet sem bloqueios.
 - 📅 **Agendamento Inteligente:** A IA pesquisa e trabalha para você em segundo plano.
 - ⚡ **Respostas Precisas:** Baseadas em fatos reais e atualizados.
 
-Acesse agora o Ominx 1.6 e comprove a diferença!`
+Acesse agora o Omnix 1.6 e comprove a diferença!`
   },
   {
     id: 'system_notice',
     name: 'Comunicado Oficial do Sistema',
     badge: 'Aviso Importante',
-    subject: '[Ominx 1.6] Atualizações e Melhorias no Sistema',
+    subject: '[Omnix 1.6] Atualizações e Melhorias no Sistema',
     title: 'Novidades e Otimizações na Plataforma',
     subtitle: 'Melhorias de desempenho e estabilidade',
     body: `Prezado usuário,
 
-Gostaríamos de informar que realizamos importantes melhorias de desempenho e estabilidade no **Ominx 1.6**.
+Gostaríamos de informar que realizamos importantes melhorias de desempenho e estabilidade no **Omnix 1.6**.
 
 ### 🛠️ O que mudou:
 - **Respostas Mais Rápidas:** Otimização dos servidores e rotas de IA.
@@ -208,12 +208,12 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
   // Email Broadcast State
   const [emailSendMode, setEmailSendMode] = useState<'custom' | 'template'>('custom');
   const [emailTemplateId, setEmailTemplateId] = useState<string>('welcome');
-  const [emailSubject, setEmailSubject] = useState<string>('[Ominx 1.6] Aviso Oficial e Novidades');
-  const [emailTitle, setEmailTitle] = useState<string>('Nova Comunicação do Ominx 1.6');
+  const [emailSubject, setEmailSubject] = useState<string>('[Omnix 1.6] Aviso Oficial e Novidades');
+  const [emailTitle, setEmailTitle] = useState<string>('Nova Comunicação do Omnix 1.6');
   const [emailBadgeText, setEmailBadgeText] = useState<string>('Comunicação Oficial');
-  const [emailSubtitleText, setEmailSubtitleText] = useState<string>('Ominx 1.6 • Notificação ao Usuário');
+  const [emailSubtitleText, setEmailSubtitleText] = useState<string>('Omnix 1.6 • Notificação ao Usuário');
   const [emailBodyMarkdown, setEmailBodyMarkdown] = useState<string>(
-    'Olá!\n\nEstamos entrando em contato para informar sobre as novas atualizações do **Ominx 1.6**.\n\n### 🚀 Destaques:\n- **Navegação Web em Tempo Real**\n- **Automação de Agendamentos e Relatórios por E-mail**\n- **Respostas Ultrarrápidas**\n\nAcesse agora e confira!'
+    'Olá!\n\nEstamos entrando em contato para informar sobre as novas atualizações do **Omnix 1.6**.\n\n### 🚀 Destaques:\n- **Navegação Web em Tempo Real**\n- **Automação de Agendamentos e Relatórios por E-mail**\n- **Respostas Ultrarrápidas**\n\nAcesse agora e confira!'
   );
 
   const [recipientMode, setRecipientMode] = useState<'all_gmail' | 'selected_gmail' | 'single_test'>('all_gmail');
@@ -455,7 +455,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
       };
 
       const modelCounts: Record<string, number> = {
-        'Ominx 1.6': 0
+        'Omnix 1.6': 0
       };
 
       const errorCounts: Record<string, number> = {
@@ -634,7 +634,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
 
               // Infer model usage
               const textLower = (m.text || '').toLowerCase();
-              let inferredModel = 'Ominx 1.6';
+              let inferredModel = 'Omnix 1.6';
               modelCounts[inferredModel] = (modelCounts[inferredModel] || 0) + 1;
 
               // Check if message is an error
@@ -720,7 +720,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
 
       // Format model usage data
       const formattedModels = [
-        { name: 'Ominx 1.6', value: 100, requests: modelCounts['Ominx 1.6'] || 0, label: 'Agêntico/Multitarefas' }
+        { name: 'Omnix 1.6', value: 100, requests: modelCounts['Omnix 1.6'] || 0, label: 'Agêntico/Multitarefas' }
       ];
 
       // Format errors breakdown
@@ -1111,12 +1111,12 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
       const nowMs = Date.now();
       const possibleStatuses = [
         { status: 'Digitando prompt...', color: 'bg-amber-500 animate-pulse' },
-        { status: 'Recebendo resposta da IA...', color: 'bg-[#2563eb] animate-pulse' },
+        { status: 'Recebendo resposta da IA...', color: 'bg-black animate-pulse' },
         { status: 'Processando arquivo...', color: 'bg-purple-500 animate-pulse' },
         { status: 'Lendo resposta...', color: 'bg-emerald-500 animate-pulse' },
         { status: 'Inativo há 1m', color: 'bg-gray-400' },
         { status: 'Editando rascunho...', color: 'bg-cyan-500 animate-pulse' },
-        { status: 'Analisando código-fonte...', color: 'bg-indigo-500 animate-pulse' },
+        { status: 'Analisando código-fonte...', color: 'bg-gray-1000 animate-pulse' },
       ];
 
       const usersWithActivity = usersList.map(u => {
@@ -1126,7 +1126,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
         
         let latestMsgTimestamp = 0;
         let latestMsgText = '';
-        let latestMsgModel = 'Ominx 1.6';
+        let latestMsgModel = 'Omnix 1.6';
         let latestSessionTitle = 'Nenhuma sessão';
         let isUserLastAction = false;
 
@@ -1153,7 +1153,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
             
             if (latestMsg.sender === 'ai' || latestMsg.sender === 'model') {
               const textLower = (latestMsg.text || '').toLowerCase();
-              if (textLower.includes('pro')) latestMsgModel = 'Ominx 1.6';
+              if (textLower.includes('pro')) latestMsgModel = 'Omnix 1.6';
             }
           } else {
             latestMsgTimestamp = convertToDate(latestSession.timestamp).getTime();
@@ -1213,9 +1213,9 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
       // If we don't have enough users, add a few realistic ones to fill the workspace
       if (activeUsersList.length < 3) {
         const fallbackUsers = [
-          { email: 'gestao_rh@wsm.ai', sessionTitle: 'Análise de Desempenho 2026', model: 'Ominx 1.6', text: 'Resuma os pontos fortes do feedback de liderança' },
-          { email: 'maria.souza@yahoo.com.br', sessionTitle: 'Coprodução de Romance', model: 'Ominx 1.6', text: 'Escreva um parágrafo dramático sobre a descoberta do segredo' },
-          { email: 'dev_tech@gmail.com', sessionTitle: 'Refatoração Express Router', model: 'Ominx 1.6', text: 'Otimize essa query assíncrona do firebase' }
+          { email: 'gestao_rh@wsm.ai', sessionTitle: 'Análise de Desempenho 2026', model: 'Omnix 1.6', text: 'Resuma os pontos fortes do feedback de liderança' },
+          { email: 'maria.souza@yahoo.com.br', sessionTitle: 'Coprodução de Romance', model: 'Omnix 1.6', text: 'Escreva um parágrafo dramático sobre a descoberta do segredo' },
+          { email: 'dev_tech@gmail.com', sessionTitle: 'Refatoração Express Router', model: 'Omnix 1.6', text: 'Otimize essa query assíncrona do firebase' }
         ];
 
         fallbackUsers.forEach((f, idx) => {
@@ -1423,7 +1423,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
 
   const mostUsedModel = stats.modelUsage.length > 0 
     ? stats.modelUsage.reduce((max, model) => model.requests > max.requests ? model : max, stats.modelUsage[0])
-    : { name: 'Ominx 1.6', requests: 0, value: 100 };
+    : { name: 'Omnix 1.6', requests: 0, value: 100 };
 
   const mostCommonError = stats.errorsBreakdown.length > 0
     ? stats.errorsBreakdown.reduce((max, err) => err.count > max.count ? err : max, stats.errorsBreakdown[0])
@@ -1438,8 +1438,8 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
   if (loading) {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center bg-[#FAF9F6] select-none font-sans">
-        <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center shadow-sm border border-blue-100 animate-spin mb-4">
-          <RefreshCw className="w-6 h-6 text-[#2563eb]" />
+        <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center shadow-sm border border-gray-200 animate-spin mb-4">
+          <RefreshCw className="w-6 h-6 text-black dark:text-white" />
         </div>
         <p className="text-[13px] text-gray-500 font-bold tracking-wide animate-pulse">
           AUDITANDO BANCO DE DADOS...
@@ -1522,11 +1522,11 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <Shield className="w-5 h-5 text-[#2563eb]" />
+              <Shield className="w-5 h-5 text-black dark:text-white" />
               <h1 className="text-sm font-black tracking-tight text-gray-950 uppercase">
-                Painel Administrativo WSM
+                Painel Administrativo Omnix
               </h1>
-              <span className="bg-[#2563eb]/10 text-[#2563eb] border border-[#2563eb]/15 text-[9px] font-bold px-2.5 py-0.5 rounded-full tracking-wider uppercase">
+              <span className="bg-black/10 dark:bg-white/10 text-black dark:text-white border border-black dark:border-white/15 text-[9px] font-bold px-2.5 py-0.5 rounded-full tracking-wider uppercase">
                 Acesso Root
               </span>
             </div>
@@ -1563,7 +1563,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
           <div className="bg-white p-4 rounded-2xl border border-[#eae6e1] shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-gray-400 tracking-wider uppercase">Usuários Totais</span>
-              <div className="p-1.5 rounded-lg bg-[#2563eb]/10 text-[#2563eb]">
+              <div className="p-1.5 rounded-lg bg-black/10 dark:bg-white/10 text-black dark:text-white">
                 <Users className="w-4 h-4" />
               </div>
             </div>
@@ -1589,7 +1589,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
           <div className="bg-white p-4 rounded-2xl border border-[#eae6e1] shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-gray-400 tracking-wider uppercase">Mensagens da IA</span>
-              <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-500 border border-indigo-100">
+              <div className="p-1.5 rounded-lg bg-gray-100 text-gray-900 border border-gray-200">
                 <Cpu className="w-4 h-4" />
               </div>
             </div>
@@ -1669,7 +1669,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   onClick={() => setActiveTab(tab.id as any)}
                   className={`flex items-center gap-2 py-3 px-4 text-xs font-bold border-b-2 transition-all cursor-pointer ${
                     activeTab === tab.id
-                      ? 'border-[#2563eb] text-[#2563eb] bg-[#2563eb]/5 rounded-t-xl'
+                      ? 'border-black dark:border-white text-black dark:text-white bg-black/5 dark:bg-white/5 rounded-t-xl'
                       : 'border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-100/50 rounded-t-xl'
                   }`}
                 >
@@ -1704,7 +1704,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       <p className="text-[10px] text-gray-400">Relação entre usuários ativos, mensagens e erros reais</p>
                     </div>
                     <div className="flex gap-4 text-[10px] font-bold">
-                      <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#2563eb]" /><span>Mensagens</span></div>
+                      <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-black" /><span>Mensagens</span></div>
                       <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#34d399]" /><span>Usuários</span></div>
                       <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-400" /><span>Erros</span></div>
                     </div>
@@ -1794,7 +1794,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Latência Média da API</h3>
                       <p className="text-[10px] text-gray-400">Desempenho histórico de resposta do modelo (ms)</p>
                     </div>
-                    <div className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-[10px] font-bold border border-indigo-100">
+                    <div className="px-2 py-1 bg-gray-100 text-gray-900 rounded-lg text-[10px] font-bold border border-gray-200">
                       {stats.avgResponseTime.toFixed(0)} ms
                     </div>
                   </div>
@@ -1853,7 +1853,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                         <span className="text-gray-900">{stats.activeUsersGauge.mau}</span>
                       </div>
                       <div className="w-full bg-gray-100 rounded-full h-2">
-                        <div className="bg-[#2563eb] h-2 rounded-full" style={{ width: '100%' }}></div>
+                        <div className="bg-black h-2 rounded-full" style={{ width: '100%' }}></div>
                       </div>
                     </div>
                   </div>
@@ -1956,7 +1956,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
             >
               <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
                 <div className="bg-white p-5 rounded-3xl border border-[#eae6e1] shadow-sm flex flex-col justify-center items-center text-center">
-                  <div className="p-3 bg-blue-50 text-blue-500 rounded-2xl mb-3">
+                  <div className="p-3 bg-gray-100 text-black rounded-2xl mb-3">
                     <Users className="w-5 h-5" />
                   </div>
                   <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Usuários Recorrentes</h3>
@@ -1965,7 +1965,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                 </div>
 
                 <div className="bg-white p-5 rounded-3xl border border-[#eae6e1] shadow-sm flex flex-col justify-center items-center text-center">
-                  <div className="p-3 bg-indigo-50 text-indigo-500 rounded-2xl mb-3">
+                  <div className="p-3 bg-gray-100 text-gray-900 rounded-2xl mb-3">
                     <MessageSquare className="w-5 h-5" />
                   </div>
                   <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Média Mensagens / Sessão</h3>
@@ -2049,14 +2049,14 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                     {stats.longSessions.map(session => (
                       <div key={session.id} className="relative w-full h-5 bg-gray-50 rounded-full overflow-hidden flex items-center px-2">
                         <div
-                          className="absolute h-full bg-[#2563eb] rounded-full opacity-20"
+                          className="absolute h-full bg-black rounded-full opacity-20"
                           style={{
                             left: `${Math.min(100, session.start / 2)}%`,
                             width: `${Math.min(100 - session.start / 2, session.duration / 2)}%`
                           }}
                         />
                         <div
-                          className="absolute h-full border-l-2 border-[#2563eb]"
+                          className="absolute h-full border-l-2 border-black dark:border-white"
                           style={{ left: `${Math.min(100, session.start / 2)}%` }}
                         />
                         <span className="relative z-10 text-[9px] font-bold text-gray-700 truncate">{session.user} ({session.duration.toFixed(0)}m)</span>
@@ -2142,7 +2142,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                             {usr.isReturning ? (
                               <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-full font-bold text-[9px] uppercase tracking-wider">Recorrente</span>
                             ) : (
-                              <span className="bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full font-bold text-[9px] uppercase tracking-wider">Novo</span>
+                              <span className="bg-gray-100 text-blue-700 border border-gray-200 px-2 py-0.5 rounded-full font-bold text-[9px] uppercase tracking-wider">Novo</span>
                             )}
                           </td>
                           <td className="py-3 px-2 text-center font-bold text-gray-500">
@@ -2154,7 +2154,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                           <td className="py-3 px-2 text-center">
                             <div className="w-full bg-gray-100 rounded-full h-1.5 max-w-[100px] mx-auto overflow-hidden flex items-center">
                               <div 
-                                className="bg-[#2563eb] h-1.5 rounded-full" 
+                                className="bg-black h-1.5 rounded-full" 
                                 style={{ width: `${Math.min(100, (usr.messagesCount / (stats.totalMessages || 1)) * 100)}%` }} 
                               />
                             </div>
@@ -2243,9 +2243,9 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                     })}
                   </div>
 
-                  <div className="bg-indigo-50/50 border border-indigo-100 p-3.5 rounded-2xl flex items-center justify-between text-xs font-bold">
+                  <div className="bg-gray-100 border border-gray-200 p-3.5 rounded-2xl flex items-center justify-between text-xs font-bold">
                     <div className="flex items-center gap-2">
-                      <Server className="w-4 h-4 text-[#2563eb]" />
+                      <Server className="w-4 h-4 text-black dark:text-white" />
                       <span className="text-gray-500">Modelo Mais Utilizado:</span>
                       <span className="text-gray-900 uppercase font-black">{mostUsedModel.name} ({mostUsedModel.value}%)</span>
                     </div>
@@ -2483,8 +2483,8 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                                   </>
                                 ) : (
                                   <>
-                                    <span className="w-1.5 h-1.5 bg-[#2563eb] rounded-full" />
-                                    <span className="text-[#2563eb]">WSM AI</span>
+                                    <span className="w-1.5 h-1.5 bg-black rounded-full" />
+                                    <span className="text-black dark:text-white">Omnix AI</span>
                                   </>
                                 )}
                                 <span className="text-[9px] text-gray-400 font-medium">({new Date(msg.timestamp).toLocaleTimeString()})</span>
@@ -2518,7 +2518,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Cota Diária Gemini</span>
-                      <span className="bg-indigo-50 text-[#2563eb] text-[9px] font-bold px-2 py-0.5 rounded-full border border-indigo-100">
+                      <span className="bg-gray-100 text-black dark:text-white text-[9px] font-bold px-2 py-0.5 rounded-full border border-gray-200">
                         1.5K RPD Limit
                       </span>
                     </div>
@@ -2532,7 +2532,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                     {/* Progress Bar */}
                     <div className="w-full bg-gray-100 h-2 rounded-full mt-4 overflow-hidden">
                       <div 
-                        className="bg-[#2563eb] h-full rounded-full transition-all duration-500"
+                        className="bg-black h-full rounded-full transition-all duration-500"
                         style={{ width: `${Math.min(100, stats.apiMetrics?.geminiDailyPercent ?? 0)}%` }}
                       />
                     </div>
@@ -2699,7 +2699,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                               return (
                                 <div className="bg-white p-3 border border-gray-100 rounded-xl shadow-lg text-[11px] font-bold space-y-1">
                                   <p className="text-gray-900">{data.name}</p>
-                                  <p className="text-[#2563eb]">Consumido: {data.Usado} reqs ({data.percent}%)</p>
+                                  <p className="text-black dark:text-white">Consumido: {data.Usado} reqs ({data.percent}%)</p>
                                   <p className="text-gray-400">Limite Free Tier: {data.Limite} reqs</p>
                                 </div>
                               );
@@ -2795,11 +2795,11 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       <tr className="hover:bg-gray-50/80 transition-colors">
                         <td className="py-3.5 px-3">
                           <div className="flex items-center gap-2">
-                            <Sparkles className="w-4 h-4 text-[#2563eb]" />
+                            <Sparkles className="w-4 h-4 text-black dark:text-white" />
                             <span className="font-extrabold text-gray-900">Google AI Studio (Gemini)</span>
                           </div>
                         </td>
-                        <td className="py-3.5 px-3 font-mono text-[10px] text-indigo-600 bg-indigo-50/30 rounded-md">
+                        <td className="py-3.5 px-3 font-mono text-[10px] text-black bg-gray-100/30 rounded-md">
                           gemini-3.5-flash-lite
                         </td>
                         <td className="py-3.5 px-3 text-center text-gray-900 font-bold">15 RPM</td>
@@ -2812,7 +2812,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       <tr className="hover:bg-gray-50/80 transition-colors">
                         <td className="py-3.5 px-3">
                           <div className="flex items-center gap-2">
-                            <Sparkles className="w-4 h-4 text-[#2563eb]" />
+                            <Sparkles className="w-4 h-4 text-black dark:text-white" />
                             <span className="font-extrabold text-gray-900">Google AI Studio (Tokens)</span>
                           </div>
                         </td>
@@ -2870,14 +2870,14 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                 </div>
 
                 <div className="my-5 space-y-4 text-xs font-medium">
-                  <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl leading-normal text-indigo-700">
+                  <div className="bg-gray-100 border border-gray-200 p-4 rounded-2xl leading-normal text-gray-900">
                     O painel dispara requisições diretas leves com o modelo <span className="font-mono bg-white border px-1.5 py-0.5 rounded">gemini-3.5-flash-lite</span> para validar cota, validade e permissões do Google GenAI.
                   </div>
 
                   <button
                     onClick={handleTestKeys}
                     disabled={testingApis}
-                    className="w-full py-3 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-xl font-bold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98] disabled:opacity-50"
+                    className="w-full py-3 bg-black hover:bg-neutral-800 text-white rounded-xl font-bold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98] disabled:opacity-50"
                   >
                     {testingApis ? (
                       <>
@@ -2905,7 +2905,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       <div className="space-y-1">
                         <p className="font-extrabold text-amber-900 dark:text-amber-100 text-xs">Alerta de Sobrecarga</p>
                         <p className="text-[11.5px] text-amber-800 dark:text-amber-200 leading-relaxed font-semibold">
-                          Ominx 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.
+                          Omnix 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.
                         </p>
                       </div>
                     </div>
@@ -3040,7 +3040,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                 <div className="flex flex-col space-y-2">
                   <div className="flex justify-between text-xs font-bold">
                     <span className="text-gray-500">Armazenamento (Real)</span>
-                    <span className={stats.storageUse.percent > 80 ? 'text-red-500' : 'text-[#2563eb]'}>
+                    <span className={stats.storageUse.percent > 80 ? 'text-red-500' : 'text-black dark:text-white'}>
                       {stats.storageUse.formattedUsed || `${stats.storageUse.usedGB.toFixed(6)}GB`} / {stats.storageUse.totalGB.toFixed(1)}GB ({stats.storageUse.percent < 0.0001 ? stats.storageUse.percent.toFixed(6) : stats.storageUse.percent.toFixed(4)}%)
                     </span>
                   </div>
@@ -3229,7 +3229,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                 <div className="bg-white p-5 rounded-3xl border border-[#eae6e1] shadow-sm flex flex-col justify-between">
                   <div>
                     <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
-                      <Sliders className="w-4 h-4 text-[#2563eb]" />
+                      <Sliders className="w-4 h-4 text-black dark:text-white" />
                       Simulador Ativo
                     </h3>
                     <p className="text-[10px] text-gray-400">Controle de flutuação de atividade fictícia para auditoria visual</p>
@@ -3267,7 +3267,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                             onClick={() => setSimSpeed(speed)}
                             className={`flex-1 py-1.5 rounded-lg border text-[10px] font-bold transition-all cursor-pointer ${
                               simSpeed === speed 
-                                ? 'bg-[#2563eb] text-white border-[#2563eb]' 
+                                ? 'bg-black text-white border-black dark:border-white' 
                                 : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                             }`}
                           >
@@ -3278,7 +3278,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                     </div>
                   </div>
 
-                  <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-xl leading-normal text-indigo-700 text-[10px] font-medium">
+                  <div className="bg-gray-100 border border-gray-200 p-3 rounded-xl leading-normal text-gray-900 text-[10px] font-medium">
                     A simulação aplica oscilações flutuantes ao indicador de "usuários ativos agora" para auditar graficamente a estabilidade das estatísticas.
                   </div>
                 </div>
@@ -3346,10 +3346,10 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   <div>
                     <div className="flex justify-between text-[10px] font-bold mb-1">
                       <span className="text-gray-500">Taxa de Conexão Ativa</span>
-                      <span className="text-[#2563eb]">100%</span>
+                      <span className="text-black dark:text-white">100%</span>
                     </div>
                     <div className="bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                      <div className="bg-[#2563eb] h-full rounded-full animate-pulse" style={{ width: '100%' }} />
+                      <div className="bg-black h-full rounded-full animate-pulse" style={{ width: '100%' }} />
                     </div>
                   </div>
                 </div>
@@ -3450,7 +3450,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                 </div>
                 <button
                   onClick={loadAllData}
-                  className="px-2.5 py-1 bg-[#2563eb]/5 hover:bg-[#2563eb]/10 text-[#2563eb] rounded-xl text-[10px] font-bold border border-[#2563eb]/20 flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                  className="px-2.5 py-1 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 text-black dark:text-white rounded-xl text-[10px] font-bold border border-black dark:border-white/20 flex items-center gap-1 cursor-pointer transition-all active:scale-95"
                 >
                   <RefreshCw className="w-3 h-3" />
                   Atualizar Lista
@@ -3489,12 +3489,12 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                         <td className="py-3 px-2 text-center">
                           <span className={`px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase ${
                             user.model.includes('Pro') ? 'bg-orange-50 text-orange-600 border border-orange-100' :
-                            'bg-blue-50 text-blue-600 border border-blue-100'
+                            'bg-gray-100 text-black border border-gray-200'
                           }`}>
                             {user.model}
                           </span>
                         </td>
-                        <td className="py-3 px-2 text-right font-black text-[#2563eb]">
+                        <td className="py-3 px-2 text-right font-black text-black dark:text-white">
                           {user.relativeTime}
                         </td>
                       </tr>
@@ -3535,7 +3535,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                             {i === 0 ? '🥇 1' : i === 1 ? '🥈 2' : i === 2 ? '🥉 3' : `${i + 1}`}
                           </td>
                           <td className="py-3 px-2 font-bold">{u.email}</td>
-                          <td className="py-3 px-2 text-center font-black text-indigo-600">{u.score}</td>
+                          <td className="py-3 px-2 text-center font-black text-black">{u.score}</td>
                           <td className="py-3 px-2 text-center text-orange-500 font-bold">🔥 {u.streak}</td>
                         </tr>
                       ))}
@@ -3661,7 +3661,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   {/* Summary Cards */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="bg-white p-5 rounded-2xl border border-[#eae6e1] shadow-sm flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-[#2563eb] flex items-center justify-center border border-indigo-100 shrink-0">
+                      <div className="w-12 h-12 rounded-2xl bg-gray-100 text-black dark:text-white flex items-center justify-center border border-gray-200 shrink-0">
                         <ImageIcon className="w-6 h-6" />
                       </div>
                       <div>
@@ -3785,7 +3785,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                                       </div>
                                       <div className="min-w-0">
                                         <p className="font-bold text-gray-900 text-xs truncate">
-                                          {item.userName || 'Usuário WSM'}
+                                          {item.userName || 'Usuário Omnix'}
                                         </p>
                                         <p className="text-[10px] text-gray-400 truncate">
                                           {item.userEmail || 'email@wsm.ai'}
@@ -3936,7 +3936,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                                       </div>
                                       <div className="min-w-0">
                                         <p className="font-bold text-gray-900 text-xs truncate">
-                                          {item.userName || 'Usuário WSM'}
+                                          {item.userName || 'Usuário Omnix'}
                                         </p>
                                         <p className="text-[10px] text-gray-400 truncate">
                                           {item.userEmail || 'email@wsm.ai'}
@@ -4023,7 +4023,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
           >
             <div className="bg-white p-6 rounded-3xl border border-[#eae6e1] shadow-sm flex flex-col">
               <div className="mb-6 text-center">
-                <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                <div className="w-12 h-12 bg-gray-100 text-black rounded-full flex items-center justify-center mx-auto mb-3">
                   <Zap className="w-6 h-6" />
                 </div>
                 <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Central de Broadcast (Avisos)</h3>
@@ -4044,7 +4044,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   <input type="text" placeholder="https://exemplo.com/imagem.png" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:border-blue-500 bg-gray-50 focus:bg-white transition-colors" />
                 </div>
                 
-                <button className="w-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold py-3 rounded-xl transition-all shadow-sm active:scale-95 flex items-center justify-center gap-2 mt-4">
+                <button className="w-full bg-black hover:bg-neutral-800 text-white font-bold py-3 rounded-xl transition-all shadow-sm active:scale-95 flex items-center justify-center gap-2 mt-4">
                   <Zap className="w-4 h-4" />
                   Disparar Broadcast Agora
                 </button>
@@ -4102,7 +4102,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                     onClick={() => setEmailSendMode('custom')}
                     className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                       emailSendMode === 'custom'
-                        ? 'bg-[#2563eb] text-white shadow-sm'
+                        ? 'bg-black text-white shadow-sm'
                         : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
@@ -4114,7 +4114,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                     onClick={() => setEmailSendMode('template')}
                     className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                       emailSendMode === 'template'
-                        ? 'bg-[#2563eb] text-white shadow-sm'
+                        ? 'bg-black text-white shadow-sm'
                         : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
@@ -4128,7 +4128,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   <div className="bg-white p-5 rounded-3xl border border-[#eae6e1] shadow-sm space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-blue-600" />
+                        <Sparkles className="w-4 h-4 text-black" />
                         Modelos de E-mail Prontos
                       </h3>
                       <span className="text-[10px] text-gray-400 font-medium">Clique em um modelo para carregar</span>
@@ -4150,17 +4150,17 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                             }}
                             className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3.5 ${
                               isSelected
-                                ? 'border-blue-600 bg-blue-50/50 ring-2 ring-blue-500/20'
+                                ? 'border-blue-600 bg-gray-100/50 ring-2 ring-blue-500/20'
                                 : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50/80'
                             }`}
                           >
-                            <div className={`p-2.5 rounded-xl shrink-0 ${isSelected ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                            <div className={`p-2.5 rounded-xl shrink-0 ${isSelected ? 'bg-black text-white' : 'bg-gray-100 text-gray-600'}`}>
                               <Mail className="w-4 h-4" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-2 mb-1">
                                 <span className="font-extrabold text-xs text-gray-900 truncate">{tpl.name}</span>
-                                <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-[9px] uppercase tracking-wide shrink-0">
+                                <span className="px-2 py-0.5 rounded-full bg-gray-200 text-blue-700 font-bold text-[9px] uppercase tracking-wide shrink-0">
                                   {tpl.badge}
                                 </span>
                               </div>
@@ -4177,7 +4177,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                 <div className="bg-white p-5 rounded-3xl border border-[#eae6e1] shadow-sm space-y-4">
                   <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                     <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider flex items-center gap-2">
-                      <Code2 className="w-4 h-4 text-blue-600" />
+                      <Code2 className="w-4 h-4 text-black" />
                       {emailSendMode === 'custom' ? 'Campos do E-mail Personalizado' : 'Editar Conteúdo do Modelo Selecionado'}
                     </h3>
                     <span className="text-[10px] text-gray-400">Preview em tempo real no painel ao lado</span>
@@ -4205,7 +4205,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                         type="text"
                         value={emailSubtitleText}
                         onChange={(e) => setEmailSubtitleText(e.target.value)}
-                        placeholder="Ex: Ominx 1.6 • Notificação Especial"
+                        placeholder="Ex: Omnix 1.6 • Notificação Especial"
                         className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-xs font-medium focus:outline-none focus:border-blue-500 bg-gray-50 focus:bg-white"
                       />
                     </div>
@@ -4219,7 +4219,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       type="text"
                       value={emailSubject}
                       onChange={(e) => setEmailSubject(e.target.value)}
-                      placeholder="Ex: [Ominx 1.6] Novidades da Semana"
+                      placeholder="Ex: [Omnix 1.6] Novidades da Semana"
                       className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-xs font-bold text-gray-900 focus:outline-none focus:border-blue-500 bg-gray-50 focus:bg-white"
                     />
                   </div>
@@ -4256,7 +4256,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                     <div>
                       <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider flex items-center gap-2">
-                        <Users className="w-4 h-4 text-blue-600" />
+                        <Users className="w-4 h-4 text-black" />
                         Seleção de Destinatários (@gmail.com)
                       </h3>
                       <p className="text-[10px] text-gray-400 mt-0.5">
@@ -4277,12 +4277,12 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       onClick={() => setRecipientMode('all_gmail')}
                       className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
                         recipientMode === 'all_gmail'
-                          ? 'border-blue-600 bg-blue-50/60 font-bold text-blue-900'
+                          ? 'border-blue-600 bg-gray-100 font-bold text-gray-900'
                           : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                       }`}
                     >
                       <div className="flex items-center gap-1.5 mb-1">
-                        <Users className="w-3.5 h-3.5 text-blue-600" />
+                        <Users className="w-3.5 h-3.5 text-black" />
                         <span>Todos com @gmail.com</span>
                       </div>
                       <span className="text-[10px] text-gray-500 font-normal block">
@@ -4294,12 +4294,12 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       onClick={() => setRecipientMode('selected_gmail')}
                       className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
                         recipientMode === 'selected_gmail'
-                          ? 'border-blue-600 bg-blue-50/60 font-bold text-blue-900'
+                          ? 'border-blue-600 bg-gray-100 font-bold text-gray-900'
                           : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                       }`}
                     >
                       <div className="flex items-center gap-1.5 mb-1">
-                        <CheckSquare className="w-3.5 h-3.5 text-blue-600" />
+                        <CheckSquare className="w-3.5 h-3.5 text-black" />
                         <span>Selecionar Específicos</span>
                       </div>
                       <span className="text-[10px] text-gray-500 font-normal block">
@@ -4311,12 +4311,12 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       onClick={() => setRecipientMode('single_test')}
                       className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
                         recipientMode === 'single_test'
-                          ? 'border-blue-600 bg-blue-50/60 font-bold text-blue-900'
+                          ? 'border-blue-600 bg-gray-100 font-bold text-gray-900'
                           : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                       }`}
                     >
                       <div className="flex items-center gap-1.5 mb-1">
-                        <Mail className="w-3.5 h-3.5 text-blue-600" />
+                        <Mail className="w-3.5 h-3.5 text-black" />
                         <span>E-mail Único / Teste</span>
                       </div>
                       <span className="text-[10px] text-gray-500 font-normal block">
@@ -4364,7 +4364,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                         <div className="flex gap-2 shrink-0">
                           <button
                             onClick={() => setSelectedGmailUsers(availableGmailUsers)}
-                            className="px-2.5 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                            className="px-2.5 py-1.5 bg-gray-100 text-blue-700 hover:bg-gray-200 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
                           >
                             Marcar Todos ({availableGmailUsers.length})
                           </button>
@@ -4403,7 +4403,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                                           setSelectedGmailUsers(prev => prev.filter(item => item !== usr));
                                         }
                                       }}
-                                      className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                                      className="rounded text-black focus:ring-blue-500 h-4 w-4"
                                     />
                                     <span className="font-semibold text-gray-900">{usr}</span>
                                   </div>
@@ -4439,7 +4439,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   <button
                     onClick={handleSendBroadcastEmails}
                     disabled={isSendingEmails}
-                    className="w-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-extrabold py-3.5 px-6 rounded-2xl transition-all shadow-md active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm cursor-pointer"
+                    className="w-full bg-black hover:bg-neutral-800 text-white font-extrabold py-3.5 px-6 rounded-2xl transition-all shadow-md active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm cursor-pointer"
                   >
                     {isSendingEmails ? (
                       <>
@@ -4480,7 +4480,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                 <div className="bg-white p-4 rounded-3xl border border-[#eae6e1] shadow-sm sticky top-20">
                   <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-3">
                     <div className="flex items-center gap-2">
-                      <Eye className="w-4 h-4 text-blue-600" />
+                      <Eye className="w-4 h-4 text-black" />
                       <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">
                         Pré-visualização do E-mail (Gmail)
                       </h3>
@@ -4494,15 +4494,15 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   <div className="border border-gray-300 rounded-2xl overflow-hidden shadow-sm bg-[#f8fafc]">
                     
                     {/* Simulated Email Header */}
-                    <div className="bg-[#2563eb] text-white p-5">
+                    <div className="bg-black text-white p-5">
                       <div className="text-[10px] font-extrabold uppercase tracking-widest opacity-85 mb-1 text-blue-100">
-                        {emailBadgeText || 'Aviso Oficial Ominx 1.6'}
+                        {emailBadgeText || 'Aviso Oficial Omnix 1.6'}
                       </div>
                       <h4 className="text-base font-bold text-white leading-snug">
                         {emailTitle || 'Título da Comunicação'}
                       </h4>
                       <p className="text-[11px] opacity-90 mt-1 text-blue-100">
-                        {emailSubtitleText || 'Ominx 1.6 • Notificação ao Usuário'}
+                        {emailSubtitleText || 'Omnix 1.6 • Notificação ao Usuário'}
                       </p>
                     </div>
 
@@ -4541,13 +4541,13 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                         rel="noopener noreferrer"
                         className="inline-block bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs px-6 py-2.5 rounded-lg shadow-2xs transition-colors"
                       >
-                        Acessar Ominx 1.6
+                        Acessar Omnix 1.6
                       </a>
                     </div>
 
                     {/* Simulated Email Footer */}
                     <div className="bg-slate-50 p-3 text-center text-[10px] text-slate-500 border-t border-slate-200">
-                      Este e-mail foi enviado automaticamente pelo Ominx 1.6 para [usuario@gmail.com].
+                      Este e-mail foi enviado automaticamente pelo Omnix 1.6 para [usuario@gmail.com].
                     </div>
 
                   </div>
@@ -4565,7 +4565,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                   <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
                     <div className="flex items-center justify-between p-4 border-b border-[#eae6e1] bg-gray-50">
                       <h2 className="font-bold text-gray-800 flex items-center gap-2 text-sm">
-                        <span className="bg-blue-100 text-blue-700 p-1.5 rounded-xl"><User size={16} /></span>
+                        <span className="bg-gray-200 text-blue-700 p-1.5 rounded-xl"><User size={16} /></span>
                         <span>Detalhes da Conta: {selectedUserDetail.email}</span>
                       </h2>
                       <button onClick={() => setSelectedUserDetail(null)} className="p-2 text-gray-400 hover:text-gray-800 hover:bg-gray-200 rounded-full transition-colors cursor-pointer">
@@ -4632,8 +4632,8 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                                             </>
                                           ) : (
                                             <>
-                                              <span className="w-1.5 h-1.5 bg-[#2563eb] rounded-full" />
-                                              <span className="text-[#2563eb]">WSM AI</span>
+                                              <span className="w-1.5 h-1.5 bg-black rounded-full" />
+                                              <span className="text-black dark:text-white">Omnix AI</span>
                                             </>
                                           )}
                                           <span className="text-[9px] text-gray-400 font-medium">
@@ -4662,7 +4662,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
           {/* Terminal Header */}
           <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between select-none">
             <div className="flex items-center gap-2">
-              <Terminal className="w-4 h-4 text-[#2563eb]" />
+              <Terminal className="w-4 h-4 text-black dark:text-white" />
               <span className="font-bold text-gray-200 tracking-wider">TERMINAL DE AUDITORIA DE SISTEMA</span>
               <span className="animate-pulse w-2 h-2 rounded-full bg-emerald-500 ml-1.5" />
             </div>

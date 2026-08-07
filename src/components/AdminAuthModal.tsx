@@ -123,7 +123,7 @@ export default function AdminAuthModal({ onClose, onSuccess }: AdminAuthModalPro
               <ShieldCheck className="w-8 h-8" />
             </div>
           ) : (
-            <div className="p-3 bg-blue-50 border border-blue-100 text-[#2563eb] rounded-2xl">
+            <div className="p-3 bg-gray-100 border border-gray-200 text-black dark:text-white rounded-2xl">
               <Lock className="w-8 h-8" />
             </div>
           )}
@@ -148,7 +148,7 @@ export default function AdminAuthModal({ onClose, onSuccess }: AdminAuthModalPro
                 key={index} 
                 className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${
                   hasValue 
-                    ? 'bg-[#2563eb] border-[#2563eb] scale-110 shadow-sm shadow-[#2563eb]/20' 
+                    ? 'bg-black border-black dark:border-white scale-110 shadow-sm shadow-[#2563eb]/20' 
                     : error 
                       ? 'border-red-400 bg-red-50' 
                       : 'border-gray-300 bg-gray-50'

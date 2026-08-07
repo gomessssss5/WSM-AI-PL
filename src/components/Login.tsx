@@ -141,7 +141,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
             </svg>
           </div>
           <h1 className="text-xl font-extrabold text-gray-900 tracking-tight">
-            WSM AI Hub
+            Omnix AI Hub
           </h1>
           <p className="text-[12px] text-gray-400 font-medium max-w-[280px]">
             Acesse o ecossistema com os modelos de IA mais rápidos do mercado
@@ -172,7 +172,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="w-full bg-[#fcfbfa] border border-[#eae6e1] rounded-xl pl-9.5 pr-4 py-2.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]/25 transition-all font-medium"
+                className="w-full bg-[#fcfbfa] border border-[#eae6e1] rounded-xl pl-9.5 pr-4 py-2.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-black dark:border-white focus:ring-1 focus:ring-[#2563eb]/25 transition-all font-medium"
               />
             </div>
           )}
@@ -185,7 +185,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full bg-[#fcfbfa] border border-[#eae6e1] rounded-xl pl-9.5 pr-4 py-2.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]/25 transition-all font-medium"
+              className="w-full bg-[#fcfbfa] border border-[#eae6e1] rounded-xl pl-9.5 pr-4 py-2.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-black dark:border-white focus:ring-1 focus:ring-[#2563eb]/25 transition-all font-medium"
             />
           </div>
 
@@ -198,7 +198,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              className="w-full bg-[#fcfbfa] border border-[#eae6e1] rounded-xl pl-9.5 pr-10 py-2.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]/25 transition-all font-medium"
+              className="w-full bg-[#fcfbfa] border border-[#eae6e1] rounded-xl pl-9.5 pr-10 py-2.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-black dark:border-white focus:ring-1 focus:ring-[#2563eb]/25 transition-all font-medium"
             />
           
             <button 
@@ -213,14 +213,14 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           {!isSignUp && (
             <div className="flex items-center justify-between mt-1">
               <label className="flex items-center gap-1.5 cursor-pointer">
-                <input type="checkbox" className="w-3.5 h-3.5 text-[#2563eb] rounded border-gray-300 focus:ring-[#2563eb]" defaultChecked />
+                <input type="checkbox" className="w-3.5 h-3.5 text-black dark:text-white rounded border-gray-300 focus:ring-[#2563eb]" defaultChecked />
                 <span className="text-[11px] font-medium text-gray-500 select-none">Manter conectado</span>
               </label>
               <button
                 type="button"
                 onClick={handlePasswordReset}
                 disabled={isResetting}
-                className="text-[11px] font-semibold text-[#2563eb] hover:text-[#1d4ed8] cursor-pointer disabled:opacity-50 select-none"
+                className="text-[11px] font-semibold text-black dark:text-white hover:text-[#1d4ed8] cursor-pointer disabled:opacity-50 select-none"
               >
                 Esqueci minha senha
               </button>
@@ -278,7 +278,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           <button
             type="button"
             onClick={() => setIsSignUp(!isSignUp)}
-            className="text-[11px] text-gray-500 hover:text-[#2563eb] font-semibold transition-colors cursor-pointer"
+            className="text-[11px] text-gray-500 hover:text-black dark:text-white font-semibold transition-colors cursor-pointer"
           >
             {isSignUp ? 'Já possui uma conta? Entre aqui' : 'Não tem uma conta? Cadastre-se grátis'}
           </button>

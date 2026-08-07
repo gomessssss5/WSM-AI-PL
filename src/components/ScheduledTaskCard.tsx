@@ -41,7 +41,7 @@ export default function ScheduledTaskCard({ task, onOpenScheduledTasks }: Schedu
         </div>
         <span className="text-[11px] font-medium text-gray-500 flex items-center gap-1">
           <Clock className="w-3.5 h-3.5 text-orange-500" />
-          Ominx 1.6
+          Omnix 1.6
         </span>
       </div>
 

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Paperclip, Globe, Monitor, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain, Languages, ChevronDown, ChevronRight, Sparkles, Calculator, Clock, Video, Volume2, FileText, AlertCircle, X, Check, Menu, FileCode2, Files, BookOpen, MessageCircleDashed, Plus } from 'lucide-react';
+import { Paperclip, Globe, Monitor, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain, Languages, ChevronDown, ChevronRight, Sparkles, Calculator, Clock, Video, Volume2, FileText, AlertCircle, X, Check, Menu, FileCode2, Files, BookOpen, MessageCircleDashed, Plus, Camera, Bug, Search, Map } from 'lucide-react';
 import { Skill } from '../lib/skills';
 import { Draft } from '../types';
 
@@ -412,7 +412,7 @@ export default function MainHome({
   };
 
   const marteTools = [
-    { id: '/web', name: 'web-search', description: 'Pesquisa na Web', icon: Globe, color: 'text-blue-500' },
+    { id: '/web', name: 'web-search', description: 'Pesquisa na Web', icon: Globe, color: 'text-black' },
     { id: '/calculadora', name: 'calculadora', description: 'Calculadora Matemática', icon: Calculator, color: 'text-emerald-500' },
     { id: '/relogio', name: 'relogio', description: 'Relógio e Data Atual', icon: Clock, color: 'text-orange-500' }
   ];
@@ -424,7 +424,7 @@ export default function MainHome({
       name: skill.name,
       description: skill.description,
       icon: FileCode2,
-      color: 'text-indigo-500',
+      color: 'text-gray-900',
       isSkill: true,
       skillObj: skill
     }))
@@ -447,7 +447,7 @@ export default function MainHome({
     const val = e.target.value;
     setInputValue(val);
 
-    if (selectedModel !== 'Ominx 1.6' && selectedModel !== 'Ominx 1.6') {
+    if (selectedModel !== 'Omnix 1.6' && selectedModel !== 'Omnix 1.6') {
       if (slashMenuOpen) setSlashMenuOpen(false);
       return;
     }
@@ -506,11 +506,11 @@ export default function MainHome({
   };
 
   const modelsList = [
-    'Ominx 1.6'
+    'Omnix 1.6'
   ];
 
   const modelDescriptions: Record<string, string> = {
-    'Ominx 1.6': 'Modelo ultra-inteligente e agêntico'
+    'Omnix 1.6': 'Modelo ultra-inteligente e agêntico'
   };
 
   const getFileType = (file: File) => {
@@ -791,24 +791,14 @@ export default function MainHome({
               id="model-selector-pill"
               className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-[#eae6e1] rounded-full text-[13px] font-bold text-gray-900 shadow-2xs select-none"
             >
-              <Sparkles className="w-3.5 h-3.5 text-[#2563eb] fill-[#2563eb]/20" />
-              <span>Ominx 1.6</span>
+              <Sparkles className="w-3.5 h-3.5 text-black dark:text-white fill-black/20" />
+              <span>Omnix 1.6</span>
             </div>
           </div>
         </div>
 
         {/* Right side controls / Chat temporário */}
         <div className="flex items-center gap-2 relative z-50">
-          {/* Tag Ominx 1.6.2 - Desktop Only */}
-          <button
-            onClick={onOpenUpdateModal}
-            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-blue-50/40 border border-[#eae6e1] rounded-full text-xs font-bold text-gray-700 hover:text-[#2563eb] transition-colors cursor-pointer shadow-3xs active:scale-95"
-            title="Ver novidades da versão 1.6.2"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-[#2563eb] shrink-0" />
-            <span>Atualização: Ominx 1.6.2</span>
-          </button>
-
           <button
             onClick={onStartTemporaryChat}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-[#faf9f6] border border-[#eae6e1] rounded-full text-xs font-bold text-gray-700 hover:text-gray-950 shadow-3xs transition-all cursor-pointer active:scale-95"
@@ -821,63 +811,23 @@ export default function MainHome({
       </header>
 
       {/* Main Center content area */}
-      <main className="flex-1 flex flex-col items-center justify-center px-4 max-w-2xl mx-auto w-full relative z-10 pb-8 md:pb-8 pb-32">
+      <main className="flex-1 flex flex-col items-center justify-center -mt-10 md:-mt-20 px-4 max-w-2xl mx-auto w-full relative z-10 pb-8">
         
-        {/* Animated Central squircle mock dashboard */}
+        {/* Central Logo Avatar - Empty */}
         <div 
           id="center-avatar-card"
-          className="hidden md:flex w-16 h-16 items-center justify-center mb-6 select-none relative z-50"
-        >
-          {/* Ghost animation centered and styled exactly as requested, loose with no borders or cards */}
-          <div id="ghost" style={{ scale: '0.45', position: 'absolute' }}>
-            <div id="red">
-              <div id="pupil"></div>
-              <div id="pupil1"></div>
-              <div id="eye"></div>
-              <div id="eye1"></div>
-              <div id="top0"></div>
-              <div id="top1"></div>
-              <div id="top2"></div>
-              <div id="top3"></div>
-              <div id="top4"></div>
-              <div id="st0"></div>
-              <div id="st1"></div>
-              <div id="st2"></div>
-              <div id="st3"></div>
-              <div id="st4"></div>
-              <div id="st5"></div>
-              <div id="an1"></div>
-              <div id="an2"></div>
-              <div id="an3"></div>
-              <div id="an4"></div>
-              <div id="an5"></div>
-              <div id="an6"></div>
-              <div id="an7"></div>
-              <div id="an8"></div>
-              <div id="an9"></div>
-              <div id="an10"></div>
-              <div id="an11"></div>
-              <div id="an12"></div>
-              <div id="an13"></div>
-              <div id="an14"></div>
-              <div id="an15"></div>
-              <div id="an16"></div>
-              <div id="an17"></div>
-              <div id="an18"></div>
-            </div>
-            <div id="shadow"></div>
-          </div>
-        </div>
+          className="hidden"
+        />
 
         {/* Brand Headline Typography */}
-        <h1 id="home-headline" className="text-center mb-5 md:mb-5 select-none absolute top-[35%] md:static left-1/2 -translate-x-1/2 -translate-y-1/2 md:translate-x-0 md:translate-y-0 w-full md:w-auto px-4">
+        <h1 id="home-headline" className="text-center mb-5 md:mb-5 select-none w-full md:w-auto px-4">
           <span className="font-sans font-extrabold text-gray-900 tracking-tight text-[1.8rem] sm:text-[1.95rem] md:text-[2.3rem]">
             {currentHeadline}
           </span>
         </h1>
 
         {/* Input area & news card container */}
-        <div className="w-[calc(100%-2rem)] md:w-full md:max-w-xl flex flex-col gap-3.5 absolute bottom-3 md:relative z-50 left-4 md:left-auto">
+        <div className="w-full md:max-w-2xl flex flex-col gap-3.5 relative z-50">
           {/* Main Large Chat Input Box */}
           <form 
             onSubmit={handleSubmit}
@@ -885,7 +835,7 @@ export default function MainHome({
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={`w-full ${isListening ? 'bg-[#f5f6f8]' : 'bg-white'} border border-[#eae6e1] rounded-[28px] md:rounded-[26px] shadow-lg md:shadow-[0_4px_16px_rgba(0,0,0,0.02)] p-3 md:p-2.5 focus-within:border-gray-300 transition-all duration-200 order-2 md:order-1`}
+            className={`w-full ${isListening ? 'bg-[#f5f6f8]/80' : 'bg-white/60 dark:bg-gray-900/60 backdrop-blur-md'} border border-[#eae6e1]/80 rounded-[28px] md:rounded-[26px] shadow-lg md:shadow-[0_4px_16px_rgba(0,0,0,0.03)] p-3 md:p-2.5 focus-within:border-gray-400 transition-all duration-200`}
           >
           {/* Hidden File Input */}
           <input 
@@ -1058,7 +1008,7 @@ export default function MainHome({
                               className="w-full flex items-center justify-between text-left px-3 py-2 rounded-lg transition-colors cursor-pointer hover:bg-gray-50"
                             >
                               <div className="flex items-center gap-2">
-                                <BookOpen className="w-3.5 h-3.5 text-indigo-500" />
+                                <BookOpen className="w-3.5 h-3.5 text-gray-900" />
                                 <span className="text-[12px] font-semibold text-gray-800">Habilidades</span>
                               </div>
                               <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
@@ -1207,7 +1157,7 @@ export default function MainHome({
               {activeSkills.map(skill => (
                 <div 
                   key={skill.id}
-                  className="flex items-center gap-1 bg-[#2563eb]/10 text-[#2563eb] px-2 py-0.5 rounded flex-shrink-0 cursor-pointer hover:bg-[#2563eb]/20 transition-colors"
+                  className="flex items-center gap-1 bg-black/10 dark:bg-white/10 text-black dark:text-white px-2 py-0.5 rounded flex-shrink-0 cursor-pointer hover:bg-black/20 dark:bg-white/20 transition-colors"
                   onClick={() => setActiveSkills(prev => prev.filter(s => s.id !== skill.id))}
                 >
                   <span className="font-bold text-[13px]">/{skill.name}</span>
@@ -1249,7 +1199,7 @@ export default function MainHome({
                 <button
                   type="button"
                   onClick={confirmRecording}
-                  className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center justify-center transition-all cursor-pointer shrink-0 active:scale-95"
+                  className="w-9 h-9 rounded-full bg-black hover:bg-neutral-800 text-white shadow-sm flex items-center justify-center transition-all cursor-pointer shrink-0 active:scale-95"
                   title="Concluir gravação"
                 >
                   <Check className="w-5 h-5 stroke-[2.5]" />
@@ -1334,7 +1284,7 @@ export default function MainHome({
                                   }}
                                   className="w-full text-left px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 transition-colors cursor-pointer"
                                 >
-                                  <FileCode2 className="w-3.5 h-3.5 text-indigo-500" />
+                                  <FileCode2 className="w-3.5 h-3.5 text-gray-900" />
                                   <span className="text-[13px] font-medium text-gray-700">{skill.name}</span>
                                 </button>
                               ))
@@ -1362,12 +1312,12 @@ export default function MainHome({
                     onClick={() => setIsSearchEnabled(!isSearchEnabled)}
                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold transition-all cursor-pointer ${
                       isSearchEnabled
-                        ? 'bg-white text-[#2563eb] border border-[#2563eb] shadow-2xs'
+                        ? 'bg-white text-black dark:text-white border border-black dark:border-white shadow-2xs'
                         : 'bg-white text-gray-700 border border-[#eae6e1] hover:border-gray-300 hover:bg-gray-50/50 shadow-2xs'
                     }`}
                     title="Ativar busca web em tempo real"
                   >
-                    <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-[#2563eb] animate-spin-slow' : 'text-gray-500'}`} />
+                    <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-black dark:text-white animate-spin-slow' : 'text-gray-500'}`} />
                     <span>Pesquisar</span>
                   </button>
                 </div>
@@ -1454,79 +1404,55 @@ export default function MainHome({
           )}
           </form>
 
-          {/* Card de novidades dos novos modelos */}
-          {shouldShowNewsCard && (
-            <div className="w-full relative h-[88px] md:h-[92px] overflow-hidden order-1 md:order-2 rounded-2xl">
-              <AnimatePresence mode="popLayout" initial={false}>
-                {currentCardIndex === 0 ? (
-                  <motion.div 
-                    key="card-0"
-                    initial={{ x: '100%', opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    exit={{ x: '-100%', opacity: 0 }}
-                    transition={{ duration: 0.38, ease: [0.25, 1, 0.5, 1] }}
-                    onClick={() => setIsNewsModalOpen(true)}
-                    className="w-full h-full bg-gray-100/65 border border-black/5 rounded-2xl p-3.5 md:p-4 flex items-center justify-between gap-3.5 select-none cursor-pointer hover:bg-gray-100/90 active:scale-[0.99] transition-colors relative"
-                  >
-                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                      <div className="w-12 h-12 md:w-14 md:h-14 shrink-0 flex items-center justify-center bg-white border border-[#eae6e1] rounded-xl shadow-2xs overflow-hidden">
-                        <img
-                          src="https://i.ibb.co/TMJBp2n7/38000-removebg-preview.png"
-                          alt="Novos Modelos"
-                          className="w-10 h-10 md:w-12 md:h-12 object-contain"
-                          referrerPolicy="no-referrer"
-                        />
-                      </div>
-                      <div className="flex flex-col text-left min-w-0 flex-1">
-                        <h3 className="font-sans font-bold text-gray-900 text-[13.5px] md:text-[14.5px] tracking-tight leading-snug truncate">
-                          Conheça o Ominx 1.6
-                        </h3>
-                        <p className="font-sans text-gray-500 text-[11.5px] md:text-[12px] leading-relaxed mt-0.5 line-clamp-1">
-                          Nosso modelo agêntico ultra-inteligente e poderoso.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Pagination indicators */}
-                    <div className="flex items-center gap-1 shrink-0 self-end mb-0.5 mr-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-800 transition-all duration-300" />
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-300 transition-all duration-300" />
-                    </div>
-                  </motion.div>
-                ) : (
-                  <motion.div 
-                    key="card-1"
-                    initial={{ x: '100%', opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    exit={{ x: '-100%', opacity: 0 }}
-                    transition={{ duration: 0.38, ease: [0.25, 1, 0.5, 1] }}
-                    onClick={() => window.location.href = '/benchmark'}
-                    className="w-full h-full bg-gray-100/65 border border-black/5 rounded-2xl p-3.5 md:p-4 flex items-center justify-between gap-3.5 select-none cursor-pointer hover:bg-gray-100/90 active:scale-[0.99] transition-colors relative"
-                  >
-                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                      <div className="w-12 h-12 md:w-14 md:h-14 shrink-0 flex items-center justify-center bg-white border border-[#eae6e1] rounded-xl shadow-2xs">
-                        <Sparkles className="w-6 h-6 md:w-7 md:h-7 text-[#2563eb]" />
-                      </div>
-                      <div className="flex flex-col text-left min-w-0 flex-1">
-                        <h3 className="font-sans font-bold text-gray-900 text-[13.5px] md:text-[14.5px] tracking-tight leading-snug truncate">
-                          Ominx 1.6 vs. GPT e Gemini
-                        </h3>
-                        <p className="font-sans text-gray-500 text-[11.5px] md:text-[12px] leading-relaxed mt-0.5 line-clamp-1">
-                          Veja a avaliação completa e os benchmarks com dezenas de testes.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Pagination indicators */}
-                    <div className="flex items-center gap-1 shrink-0 self-end mb-0.5 mr-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-300 transition-all duration-300" />
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-300 transition-all duration-300" />
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
+          {/* Beautiful Stacked Portuguese Pre-Prompts List */}
+          <div className="w-full flex flex-col bg-gray-50/65 border border-black/5 rounded-2xl overflow-hidden mt-1 shadow-xxs">
+            {[
+              { 
+                icon: Camera, 
+                text: "Descreva o que está acontecendo em uma imagem", 
+                prompt: "Por favor, descreva detalhadamente o que está acontecendo nesta imagem e analise seus principais elementos." 
+              },
+              { 
+                icon: Bug, 
+                text: "Corrija meu código", 
+                prompt: "Aqui está o meu código. Por favor, analise-o, identifique quaisquer bugs ou problemas de performance e forneça a versão corrigida com explicações das alterações." 
+              },
+              { 
+                icon: Search, 
+                text: "Dê feedback sobre um design", 
+                prompt: "Gostaria de receber um feedback detalhado sobre este design. O que está funcionando bem e quais são os pontos de melhoria em termos de usabilidade, cores e layout?" 
+              },
+              { 
+                icon: Map, 
+                text: "Aprenda um novo idioma", 
+                prompt: "Quero praticar e aprender um novo idioma. Por favor, atue como um tutor nativo paciente, sugira tópicos de conversação cotidianos e corrija meus erros de gramática ou pronúncia." 
+              }
+            ].map((item, idx) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setInputValue(item.prompt);
+                    const textarea = document.getElementById('chat-input-textarea') as HTMLTextAreaElement;
+                    if (textarea) {
+                      textarea.focus();
+                    }
+                  }}
+                  className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-100/80 active:bg-gray-200/50 transition-all text-left group border-b border-black/[0.04] last:border-0 cursor-pointer select-none"
+                >
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <Icon className="w-5 h-5 text-gray-500 shrink-0 transition-transform group-hover:scale-105" />
+                    <span className="font-sans font-medium text-gray-700 group-hover:text-gray-900 text-[13.5px] truncate">
+                      {item.text}
+                    </span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-transform group-hover:translate-x-0.5 shrink-0" />
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Suggestion Chips */}
@@ -1569,7 +1495,7 @@ export default function MainHome({
                 <div className="w-full bg-gray-50 flex items-center justify-center p-6 border-b border-[#eae6e1]/40">
                   <img 
                     src="https://i.ibb.co/tw9yWNfj/38003.png" 
-                    alt="Ominx 1.6" 
+                    alt="Omnix 1.6" 
                     className="max-w-full h-auto max-h-[400px] object-contain rounded-xl shadow-sm"
                     referrerPolicy="no-referrer"
                   />
@@ -1578,7 +1504,7 @@ export default function MainHome({
                 {/* Content area */}
                 <div className="p-8 md:p-10">
                   <p className="font-sans text-gray-700 text-[15px] md:text-[16px] leading-relaxed whitespace-pre-line">
-                    Conheça o Ominx 1.6, o pensador da casa. Ele raciocina e executa com profundidade. Diante de um problema complexo, ele não solta a primeira resposta que aparece: ele estrutura o pensamento, testa caminhos, analisa variáveis e só então entrega uma solução bem fundamentada.
+                    Conheça o Omnix 1.6, o pensador da casa. Ele raciocina e executa com profundidade. Diante de um problema complexo, ele não solta a primeira resposta que aparece: ele estrutura o pensamento, testa caminhos, analisa variáveis e só então entrega uma solução bem fundamentada.
                     {"\n\n"}
                     Quer programar uma aplicação completa? Resolver uma equação difícil? Escrever um contrato jurídico? Fazer uma análise crítica de um texto? Criar uma estratégia de negócio? O Pro é o seu parceiro intelectual, com um clique no botão "Raciocínio" você consegue ver todo o passo a passo dele, como se estivesse ouvindo um especialista pensar em voz alta.
                     {"\n\n"}

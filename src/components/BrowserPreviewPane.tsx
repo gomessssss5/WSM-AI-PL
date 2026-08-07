@@ -60,7 +60,7 @@ export default function BrowserPreviewPane({
   };
 
   const currentUrl = currentScreenshot?.url || 'https://wsm-chat.vercel.app';
-  const currentTitle = currentScreenshot?.title || currentScreenshot?.stepName || activeTaskText || 'Navegador WSM AI';
+  const currentTitle = currentScreenshot?.title || currentScreenshot?.stepName || activeTaskText || 'Navegador Omnix AI';
 
   const getDomain = (urlStr: string) => {
     try {
@@ -193,7 +193,7 @@ export default function BrowserPreviewPane({
 
           {/* Live badge */}
           <div className="flex items-center gap-1.5 shrink-0 text-xs font-semibold text-gray-600">
-            <span className={`w-2 h-2 rounded-full ${isThinking ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'}`} />
+            <span className={`w-2 h-2 rounded-full ${isThinking ? 'bg-gray-1000 animate-pulse' : 'bg-gray-400'}`} />
             <span>Ao vivo</span>
           </div>
         </div>

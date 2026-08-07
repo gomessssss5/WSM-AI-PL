@@ -168,15 +168,18 @@ export default function TypewriterMarkdown({
         if (lastOpenBracketIndex !== -1) {
            const textInside = currentSegments.slice(lastOpenBracketIndex + 1).join('').toLowerCase();
            const prefixes = [
-              "pesquisou na web", "calculando", "verificando",
+              "pesquisou na web", "pesquisando", "calculando", "verificando",
               "código 100% verificado", "corrigindo erro",
               "sandbox de depuração", "criando skill", "editando skill",
               "excluindo skill", "criou skill", "editou skill", "excluiu skill",
               "nova tarefa", "tarefa removida", "passo concluído",
-              "pesquisando...", "calculando...", "verificando...", "verificando possíveis erros no código...",
-              "abrindo site:", "clicando no elemento", "digitando", "rolando página", "lendo página"
+              "abrindo site", "acessando site", "acessando", "lendo página", "lendo conteúdo",
+              "preparando resumo", "preparando", "elaborando resposta", "elaborando", "analisando",
+              "sintetizando", "extraindo", "clicando", "digitando", "rolando",
+              "aguardando", "criando documento", "editando documento",
+              "excluindo documento", "listando documentos", "buscando"
            ];
-           const isAgentic = prefixes.some(p => p.startsWith(textInside) || textInside.startsWith(p));
+           const isAgentic = prefixes.some(p => p.startsWith(textInside) || textInside.startsWith(p)) || textInside.includes('...');
            
            if (isAgentic) {
               let foundClosing = false;

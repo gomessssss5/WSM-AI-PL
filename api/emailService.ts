@@ -103,7 +103,7 @@ export async function sendGenericEmail(params: SendGenericEmailParams): Promise<
     <div style="background-color: #2563eb; color: #ffffff; padding: 22px 24px;">
       <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.85; margin-bottom: 4px; color: #ffffff;">${badgeText}</div>
       <h1 style="margin: 0; font-size: 20px; font-weight: 700; color: #ffffff; line-height: 1.3;">${title}</h1>
-      <p style="margin: 6px 0 0 0; font-size: 12.5px; opacity: 0.9; color: #ffffff;">${subtitleText || `WSM 1.6 • ${nowFormatted}`}</p>
+      <p style="margin: 6px 0 0 0; font-size: 12.5px; opacity: 0.9; color: #ffffff;">${subtitleText || `Omnix 1.6 • ${nowFormatted}`}</p>
     </div>
 
     ${promptText ? `
@@ -120,12 +120,12 @@ export async function sendGenericEmail(params: SendGenericEmailParams): Promise<
 
     <!-- Call to Action Button -->
     <div style="padding: 0 24px 28px 24px; text-align: center;">
-      <a href="https://wsm-chat.vercel.app/" target="_blank" style="display: inline-block; background-color: #18181b; color: #ffffff; font-weight: 600; font-size: 14px; padding: 12px 28px; border-radius: 8px; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">Acessar WSM 1.6</a>
+      <a href="https://wsm-chat.vercel.app/" target="_blank" style="display: inline-block; background-color: #18181b; color: #ffffff; font-weight: 600; font-size: 14px; padding: 12px 28px; border-radius: 8px; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">Acessar Omnix 1.6</a>
     </div>
 
     <!-- Footer -->
     <div style="background-color: #f8fafc; padding: 16px 24px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0;">
-      Este e-mail foi enviado automaticamente pelo WSM 1.6 para ${toEmail}.
+      Este e-mail foi enviado automaticamente pelo Omnix 1.6 para ${toEmail}.
     </div>
 
   </div>
@@ -150,7 +150,7 @@ export async function sendGenericEmail(params: SendGenericEmailParams): Promise<
       },
     });
 
-    const fromName = process.env.SMTP_FROM_NAME || 'WSM 1.6';
+    const fromName = process.env.SMTP_FROM_NAME || 'Omnix 1.6';
 
     await transporter.sendMail({
       from: `"${fromName}" <${gmailUser}>`,
@@ -173,7 +173,7 @@ export async function sendGenericEmail(params: SendGenericEmailParams): Promise<
     if (resendApiKey) {
       try {
         const resend = new Resend(resendApiKey);
-        const fromEmail = process.env.RESEND_FROM_EMAIL || 'WSM 1.6 <onboarding@resend.dev>';
+        const fromEmail = process.env.RESEND_FROM_EMAIL || 'Omnix 1.6 <onboarding@resend.dev>';
         
         const { error } = await resend.emails.send({
           from: fromEmail,
@@ -222,16 +222,16 @@ export async function sendWelcomeEmail(toEmail: string, displayName?: string) {
   const name = displayName || toEmail.split('@')[0] || 'Usuário';
   return sendGenericEmail({
     toEmail,
-    subject: `[WSM 1.6] Bem-vindo ao WSM 1.6! 🚀`,
-    badgeText: 'Boas-Vindas ao WSM 1.6',
+    subject: `[Omnix 1.6] Bem-vindo ao Omnix 1.6! 🚀`,
+    badgeText: 'Boas-Vindas ao Omnix 1.6',
     title: `Sua conta foi criada com sucesso!`,
     subtitleText: `Olá, ${name}! Seja muito bem-vindo.`,
     bodyMarkdown: `
 Olá, **${name}**!
 
-Sua conta no **WSM 1.6** já está ativa e pronta para potencializar suas pesquisas e ideias.
+Sua conta no **Omnix 1.6** já está ativa e pronta para potencializar suas pesquisas e ideias.
 
-### 🌟 O que você pode fazer no WSM 1.6:
+### 🌟 O que você pode fazer no Omnix 1.6:
 - 🌐 **Navegação Web em Tempo Real:** Pesquise notícias, acesse sites ao vivo e obtenha fatos atualizados instantaneamente.
 - 📅 **Tarefas Agendadas:** Programe pesquisas recorrentes ou lembretes que a IA executa sozinha e envia o relatório para o seu e-mail.
 - ⚡ **Agentes de Alta Performance:** Respostas rápidas, execução de código, e assistentes especializados em diversas áreas.
@@ -243,30 +243,30 @@ Estamos muito felizes em ter você aqui. Quando quiser começar, basta fazer uma
 
 // 3. Inactivity Emails
 export async function sendInactivityEmail(toEmail: string, daysInactive: number) {
-  let subject = `[WSM 1.6] Volte a criar com o WSM 1.6`;
+  let subject = `[Omnix 1.6] Volte a criar com o Omnix 1.6`;
   let title = `O que você quer criar hoje?`;
-  let body = `Notamos que faz ${daysInactive} dias desde o seu último acesso ao WSM 1.6. O que gostaria de pesquisar ou criar hoje?`;
+  let body = `Notamos que faz ${daysInactive} dias desde o seu último acesso ao Omnix 1.6. O que gostaria de pesquisar ou criar hoje?`;
 
   if (daysInactive === 10) {
-    subject = `[WSM 1.6] Sentimos sua falta no WSM 1.6`;
+    subject = `[Omnix 1.6] Sentimos sua falta no Omnix 1.6`;
     title = `Sentimos sua falta!`;
-    body = `Faz **10 dias** que você não conversa com o WSM 1.6. Venha conferir as novas atualizações e dar sequência às suas ideias!`;
+    body = `Faz **10 dias** que você não conversa com o Omnix 1.6. Venha conferir as novas atualizações e dar sequência às suas ideias!`;
   } else if (daysInactive === 15) {
-    subject = `[WSM 1.6] Seu assistente IA está te esperando`;
+    subject = `[Omnix 1.6] Seu assistente IA está te esperando`;
     title = `Seu assistente IA está te esperando!`;
-    body = `Há **15 dias** sem utilizar o WSM 1.6. Lembre-se de que você pode agendar tarefas automáticas e pesquisar em tempo real a qualquer momento.`;
+    body = `Há **15 dias** sem utilizar o Omnix 1.6. Lembre-se de que você pode agendar tarefas automáticas e pesquisar em tempo real a qualquer momento.`;
   } else if (daysInactive === 30) {
-    subject = `[WSM 1.6] Faz 1 mês que não conversamos!`;
+    subject = `[Omnix 1.6] Faz 1 mês que não conversamos!`;
     title = `Faz 1 mês que não nos falamos!`;
-    body = `Faz **30 dias** desde o seu último acesso ao WSM 1.6. Seu histórico de conversas e preferências continuam salvos e prontos para quando você precisar!`;
+    body = `Faz **30 dias** desde o seu último acesso ao Omnix 1.6. Seu histórico de conversas e preferências continuam salvos e prontos para quando você precisar!`;
   } else if (daysInactive === 60) {
-    subject = `[WSM 1.6] Que tal dar uma nova chance ao WSM 1.6?`;
-    title = `Que tal dar mais uma chance ao WSM 1.6?`;
-    body = `Faz **60 dias** desde a sua última interação. Experimente nossas ferramentas de navegação web e veja como o WSM 1.6 evoluiu para te ajudar!`;
+    subject = `[Omnix 1.6] Que tal dar uma nova chance ao Omnix 1.6?`;
+    title = `Que tal dar mais uma chance ao Omnix 1.6?`;
+    body = `Faz **60 dias** desde a sua última interação. Experimente nossas ferramentas de navegação web e veja como o Omnix 1.6 evoluiu para te ajudar!`;
   } else if (daysInactive >= 150) {
-    subject = `[WSM 1.6] E aí, esqueceu de mim?`;
+    subject = `[Omnix 1.6] E aí, esqueceu de mim?`;
     title = `E aí, esqueceu de mim?`;
-    body = `E aí, esqueceu de mim? Faz **150 dias** que você não entra no WSM 1.6. Estou com saudades de te ajudar no dia a dia. Que tal voltar hoje mesmo e testar o que há de novo?`;
+    body = `E aí, esqueceu de mim? Faz **150 dias** que você não entra no Omnix 1.6. Estou com saudades de te ajudar no dia a dia. Que tal voltar hoje mesmo e testar o que há de novo?`;
   }
 
   return sendGenericEmail({
@@ -274,7 +274,7 @@ export async function sendInactivityEmail(toEmail: string, daysInactive: number)
     subject,
     badgeText: 'Lembrete de Inatividade',
     title,
-    bodyMarkdown: `${body}\n\n[Clique aqui para acessar o WSM 1.6](https://wsm-chat.vercel.app/)`
+    bodyMarkdown: `${body}\n\n[Clique aqui para acessar o Omnix 1.6](https://wsm-chat.vercel.app/)`
   });
 }
 
@@ -282,19 +282,19 @@ export async function sendInactivityEmail(toEmail: string, daysInactive: number)
 export async function sendInterruptedResponseEmail(toEmail: string, userPrompt: string, aiResponseSnippet: string) {
   return sendGenericEmail({
     toEmail,
-    subject: `[WSM 1.6] Sua resposta está pronta no WSM 1.6`,
+    subject: `[Omnix 1.6] Sua resposta está pronta no Omnix 1.6`,
     badgeText: 'Resposta Gerada',
     title: `Sua resposta está completa no seu chat!`,
     promptText: userPrompt,
     bodyMarkdown: `
 Identificamos que você saiu da IA antes da resposta terminar de ser gerada ou exibida na tela.
 
-A resposta completa para a sua pergunta já foi processada com sucesso e está disponível no seu histórico do WSM 1.6!
+A resposta completa para a sua pergunta já foi processada com sucesso e está disponível no seu histórico do Omnix 1.6!
 
 ### 📝 Trecho da resposta gerada:
 ${aiResponseSnippet.substring(0, 1000)}${aiResponseSnippet.length > 1000 ? '...' : ''}
 
-Acesse o WSM 1.6 para ver o conteúdo completo no seu chat.
+Acesse o Omnix 1.6 para ver o conteúdo completo no seu chat.
 `
   });
 }
@@ -303,13 +303,13 @@ Acesse o WSM 1.6 para ver o conteúdo completo no seu chat.
 export async function sendFeatureHighlightEmail(toEmail: string) {
   return sendGenericEmail({
     toEmail,
-    subject: `[WSM 1.6] Sabia que o WSM 1.6 navega em sites em tempo real?`,
-    badgeText: 'Dica de Recurso do WSM 1.6',
-    title: `O WSM 1.6 navega diretamente em sites da web!`,
+    subject: `[Omnix 1.6] Sabia que o Omnix 1.6 navega em sites em tempo real?`,
+    badgeText: 'Dica de Recurso do Omnix 1.6',
+    title: `O Omnix 1.6 navega diretamente em sites da web!`,
     bodyMarkdown: `
-Passando para te lembrar de um dos recursos mais poderosos do **WSM 1.6**:
+Passando para te lembrar de um dos recursos mais poderosos do **Omnix 1.6**:
 
-Diferente de IAs estáticas com dados desatualizados, o **WSM 1.6** navega diretamente na web, acessa links, pesquisa notícias do dia e interage com sites em tempo real para te fornecer respostas precisas e confiáveis.
+Diferente de IAs estáticas com dados desatualizados, o **Omnix 1.6** navega diretamente na web, acessa links, pesquisa notícias do dia e interage com sites em tempo real para te fornecer respostas precisas e confiáveis.
 
 ### 💡 Experimente pedir no chat:
 - *"Acesse o site da G1 e me faça um resumo das 3 principais notícias de hoje"*
@@ -325,21 +325,21 @@ Acesse agora e experimente a navegação ao vivo!
 export async function sendMonthlyCampaignEmail(toEmail: string) {
   return sendGenericEmail({
     toEmail,
-    subject: `[WSM 1.6] E aí, vamos parar de usar IAs ruins?`,
-    badgeText: 'WSM 1.6 vs Outras IAs',
+    subject: `[Omnix 1.6] E aí, vamos parar de usar IAs ruins?`,
+    badgeText: 'Omnix 1.6 vs Outras IAs',
     title: `E aí, vamos parar de usar IAs ruins e começar a me usar?`,
     bodyMarkdown: `
 E aí, vamos parar de usar IAs ruins e começar a me usar?
 
 Você sabe que eu sou melhor que o ChatGPT, né? 😉
 
-### 🚀 Por que escolher o WSM 1.6?
+### 🚀 Por que escolher o Omnix 1.6?
 - 🌐 **Navegação Real em Sites:** Acesso ao vivo à internet sem bloqueios.
 - 📅 **Agendamento Inteligente:** A IA pesquisa e trabalha para você em segundo plano.
 - ⚡ **Sem Alucinações:** Respostas baseadas em fatos reais e atualizados.
 - 🛠️ **Execução de Código:** Ferramentas avançadas para programadores e criadores de conteúdo.
 
-Acesse agora o WSM 1.6 e comprove a diferença!
+Acesse agora o Omnix 1.6 e comprove a diferença!
 `
   });
 }

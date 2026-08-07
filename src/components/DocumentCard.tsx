@@ -91,7 +91,7 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
             <FileSpreadsheet className="w-6 h-6" />
           </div>
         ) : isCode ? (
-          <div className="w-11 h-13 md:w-12 md:h-14 bg-blue-50 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/80 rounded-xl shadow-3xs flex flex-col items-center justify-center shrink-0 relative overflow-hidden group-hover:scale-105 transition-transform p-1.5 text-blue-600 dark:text-blue-400">
+          <div className="w-11 h-13 md:w-12 md:h-14 bg-gray-100 dark:bg-blue-950/40 border border-gray-300/80 dark:border-blue-800/80 rounded-xl shadow-3xs flex flex-col items-center justify-center shrink-0 relative overflow-hidden group-hover:scale-105 transition-transform p-1.5 text-black dark:text-blue-400">
             <FileCode className="w-6 h-6" />
           </div>
         ) : format === 'txt' ? (
@@ -99,12 +99,12 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
             <AlignLeft className="w-6 h-6" />
           </div>
         ) : (format === 'md' || format === 'markdown') ? (
-          <div className="w-11 h-13 md:w-12 md:h-14 bg-purple-50 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/80 rounded-xl shadow-3xs flex flex-col items-center justify-center shrink-0 relative overflow-hidden group-hover:scale-105 transition-transform p-1.5 text-purple-600 dark:text-purple-400">
+          <div className="w-11 h-13 md:w-12 md:h-14 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 rounded-xl shadow-3xs flex flex-col items-center justify-center shrink-0 relative overflow-hidden group-hover:scale-105 transition-transform p-1.5 text-zinc-700 dark:text-zinc-300">
             <FileText className="w-6 h-6" />
           </div>
         ) : (
           <div className="w-11 h-13 md:w-12 md:h-14 bg-white dark:bg-gray-800 border border-gray-200/90 dark:border-gray-700 rounded-xl shadow-3xs flex flex-col items-center justify-center shrink-0 relative overflow-hidden group-hover:scale-105 transition-transform p-1.5">
-            <div className="w-6 h-1 bg-blue-500/80 rounded-full mb-1.5" />
+            <div className="w-6 h-1 bg-gray-1000/80 rounded-full mb-1.5" />
             <div className="w-7 h-0.5 bg-gray-300 dark:bg-gray-600 rounded-full mb-1" />
             <div className="w-5 h-0.5 bg-gray-300 dark:bg-gray-600 rounded-full mb-1" />
             <div className="w-6 h-0.5 bg-gray-200 dark:bg-gray-700 rounded-full mb-1" />

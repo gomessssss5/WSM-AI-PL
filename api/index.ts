@@ -248,7 +248,7 @@ async function executeWithAllFallbacks(options: any, isStream: boolean): Promise
     }
   }
 
-  throw lastError || new Error("WSM 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.");
+  throw lastError || new Error("Omnix 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.");
 }
 
 async function callGeminiWithFallback(options: any): Promise<any> {
@@ -318,7 +318,7 @@ Instruções Importantes:
   try {
     if (!process.env.IA_API_KEY) {
       return res.json({
-        text: "⚠️ **Chave de API (IA_API_KEY) não configurada.**\n\nPor favor, configure sua chave `IA_API_KEY` em **Settings > Secrets** no AI Studio (ou nas variáveis de ambiente da sua hospedagem, como a Vercel) para que os modelos do WSM AI possam processar suas mensagens.",
+        text: "⚠️ **Chave de API (IA_API_KEY) não configurada.**\n\nPor favor, configure sua chave `IA_API_KEY` em **Settings > Secrets** no AI Studio (ou nas variáveis de ambiente da sua hospedagem, como a Vercel) para que os modelos do Omnix AI possam processar suas mensagens.",
         searchImages: [],
         searchSources: []
       });
@@ -327,11 +327,11 @@ Instruções Importantes:
     let shouldSearch = effectiveSearchEnabled;
 
     // Pro uses its own agentic flow for autonomous tool use, but if search is explicitly enabled (manual toggle, scheduled task, or text prompt request), we let it use the structured search flow!
-    if (model === 'WSM 1.6' && !effectiveSearchEnabled) {
+    if (model === 'Omnix 1.6' && !effectiveSearchEnabled) {
       shouldSearch = false;
     } else if (!shouldSearch && process.env.TAVILY_API_KEY) {
       // AI autonomously decides if it needs to search the web for this query
-      const triageBase = getSystemPrompt('web_search_triage', `Você é o classificador de intenção de busca web do assistente WSM AI.`);
+      const triageBase = getSystemPrompt('web_search_triage', `Você é o classificador de intenção de busca web do assistente Omnix AI.`);
       const triagePrompt = `${triageBase}\n\nO usuário enviou a seguinte mensagem/pergunta: "${text}"\n\nAvalie se esta mensagem requer uma pesquisa na web em tempo real para ser respondida adequadamente. Se sim, responda EXCLUSIVAMENTE com a palavra "SIM". Se puder responder sem pesquisa, responda EXCLUSIVAMENTE "NAO".`;
 
       try {
@@ -364,7 +364,7 @@ Instruções Importantes:
       // Step 1: Use Gemini to generate a research plan (intro and up to 4 search steps with transitions)
       const planResponse = await callGeminiWithFallback({
         model: "gemini-3.5-flash-lite",
-        contents: `Você é um planejador de pesquisa web em tempo real de alta precisão em português do assistente WSM AI.
+        contents: `Você é um planejador de pesquisa web em tempo real de alta precisão em português do assistente Omnix AI.
 O usuário enviou a seguinte solicitação de pesquisa: "${text}".
 
 Crie um plano de pesquisa contendo:
@@ -635,7 +635,7 @@ ${contextInfo}`;
     console.log(`Normal chat request using Gemini with model: ${model}`);
 
     const modelSystemPrompts: Record<string, string> = {
-      'WSM 1.6': getSystemPrompt('wsm_1_6_pro_base', `Você é o modelo de inteligência artificial "WSM 1.6", um assistente pessoal agêntico, altamente inteligente e direto.`)
+      'Omnix 1.6': getSystemPrompt('wsm_1_6_pro_base', `Você é o modelo de inteligência artificial "Omnix 1.6", um assistente pessoal agêntico, altamente inteligente e direto.`)
     };
 
     const formInstruction = "\n" + getSystemPrompt('form_generation', '');
@@ -645,10 +645,10 @@ ${contextInfo}`;
       ? `\n## ATENÇÃO CRÍTICA: EXECUÇÃO AUTOMÁTICA DE TAREFA AGENDADA\nEsta requisição é a execução de uma tarefa que JÁ FOI AGENDADA previamente. Você está ABSOLUTAMENTE PROIBIDO de gerar a tag <wsm_task ... /> nesta resposta under ANY circumstances. Apenas execute a instrução e apresente o resultado final diretamente.`
       : "\n" + getSystemPrompt('autonomous_tasks', '');
 
-    let basePrompt = modelSystemPrompts[model] || modelSystemPrompts['WSM 1.6'];
+    let basePrompt = modelSystemPrompts[model] || modelSystemPrompts['Omnix 1.6'];
     let reasoningInstruction = "";
     let browserInstruction = ``;
-    if (model === 'WSM 1.6' || !model) {
+    if (model === 'Omnix 1.6' || !model) {
       browserInstruction = `
 ## Controle de Navegador Real (Playwright) & Agente Agêntico (Plan → Act → Observe → Reflect)
 Você tem acesso total a um navegador real via Playwright para abrir sites, clicar em botões, preencher formulários, rolar páginas, aguardar carregamentos dinâmicos, pesquisar e ler conteúdos ao vivo (ferramentas: open_url, click, type_text, scroll_page, extract_visible_text, wait_seconds).
@@ -708,7 +708,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
     }
 
     let activeSystemPrompt = "";
-    if (model === 'WSM 1.6') {
+    if (model === 'Omnix 1.6') {
       let modeAdditions = "";
       if (isScheduledExecution) {
         modeAdditions += `\n\n## ATENÇÃO CRÍTICA: EXECUÇÃO AUTOMÁTICA DE TAREFA AGENDADA\nEsta requisição é a execução de uma tarefa que JÁ FOI AGENDADA previamente. Você está ABSOLUTAMENTE PROIBIDO de gerar a tag <wsm_task ... /> nesta resposta under ANY circumstances. Apenas execute a instrução e apresente o resultado final diretamente.`;
@@ -719,15 +719,15 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
       if (effectiveSearchEnabled) {
         modeAdditions += `\n\n- **MODO PESQUISAR ATIVADO**: O usuário solicitou o Modo Pesquisar. Confirme ("✓ Modo Pesquisar ativado") e execute 'web_search' no mesmo turno.`;
       }
-      activeSystemPrompt = basePrompt + (userLocationContextInstruction ? "\n\n" + userLocationContextInstruction : "") + modeAdditions;
+      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + (userLocationContextInstruction ? userLocationContextInstruction + "\n\n" : "") + docInstruction + "\n\n" + formInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction + modeAdditions;
     } else {
       activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
     }
 
     let mappedModel = "gemini-3.5-flash-lite";
-    if (model === 'Ominx 1.6' || model === 'WSM 1.6') mappedModel = "gemini-3.5-flash-lite";
+    if (model === 'Omnix 1.6' || model === 'Omnix 1.6') mappedModel = "gemini-3.5-flash-lite";
 
-    if (model === 'Ominx 1.6' || model === 'WSM 1.6') {
+    if (model === 'Omnix 1.6' || model === 'Omnix 1.6') {
       console.log(`Starting agentic loop for model: ${model}...`);
       const marteTools = [{
         functionDeclarations: [
@@ -940,9 +940,9 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
       );
 
       const promptWantsBrowser = !isHtmlSiteRequest && ((Boolean(effectiveComputerEnabled) && !isSimpleGreetingOrMathPrompt) || 
-        /\b(abrir|acesse|acessar|navegar|entrar|ir\s+at[ée]|visit\w*|abra)\b/i.test(userStrPrompt) ||
-        /\b(link|url|navegador|google|youtube|wikipedia|github|brave|twitter|x\.com)\b/i.test(userStrPrompt) ||
-        (/https?:\/\/|www\./i.test(userStrPrompt) && !/tailwindcss\.com|googleapis\.com|unpkg\.com|cdnjs\.com/i.test(userStrPrompt)));
+        /\b(abrir|abra|abre|acesse|acessar|acessa|entre|entrar|entra|navegar|navegue|ir\s+at[ée]|visit\w*|veja|olhe|confira|cadastr\w*|fazer\s+login|fa[çc]a\s+login)\b/i.test(userStrPrompt) ||
+        /\b(link|url|navegador|site|sites|p[áa]gina|paginas|web|google|youtube|wikipedia|github|brave|twitter|x\.com)\b/i.test(userStrPrompt) ||
+        (/(https?:\/\/|www\.|[a-zA-Z0-9-]+\.(com|org|net|io|br|gov|edu|ai|app|dev|co|xyz|online|store|tech|vercel\.app|netlify\.app))/i.test(userStrPrompt) && !/tailwindcss\.com|googleapis\.com|unpkg\.com|cdnjs\.com/i.test(userStrPrompt)));
       const promptWantsSearch = !isHtmlSiteRequest && (Boolean(effectiveSearchEnabled) ||
         /\b(pesquis\w*|busc\w*|procur\w*)\s+(na\s+web|na\s+internet|no\s+google|sobre|por)\b/i.test(userStrPrompt) ||
         /\b(pesquise|pesquisar|busque|buscar|procure|procurar)\s+(na\s+web|na\s+internet|sobre|por)\b/i.test(userStrPrompt) ||
@@ -957,10 +957,12 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
         }
 
         let currentToolConfig: any = undefined;
-        if (!isHtmlSiteRequest && (forceNextTurnModeAny || (turnCount === 0 && promptWantsBrowser))) {
+        if (!isHtmlSiteRequest && (forceNextTurnModeAny || (turnCount === 0 && (promptWantsBrowser || promptWantsSearch)))) {
+          const allFnNames = marteTools[0].functionDeclarations.map((f: any) => f.name);
           currentToolConfig = {
             functionCallingConfig: {
-              mode: "ANY"
+              mode: "ANY",
+              allowedFunctionNames: allFnNames
             }
           };
         }
@@ -977,13 +979,14 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               "\nREGRA DA WEB SEARCH: Use web_search EXCLUSIVAMENTE para pesquisas de fatos do mundo real, notícias atualizadas ou quando o usuário pedir explicitamente para buscar algo na web. É ESTRITAMENTE PROIBIDO usar web_search para ler textos colados pelo usuário, resumir documentos, responder dúvidas de programação ou gerar códigos." +
               "\nREGRA DE NAVEGAÇÃO WEB REAL (PLAYWRIGHT): SEMPRE que o usuário pedir para abrir, acessar ou navegar em qualquer site (ex: Brave Search, Google, Wikipedia, etc), VOCÊ DEVE OBRIGATORIAMENTE emitir a chamada de função 'open_url' (functionCall) no MESMO TURNO. É ABSOLUTAMENTE PROIBIDO apenas escrever texto prometendo abrir o site sem enviar a chamada da ferramenta 'open_url'!" +
               "\nREGRAS OBRIGATÓRIAS DE AGENTE SEQUENCIAL MULTI-ETAPAS (PASSO A PASSO):" +
-              "\n1. Atue como um AGENTE SEQUENCIAL AUTÔNOMO que executa tarefas complexas em múltiplos turnos encadeados." +
-              "\n2. Se o usuário solicitou MÚLTIPLAS ETAPAS no prompt (ex: 'pesquise na web X e depois abra o site Y', 'pesquisar e depois abrir navegador', etc.):" +
-              "\n   - Execute UMA FERRAMENTA POR TURNO de forma organizada." +
-              "\n   - APÓS RECEBER O RETORNO DE UMA FERRAMENTA (ex: 'web_search'), SE O PROMPT DO USUÁRIO SOLICITOU OUTRAS AÇÕES (ex: abrir site com 'open_url', clicar, navegar, calcular), VOCÊ DEVE OBRIGATORIAMENTE EXECUTAR A PRÓXIMA FERRAMENTA NO TURNO SEGUINTE." +
-              "\n   - É ABSOLUTAMENTE PROIBIDO encerrar a resposta ou parar na metade do fluxo logo após a pesquisa na web se ainda houver outras ações ou sites para abrir solicitados pelo usuário!" +
-              "\n   - Apenas apresente a resposta final completa em texto quando TODAS as ferramentas e ações pedidas no prompt do usuário tiverem sido devidamente executadas." +
-              "\n3. CRÍTICO: NUNCA escreva apenas texto conversacional prometendo ações (ex: 'Vou abrir o site', 'Para atender seu pedido...') sem enviar a chamada de função (functionCall) no mesmo turno!",
+              "\n1. Atue como um AGENTE SEQUENCIAL AUTÔNOMO que executa tarefas agênticas em múltiplos turnos encadeados (pesquisar na web, abrir sites, clicar em botões, ler conteúdos, preparar resumos)." +
+              "\n2. Quando for realizar ações agênticas:" +
+              "\n   - Descreva brevemente para o usuário o que você vai fazer em cada etapa (ex: 'Olá! Vou abrir tal site e pesquisar sobre tal coisa para você.', 'Agora vou acessar tal site:', 'Clicando no botão do site:')." +
+              "\n   - Acompanhe cada etapa com a chamada da ferramenta correspondente ou tag de status apropriada (ex: [Pesquisando na web sobre X...], [Acessando site Y...], [Lendo conteúdo...], [Preparando resumo...])." +
+              "\n   - Use tags diversificadas de progresso para que o usuário saiba exatamente o que está acontecendo em cada passo (ex: 'Acessando site...', 'Lendo conteúdo...', 'Preparando resumo...'). NUNCA repita a mesma tag sem contexto." +
+              "\n   - Execute as ferramentas necessárias passo a passo até concluir todas as ações pedidas." +
+              "\n   - Após realizar todas as ações e ferramentas agênticas, apresente a resposta e síntese final completa para o usuário." +
+              "\n3. CRÍTICO: NUNCA escreva apenas texto conversacional prometendo ações sem enviar a chamada da ferramenta (functionCall) quando uma ação for necessária!",
             ...(currentToolConfig ? { toolConfig: currentToolConfig } : {}),
             temperature: 0.7
           }
@@ -1060,8 +1063,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
           const isHtmlRequestThisTurn = isHtmlSiteRequest || aiStr.includes("[lendo skill: web-html]") || aiStr.includes("web-html") || aiStr.includes("<html") || aiStr.includes("<!doctype html>");
 
           const isSimpleGreetingOrMath = /^(ol[áa]|oi|tudo\s+bem|boa\s+(tarde|noite|dia)|quanto\s+[ée]|calcul[ae]|1\+[123456789]|2\+2)$/i.test(userStr.trim());
-          const wantsBrowser = !isHtmlRequestThisTurn && ((Boolean(effectiveComputerEnabled) && !isSimpleGreetingOrMath) || 
-            /\b(abrir|acesse|acessar|navegar|entrar\s+no|ir\s+at[ée]|visit\w*|abra)\s+(o\s+)?(link|url|navegador)\b|\b(abrir|acesse|acessar|entrar\s+no|visitar|pesquisar\s+no|procurar\s+no)\s+(youtube|google|wikipedia|github|brave|twitter|x\.com)\b|\b(ativ\w*|us\w*|habilit\w*)\s+.*(computador|agente|navegador)\b|\bmodo\s+computador\b/i.test(userStr));
+          const wantsBrowser = !isHtmlRequestThisTurn && ((Boolean(effectiveComputerEnabled) && !isSimpleGreetingOrMath) || promptWantsBrowser);
           const browserAlreadyCalled = currentContents.some((c: any) => 
             c.parts?.some((p: any) => 
               p.functionCall?.name === "open_url" || p.functionResponse?.name === "open_url" ||
@@ -1074,7 +1076,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
 
           if (wantsBrowser && !browserAlreadyCalled && turnCount === 0) {
             let targetUrl = "";
-            const urlMatch = (userStr + " " + aiStr).match(/(https?:\/\/(?!cdn\.|fonts\.|unpkg\.|cdnjs\.|jsdelivr\.)[^\s<>"'\)]+|www\.[^\s<>"'\)]+)/i);
+            const urlMatch = (userStr + " " + aiStr).match(/(https?:\/\/(?!cdn\.|fonts\.|unpkg\.|cdnjs\.|jsdelivr\.)[^\s<>"'\)]+|www\.[^\s<>"'\)]+|[a-zA-Z0-9-]+\.(com|org|net|io|br|gov|edu|ai|app|dev|co|xyz|online|store|tech|vercel\.app|netlify\.app)[^\s<>"'\)]*)/i);
             if (urlMatch) {
               targetUrl = urlMatch[0].replace(/[\)"'\s\.,;]+$/, '');
               if (!targetUrl.startsWith('http')) targetUrl = 'https://' + targetUrl;
@@ -1089,10 +1091,11 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             } else if (/google/i.test(userStr + " " + aiStr)) {
               targetUrl = "https://www.google.com";
             } else {
-              const openSiteMatch = userStr.match(/(?:abra|acesse|acessar|entrar no)\s+([a-zA-Z0-9-]+)/i);
+              const openSiteMatch = userStr.match(/(?:abra|acesse|acessar|entrar no|entre no|ir para|visitar|veja o)\s+([a-zA-Z0-9.-]+)/i);
               if (openSiteMatch) {
                 const sName = openSiteMatch[1].toLowerCase();
-                if (sName === 'youtube') targetUrl = 'https://www.youtube.com';
+                if (sName.includes('.')) targetUrl = sName.startsWith('http') ? sName : `https://${sName}`;
+                else if (sName === 'youtube') targetUrl = 'https://www.youtube.com';
                 else if (sName === 'github') targetUrl = 'https://github.com';
                 else if (sName === 'google') targetUrl = 'https://www.google.com';
                 else targetUrl = `https://www.${sName}.com`;
@@ -1169,17 +1172,29 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             let errorMsg = "";
             let promptStr = "";
             
-            // Artificial delay/spinner for user experience
-            let thinkingText = "\n\n[processando...]\n\n";
-            if (fc.name === "web_search") thinkingText = "\n\n[pesquisando...]\n\n";
-            else if (fc.name === "calculadora") thinkingText = "\n\n[calculando...]\n\n";
-            else if (fc.name === "relogio") thinkingText = "\n\n[verificando...]\n\n";
+            // Artificial delay/spinner for user experience with rich descriptive tags
+            let thinkingText = "\n\n[Processando requisição...]\n\n";
+            if (fc.name === "web_search") {
+              const q = (fc.args as any)?.query;
+              thinkingText = q ? `\n\n[Pesquisando na web sobre "${q}"...]\n\n` : `\n\n[Pesquisando na web...]\n\n`;
+            }
+            else if (fc.name === "calculadora") {
+              const expr = (fc.args as any)?.expression;
+              thinkingText = expr ? `\n\n[Calculando: "${expr}"...]\n\n` : `\n\n[Calculando...]\n\n`;
+            }
+            else if (fc.name === "relogio") thinkingText = "\n\n[Verificando relógio...]\n\n";
             else if (fc.name === "gerar_imagem") thinkingText = `\n\n<wsm_image prompt="${(fc.args as any)?.prompt || 'Imagem'}" imgUrl="" />\n\n`;
-            else if (fc.name === "open_url") thinkingText = `\n\n[Abrindo site: ${(fc.args as any).url}...]\n\n`;
-            else if (fc.name === "click") thinkingText = `\n\n[Clicando no elemento...]\n\n`;
-            else if (fc.name === "type_text") thinkingText = `\n\n[Digitando "${(fc.args as any).text}"...]\n\n`;
+            else if (fc.name === "open_url") thinkingText = `\n\n[Acessando site: ${(fc.args as any).url}...]\n\n`;
+            else if (fc.name === "click") {
+              const target = (fc.args as any)?.text || (fc.args as any)?.selector;
+              thinkingText = target ? `\n\n[Clicando em "${target}"...]\n\n` : `\n\n[Clicando no botão do site...]\n\n`;
+            }
+            else if (fc.name === "type_text") {
+              const txt = (fc.args as any)?.text;
+              thinkingText = txt ? `\n\n[Digitando "${txt}"...]\n\n` : `\n\n[Digitando no site...]\n\n`;
+            }
             else if (fc.name === "scroll_page") thinkingText = `\n\n[Rolando página para ${(fc.args as any)?.direction === 'up' ? 'cima' : 'baixo'}...]\n\n`;
-            else if (fc.name === "extract_visible_text") thinkingText = `\n\n[Lendo página atualizada...]\n\n`;
+            else if (fc.name === "extract_visible_text") thinkingText = `\n\n[Lendo conteúdo da página...]\n\n`;
             else if (fc.name === "wait_seconds") thinkingText = `\n\n[Aguardando ${(fc.args as any)?.seconds || 3}s para o site carregar...]\n\n`;
             else if (fc.name === "create_document") thinkingText = `\n\n[Criando documento: "${(fc.args as any)?.title || 'Documento'}"...]\n\n`;
             else if (fc.name === "read_document") thinkingText = `\n\n[Lendo documento: "${(fc.args as any)?.title || 'Documento'}"...]\n\n`;
@@ -1451,7 +1466,13 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
           }
           currentContents.push({ role: "user", parts: functionResponseParts });
           turnCount++;
-          forceNextTurnModeAny = false;
+          const userStrLow = (typeof text === 'string' ? text : JSON.stringify(text)).toLowerCase();
+          const promptHasBrowserSteps = promptWantsBrowser && /\b(cadastr\w*|login|entrar|entra|clic\w*|preench\w*|digit\w*|pesquis\w*|busc\w*|naveg\w*|fazer|veja|me conte|me diga)\b/i.test(userStrLow);
+          if (promptHasBrowserSteps && turnCount < 10) {
+            forceNextTurnModeAny = true;
+          } else {
+            forceNextTurnModeAny = false;
+          }
         } else {
           // Check for unfulfilled tool calls (e.g. model outputted conversational text or <task> block promising tools without calling functionCall)
           const userStr = (typeof text === 'string' ? text : JSON.stringify(text)).toLowerCase();
@@ -1477,17 +1498,18 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             aiHasTaskBlock ||
             aiPromisedBrowser ||
             aiPromisedSearch ||
-            (turnCount === 0 && !isSimpleGreetingOrMath2 && (wantsBrowser || wantsSearch) && !aiHasFinalConclusion)
+            (turnCount < 10 && !isSimpleGreetingOrMath2 && (wantsBrowser || wantsSearch) && !aiHasFinalConclusion)
           );
 
           if (missingToolCall && turnCount < 100) {
             console.warn(`[Pro] Missing tool call / unfulfilled task detected on turn ${turnCount}! Triggering mode ANY recovery...`);
             
-            // Clean up intermediate unfulfilled conversational text / task text from fullOutput to prevent duplicate text in UI
-            if (textForThisTurn) {
+            // Clean up internal <task> tags if present, but preserve friendly step explanations (e.g. "Olá! Vou abrir...")
+            if (textForThisTurn && textForThisTurn.includes('<task>')) {
+              const cleanedTaskText = textForThisTurn.replace(/<task>[\s\S]*?<\/task>/gi, '').trim();
               const lastIdx = fullOutput.lastIndexOf(textForThisTurn);
               if (lastIdx !== -1) {
-                fullOutput = fullOutput.substring(0, lastIdx);
+                fullOutput = fullOutput.substring(0, lastIdx) + (cleanedTaskText ? cleanedTaskText + "\n\n" : "");
                 sendEvent({ type: "sync_text", text: fullOutput });
               }
             }
@@ -1500,13 +1522,17 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             let reminderMsg = "";
             if (aiHasTaskBlock || wantsBrowser || aiPromisedBrowser) {
               let targetUrl = "";
-              const urlMatch = (userStr + " " + aiStr).match(/(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|org|net|io|br|gov|edu|ai|app)[^\s]*)/i);
+              const urlMatch = (userStr + " " + aiStr).match(/(https?:\/\/(?!cdn\.|fonts\.|unpkg\.|cdnjs\.|jsdelivr\.)[^\s<>"'\)]+|www\.[^\s<>"'\)]+|[a-zA-Z0-9-]+\.(com|org|net|io|br|gov|edu|ai|app|dev|co|xyz|online|store|tech|vercel\.app|netlify\.app)[^\s<>"'\)]*)/i);
               if (urlMatch) {
-                targetUrl = urlMatch[0];
+                targetUrl = urlMatch[0].replace(/[\)"'\s\.,;]+$/, '');
                 if (!targetUrl.startsWith('http')) targetUrl = 'https://' + targetUrl;
               }
 
-              reminderMsg = `SISTEMA (AÇÃO DE FERRAMENTA OBRIGATÓRIA - PLAN → ACT → OBSERVE → REFLECT): Você mencionou um próximo passo ou descreveu ações ("${(textForThisTurn || "").slice(0, 100)}..."), mas NENHUMA função (functionCall) foi disparada neste turno! Você DEVE OBRIGATORIAMENTE invocar a ferramenta necessária ('open_url'${targetUrl ? ` com "${targetUrl}"` : ''}, 'type_text', 'click', 'scroll_page', 'wait_seconds' ou 'web_search') via Function Call agora para continuar a tarefa até a conclusão. É estritamente PROIBIDO parar ou apenas responder com texto sem disparar a função!`;
+              if (wantsBrowser && turnCount > 0) {
+                reminderMsg = `SISTEMA (AÇÃO DE NAVEGAÇÃO OBRIGATÓRIA - AGENTE INTERATIVO): A página do site já está aberta. O usuário solicitou executar ações na página ("${userStr.slice(0, 100)}..."). Você DEVE OBRIGATORIAMENTE invocar uma chamada de função ('type_text' para preencher formulários/campos, 'click' para clicar em botões/links, 'scroll_page', 'wait_seconds' ou 'extract_visible_text') para avançar até a conclusão da tarefa. É estritamente PROIBIDO responder apenas com texto sem disparar a função!`;
+              } else {
+                reminderMsg = `SISTEMA (AÇÃO DE FERRAMENTA OBRIGATÓRIA - PLAN → ACT → OBSERVE → REFLECT): Você mencionou um próximo passo ou descreveu ações ("${(textForThisTurn || "").slice(0, 100)}..."), mas NENHUMA função (functionCall) foi disparada neste turno! Você DEVE OBRIGATORIAMENTE invocar a ferramenta necessária ('open_url'${targetUrl ? ` com "${targetUrl}"` : ''}, 'type_text', 'click', 'scroll_page', 'wait_seconds' ou 'web_search') via Function Call agora para continuar a tarefa até a conclusão. É estritamente PROIBIDO parar ou apenas responder com texto sem disparar a função!`;
+              }
             } else {
               reminderMsg = "SISTEMA (PESQUISA WEB OBRIGATÓRIA): Execute a ferramenta 'web_search' (functionCall) para pesquisar as informações na web agora. NÃO responda apenas com texto.";
             }
@@ -1663,7 +1689,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
     console.error("Chat API Error:", error);
     
     const errorMessage = error.message || String(error);
-    let errorText = "WSM 1.6 está temporariamente indisponível. Tente novamente em alguns instantes.";
+    let errorText = "Omnix 1.6 está temporariamente indisponível. Tente novamente em alguns instantes.";
 
     if (errorMessage.includes("safety") || errorMessage.includes("SAFETY") || errorMessage.includes("BLOCKED")) {
       errorText = "⚠️ **A mensagem solicitada foi bloqueada pelas diretrizes de segurança da IA.** Por favor, reformule seu pedido.";
@@ -1922,7 +1948,7 @@ app.post("/api/admin/send-email", async (req: express.Request, res: express.Resp
       const result = await sendGenericEmail({
         toEmail,
         subject,
-        badgeText: badgeText || "Aviso Oficial WSM 1.6",
+        badgeText: badgeText || "Aviso Oficial Omnix 1.6",
         title,
         subtitleText: subtitleText || `Comunicação Direta ao Usuário`,
         bodyMarkdown

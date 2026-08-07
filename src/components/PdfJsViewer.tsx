@@ -206,7 +206,7 @@ export default function PdfJsViewer({
       {/* Loading state */}
       {isLoading && (
         <div className="w-full max-w-[820px] h-[600px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl flex flex-col items-center justify-center gap-3 text-gray-400 shadow-lg">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400" />
+          <Loader2 className="w-8 h-8 animate-spin text-black dark:text-blue-400" />
           <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
             Renderizando PDF via PDF.js...
           </span>

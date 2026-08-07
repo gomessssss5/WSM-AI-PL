@@ -343,7 +343,7 @@ export default function SearchMessageView({
                                 (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%23888" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>';
                               }}
                             />
-                            <span className="text-[13px] font-normal text-gray-800 dark:text-gray-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                            <span className="text-[13px] font-normal text-gray-800 dark:text-gray-200 truncate group-hover:text-black dark:group-hover:text-blue-400">
                               {src.title}
                             </span>
                           </div>
@@ -472,7 +472,7 @@ export default function SearchMessageView({
                     );
                   })}
                 </div>
-                <span className="text-[#2563eb] font-semibold text-[11.5px] pr-0.5">{count} {count === 1 ? 'fonte' : 'fontes'}</span>
+                <span className="text-black dark:text-white font-semibold text-[11.5px] pr-0.5">{count} {count === 1 ? 'fonte' : 'fontes'}</span>
               </button>
             );
           })()}

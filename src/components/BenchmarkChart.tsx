@@ -63,7 +63,7 @@ export default function BenchmarkChart({ categoryTitle, data, subtitle }: Benchm
                     item.isWsm 
                       ? 'bg-gradient-to-r from-orange-500 to-amber-500 shadow-xs' 
                       : rank === 1 
-                        ? 'bg-blue-600' 
+                        ? 'bg-black' 
                         : rank <= 3 
                           ? 'bg-sky-500' 
                           : 'bg-slate-400'

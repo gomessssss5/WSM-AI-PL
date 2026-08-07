@@ -201,8 +201,11 @@ const CarouselPrevious = React.forwardRef<
     <button
       ref={ref}
       type="button"
+      aria-label="Slide anterior"
+      aria-hidden="true"
+      tabIndex={-1}
       className={cn(
-        "absolute h-7 w-7 rounded-full border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center shadow-xs transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer z-10",
+        "absolute h-7 w-7 rounded-full border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center shadow-xs transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer z-10 select-none pointer-events-auto",
         orientation === "horizontal"
           ? "-left-3.5 top-1/2 -translate-y-1/2"
           : "-top-3.5 left-1/2 -translate-x-1/2 rotate-90",
@@ -212,8 +215,8 @@ const CarouselPrevious = React.forwardRef<
       onClick={scrollPrev}
       {...props}
     >
-      <ArrowLeft className="h-3.5 w-3.5 text-gray-700 dark:text-gray-200" />
-      <span className="sr-only">Previous slide</span>
+      <ArrowLeft className="h-3.5 w-3.5 text-gray-700 dark:text-gray-200" aria-hidden="true" />
+      <span className="sr-only select-none" aria-hidden="true">Previous slide</span>
     </button>
   )
 })
@@ -229,8 +232,11 @@ const CarouselNext = React.forwardRef<
     <button
       ref={ref}
       type="button"
+      aria-label="Próximo slide"
+      aria-hidden="true"
+      tabIndex={-1}
       className={cn(
-        "absolute h-7 w-7 rounded-full border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center shadow-xs transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer z-10",
+        "absolute h-7 w-7 rounded-full border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center shadow-xs transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer z-10 select-none pointer-events-auto",
         orientation === "horizontal"
           ? "-right-3.5 top-1/2 -translate-y-1/2"
           : "-bottom-3.5 left-1/2 -translate-x-1/2 rotate-90",
@@ -240,8 +246,8 @@ const CarouselNext = React.forwardRef<
       onClick={scrollNext}
       {...props}
     >
-      <ArrowRight className="h-3.5 w-3.5 text-gray-700 dark:text-gray-200" />
-      <span className="sr-only">Next slide</span>
+      <ArrowRight className="h-3.5 w-3.5 text-gray-700 dark:text-gray-200" aria-hidden="true" />
+      <span className="sr-only select-none" aria-hidden="true">Next slide</span>
     </button>
   )
 })

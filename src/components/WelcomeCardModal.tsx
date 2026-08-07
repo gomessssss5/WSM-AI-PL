@@ -41,11 +41,11 @@ export const WelcomeCardModal: React.FC<WelcomeCardModalProps> = ({ onClose }) =
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-[#eae6e1] bg-[#fcfbfa] shrink-0">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-blue-50 text-[#2563eb] rounded-xl border border-blue-100">
+              <div className="p-1.5 bg-gray-100 text-black dark:text-white rounded-xl border border-gray-200">
                 <Sparkles size={18} />
               </div>
               <h2 className="text-base sm:text-lg font-black text-gray-900 tracking-tight">
-                Atualização: Ominx 1.6.2
+                Atualização: Omnix 1.6.2
               </h2>
             </div>
             <button
@@ -64,24 +64,24 @@ export const WelcomeCardModal: React.FC<WelcomeCardModalProps> = ({ onClose }) =
               onClick={() => setActiveTab('1.6.2')}
               className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer relative ${
                 activeTab === '1.6.2'
-                  ? 'bg-white text-[#2563eb] shadow-2xs font-extrabold'
+                  ? 'bg-white text-black dark:text-white shadow-2xs font-extrabold'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
               <Bot size={14} />
-              <span>Ominx 1.6.2</span>
-              <span className="bg-[#2563eb] text-white text-[9px] px-1.5 py-0.2 rounded-full uppercase tracking-wider ml-0.5">Novo</span>
+              <span>Omnix 1.6.2</span>
+              <span className="bg-black text-white text-[9px] px-1.5 py-0.2 rounded-full uppercase tracking-wider ml-0.5">Novo</span>
             </button>
             <button
               onClick={() => setActiveTab('1.6.1')}
               className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer relative ${
                 activeTab === '1.6.1'
-                  ? 'bg-white text-[#2563eb] shadow-2xs font-extrabold'
+                  ? 'bg-white text-black dark:text-white shadow-2xs font-extrabold'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
               <Code2 size={14} />
-              <span>Ominx 1.6.1</span>
+              <span>Omnix 1.6.1</span>
             </button>
           </div>
 
@@ -97,12 +97,12 @@ export const WelcomeCardModal: React.FC<WelcomeCardModalProps> = ({ onClose }) =
                   transition={{ duration: 0.18 }}
                   className="space-y-3.5"
                 >
-                  <div className="bg-blue-50/50 border border-blue-100/80 rounded-2xl p-3.5 text-center">
+                  <div className="bg-gray-100/50 border border-gray-200/80 rounded-2xl p-3.5 text-center">
                     <h3 className="text-base sm:text-lg font-normal text-gray-900">
-                      Ominx 1.6 agora é <strong className="font-extrabold text-[#2563eb]">AGENTE</strong>
+                      Omnix 1.6 agora é <strong className="font-extrabold text-black dark:text-white">AGENTE</strong>
                     </h3>
                     <p className="text-xs sm:text-sm text-gray-600 leading-relaxed mt-1.5">
-                      agora, Ominx 1.6 consegue mexer e navegar em sites, clicando em botões, escrevendo textos, como se fosse um usuário.
+                      agora, Omnix 1.6 consegue mexer e navegar em sites, clicando em botões, escrevendo textos, como se fosse um usuário.
                     </p>
                   </div>
 
@@ -110,7 +110,7 @@ export const WelcomeCardModal: React.FC<WelcomeCardModalProps> = ({ onClose }) =
                   <div className="bg-gray-950 rounded-2xl p-2 border border-gray-800 flex items-center justify-center overflow-hidden">
                     <img
                       src={imgSrc162}
-                      alt="Ominx 1.6 agora é AGENTE"
+                      alt="Omnix 1.6 agora é AGENTE"
                       onError={handleImageError162}
                       referrerPolicy="no-referrer"
                       className="w-full h-auto max-h-[48vh] sm:max-h-[52vh] object-contain rounded-xl shadow-md transition-transform duration-300 hover:scale-[1.01]"
@@ -131,16 +131,16 @@ export const WelcomeCardModal: React.FC<WelcomeCardModalProps> = ({ onClose }) =
                       Bugs arrumados e melhora na geração de códigos
                     </h3>
                     <p className="text-xs text-gray-600 leading-relaxed">
-                      A <strong>Ominx 1.6</strong> está mais apta para geração de códigos. Agora, na criação de sites, ela analisa o próprio site que criou, encontra bugs, erros, e analisa se está de acordo com o que o usuário pediu de forma autônoma e iterativa.
+                      A <strong>Omnix 1.6</strong> está mais apta para geração de códigos. Agora, na criação de sites, ela analisa o próprio site que criou, encontra bugs, erros, e analisa se está de acordo com o que o usuário pediu de forma autônoma e iterativa.
                     </p>
                   </div>
 
                   <div className="bg-gray-50 border border-gray-200/80 rounded-2xl p-4 space-y-2">
                     <h3 className="text-sm font-bold text-gray-900">
-                      Melhora do conhecimento do Ominx 1.6
+                      Melhora do conhecimento do Omnix 1.6
                     </h3>
                     <p className="text-xs text-gray-600 leading-relaxed">
-                      Ominx 1.6 agora tem conhecimento atualizado, além de conseguir fazer buscas na web pra aprimorar seus conhecimentos.
+                      Omnix 1.6 agora tem conhecimento atualizado, além de conseguir fazer buscas na web pra aprimorar seus conhecimentos.
                     </p>
                   </div>
                 </motion.div>
@@ -152,7 +152,7 @@ export const WelcomeCardModal: React.FC<WelcomeCardModalProps> = ({ onClose }) =
           <div className="p-3.5 sm:p-4 bg-white border-t border-[#eae6e1] flex items-center justify-center shrink-0">
             <button
               onClick={onClose}
-              className="w-full px-6 py-3 bg-[#2563eb] hover:bg-[#1d4ed8] active:bg-[#1e40af] text-white font-extrabold text-sm rounded-2xl shadow-md hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
+              className="w-full px-6 py-3 bg-black hover:bg-neutral-800 active:bg-[#1e40af] text-white font-extrabold text-sm rounded-2xl shadow-md hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
             >
               <ArrowLeft size={16} />
               <span>Voltar</span>

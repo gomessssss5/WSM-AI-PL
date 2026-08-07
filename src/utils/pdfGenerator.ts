@@ -621,7 +621,7 @@ export async function generatePdfBlob(title: string, rawContent: string, attache
 
   for (let i = 0; i < totalPages; i++) {
     const p = pages[i];
-    const footerText = sanitizePdfText(`Página ${i + 1} de ${totalPages} • Ominx 1.6`);
+    const footerText = sanitizePdfText(`Página ${i + 1} de ${totalPages} • Omnix 1.6`);
     const footerFontSize = 8;
     const textWidth = fontRegular.widthOfTextAtSize(footerText, footerFontSize);
     

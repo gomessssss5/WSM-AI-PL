@@ -174,13 +174,13 @@ export default function SearchModal({
       case 'write':
         return <PenTool className="w-4 h-4 text-amber-500" />;
       case 'code':
-        return <Cpu className="w-4 h-4 text-blue-500" />;
+        return <Cpu className="w-4 h-4 text-black" />;
       case 'image':
         return <ImageIcon className="w-4 h-4 text-purple-500" />;
       case 'analysis':
         return <Sparkles className="w-4 h-4 text-emerald-500" />;
       case 'translate':
-        return <Languages className="w-4 h-4 text-indigo-500" />;
+        return <Languages className="w-4 h-4 text-gray-900" />;
       default:
         return <Bot className="w-4 h-4 text-gray-500" />;
     }

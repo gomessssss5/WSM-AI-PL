@@ -708,7 +708,7 @@ export default function ChatWindow({
   };
 
   const handleExportConversation = () => {
-    let md = `# Conversa do WSM AI - ${title || 'Chat'}\n\n`;
+    let md = `# Conversa do Omnix AI - ${title || 'Chat'}\n\n`;
     md += `**Modelo selecionado:** ${selectedModel}\n`;
     md += `**Exportado em:** ${new Date().toLocaleString()}\n\n`;
     md += `---\n\n`;
@@ -732,7 +732,7 @@ export default function ChatWindow({
       if (!exportedText && !msg.imageUrl && !msg.codeBlock) return;
       if (exportedText.startsWith('[SISTEMA:') || exportedText.startsWith('SISTEMA (') || /^\[Lendo Skill:.*?\]$/is.test(exportedText)) return;
 
-      const senderName = msg.sender === 'user' ? 'Usuário' : 'Ominx 1.6';
+      const senderName = msg.sender === 'user' ? 'Usuário' : 'Omnix 1.6';
       const senderEmoji = msg.sender === 'user' ? '👤' : '🤖';
       md += `### ${senderEmoji} **${senderName}** (${new Date(msg.timestamp).toLocaleTimeString()})\n\n`;
       if (exportedText) {
@@ -1027,7 +1027,7 @@ export default function ChatWindow({
   };
 
   const marteTools = [
-    { id: '/web', name: 'web-search', description: 'Pesquisa na Web', icon: Globe, color: 'text-blue-500' },
+    { id: '/web', name: 'web-search', description: 'Pesquisa na Web', icon: Globe, color: 'text-black' },
     { id: '/calculadora', name: 'calculadora', description: 'Calculadora Matemática', icon: Calculator, color: 'text-emerald-500' },
     { id: '/relogio', name: 'relogio', description: 'Relógio e Data Atual', icon: Clock, color: 'text-orange-500' }
   ];
@@ -1039,7 +1039,7 @@ export default function ChatWindow({
       name: skill.name,
       description: skill.description,
       icon: FileCode2,
-      color: 'text-indigo-500',
+      color: 'text-gray-900',
       isSkill: true,
       skillObj: skill
     }))
@@ -1062,7 +1062,7 @@ export default function ChatWindow({
     const val = e.target.value;
     setInputValue(val);
 
-    if (selectedModel !== 'Ominx 1.6' && selectedModel !== 'Ominx 1.6') {
+    if (selectedModel !== 'Omnix 1.6' && selectedModel !== 'Omnix 1.6') {
       if (slashMenuOpen) setSlashMenuOpen(false);
       return;
     }
@@ -1210,11 +1210,11 @@ export default function ChatWindow({
   };
 
   const modelsList = [
-    'Ominx 1.6'
+    'Omnix 1.6'
   ];
 
   const modelDescriptions: Record<string, string> = {
-    'Ominx 1.6': 'Modelo ultra-inteligente e agêntico'
+    'Omnix 1.6': 'Modelo ultra-inteligente e agêntico'
   };
 
   const isUserScrollingRef = useRef(false);
@@ -1282,6 +1282,7 @@ export default function ChatWindow({
 
   const handleSubmit = (e?: React.FormEvent | React.MouseEvent | React.TouchEvent) => {
     e?.preventDefault();
+    if (isThinking) return;
     
     const textarea = document.getElementById('chat-input-textarea-floating') as HTMLTextAreaElement;
     const currentText = textarea ? textarea.value : inputValue;
@@ -1365,7 +1366,9 @@ export default function ChatWindow({
 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e as any);
+      if (!isThinking) {
+        handleSubmit(e as any);
+      }
     }
   };
 
@@ -1415,7 +1418,7 @@ export default function ChatWindow({
         {/* Glowing Neon Lights and Windows */}
         <div className="absolute bottom-1.5 left-4 w-2 h-0.5 bg-[#8b5cf6] shadow-[0_0_6px_#8b5cf6] rounded-xxs animate-pulse" />
         <div className="absolute bottom-4 left-10 w-1.5 h-1.5 bg-purple-400 shadow-[0_0_4px_#8b5cf6] rounded-xxs" />
-        <div className="absolute bottom-10 left-1/3 w-1 h-1 bg-[#2563eb] shadow-[0_0_4px_#2563eb] rounded-xxs animate-ping" />
+        <div className="absolute bottom-10 left-1/3 w-1 h-1 bg-black shadow-[0_0_4px_#2563eb] rounded-xxs animate-ping" />
         <div className="absolute bottom-6 left-1/2 w-3 h-0.5 bg-[#8b5cf6] shadow-[0_0_6px_#8b5cf6] rounded-xxs" />
 
         {/* Image Spec Label */}
@@ -1429,7 +1432,7 @@ export default function ChatWindow({
           <button className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all border border-white/15 active:scale-95 cursor-pointer shadow-md">
             <ZoomIn className="w-4 h-4" />
           </button>
-          <button className="p-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-full transition-all active:scale-95 cursor-pointer shadow-md">
+          <button className="p-1.5 bg-black hover:bg-neutral-800 text-white rounded-full transition-all active:scale-95 cursor-pointer shadow-md">
             <Download className="w-4 h-4" />
           </button>
         </div>
@@ -1493,8 +1496,8 @@ export default function ChatWindow({
           {/* AI Model Selector Pill */}
           <div className="relative z-50">
             <div className="flex items-center px-1.5 py-1.5 text-[13px] font-extrabold text-gray-900 select-none tracking-tight gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-[#2563eb] fill-[#2563eb]/20" />
-              <span>Ominx 1.6</span>
+              <Sparkles className="w-3.5 h-3.5 text-black dark:text-white fill-black/20" />
+              <span>Omnix 1.6</span>
             </div>
           </div>
 
@@ -1508,16 +1511,6 @@ export default function ChatWindow({
 
         {/* Right side controls */}
         <div className="flex items-center gap-2 relative z-50">
-          {/* Tag Ominx 1.6.2 - Desktop Only */}
-          <button
-            onClick={onOpenUpdateModal}
-            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-blue-50/40 border border-[#eae6e1] rounded-full text-xs font-bold text-gray-700 hover:text-[#2563eb] transition-colors cursor-pointer shadow-3xs active:scale-95"
-            title="Ver novidades da versão 1.6.2"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-[#2563eb] shrink-0" />
-            <span>Atualização: Ominx 1.6.2</span>
-          </button>
-
           <button
             onClick={onStartTemporaryChat}
             disabled={isTemporary}
@@ -1698,9 +1691,13 @@ export default function ChatWindow({
                   {!isUser && (
                     <div className="wsm-header">
                       <div className="wsm-icon-wrap">
-                        <img src="https://i.ibb.co/Q34b6rBW/37990-removebg-preview.png" alt="Ominx 1.6" />
+                        <img 
+                          src="https://i.ibb.co/jvfRYXDR/cone-Circular-Abstrato-em-Espiral-removebg-preview.png" 
+                          alt="Omnix 1.6" 
+                          className={`w-full h-full object-contain omnix-rotating-icon ${isThinking && (index === messages.length - 1 || message.id === messages[messages.length - 1]?.id) ? 'is-generating' : ''}`}
+                        />
                       </div>
-                      <span className="wsm-brand-name">Ominx 1.6</span>
+                      <span className="wsm-brand-name">Omnix 1.6</span>
                     </div>
                   )}
 
@@ -1771,14 +1768,14 @@ export default function ChatWindow({
                         <textarea 
                           value={editInputValue}
                           onChange={(e) => setEditInputValue(e.target.value)}
-                          className="w-full text-[13.5px] p-2 border border-[#eae6e1] rounded-lg bg-white resize-none outline-none focus:border-[#2563eb] min-h-[60px]"
+                          className="w-full text-[13.5px] p-2 border border-[#eae6e1] rounded-lg bg-white resize-none outline-none focus:border-black dark:border-white min-h-[60px]"
                         />
                         <div className="flex justify-end gap-2">
                           <button onClick={() => setEditingMessageId(null)} className="text-xs px-2 py-1 text-gray-500 hover:bg-gray-100 rounded transition-colors border border-[#eae6e1]">Cancelar</button>
                           <button onClick={() => {
                              onEditMessage?.(message.id, editInputValue);
                              setEditingMessageId(null);
-                          }} className="text-xs px-2 py-1 bg-[#2563eb] text-white rounded hover:bg-[#1d4ed8] transition-colors">Confirmar</button>
+                          }} className="text-xs px-2 py-1 bg-black text-white rounded hover:bg-neutral-800 transition-colors">Confirmar</button>
                         </div>
                       </div>
                     ) : message.isSearchMessage ? (
@@ -1818,7 +1815,7 @@ export default function ChatWindow({
                               {/* Render rich formats if present */}
                               {message.text === "" && isThinking && message.id === messages[messages.length - 1].id ? (
                                 <div className="wsm-thinking-state">
-                                  <span className="shimmer-text">Ominx 1.6 está trabalhando...</span>
+                                  <span className="shimmer-text">Omnix 1.6 está trabalhando...</span>
                                 </div>
                               ) : message.text === "Você cancelou essa resposta" ? (
                                 <div className="bg-red-50 text-red-600 border border-red-200 rounded-lg p-3 text-sm font-medium flex items-center gap-2 w-fit">
@@ -1860,13 +1857,13 @@ export default function ChatWindow({
                                   
                                   {/* 3. Main AI Text response - only after reasoning sequence completes */}
                                   {isReasoningDone && (
-                                    message.text.includes("Ominx 1.6 está muito sobrecarregado") ? (
+                                    message.text.includes("Omnix 1.6 está muito sobrecarregado") ? (
                                       <div className="bg-amber-50/90 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 p-5 rounded-2xl flex items-start gap-3.5 shadow-xs my-1 animate-in fade-in duration-300">
                                         <AlertTriangle className="text-amber-500 dark:text-amber-400 mt-0.5 shrink-0" size={20} />
                                         <div className="space-y-1">
                                           <p className="font-extrabold text-amber-900 dark:text-amber-100 text-[14px]">Alerta de Sobrecarga</p>
                                           <p className="text-[13px] text-amber-800 dark:text-amber-200 leading-relaxed font-semibold">
-                                            Ominx 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.
+                                            Omnix 1.6 está muito sobrecarregado agora. Tente novamente mais tarde.
                                           </p>
                                         </div>
                                       </div>
@@ -1976,8 +1973,8 @@ export default function ChatWindow({
                                           "{message.translationData.original}"
                                         </p>
                                       </div>
-                                      <div className="bg-[#2563eb]/5 p-3 rounded-lg border border-[#2563eb]/10">
-                                        <div className="text-[9px] font-bold text-[#2563eb] uppercase tracking-wider mb-1">
+                                      <div className="bg-black/5 dark:bg-white/5 p-3 rounded-lg border border-black/10 dark:border-white/10">
+                                        <div className="text-[9px] font-bold text-black dark:text-white uppercase tracking-wider mb-1">
                                           {message.translationData.targetLang}
                                         </div>
                                         <p className="text-gray-800 font-medium text-[12px]">
@@ -2078,7 +2075,7 @@ export default function ChatWindow({
                                                 );
                                               })}
                                             </div>
-                                            <span className="text-[#2563eb] font-semibold text-[11.5px] pr-0.5">{count} {count === 1 ? 'fonte' : 'fontes'}</span>
+                                            <span className="text-black dark:text-white font-semibold text-[11.5px] pr-0.5">{count} {count === 1 ? 'fonte' : 'fontes'}</span>
                                           </button>
                                         );
                                       })()}
@@ -2105,7 +2102,7 @@ export default function ChatWindow({
                           <button onClick={() => copyToClipboard(cleanWriterUpdateTags(message.text), message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
                             {copiedId === message.id ? <Check size={12} /> : <Copy size={12} />}
                           </button>
-                          <button onClick={() => { setEditingMessageId(message.id); setEditInputValue(displayUserText(message.text)); }} className="text-gray-400 hover:text-blue-600 p-0.5" title="Editar">
+                          <button onClick={() => { setEditingMessageId(message.id); setEditInputValue(displayUserText(message.text)); }} className="text-gray-400 hover:text-black p-0.5" title="Editar">
                             <Edit2 size={12} />
                           </button>
                         </div>
@@ -2130,7 +2127,7 @@ export default function ChatWindow({
                                   onEditMessage?.(lastUser.id, lastUser.text);
                                 }
                               }}
-                              className="text-gray-400 hover:text-[#2563eb] p-0.5"
+                              className="text-gray-400 hover:text-black dark:text-white p-0.5"
                               title="Tentar novamente"
                             >
                               <RotateCcw size={12} />
@@ -2184,17 +2181,17 @@ export default function ChatWindow({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
             transition={{ duration: 0.2 }}
-            className="w-full max-w-xl mx-auto flex items-center justify-between gap-2 bg-blue-50/75 border border-blue-100 rounded-xl px-3 py-2 text-xs text-blue-800 mb-2"
+            className="w-full max-w-2xl mx-auto flex items-center justify-between gap-2 bg-gray-100/80 backdrop-blur-md border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-900 mb-2"
           >
             <div className="flex items-center gap-1.5 min-w-0">
-              <Sparkles className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              <Sparkles className="w-3.5 h-3.5 text-black shrink-0" />
               <span className="font-bold shrink-0">Texto anexado:</span>
-              <span className="truncate italic font-medium text-blue-900">"{attachedText}"</span>
+              <span className="truncate italic font-medium text-gray-900">"{attachedText}"</span>
             </div>
             <button
               type="button"
               onClick={onClearAttachedText}
-              className="p-1 hover:bg-blue-100 rounded-lg text-blue-500 hover:text-blue-700 transition-colors cursor-pointer shrink-0"
+              className="p-1 hover:bg-gray-200 rounded-lg text-black hover:text-black transition-colors cursor-pointer shrink-0"
               title="Limpar anexo"
             >
               <X className="w-3.5 h-3.5" />
@@ -2205,13 +2202,13 @@ export default function ChatWindow({
         {(() => {
           const lastVisibleMsg = visibleMessages[visibleMessages.length - 1];
           const lastMessageText = lastVisibleMsg?.text || "";
-          const isPro = selectedModel === 'Ominx 1.6' || selectedModel === 'Ominx 1.6';
+          const isPro = selectedModel === 'Omnix 1.6' || selectedModel === 'Omnix 1.6';
           const taskProgress = (lastVisibleMsg?.sender === 'ai')
             ? getTaskProgress(lastMessageText)
             : null;
 
           return (
-            <div className={`w-[calc(100%-2rem)] md:w-full md:max-w-xl mx-auto absolute bottom-3 left-4 md:relative md:bottom-auto md:left-auto z-50 flex flex-col mb-0 ${
+            <div className={`w-[calc(100%-2rem)] md:w-full md:max-w-2xl mx-auto absolute bottom-3 left-4 md:relative md:bottom-auto md:left-auto z-50 flex flex-col mb-0 ${
               taskProgress ? 'shadow-lg md:shadow-[0_1px_8px_rgba(0,0,0,0.01)] rounded-2xl' : ''
             }`}>
               <AnimatePresence>
@@ -2353,14 +2350,14 @@ export default function ChatWindow({
                       e.stopPropagation();
                       if (latestScreenshot?.screenshot) setLightboxImage(latestScreenshot.screenshot);
                     }}
-                    className="w-10 h-10 md:w-12 md:h-12 rounded-xl overflow-hidden border border-gray-200/90 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 shrink-0 relative shadow-2xs flex items-center justify-center group/btn cursor-pointer hover:border-blue-400 transition-colors"
+                    className="w-10 h-10 md:w-12 md:h-12 rounded-xl overflow-hidden border border-gray-200/90 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 shrink-0 relative shadow-2xs flex items-center justify-center group/btn cursor-pointer hover:border-black transition-colors"
                     title="Clique para expandir a captura"
                   >
                     {latestScreenshot?.screenshot ? (
                       <>
                         <img
                           src={latestScreenshot.screenshot}
-                          alt="Navegação Ominx 1.6"
+                          alt="Navegação Omnix 1.6"
                           className="w-full h-full object-cover transition-transform group-hover/btn:scale-105"
                         />
                         <div className="absolute inset-0 bg-black/0 group-hover/btn:bg-black/10 transition-colors" />
@@ -2373,15 +2370,15 @@ export default function ChatWindow({
                   {/* Status Indicator & Text */}
                   <div className="flex items-center gap-2 min-w-0">
                     <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isThinking ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-emerald-500'}`} />
-                    <span className="text-[14px] font-bold text-gray-800 dark:text-gray-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                      {isThinking ? "Ominx 1.6 está usando o Computador" : "Ominx 1.6 Usou o computador"}
+                    <span className="text-[14px] font-bold text-gray-800 dark:text-gray-200 truncate group-hover:text-black dark:group-hover:text-blue-400 transition-colors">
+                      {isThinking ? "Omnix 1.6 está usando o Computador" : "Omnix 1.6 Usou o computador"}
                     </span>
                   </div>
                 </div>
 
                 {/* Toggle side panel icon on the right */}
-                <div className="shrink-0 flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-200/90 dark:border-gray-700 p-1.5 rounded-full text-gray-600 dark:text-gray-300 shadow-2xs group-hover:border-blue-300 dark:group-hover:border-blue-700 transition-colors" title="Alternar painel lateral">
-                  <PanelRight className="w-4 h-4 text-gray-500 group-hover:text-blue-500 transition-colors" />
+                <div className="shrink-0 flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-200/90 dark:border-gray-700 p-1.5 rounded-full text-gray-600 dark:text-gray-300 shadow-2xs group-hover:border-black dark:group-hover:border-blue-700 transition-colors" title="Alternar painel lateral">
+                  <PanelRight className="w-4 h-4 text-gray-500 group-hover:text-black transition-colors" />
                 </div>
               </div>
             )}
@@ -2392,7 +2389,7 @@ export default function ChatWindow({
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                className={`w-full ${isListening ? 'bg-[#f5f6f8]' : 'bg-white'} border border-[#eae6e1] p-3 md:p-2.5 focus-within:border-gray-300 transition-all duration-200 z-50 ${
+                className={`w-full ${isListening ? 'bg-[#f5f6f8]/80' : 'bg-white/60 dark:bg-gray-900/60 backdrop-blur-md'} border border-[#eae6e1]/80 p-3 md:p-2.5 focus-within:border-gray-400 transition-all duration-200 z-50 ${
                   hasUsedComputer
                     ? 'rounded-b-[28px] md:rounded-b-[26px] rounded-t-none border-t border-t-gray-100 dark:border-t-gray-800/80 shadow-lg md:shadow-[0_1px_8px_rgba(0,0,0,0.01)]'
                     : taskProgress 
@@ -2571,7 +2568,7 @@ export default function ChatWindow({
                               className="w-full flex items-center justify-between text-left px-3 py-2 rounded-lg transition-colors cursor-pointer hover:bg-gray-50"
                             >
                               <div className="flex items-center gap-2">
-                                <BookOpen className="w-3.5 h-3.5 text-indigo-500" />
+                                <BookOpen className="w-3.5 h-3.5 text-gray-900" />
                                 <span className="text-[12px] font-semibold text-gray-800">Habilidades</span>
                               </div>
                               <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
@@ -2720,7 +2717,7 @@ export default function ChatWindow({
               {activeSkills.map(skill => (
                 <div 
                   key={skill.id}
-                  className="flex items-center gap-1 bg-[#2563eb]/10 text-[#2563eb] px-2 py-0.5 rounded flex-shrink-0 cursor-pointer hover:bg-[#2563eb]/20 transition-colors"
+                  className="flex items-center gap-1 bg-black/10 dark:bg-white/10 text-black dark:text-white px-2 py-0.5 rounded flex-shrink-0 cursor-pointer hover:bg-black/20 dark:bg-white/20 transition-colors"
                   onClick={() => setActiveSkills(prev => prev.filter(s => s.id !== skill.id))}
                 >
                   <span className="font-bold text-[13px]">/{skill.name}</span>
@@ -2762,7 +2759,7 @@ export default function ChatWindow({
                 <button
                   type="button"
                   onClick={confirmRecording}
-                  className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center justify-center transition-all cursor-pointer shrink-0 active:scale-95"
+                  className="w-9 h-9 rounded-full bg-black hover:bg-neutral-800 text-white shadow-sm flex items-center justify-center transition-all cursor-pointer shrink-0 active:scale-95"
                   title="Concluir gravação"
                 >
                   <Check className="w-5 h-5 stroke-[2.5]" />
@@ -2847,7 +2844,7 @@ export default function ChatWindow({
                                   }}
                                   className="w-full text-left px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 transition-colors cursor-pointer"
                                 >
-                                  <FileCode2 className="w-3.5 h-3.5 text-indigo-500" />
+                                  <FileCode2 className="w-3.5 h-3.5 text-gray-900" />
                                   <span className="text-[13px] font-medium text-gray-700">{skill.name}</span>
                                 </button>
                               ))
@@ -2873,12 +2870,12 @@ export default function ChatWindow({
                     onClick={() => setIsSearchEnabled(!isSearchEnabled)}
                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold transition-all cursor-pointer ${
                       isSearchEnabled
-                        ? 'bg-white text-[#2563eb] border border-[#2563eb] shadow-2xs'
+                        ? 'bg-white text-black dark:text-white border border-black dark:border-white shadow-2xs'
                         : 'bg-white text-gray-700 border border-[#eae6e1] hover:border-gray-300 hover:bg-gray-50/50 shadow-2xs'
                     }`}
                     title="Ativar busca web"
                   >
-                    <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-[#2563eb] animate-spin-slow' : 'text-gray-500'}`} />
+                    <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-black dark:text-white animate-spin-slow' : 'text-gray-500'}`} />
                     <span>Pesquisar</span>
                   </button>
                 </div>
@@ -3055,7 +3052,7 @@ export default function ChatWindow({
                       href={src.url} 
                       target="_blank" 
                       rel="noreferrer"
-                      className="font-bold text-[13px] text-gray-900 group-hover:text-[#2563eb] leading-snug transition-colors line-clamp-2 block mb-1.5 hover:underline"
+                      className="font-bold text-[13px] text-gray-900 group-hover:text-black dark:text-white leading-snug transition-colors line-clamp-2 block mb-1.5 hover:underline"
                     >
                       {src.title}
                     </a>
@@ -3234,7 +3231,7 @@ export default function ChatWindow({
             {/* Header */}
             <div className="px-5 py-4 border-b border-gray-150 dark:border-gray-800 flex items-center justify-between bg-gray-50/80 dark:bg-gray-850/80">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-blue-900/30 text-black dark:text-blue-400 flex items-center justify-center">
                   <Cpu className="w-4 h-4" />
                 </div>
                 <div>
@@ -3256,14 +3253,14 @@ export default function ChatWindow({
             </div>
 
             {/* Active Model Indicator */}
-            <div className="p-4 bg-blue-50/60 dark:bg-blue-950/30 border-b border-blue-100 dark:border-blue-900/40 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 text-blue-900 dark:text-blue-200">
-                <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+            <div className="p-4 bg-gray-100 dark:bg-blue-950/30 border-b border-gray-200 dark:border-blue-900/40 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 text-gray-900 dark:text-blue-200">
+                <Sparkles className="w-3.5 h-3.5 text-black dark:text-blue-400 shrink-0" />
                 <span>
                   Modelo Ativo no Chat: <strong className="font-semibold">{selectedModel}</strong>
                 </span>
               </div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-medium">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-gray-200 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-medium">
                 gemini-3.5-flash-lite
               </span>
             </div>
@@ -3277,7 +3274,7 @@ export default function ChatWindow({
                 </div>
               ) : (
                 messages.filter(m => m.sender === 'ai').map((msg, index) => {
-                  const displayModel = msg.model || selectedModel || 'Ominx 1.6';
+                  const displayModel = msg.model || selectedModel || 'Omnix 1.6';
                   const displayGemini = msg.geminiModel || 'gemini-3.5-flash-lite';
                   const rawSnippet = (msg.text || msg.finalSynthesis || 'Resposta da IA').replace(/<[^>]*>?/gm, '').trim();
                   const previewText = rawSnippet ? rawSnippet.slice(0, 110) : 'Resposta da IA gerada';
@@ -3296,7 +3293,7 @@ export default function ChatWindow({
                             {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''}
                           </span>
                         </div>
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-purple-50 dark:bg-purple-950/50 border border-purple-200/60 dark:border-purple-800/60 text-purple-700 dark:text-purple-300 font-medium">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium">
                           {displayGemini}
                         </span>
                       </div>

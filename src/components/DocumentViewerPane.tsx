@@ -45,11 +45,36 @@ export default function DocumentViewerPane({
 }: DocumentViewerPaneProps) {
   const [zoom, setZoom] = useState<number>(100);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [docContent, setDocContent] = useState<string>(document.content || '');
+  const sanitizeContent = (rawContent: string) => {
+    let raw = rawContent || '';
+    if (typeof raw === 'string' && raw.trim().startsWith('{') && raw.includes('"content"')) {
+      try {
+        const parsed = JSON.parse(raw.trim());
+        if (parsed && typeof parsed === 'object' && parsed.content !== undefined) {
+          raw = String(parsed.content);
+        }
+      } catch (e) {
+        const contentMatch = raw.match(/"content"\s*:\s*"([\s\S]*)"/i);
+        if (contentMatch) {
+          let extracted = contentMatch[1];
+          extracted = extracted.replace(/"\s*,\s*"format"[\s\S]*$/i, '')
+                               .replace(/"\s*,\s*"title"[\s\S]*$/i, '')
+                               .replace(/"\s*}\s*$/i, '');
+          raw = extracted;
+        }
+      }
+    }
+    if (typeof raw === 'string' && (raw.includes('\\n') || raw.includes('\\"'))) {
+      raw = raw.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\');
+    }
+    return raw;
+  };
+
+  const [docContent, setDocContent] = useState<string>(() => sanitizeContent(document.content || ''));
   
   useEffect(() => {
-    setDocContent(document.content || '');
-  }, [document.content]);
+    setDocContent(sanitizeContent(document.content || ''));
+  }, [document.content, document]);
 
   const [htmlPreviewMode, setHtmlPreviewMode] = useState<boolean>(true);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
@@ -65,9 +90,11 @@ export default function DocumentViewerPane({
     }
   };
 
-  useEffect(() => {
-    setDocContent(document.content || '');
-  }, [document]);
+  const sanitizeHtmlContent = (contentStr: string) => {
+    let clean = contentStr || '';
+    clean = clean.replace(/^```html\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/, '').trim();
+    return clean;
+  };
 
   const inferredFromTitle = inferFormatFromTitle(document.title || '', '');
   let rawFormat = (document.format || (document as any).type || inferredFromTitle || 'pdf').toString().toLowerCase();
@@ -89,6 +116,8 @@ export default function DocumentViewerPane({
   } else if (rawFormat === 'excel' || rawFormat === 'csv' || rawFormat === 'sheet' || rawFormat === 'planilha') {
     format = 'xlsx';
   }
+
+  const cleanedHtmlDoc = format === 'html' ? sanitizeHtmlContent(docContent) : docContent;
 
   const isCode = ['html', 'json', 'js', 'ts', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'css'].includes(format);
 
@@ -196,14 +225,14 @@ export default function DocumentViewerPane({
           <div className="flex items-center gap-0.5 bg-gray-100 dark:bg-gray-800 p-0.5 rounded-lg border border-gray-200 dark:border-gray-700 mr-2 shrink-0">
             <button
               onClick={() => setHtmlPreviewMode(true)}
-              className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${htmlPreviewMode ? 'bg-white dark:bg-gray-600 shadow-sm text-blue-600 dark:text-blue-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
+              className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${htmlPreviewMode ? 'bg-white dark:bg-gray-600 shadow-sm text-black dark:text-blue-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
               title="Visualizar HTML"
             >
               <Eye className="w-4 h-4" />
             </button>
             <button
               onClick={() => setHtmlPreviewMode(false)}
-              className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${!htmlPreviewMode ? 'bg-white dark:bg-gray-600 shadow-sm text-blue-600 dark:text-blue-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
+              className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${!htmlPreviewMode ? 'bg-white dark:bg-gray-600 shadow-sm text-black dark:text-blue-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
               title="Código HTML"
             >
               <Code className="w-4 h-4" />
@@ -246,7 +275,7 @@ export default function DocumentViewerPane({
               </button>
               <button
                 onClick={handleResetZoom}
-                className="px-1.5 text-[11px] font-bold text-gray-700 dark:text-gray-300 hover:text-blue-600 transition-colors cursor-pointer"
+                className="px-1.5 text-[11px] font-bold text-gray-700 dark:text-gray-300 hover:text-black transition-colors cursor-pointer"
                 title="Resetar zoom para 100%"
               >
                 {zoom}%
@@ -288,7 +317,7 @@ export default function DocumentViewerPane({
             className={`flex items-center gap-1.5 px-3 py-1.5 active:scale-95 text-white font-semibold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50 ${
               format === 'xlsx'
                 ? 'bg-emerald-600 hover:bg-emerald-700'
-                : 'bg-blue-600 hover:bg-blue-700'
+                : 'bg-black hover:bg-neutral-800'
             }`}
             title={`Baixar ${format.toUpperCase()}`}
           >
@@ -325,14 +354,14 @@ export default function DocumentViewerPane({
               onContentChange={(updated) => setDocContent(updated)}
             />
         ) : isCode ? (
-          <div className="flex-1 flex flex-col w-full h-full bg-white dark:bg-[#1e1e1e]">
-            <div className="flex-1 overflow-auto relative">
+          <div className="flex-1 flex flex-col w-full h-full min-h-[500px] bg-white dark:bg-[#1e1e1e] relative">
+            <div className="flex-1 w-full h-full min-h-[500px] overflow-auto relative">
               {format === 'html' && htmlPreviewMode ? (
                 <iframe
-                  srcDoc={docContent}
+                  srcDoc={cleanedHtmlDoc}
                   title="HTML Preview"
-                  className="w-full h-full border-none bg-white"
-                  sandbox="allow-scripts allow-modals"
+                  className="w-full h-full min-h-[500px] border-none bg-white absolute inset-0"
+                  sandbox="allow-scripts allow-modals allow-same-origin"
                 />
               ) : (
                 <SyntaxHighlighter 

@@ -581,7 +581,7 @@ export default function ScheduledTasksDashboard({
                           </div>
                         </div>
                         {relatedSession?.isUnread && (
-                          <div className="w-2.5 h-2.5 bg-blue-500 rounded-full mt-1.5"></div>
+                          <div className="w-2.5 h-2.5 bg-gray-1000 rounded-full mt-1.5"></div>
                         )}
                       </div>
                       {exec.error && (
@@ -675,7 +675,7 @@ export default function ScheduledTasksDashboard({
                                     setIsTypeDropdownOpen(false);
                                   }}
                                   className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors cursor-pointer ${
-                                    scheduleType === option.value ? 'bg-gray-50 font-semibold text-[#2563eb]' : 'text-gray-700'
+                                    scheduleType === option.value ? 'bg-gray-50 font-semibold text-black dark:text-white' : 'text-gray-700'
                                   }`}
                                 >
                                   {option.label}

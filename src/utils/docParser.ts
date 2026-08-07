@@ -22,6 +22,91 @@ export function inferFormatFromTitle(title: string, defaultFormat = 'pdf'): stri
   return defaultFormat;
 }
 
+export function parseJsonDocSafely(jsonStr: string): { title?: string; content?: string; format?: string } | null {
+  if (!jsonStr) return null;
+  let str = jsonStr.trim();
+
+  // Helper to extract content from an object if nested
+  const unwrapDocObj = (obj: any) => {
+    if (!obj || typeof obj !== 'object') return null;
+    let title = obj.title ? String(obj.title).trim() : undefined;
+    let format = obj.format || obj.type ? String(obj.format || obj.type).toLowerCase() : undefined;
+    let content = obj.content !== undefined ? obj.content : '';
+
+    if (typeof content === 'object' && content !== null) {
+      try { content = JSON.stringify(content); } catch (e) { content = String(content); }
+    } else {
+      content = String(content);
+    }
+
+    // Check if content itself is a stringified JSON containing nested content
+    if (typeof content === 'string' && content.trim().startsWith('{') && content.includes('"content"')) {
+      try {
+        const inner = JSON.parse(content.trim());
+        if (inner && typeof inner === 'object') {
+          if (inner.content !== undefined) content = String(inner.content);
+          if (inner.title && !title) title = String(inner.title).trim();
+          if (inner.format && !format) format = String(inner.format).toLowerCase();
+        }
+      } catch (e) {}
+    }
+
+    return { title, content, format };
+  };
+
+  // 1. Try standard JSON.parse
+  try {
+    let parsed = JSON.parse(str);
+    if (typeof parsed === 'string') {
+      try { parsed = JSON.parse(parsed); } catch (e) {}
+    }
+    const unwrapped = unwrapDocObj(parsed);
+    if (unwrapped) return unwrapped;
+  } catch (e) {}
+
+  // 2. Try fixing unescaped control characters (newlines, tabs) inside string values
+  try {
+    const sanitized = str.replace(/("(?:[^"\\]|\\.)*")/g, (match) => {
+      return match.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+    });
+    let parsed = JSON.parse(sanitized);
+    if (typeof parsed === 'string') {
+      try { parsed = JSON.parse(parsed); } catch (e) {}
+    }
+    const unwrapped = unwrapDocObj(parsed);
+    if (unwrapped) return unwrapped;
+  } catch (e) {}
+
+  // 3. Fallback regex extraction if JSON is malformed
+  const titleMatch = str.match(/"title"\s*:\s*"([^"]+)"/i);
+  const formatMatch = str.match(/"format"\s*:\s*"([^"]+)"/i);
+
+  let content = '';
+  const contentStartIdx = str.search(/"content"\s*:\s*"/i);
+  if (contentStartIdx !== -1) {
+    const colonIdx = str.indexOf(':', contentStartIdx);
+    const quoteStart = str.indexOf('"', colonIdx + 1);
+    if (quoteStart !== -1) {
+      let rest = str.substring(quoteStart + 1);
+      // Remove trailing json closing markup like '", "format"...}' or '"}'
+      rest = rest.replace(/"\s*,\s*"format"[\s\S]*$/i, '')
+                 .replace(/"\s*,\s*"title"[\s\S]*$/i, '')
+                 .replace(/"\s*}\s*$/i, '');
+      content = rest;
+    }
+  }
+
+  if (titleMatch || content || formatMatch) {
+    return {
+      title: titleMatch ? titleMatch[1].trim() : undefined,
+      content: content || str,
+      format: formatMatch ? formatMatch[1].toLowerCase() : undefined
+    };
+  }
+
+  return null;
+}
+
 export function extractWsmDoc(text: string | undefined): { cleanText: string, docObj: WsmDocument | null, docObjs: WsmDocument[] } {
   if (!text) return { cleanText: "", docObj: null, docObjs: [] };
 
@@ -57,89 +142,44 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
           format: 'html'
         });
       } else {
-        try {
-          const parsed = JSON.parse(jsonStr);
-          if (parsed) {
-            const title = (parsed.title || 'Documento').trim();
-            let content = parsed.content || '';
-            
-            if (typeof content === 'string') {
-              // Unescape double escaped JSON strings (literal \n, \", \t, \\)
-              try {
-                if (content.trim().startsWith('"') && content.trim().endsWith('"')) {
-                  content = JSON.parse(content);
-                } else {
-                  content = content.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\');
-                }
-              } catch (e) {
-                content = content.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\');
-              }
-            }
-            
-            let rawFormat = (parsed.format || parsed.type || '').toString().toLowerCase();
-
-            if (!rawFormat || rawFormat === 'pdf' || rawFormat === 'documento') {
-              const inferred = inferFormatFromTitle(title, '');
-              if (inferred) {
-                rawFormat = inferred;
-              } else {
-                const trimmedContent = content.trim().toLowerCase();
-                if (trimmedContent.startsWith('<!doctype html') || trimmedContent.startsWith('<html') || (trimmedContent.includes('<head>') && trimmedContent.includes('</body>'))) {
-                  rawFormat = 'html';
-                } else {
-                  rawFormat = rawFormat || 'pdf';
-                }
-              }
-            }
-
-            let format = rawFormat;
-            if (rawFormat === 'markdown') {
-              format = 'md';
-            } else if (rawFormat === 'excel' || rawFormat === 'csv' || rawFormat === 'sheet' || rawFormat === 'planilha') {
-              format = 'xlsx';
-            }
-
-            rawDocObjs.push({
-              title,
-              content,
-              format
-            });
-          }
-        } catch (e) {
-          console.warn("Failed to parse wsm_doc JSON directly, attempting recovery...", e);
-          let recoveredDoc: WsmDocument | null = null;
+        const parsedDoc = parseJsonDocSafely(jsonStr);
+        if (parsedDoc) {
+          const title = (parsedDoc.title || 'Documento').trim();
+          let content = parsedDoc.content || '';
           
-          // Fallback 1: Extract content using string bounds or regex
-          const titleMatch = jsonStr.match(/"title"\s*:\s*"([^"]+)"/i);
-          const formatMatch = jsonStr.match(/"format"\s*:\s*"([^"]+)"/i);
-          const contentMatch = jsonStr.match(/"content"\s*:\s*"([\s\S]*)"/i);
+          if (typeof content === 'string') {
+            // Unescape escaped characters (literal \n, \", \t, \\)
+            content = content.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\');
+          }
+          
+          let rawFormat = (parsedDoc.format || '').toString().toLowerCase();
 
-          let rawContent = "";
-          if (contentMatch) {
-            rawContent = contentMatch[1];
-            // If rawContent ends with JSON closing markup like '", "format"...}' or '", "title"...}' or '"}'
-            rawContent = rawContent.replace(/",\s*"format"[\s\S]*$/i, '')
-                                  .replace(/",\s*"title"[\s\S]*$/i, '')
-                                  .replace(/"\s*}\s*$/i, '');
-          } else {
-            rawContent = jsonStr;
+          if (!rawFormat || rawFormat === 'pdf' || rawFormat === 'documento') {
+            const inferred = inferFormatFromTitle(title, '');
+            if (inferred) {
+              rawFormat = inferred;
+            } else {
+              const trimmedContent = content.trim().toLowerCase();
+              if (trimmedContent.startsWith('<!doctype html') || trimmedContent.startsWith('<html') || (trimmedContent.includes('<head>') && trimmedContent.includes('</body>'))) {
+                rawFormat = 'html';
+              } else {
+                rawFormat = rawFormat || 'pdf';
+              }
+            }
           }
 
-          if (rawContent.length > 0) {
-            const cleanContent = rawContent.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\');
-            const docTitle = titleMatch ? titleMatch[1].trim() : 'index.html';
-            const docFormat = formatMatch ? formatMatch[1].toLowerCase() : (cleanContent.includes('<!DOCTYPE') || cleanContent.includes('<html') ? 'html' : 'txt');
-            
-            recoveredDoc = {
-              title: docTitle,
-              content: cleanContent,
-              format: docFormat
-            };
+          let format = rawFormat;
+          if (rawFormat === 'markdown') {
+            format = 'md';
+          } else if (rawFormat === 'excel' || rawFormat === 'csv' || rawFormat === 'sheet' || rawFormat === 'planilha') {
+            format = 'xlsx';
           }
 
-          if (recoveredDoc) {
-            rawDocObjs.push(recoveredDoc);
-          }
+          rawDocObjs.push({
+            title,
+            content,
+            format
+          });
         }
       }
     } else {

@@ -201,18 +201,18 @@ export default function BenchmarkPage() {
 
         <div className="flex items-center gap-2.5">
           <img 
-            src="https://i.ibb.co/Q34b6rBW/37990-removebg-preview.png" 
-            alt="WSM AI Logo" 
+            src="https://i.ibb.co/jvfRYXDR/cone-Circular-Abstrato-em-Espiral-removebg-preview.png" 
+            alt="Omnix AI Logo" 
             className="w-7 h-7 object-contain"
           />
-          <h1 className="font-bold text-[17px] tracking-tight text-gray-900">WSM AI 1.6</h1>
+          <h1 className="font-bold text-[17px] tracking-tight text-gray-900">Omnix AI 1.6</h1>
         </div>
       </header>
 
       {/* Main Content */}
       <main className={`flex-1 w-full ${selectedBenchmark !== 'Benchmark 01' ? 'max-w-7xl xl:max-w-[1400px]' : 'max-w-4xl'} mx-auto px-5 py-10 md:py-16 flex flex-col items-center transition-all duration-300`}>
         <h2 className="text-[28px] md:text-4xl font-bold tracking-tight text-gray-900 text-center mb-8">
-          Desempenho Ominx 1.6
+          Desempenho Omnix 1.6
         </h2>
 
         {/* Benchmark Selector */}
@@ -292,7 +292,7 @@ export default function BenchmarkPage() {
                   ? '20 de Julho de 2026'
                   : selectedBenchmark === 'Benchmark 04'
                     ? '21 de Julho de 2026 (v6)'
-                    : '26 de Julho de 2026 | Ominx 1.6.2 (v8 - 13 Categorias)'}
+                    : '26 de Julho de 2026 | Omnix 1.6.2 (v8 - 13 Categorias)'}
           </span>
         </div>
 
@@ -429,9 +429,9 @@ export default function BenchmarkPage() {
                             />
                           </div>
                         ) : (
-                          <div className="w-full h-full min-h-[220px] flex flex-col items-center justify-center text-center p-6 bg-indigo-50/25 border border-indigo-100 dark:border-indigo-900/30 rounded-2xl shadow-inner text-indigo-400 select-none">
+                          <div className="w-full h-full min-h-[220px] flex flex-col items-center justify-center text-center p-6 bg-gray-100/25 border border-gray-200 dark:border-indigo-900/30 rounded-2xl shadow-inner text-indigo-400 select-none">
                             <Scale className="w-8 h-8 text-indigo-300 mb-3 animate-pulse" />
-                            <span className="text-[14px] font-bold text-indigo-700 mb-1">Desempenho Consolidado</span>
+                            <span className="text-[14px] font-bold text-gray-900 mb-1">Desempenho Consolidado</span>
                             <p className="text-[11px] text-gray-500 max-w-xs leading-relaxed">
                               O desempenho nesta categoria permanece estável e consolidado com as otimizações do dia 19 de Julho.
                             </p>

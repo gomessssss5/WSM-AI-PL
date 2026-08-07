@@ -76,10 +76,10 @@ export default function SharedChatView({ sessionId, uid }: SharedChatViewProps) 
             return (
               <div key={msg.id || index} className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${isUser ? 'bg-gray-100 text-gray-600' : 'bg-gradient-to-br from-brand-500 to-indigo-600 text-white'}`}>
+                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${isUser ? 'bg-gray-100 text-gray-600' : 'bg-gradient-to-br from-black to-neutral-800 text-white'}`}>
                     {isUser ? <UserIcon className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
                   </div>
-                  <span className="text-xs font-semibold text-gray-500 capitalize">{isUser ? 'Você' : 'WSM AI'}</span>
+                  <span className="text-xs font-semibold text-gray-500 capitalize">{isUser ? 'Você' : 'Omnix AI'}</span>
                 </div>
                 <div className="pl-8">
                   {!isUser ? (

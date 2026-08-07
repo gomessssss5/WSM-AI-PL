@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin, TvMinimalPlay, Image as ImageIcon, Loader2, Download, ZoomIn, MousePointer2, Keyboard, ScanEye, ArrowDownUp, FileText, FilePlus, FolderOpen, Edit3, Trash2, BookOpen, ChevronDown, ChevronRight } from 'lucide-react';
+import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin, TvMinimalPlay, Image as ImageIcon, Loader2, Download, ZoomIn, MousePointer2, Keyboard, ScanEye, ArrowDownUp, FileText, FilePlus, FolderOpen, Edit3, Trash2, BookOpen, ChevronDown, ChevronRight, Sparkles, Cpu } from 'lucide-react';
 import WsmMapComponent from './WsmMapComponent';
 import WsmChartComponent from './WsmChartComponent';
 import { auth, db } from '../lib/firebase';
@@ -122,12 +122,12 @@ export function AgenticSkillTag({ text, type }: AgenticSkillTagProps) {
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-slate-50">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                <div className="p-2 bg-gray-100 text-black rounded-lg">
                   <FileCode className="w-6 h-6" />
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                    Skill: <span className="text-indigo-600 font-mono text-base bg-indigo-50/50 px-2 py-0.5 rounded border border-indigo-100">{skillName}</span>
+                    Skill: <span className="text-black font-mono text-base bg-gray-100 px-2 py-0.5 rounded border border-gray-200">{skillName}</span>
                   </h3>
                   <p className="text-xs text-gray-500">Visualização em tela cheia do conteúdo da Skill</p>
                 </div>
@@ -144,7 +144,7 @@ export function AgenticSkillTag({ text, type }: AgenticSkillTagProps) {
             <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-white">
               {loadingSkill ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-3">
-                  <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-10 h-10 border-4 border-black border-t-transparent rounded-full animate-spin" />
                   <p className="text-sm text-gray-500 font-medium">Buscando informações da Skill...</p>
                 </div>
               ) : errorLoading ? (
@@ -162,7 +162,7 @@ export function AgenticSkillTag({ text, type }: AgenticSkillTagProps) {
                   </button>
                 </div>
               ) : (
-                <div className="prose prose-indigo max-w-none">
+                <div className="prose prose-neutral max-w-none">
                   {skillData?.content ? (
                     <div className="font-sans text-[15px] text-gray-800 leading-relaxed bg-slate-50/50 border border-slate-100 rounded-xl p-6 shadow-2xs">
                       <MarkdownRenderer content={skillData.content} />
@@ -183,7 +183,7 @@ export function AgenticSkillTag({ text, type }: AgenticSkillTagProps) {
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer hover:shadow-md"
+                className="px-5 py-2.5 bg-black hover:bg-neutral-800 text-white rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer hover:shadow-md"
               >
                 Concluir Visualização
               </button>
@@ -340,7 +340,7 @@ export function AgenticSearchTag({
                             (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%23888" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>';
                           }}
                         />
-                        <span className="text-[13px] font-normal text-gray-800 dark:text-gray-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                        <span className="text-[13px] font-normal text-gray-800 dark:text-gray-200 truncate group-hover:text-black dark:group-hover:text-blue-400">
                           {src.title}
                         </span>
                       </div>
@@ -639,11 +639,11 @@ const renderNodes = (
           return (
             <ol key={`ol-${depth}-${groupIdx}`} className="list-none space-y-1 text-black dark:text-gray-100 text-[14.5px]">
               {group.items.map((node, nodeIdx) => {
-                let markerColor = 'text-[#2563eb]';
+                let markerColor = 'text-black dark:text-white';
                 if (depth === 1) {
-                  markerColor = 'text-purple-600';
+                  markerColor = 'text-gray-700 dark:text-gray-300';
                 } else if (depth === 2) {
-                  markerColor = 'text-indigo-600';
+                  markerColor = 'text-black';
                 } else if (depth >= 3) {
                   markerColor = 'text-gray-500';
                 }
@@ -669,14 +669,14 @@ const renderNodes = (
             <ul key={`ul-${depth}-${groupIdx}`} className="list-none space-y-1 text-gray-700 text-[13.5px]">
               {group.items.map((node, nodeIdx) => {
                 let bullet = '•';
-                let bulletColor = 'text-[#2563eb]';
+                let bulletColor = 'text-black dark:text-white';
                 
                 if (depth === 1) {
                   bullet = '◦';
-                  bulletColor = 'text-purple-600';
+                  bulletColor = 'text-gray-700 dark:text-gray-300';
                 } else if (depth === 2) {
                   bullet = '▪';
-                  bulletColor = 'text-indigo-600';
+                  bulletColor = 'text-black';
                 } else if (depth >= 3) {
                   bullet = '▫';
                   bulletColor = 'text-gray-500';
@@ -782,29 +782,31 @@ export default function MarkdownRenderer({
     });
 
     // 0. Extract agentic tags: [pesquisou na web], [calculando], [verificando relógio], and active/completed states
-    const agenticRegex = /\[(pesquisou na web|calculando|verificando relógio|pesquisando\.\.\.|calculando\.\.\.|verificando\.\.\.|verificando possíveis erros no código\.\.\.|código 100% verificado: sem erros[\s\S]*?|corrigindo erro detectado no código:[\s\S]*?|sandbox de depuração:[\s\S]*?|Criando Skill:[\s\S]*?|Editando Skill:[\s\S]*?|Excluindo Skill:[\s\S]*?|Criou Skill:[\s\S]*?|Editou Skill:[\s\S]*?|Excluiu Skill:[\s\S]*?|criando skill:[\s\S]*?|editando skill:[\s\S]*?|excluindo skill:[\s\S]*?|criou skill:[\s\S]*?|editou skill:[\s\S]*?|excluiu skill:[\s\S]*?|nova tarefa:[\s\S]*?|tarefa removida:[\s\S]*?|passo concluído|Abrindo site:[\s\S]*?|Clicando no elemento[\s\S]*?|Digitando[\s\S]*?|Rolando página[\s\S]*?|Lendo página atualizada[\s\S]*?|Aguardando[\s\S]*?|Aguardou[\s\S]*?|Criando documento:[\s\S]*?|Criou documento:[\s\S]*?|Lendo documento:[\s\S]*?|Leu documento:[\s\S]*?|Editando documento:[\s\S]*?|Editou documento:[\s\S]*?|Excluindo documento:[\s\S]*?|Excluiu documento:[\s\S]*?|Listando documentos[\s\S]*?|Listou documentos[\s\S]*?|Documento não encontrado:[\s\S]*?)\]/gi;
+    const agenticRegex = /\[(pesquisou na web|pesquisando[\s\S]*?|acessando site[\s\S]*?|acessando[\s\S]*?|abrindo site[\s\S]*?|lendo página[\s\S]*?|lendo conteúdo[\s\S]*?|preparando resumo[\s\S]*?|preparando[\s\S]*?|elaborando resposta[\s\S]*?|elaborando[\s\S]*?|analisando[\s\S]*?|processando[\s\S]*?|sintetizando[\s\S]*?|extraindo[\s\S]*?|buscando[\s\S]*?|calculando[\s\S]*?|verificando[\s\S]*?|clicando[\s\S]*?|digitando[\s\S]*?|rolando[\s\S]*?|aguardando[\s\S]*?|aguardou[\s\S]*?|criando skill[\s\S]*?|editando skill[\s\S]*?|excluindo skill[\s\S]*?|criou skill[\s\S]*?|editou skill[\s\S]*?|excluiu skill[\s\S]*?|criando documento[\s\S]*?|criou documento[\s\S]*?|lendo documento[\s\S]*?|leu documento[\s\S]*?|editando documento[\s\S]*?|editou documento[\s\S]*?|excluindo documento[\s\S]*?|excluiu documento[\s\S]*?|listando documentos[\s\S]*?|listou documentos[\s\S]*?|código 100% verificado[\s\S]*?|corrigindo erro[\s\S]*?|sandbox de depuração[\s\S]*?|nova tarefa[\s\S]*?|passo concluído[\s\S]*?|documento não encontrado[\s\S]*?|[a-zà-ú0-9_ \.:\-\/'"\(\)]+(?:\.\.\.|…))\]/gi;
     const seenAgenticTypes = new Set<string>();
     currentText = currentText.replace(agenticRegex, (match, tagContent) => {
       const id = `:::AGENTICTOKEN-${agenticTokens.length}:::`;
       let type = 'web';
       const lower = tagContent.toLowerCase();
-      if (lower.includes('calculando') || lower.includes('calculando...')) type = 'calc';
-      else if (lower.includes('relógio') || lower.includes('verificando...')) type = 'clock';
+      if (lower.includes('calculando') || lower.includes('calculou')) type = 'calc';
+      else if (lower.includes('relógio') || lower.includes('verificando')) type = 'clock';
       else if (lower.includes('erros no código') || lower.includes('100% verificado') || lower.includes('depuração') || lower.includes('corrigindo erro')) type = 'debug';
-      else if (lower.includes('criando skill:') || lower.includes('criou skill:')) type = 'skill_create';
-      else if (lower.includes('editando skill:') || lower.includes('editou skill:')) type = 'skill_edit';
-      else if (lower.includes('excluindo skill:') || lower.includes('excluiu skill:')) type = 'skill_delete';
-      else if (lower.includes('nova tarefa:') || lower.includes('tarefa removida:') || lower.includes('passo concluído')) type = 'task_update';
-      else if (lower.includes('abrindo site:')) type = 'pw_open';
-      else if (lower.includes('clicando no elemento')) type = 'pw_click';
+      else if (lower.includes('criando skill') || lower.includes('criou skill')) type = 'skill_create';
+      else if (lower.includes('editando skill') || lower.includes('editou skill')) type = 'skill_edit';
+      else if (lower.includes('excluindo skill') || lower.includes('excluiu skill')) type = 'skill_delete';
+      else if (lower.includes('nova tarefa') || lower.includes('tarefa removida') || lower.includes('passo concluído')) type = 'task_update';
+      else if (lower.includes('abrindo site') || lower.includes('acessando site') || lower.includes('acessando')) type = 'pw_open';
+      else if (lower.includes('clicando')) type = 'pw_click';
       else if (lower.includes('digitando')) type = 'pw_type';
-      else if (lower.includes('rolando página')) type = 'pw_scroll';
-      else if (lower.includes('lendo página')) type = 'pw_read';
+      else if (lower.includes('rolando')) type = 'pw_scroll';
+      else if (lower.includes('lendo página') || lower.includes('lendo conteúdo') || lower.includes('extraindo')) type = 'pw_read';
+      else if (lower.includes('preparando') || lower.includes('elaborando') || lower.includes('sintetizando')) type = 'preparing';
+      else if (lower.includes('analisando') || lower.includes('processando')) type = 'analyzing';
       else if (lower.includes('aguardando') || lower.includes('aguardou')) type = 'pw_wait';
-      else if (lower.includes('criando documento:') || lower.includes('criou documento:')) type = 'doc_create';
-      else if (lower.includes('lendo documento:') || lower.includes('leu documento:') || lower.includes('lêu documento:')) type = 'doc_read';
-      else if (lower.includes('editando documento:') || lower.includes('editou documento:')) type = 'doc_edit';
-      else if (lower.includes('excluindo documento:') || lower.includes('excluiu documento:')) type = 'doc_delete';
+      else if (lower.includes('criando documento') || lower.includes('criou documento')) type = 'doc_create';
+      else if (lower.includes('lendo documento') || lower.includes('leu documento')) type = 'doc_read';
+      else if (lower.includes('editando documento') || lower.includes('editou documento')) type = 'doc_edit';
+      else if (lower.includes('excluindo documento') || lower.includes('excluiu documento')) type = 'doc_delete';
       else if (lower.includes('listando documentos') || lower.includes('listou documentos')) type = 'doc_list';
 
       if (seenAgenticTypes.has(tagContent.toLowerCase())) {
@@ -907,7 +909,7 @@ export default function MarkdownRenderer({
                 return (
                   <strong
                     key={`slash-${pIdx}-${keyIndex++}`}
-                    className="text-blue-600 font-bold select-text inline-block"
+                    className="text-black font-bold select-text inline-block"
                   >
                     {token.text}
                   </strong>
@@ -941,9 +943,9 @@ export default function MarkdownRenderer({
                   return (
                     <span
                       key={`paren-status-${pIdx}-${keyIndex++}`}
-                      className="inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-indigo-700 bg-indigo-50/50 border-indigo-200 cursor-default shadow-3xs mx-0 my-3"
+                      className="inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-gray-900 bg-gray-100 border-gray-300 cursor-default shadow-3xs mx-0 my-3"
                     >
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse shrink-0" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-1000 animate-pulse shrink-0" />
                       <span><strong className="font-semibold">{token.text}</strong></span>
                     </span>
                   );
@@ -993,12 +995,22 @@ export default function MarkdownRenderer({
                   Icon = ScanEye;
                   let rawText = token.text.replace(/\[|\]/g, '');
                   displayType = rawText;
-                  isActive = isTyping;
+                  isActive = isTyping && token.text.includes('...');
+                } else if (token.type === 'preparing') {
+                  Icon = Sparkles;
+                  let rawText = token.text.replace(/\[|\]/g, '');
+                  displayType = rawText;
+                  isActive = isTyping && token.text.includes('...');
+                } else if (token.type === 'analyzing') {
+                  Icon = Cpu;
+                  let rawText = token.text.replace(/\[|\]/g, '');
+                  displayType = rawText;
+                  isActive = isTyping && token.text.includes('...');
                 } else if (token.type === 'pw_wait') {
                   Icon = Clock;
                   let rawText = token.text.replace(/\[|\]/g, '');
                   displayType = rawText;
-                  isActive = isTyping;
+                  isActive = isTyping && token.text.includes('...');
                 } else if (token.type === 'doc_create') {
                   Icon = FilePlus;
                   let rawText = token.text.replace(/\[|\]/g, '');
@@ -1025,7 +1037,8 @@ export default function MarkdownRenderer({
                   displayType = rawText;
                   isActive = isTyping && token.text.endsWith('...');
                 } else {
-                  displayType = (isTyping && token.text.includes('...')) ? 'Pesquisando na web...' : 'Pesquisou na web';
+                  let rawText = token.text.replace(/\[|\]/g, '');
+                  displayType = rawText || ((isTyping && token.text.includes('...')) ? 'Pesquisando na web...' : 'Pesquisou na web');
                   isActive = isTyping && token.text.includes('...');
                 }
 
@@ -1081,7 +1094,7 @@ export default function MarkdownRenderer({
                 return (
                   <code
                     key={`code-${pIdx}-${keyIndex++}`}
-                    className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-purple-600 dark:text-purple-400 font-mono text-[12px] rounded border border-gray-200 select-text"
+                    className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-850 text-gray-800 dark:text-gray-200 font-mono text-[12px] rounded border border-gray-200 dark:border-gray-850 select-text"
                   >
                     {token.code}
                   </code>
@@ -1199,7 +1212,7 @@ export default function MarkdownRenderer({
         blocks.push(
           <div key={`code-${i}`} className="my-4 bg-gray-950 rounded-xl overflow-hidden shadow-md border border-gray-850 w-full max-w-full">
             <div className="bg-gray-900 px-3.5 py-2 flex items-center justify-between text-[11px] text-gray-400 border-b border-gray-800/60 select-none">
-              <span className="font-mono text-purple-400 uppercase tracking-wider font-semibold">
+              <span className="font-mono text-gray-400 uppercase tracking-wider font-semibold">
                 {lang || 'code'}
               </span>
               <button
@@ -1286,7 +1299,7 @@ export default function MarkdownRenderer({
           );
         } else if (level === 2) {
           blocks.push(
-            <h2 key={`h2-${i}`} className="text-lg font-bold text-gray-800 tracking-tight mt-5 mb-2 flex items-center gap-2 border-l-3 border-[#2563eb] pl-2.5">
+            <h2 key={`h2-${i}`} className="text-lg font-bold text-gray-800 tracking-tight mt-5 mb-2 flex items-center gap-2 border-l-3 border-black dark:border-white pl-2.5">
               {inlineContent}
             </h2>
           );
@@ -1309,7 +1322,7 @@ export default function MarkdownRenderer({
           i++;
         }
         blocks.push(
-          <blockquote key={`quote-${i}`} className="my-4 border-l-4 border-[#2563eb] bg-gray-50/70 py-3 pl-4 pr-3 rounded-r-xl italic text-gray-600 text-[13.5px] leading-relaxed shadow-3xs">
+          <blockquote key={`quote-${i}`} className="my-4 border-l-4 border-black dark:border-white bg-gray-50/70 py-3 pl-4 pr-3 rounded-r-xl italic text-gray-600 text-[13.5px] leading-relaxed shadow-3xs">
             {renderInlineContent(quoteContent.trim())}
           </blockquote>
         );
@@ -1493,8 +1506,8 @@ export default function MarkdownRenderer({
           // If we are typing the map tag and coordinates are not fully typed yet, render a beautiful placeholder
           blocks.push(
             <div key={`map-skeleton-${i}`} className="my-3 w-full h-[350px] bg-gray-100 rounded-2xl flex flex-col items-center justify-center border border-gray-200 shadow-xs animate-pulse">
-              <MapPin className="w-8 h-8 text-[#2563eb] animate-bounce mb-2" />
-              <span className="text-xs text-gray-500 font-medium">Renderizando mapa interativo do WSM Pro...</span>
+              <MapPin className="w-8 h-8 text-black dark:text-white animate-bounce mb-2" />
+              <span className="text-xs text-gray-500 font-medium">Renderizando mapa interativo do Omnix Pro...</span>
             </div>
           );
           i++;
@@ -1543,7 +1556,7 @@ export default function MarkdownRenderer({
         } else {
           blocks.push(
             <div key={`chart-skeleton-${i}`} className="my-3 w-full h-[350px] bg-gray-100 rounded-2xl flex flex-col items-center justify-center border border-gray-200 shadow-xs animate-pulse">
-              <span className="text-xs text-gray-500 font-medium">Renderizando gráfico do WSM Pro...</span>
+              <span className="text-xs text-gray-500 font-medium">Renderizando gráfico do Omnix Pro...</span>
             </div>
           );
           i++;

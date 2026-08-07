@@ -75,8 +75,8 @@ export default function ImagesGallery({ onBackToHome }: ImagesGalleryProps) {
           </button>
           <div>
             <span className="text-xs font-bold text-gray-900 tracking-tight flex items-center gap-1.5">
-              <ImageIcon className="w-3.5 h-3.5 text-[#2563eb]" />
-              Galeria de Imagens WSM AI
+              <ImageIcon className="w-3.5 h-3.5 text-black dark:text-white" />
+              Galeria de Imagens Omnix AI
             </span>
             <span className="text-[9px] text-gray-400 font-semibold block">Imagens geradas recentemente pelo modelo</span>
           </div>
@@ -84,7 +84,7 @@ export default function ImagesGallery({ onBackToHome }: ImagesGalleryProps) {
 
         <button
           onClick={onBackToHome}
-          className="text-[10px] font-bold text-[#2563eb] bg-[#2563eb]/5 hover:bg-[#2563eb]/10 border border-[#2563eb]/15 px-3 py-1 rounded-full transition-all cursor-pointer"
+          className="text-[10px] font-bold text-black dark:text-white bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:bg-white/10 border border-black dark:border-white/15 px-3 py-1 rounded-full transition-all cursor-pointer"
         >
           Nova conversa
         </button>
@@ -94,11 +94,11 @@ export default function ImagesGallery({ onBackToHome }: ImagesGalleryProps) {
       <div className="p-5 max-w-4xl mx-auto w-full space-y-4">
         <div className="flex flex-col gap-1 text-center md:text-left">
           <h2 className="text-lg font-bold text-gray-900 tracking-tight flex items-center justify-center md:justify-start gap-1.5">
-            <Sparkles className="w-4 h-4 text-[#2563eb] fill-[#2563eb]/10" />
+            <Sparkles className="w-4 h-4 text-black dark:text-white fill-black/10" />
             Suas criações visuais
           </h2>
           <p className="text-xs text-gray-400">
-            Explore as imagens conceituais projetadas pela inteligência artificial Ominx 1.6.
+            Explore as imagens conceituais projetadas pela inteligência artificial Omnix 1.6.
           </p>
         </div>
 
@@ -129,7 +129,7 @@ export default function ImagesGallery({ onBackToHome }: ImagesGalleryProps) {
                   <button className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all border border-white/15 active:scale-95 cursor-pointer">
                     <Eye className="w-3.5 h-3.5" />
                   </button>
-                  <button className="p-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-full transition-all active:scale-95 cursor-pointer">
+                  <button className="p-1.5 bg-black hover:bg-neutral-800 text-white rounded-full transition-all active:scale-95 cursor-pointer">
                     <Download className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -138,7 +138,7 @@ export default function ImagesGallery({ onBackToHome }: ImagesGalleryProps) {
               {/* Text Info */}
               <div className="p-3 space-y-1 flex-1 flex flex-col justify-between">
                 <div>
-                  <h3 className="text-xs font-bold text-gray-800 tracking-tight group-hover:text-[#2563eb] transition-colors">
+                  <h3 className="text-xs font-bold text-gray-800 tracking-tight group-hover:text-black dark:text-white transition-colors">
                     {image.title}
                   </h3>
                   <p className="text-[10px] text-gray-400 line-clamp-2 leading-relaxed">
@@ -146,7 +146,7 @@ export default function ImagesGallery({ onBackToHome }: ImagesGalleryProps) {
                   </p>
                 </div>
                 <div className="text-[8px] font-mono text-gray-400 pt-1.5 border-t border-gray-50 flex justify-between items-center">
-                  <span>Modelo: Ominx 1.6</span>
+                  <span>Modelo: Omnix 1.6</span>
                   <span>1K Resolution</span>
                 </div>
               </div>
@@ -186,7 +186,7 @@ export default function ImagesGallery({ onBackToHome }: ImagesGalleryProps) {
                 </button>
                 <button
                   onClick={() => setSelectedImage(null)}
-                  className="flex-1 py-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-lg text-xs font-semibold cursor-pointer flex items-center justify-center gap-1.5 shadow-sm hover:shadow-md transition-all"
+                  className="flex-1 py-1.5 bg-black hover:bg-neutral-800 text-white rounded-lg text-xs font-semibold cursor-pointer flex items-center justify-center gap-1.5 shadow-sm hover:shadow-md transition-all"
                 >
                   <Download className="w-3.5 h-3.5" />
                   Download PNG (1K)
