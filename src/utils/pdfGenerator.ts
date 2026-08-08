@@ -592,21 +592,25 @@ export async function generatePdfBlob(title: string, rawContent: string, attache
     const lineHeight = 17;
     const wrapped = wrapText(cleanParagraph, fontRegular, fontSize, printableWidth);
 
-    // Widow and orphan control:
-    // If the entire paragraph is short (3 lines or fewer), keep it together on the current page if it fits;
-    // otherwise move the whole paragraph to the new page.
-    // If it's a longer paragraph, ensure at least 2 lines fit on the current page before starting it.
+    // Prevent paragraph breaking across pages (orphan/widow strict control)
     const neededHeightForParagraph = wrapped.length * lineHeight;
-    if (wrapped.length <= 3) {
+    // If the paragraph fits on a single page, try to keep it together.
+    // If it's too long to fit on a single page, we MUST break it line-by-line.
+    const maxPageHeight = pageHeight - marginTop - marginBottom;
+    
+    if (neededHeightForParagraph <= maxPageHeight) {
       checkPageBreak(neededHeightForParagraph);
     } else {
-      checkPageBreak(lineHeight * 2);
+      // It's a huge paragraph. Make sure we have at least 3 lines of space before starting,
+      // to avoid orphans (a single line at the bottom of a page).
+      checkPageBreak(lineHeight * 3);
     }
 
     for (let lIdx = 0; lIdx < wrapped.length; lIdx++) {
-      const wLine = wrapped[lIdx];
-      // For middle/end lines of a multi-line paragraph, ensure page break if remaining vertical space is exceeded
+      // Ensure we don't draw off the page. checkPageBreak handles adding new pages.
       checkPageBreak(lineHeight);
+      
+      const wLine = wrapped[lIdx];
       page.drawText(wLine, {
         x: marginLeft,
         y,

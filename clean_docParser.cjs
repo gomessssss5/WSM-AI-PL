@@ -1,28 +1,13 @@
-import { WsmDocument } from '../types';
+const fs = require('fs');
+let code = fs.readFileSync('src/utils/docParser.ts', 'utf8');
 
-export function inferFormatFromTitle(title: string, defaultFormat = 'pdf'): string {
-  if (!title) return defaultFormat;
-  const cleanTitle = title.trim().toLowerCase();
-  const extMatch = cleanTitle.match(/\.([a-z0-9]+)$/i);
-  if (extMatch) {
-    const ext = extMatch[1];
-    if (['html', 'htm'].includes(ext)) return 'html';
-    if (['js', 'jsx'].includes(ext)) return 'js';
-    if (['ts', 'tsx'].includes(ext)) return 'ts';
-    if (['py'].includes(ext)) return 'py';
-    if (['json'].includes(ext)) return 'json';
-    if (['css'].includes(ext)) return 'css';
-    if (['sql'].includes(ext)) return 'sql';
-    if (['csv', 'xlsx', 'xls', 'sheet', 'planilha'].includes(ext)) return 'xlsx';
-    if (['md', 'markdown'].includes(ext)) return 'md';
-    if (['txt'].includes(ext)) return 'txt';
-    if (['pdf'].includes(ext)) return 'pdf';
-    return ext;
-  }
-  return defaultFormat;
-}
+// We want to keep everything BEFORE export function parseJsonDocSafely
+const startIdx = code.indexOf('export function parseJsonDocSafely(jsonStr: string)');
+const prefix = code.substring(0, startIdx);
 
-export function parseJsonDocSafely(jsonStr: string): { title?: string; content?: string; format?: string } | null {
+// And we want to keep extractWsmDoc. 
+// We will just rewrite the rest of the file completely cleanly.
+const suffix = `export function parseJsonDocSafely(jsonStr: string): { title?: string; content?: string; format?: string } | null {
   if (!jsonStr) return null;
   let str = jsonStr.trim();
 
@@ -63,8 +48,8 @@ export function parseJsonDocSafely(jsonStr: string): { title?: string; content?:
   } catch (e) {}
 
   try {
-    const sanitized = str.replace(/("(?:[^"\\]|\\.)*")/g, (match) => {
-      return match.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+    const sanitized = str.replace(/("(?:[^"\\\\]|\\\\.)*")/g, (match) => {
+      return match.replace(/\\n/g, '\\\\n').replace(/\\r/g, '\\\\r').replace(/\\t/g, '\\\\t');
     });
     let parsed = JSON.parse(sanitized);
     if (typeof parsed === 'string') {
@@ -75,57 +60,37 @@ export function parseJsonDocSafely(jsonStr: string): { title?: string; content?:
   } catch (e) {}
 
   // 3. Fallback regex extraction if JSON is malformed
-  const titleMatch = str.match(/"title"\s*:\s*"([^"]+)"/i);
-  const formatMatch = str.match(/"format"\s*:\s*"([^"]+)"/i);
+  const titleMatch = str.match(/"title"\\s*:\\s*"([^"]+)"/i);
+  const formatMatch = str.match(/"format"\\s*:\\s*"([^"]+)"/i);
 
   let content = '';
-  let contentStartIdx = str.search(/"(content|code|html|texto)"\s*:\s*["'`]/i);
+  const contentStartIdx = str.search(/"content"\\s*:\\s*["'\`]/i);
   if (contentStartIdx !== -1) {
     const colonIdx = str.indexOf(':', contentStartIdx);
-    const match = str.substring(colonIdx).match(/["'`]/);
+    const match = str.substring(colonIdx).match(/["'\`]/);
     if (match) {
       const quoteChar = match[0];
       const quoteStart = colonIdx + match.index;
       let rest = str.substring(quoteStart + 1);
       
-      rest = rest.replace(new RegExp(quoteChar + "\\s*,\\s*\"format\"[\\s\\S]*$", "i"), '');
-      rest = rest.replace(new RegExp(quoteChar + "\\s*,\\s*\"title\"[\\s\\S]*$", "i"), '');
-      rest = rest.replace(new RegExp(quoteChar + "\\s*,\\s*\"type\"[\\s\\S]*$", "i"), '');
-      rest = rest.replace(new RegExp(quoteChar + "\\s*\\}[\\s\\S]*$", "i"), '');
-      rest = rest.replace(/["'`]$/, '');
+      // Heuristic: remove known trailing JSON parts from the end
+      // 1. replace trailing ', "format": "html" }'
+      rest = rest.replace(new RegExp(quoteChar + "\\\\s*,\\\\s*\\\"format\\\"[\\\\s\\\\S]*$", "i"), '');
+      // 2. replace trailing ', "title": "index.html" }'
+      rest = rest.replace(new RegExp(quoteChar + "\\\\s*,\\\\s*\\\"title\\\"[\\\\s\\\\S]*$", "i"), '');
+      // 3. replace trailing '}'
+      rest = rest.replace(new RegExp(quoteChar + "\\\\s*\\\\}[\\\\s\\\\S]*$", "i"), '');
+      // 4. replace trailing quote if it still exists
+      rest = rest.replace(/["'\`]$/, '');
 
       content = rest;
-    }
-  } else {
-    // If we really can't find a content field, but it's clearly a JSON wrapper,
-    // let's try to extract whatever is the longest string value.
-    const allStrings = [...str.matchAll(/"(?:[^"\\]|\\.)*"/g)];
-    if (allStrings.length > 0) {
-       let longest = "";
-       for(const s of allStrings) {
-          if (s[0].length > longest.length) longest = s[0];
-       }
-       // If the longest string is at least 30 chars, assume it's the content
-       if (longest.length > 30) {
-          content = longest.substring(1, longest.length - 1).replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t');
-       }
     }
   }
 
   if (titleMatch || content || formatMatch) {
-    let finalContent = content;
-    // Don't fall back to returning the raw JSON wrapper if we extracted a title/format but no content
-    if (!finalContent) {
-      if (str.trim().startsWith('{') && str.trim().endsWith('}')) {
-        finalContent = ""; // It's just a broken JSON with no content
-      } else {
-        finalContent = str; // Maybe the whole string IS the content
-      }
-    }
-    
     return {
       title: titleMatch ? titleMatch[1].trim() : undefined,
-      content: finalContent,
+      content: content || str,
       format: formatMatch ? formatMatch[1].toLowerCase() : undefined
     };
   }
@@ -143,7 +108,7 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
   const rawDocObjs: WsmDocument[] = [];
 
   // 1. Extract <wsm_doc>...</wsm_doc> tags first
-  const regex = /<(wsm_doc)(?:\s+[^>]*)?>([\s\S]*?)<\/\1>/i;
+  const regex = /<(wsm_doc)(?:\\s+[^>]*)?>([\\s\\S]*?)<\\/\\1>/i;
   
   while (true) {
     const match = regex.exec(currentText);
@@ -158,7 +123,7 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
       // Check if innerContent is raw HTML / XML without JSON wrapping
       if (jsonStr.startsWith('<!DOCTYPE') || jsonStr.startsWith('<html') || (jsonStr.includes('<head>') && jsonStr.includes('</body>'))) {
         let docTitle = 'index.html';
-        const titleTagMatch = jsonStr.match(/<title>([^<]+)<\/title>/i);
+        const titleTagMatch = jsonStr.match(/<title>([^<]+)<\\/title>/i);
         if (titleTagMatch && titleTagMatch[1].trim()) {
           docTitle = titleTagMatch[1].trim() + '.html';
         }
@@ -174,8 +139,8 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
           let content = parsedDoc.content || '';
           
           if (typeof content === 'string') {
-            // Unescape escaped characters (literal \n, \", \t, \\)
-            content = content.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\');
+            // Unescape escaped characters (literal \\n, \\", \\t, \\\\)
+            content = content.replace(/\\\\n/g, '\\n').replace(/\\\\"/g, '"').replace(/\\\\t/g, '\\t').replace(/\\\\\\\\/g, '\\\\');
           }
           
           let rawFormat = (parsedDoc.format || '').toString().toLowerCase();
@@ -210,7 +175,7 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
       }
     } else {
       // Partial form (streaming doc tag) - strip from openTag onwards
-      const openRegex = /<(wsm_doc)(?:\s+[^>]*)?>/i;
+      const openRegex = /<(wsm_doc)(?:\\s+[^>]*)?>/i;
       const openMatch = openRegex.exec(currentText);
       if (openMatch) {
         currentText = currentText.substring(0, openMatch.index);
@@ -219,16 +184,16 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
     }
   }
 
-  // 2. Intercept raw HTML document blocks or standalone html\n<!DOCTYPE html ... blocks
-  const rawHtmlBlockRegex = /(?:```(?:html)?\s*)?(?:html\s*\n+)?(<!DOCTYPE html[\s\S]*?(?:<\/html>|```|$)|<html[\s\S]*?(?:<\/html>|```|$))/gi;
+  // 2. Intercept raw HTML document blocks or standalone html\\n<!DOCTYPE html ... blocks
+  const rawHtmlBlockRegex = /(?:\`\`\`(?:html)?\\s*)?(?:html\\s*\\n+)?(<!DOCTYPE html[\\s\\S]*?(?:<\\/html>|\`\`\`|$)|<html[\\s\\S]*?(?:<\\/html>|\`\`\`|$))/gi;
   let htmlMatch;
   while ((htmlMatch = rawHtmlBlockRegex.exec(currentText)) !== null) {
     const fullMatchedString = htmlMatch[0];
-    const htmlCode = htmlMatch[1].replace(/```$/g, '').trim();
+    const htmlCode = htmlMatch[1].replace(/\`\`\`$/g, '').trim();
 
     if (htmlCode.length > 30) {
       let docTitle = 'Site HTML';
-      const titleTagMatch = htmlCode.match(/<title>([^<]+)<\/title>/i);
+      const titleTagMatch = htmlCode.match(/<title>([^<]+)<\\/title>/i);
       if (titleTagMatch && titleTagMatch[1].trim()) {
         docTitle = titleTagMatch[1].trim() + '.html';
       }
@@ -249,7 +214,7 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
   const seenKeys = new Set<string>();
 
   for (const doc of rawDocObjs) {
-    const key = `${doc.title.toLowerCase()}:::${doc.content.substring(0, 100)}`;
+    const key = \`\${doc.title.toLowerCase()}:::\${doc.content.substring(0, 100)}\`;
     if (!seenKeys.has(key)) {
       seenKeys.add(key);
       docObjs.push(doc);
@@ -264,7 +229,7 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
     if (firstDoc.format === 'html') {
       finalCleanText = 'Criei o arquivo do site HTML solicitado! Você pode visualizar e interagir com ele no card abaixo:';
     } else {
-      finalCleanText = `Gerei o arquivo **${firstDoc.title}** para você. Você pode acessá-lo e baixá-lo no card abaixo:`;
+      finalCleanText = \`Gerei o arquivo **\${firstDoc.title}** para você. Você pode acessá-lo e baixá-lo no card abaixo:\`;
     }
   }
 
@@ -274,3 +239,6 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
     docObjs 
   };
 }
+`;
+
+fs.writeFileSync('src/utils/docParser.ts', prefix + suffix);

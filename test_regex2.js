@@ -1,7 +1,7 @@
 const str = `{
   "title": "index.html",
-  "content": "<!DOCTYPE html>\n<html>\n</html>",
-  "format": "html"
+  "format": "html",
+  "content": "<!DOCTYPE html>\n<html>\n</html>"
 }`;
 
   let content = '';

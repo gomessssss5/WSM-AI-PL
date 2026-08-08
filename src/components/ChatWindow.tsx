@@ -697,8 +697,9 @@ export default function ChatWindow({
   const handleEvaluate = (msgId: string, rating: 'up' | 'down') => {
     const evals = { ...evaluations, [msgId]: rating };
     setEvaluations(evals);
-    localStorage.setItem('wsm_evaluations', JSON.stringify(evals));
+    
     try {
+      localStorage.setItem('wsm_evaluations', JSON.stringify(evals));
       const stored = JSON.parse(localStorage.getItem('wsm_evaluations_data') || '[]');
       const existingIdx = stored.findIndex((e: any) => e.msgId === msgId);
       const newEntry = { msgId, rating, conversation: messages.slice(0, messages.findIndex(m => m.id === msgId) + 1), timestamp: new Date().toISOString() };
@@ -709,7 +710,9 @@ export default function ChatWindow({
       }
       localStorage.setItem('wsm_evaluations_data', JSON.stringify(stored));
       saveEvaluationToDb(newEntry).catch(err => console.error("Error saving evaluation to Firestore:", err));
-    } catch {}
+    } catch (err) {
+      console.error("Error saving evaluation to local storage:", err);
+    }
     
     setToastMessage(rating === 'up' ? 'Obrigado pelo seu feedback positivo! 🌟' : 'Agradecemos o feedback! Vamos melhorar.');
     setTimeout(() => setToastMessage(null), 3000);
@@ -3366,7 +3369,7 @@ export default function ChatWindow({
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-[120] bg-gray-900 text-white dark:bg-white dark:text-gray-900 px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-bottom-3 duration-200">
+        <div className="fixed top-6 right-6 z-[120] bg-gray-900 text-white dark:bg-white dark:text-gray-900 px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-bottom-3 duration-200">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 dark:text-emerald-600 shrink-0" />
           <span>{toastMessage}</span>
         </div>

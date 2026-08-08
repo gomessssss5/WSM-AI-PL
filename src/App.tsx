@@ -1186,7 +1186,6 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                 const eventData = JSON.parse(cleanedLine.substring(6));
 
                 if (eventData.type === "plan") {
-                  console.log("[App.tsx] Received SSE plan event:", eventData);
                   setIsThinking(false); // Stop typing spinner as soon as we start research plan!
                   setSessions((prev) => {
                     const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
@@ -1245,7 +1244,6 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                     });
                   });
                 } else if (eventData.type === "step_complete") {
-                  console.log("[App.tsx] Received SSE step_complete event:", eventData);
                   setSessions((prev) => {
                     const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
                     if (!currentSess) {
@@ -1282,7 +1280,6 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                     });
                   });
                 } else if (eventData.type === "browser_screenshot") {
-                  console.log("[App.tsx] Received SSE browser_screenshot event:", eventData.url);
                   setSessions((prev) => {
                     const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
                     if (!currentSess) return prev;
@@ -1313,7 +1310,6 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                     });
                   });
                 } else if (eventData.type === "final") {
-                  console.log("[App.tsx] Received SSE final event:", eventData);
                   accumulatedFinalText = eventData.finalSynthesis || eventData.text || "";
                   
                   let textToSave = eventData.text || "";
