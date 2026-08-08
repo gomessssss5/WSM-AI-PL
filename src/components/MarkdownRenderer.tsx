@@ -809,16 +809,17 @@ export default function MarkdownRenderer({
       else if (lower.includes('excluindo documento') || lower.includes('excluiu documento')) type = 'doc_delete';
       else if (lower.includes('listando documentos') || lower.includes('listou documentos')) type = 'doc_list';
 
-      if (type === 'calc' || type === 'clock') {
+      if (type === 'calc' || type === 'clock' || type === 'web' || type === 'debug') {
         if (seenAgenticTypes.has(type)) {
-          return ''; // Collapse all 2nd..12th duplicate calculator chips into a single chip
+          return ''; // Collapse all 2nd..Nth duplicate tool chips into a single chip
         }
         seenAgenticTypes.add(type);
       } else {
-        if (seenAgenticTypes.has(tagContent.toLowerCase())) {
+        if (seenAgenticTypes.has(tagContent.toLowerCase()) || seenAgenticTypes.has(type)) {
           return ''; // Completely remove duplicate tag from text
         }
         seenAgenticTypes.add(tagContent.toLowerCase());
+        seenAgenticTypes.add(type);
       }
       agenticTokens.push({ id, type, text: tagContent });
       

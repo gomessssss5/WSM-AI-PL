@@ -200,6 +200,49 @@ export default function TypewriterMarkdown({
            }
         }
 
+        // Buffer math blocks ($$ or $) during streaming
+        let lastDollarIndex = -1;
+        let isDoubleDollar = false;
+        for (let i = currentIndexRef.current - 1; i >= 0; i--) {
+          if (currentSegments[i] === '$') {
+            lastDollarIndex = i;
+            if (i > 0 && currentSegments[i - 1] === '$') {
+              lastDollarIndex = i - 1;
+              isDoubleDollar = true;
+            }
+            break;
+          }
+        }
+
+        if (lastDollarIndex !== -1) {
+          let foundClosingMath = false;
+          let closingMathIndex = -1;
+          const searchStart = isDoubleDollar ? lastDollarIndex + 2 : lastDollarIndex + 1;
+          for (let i = searchStart; i < currentTotalLen; i++) {
+            if (currentSegments[i] === '$') {
+              if (isDoubleDollar && i + 1 < currentTotalLen && currentSegments[i + 1] === '$') {
+                closingMathIndex = i + 2;
+                foundClosingMath = true;
+                break;
+              } else if (!isDoubleDollar) {
+                closingMathIndex = i + 1;
+                foundClosingMath = true;
+                break;
+              }
+            }
+          }
+
+          if (foundClosingMath) {
+            currentIndexRef.current = Math.max(currentIndexRef.current, closingMathIndex);
+          } else {
+            // Check if this dollar sign is an unclosed math token rather than price currency
+            const mathCandidate = currentSegments.slice(lastDollarIndex, currentTotalLen).join('');
+            if (/[\\+*\/=_{}^]/.test(mathCandidate) || mathCandidate.length > 30) {
+              currentIndexRef.current = lastDollarIndex;
+            }
+          }
+        }
+
         if (currentIndexRef.current > currentTotalLen) {
           currentIndexRef.current = currentTotalLen;
         }

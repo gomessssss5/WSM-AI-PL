@@ -323,7 +323,7 @@ export default function App() {
     }
 
     try {
-      console.log('Persisting session to Firestore:', session.id);
+      if ((import.meta as any).env?.DEV) console.log('Persisting session to Firestore:', session.id);
       await saveSession(user.uid, session);
       isDirtyRef.current = false;
     } catch (err) {

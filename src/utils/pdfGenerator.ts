@@ -592,7 +592,20 @@ export async function generatePdfBlob(title: string, rawContent: string, attache
     const lineHeight = 17;
     const wrapped = wrapText(cleanParagraph, fontRegular, fontSize, printableWidth);
 
-    for (const wLine of wrapped) {
+    // Widow and orphan control:
+    // If the entire paragraph is short (3 lines or fewer), keep it together on the current page if it fits;
+    // otherwise move the whole paragraph to the new page.
+    // If it's a longer paragraph, ensure at least 2 lines fit on the current page before starting it.
+    const neededHeightForParagraph = wrapped.length * lineHeight;
+    if (wrapped.length <= 3) {
+      checkPageBreak(neededHeightForParagraph);
+    } else {
+      checkPageBreak(lineHeight * 2);
+    }
+
+    for (let lIdx = 0; lIdx < wrapped.length; lIdx++) {
+      const wLine = wrapped[lIdx];
+      // For middle/end lines of a multi-line paragraph, ensure page break if remaining vertical space is exceeded
       checkPageBreak(lineHeight);
       page.drawText(wLine, {
         x: marginLeft,

@@ -322,7 +322,7 @@ export const saveEvaluationToDb = async (evaluation: any): Promise<void> => {
     const cleanedData = deepCleanUndefined(dataToSave);
 
     await setDoc(evalRef, cleanedData);
-    console.log('Evaluation saved to Firestore:', evaluation.msgId);
+    if ((import.meta as any).env?.DEV) console.log('Evaluation saved to Firestore:', evaluation.msgId);
   } catch (error) {
     console.error('Error saving evaluation to Firestore:', error);
   }

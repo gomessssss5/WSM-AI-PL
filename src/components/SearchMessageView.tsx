@@ -100,7 +100,7 @@ export default function SearchMessageView({
   useEffect(() => {
     if (!message.isSimulatingSearch) {
       // Historical messages load instantly
-      console.log('[SearchMessageView] Loading historical/completed search message instantly.');
+      if ((import.meta as any).env?.DEV) console.log('[SearchMessageView] Loading historical/completed search message instantly.');
       const allDone: Record<number, boolean> = {};
       for (let i = 0; i < totalSteps; i++) {
         allDone[i] = true;
@@ -124,7 +124,7 @@ export default function SearchMessageView({
       // All search steps have been processed sequentially
       // Now wait for the final synthesis from the backend
       if (message.finalSynthesis && !showFinal) {
-        console.log("[SearchMessageView] All steps done, final synthesis arrived. Completing simulation.");
+        if ((import.meta as any).env?.DEV) console.log("[SearchMessageView] All steps done, final synthesis arrived. Completing simulation.");
         setShowFinal(true);
         onStepChangeRef.current?.();
         onSimulationCompleteRef.current?.();
@@ -145,7 +145,7 @@ export default function SearchMessageView({
 
       if (elapsed >= minPaceDelay) {
         // Yes, 1.2s visual delay is satisfied. Complete this step visually
-        console.log(`[SearchMessageView] Completing step ${currentStepIndex} (tag="${currentStep.tag}")`);
+        if ((import.meta as any).env?.DEV) console.log(`[SearchMessageView] Completing step ${currentStepIndex} (tag="${currentStep.tag}")`);
         setCompletedSteps(prev => {
           if (prev[currentStepIndex]) return prev;
           return { ...prev, [currentStepIndex]: true };
@@ -154,7 +154,7 @@ export default function SearchMessageView({
 
         // Pause for 800ms transition, then advance to the next step
         const timer = setTimeout(() => {
-          console.log(`[SearchMessageView] Advancing from step ${currentStepIndex} to ${currentStepIndex + 1}`);
+          if ((import.meta as any).env?.DEV) console.log(`[SearchMessageView] Advancing from step ${currentStepIndex} to ${currentStepIndex + 1}`);
           activeStepStartTimeRef.current = Date.now();
           setCurrentStepIndex(prev => prev + 1);
           onStepChangeRef.current?.();
@@ -164,7 +164,7 @@ export default function SearchMessageView({
       } else {
         // Backend completed the search fast, so wait for the remainder of the 1.2s visual delay
         const remaining = minPaceDelay - elapsed;
-        console.log(`[SearchMessageView] Step ${currentStepIndex} completed on backend. Visual pacing delay remaining: ${remaining}ms`);
+        if ((import.meta as any).env?.DEV) console.log(`[SearchMessageView] Step ${currentStepIndex} completed on backend. Visual pacing delay remaining: ${remaining}ms`);
         const timer = setTimeout(() => {
           setCompletedSteps(prev => {
             if (prev[currentStepIndex]) return prev;
@@ -173,7 +173,7 @@ export default function SearchMessageView({
           onStepChangeRef.current?.();
 
           const nextTimer = setTimeout(() => {
-            console.log(`[SearchMessageView] Advancing from step ${currentStepIndex} to ${currentStepIndex + 1}`);
+            if ((import.meta as any).env?.DEV) console.log(`[SearchMessageView] Advancing from step ${currentStepIndex} to ${currentStepIndex + 1}`);
             activeStepStartTimeRef.current = Date.now();
             setCurrentStepIndex(prev => prev + 1);
             onStepChangeRef.current?.();

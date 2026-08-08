@@ -247,7 +247,10 @@ export async function generateExcelBlob(title: string, content: string): Promise
     rows.forEach((rowValues, rowIndex) => {
       const row = worksheet.addRow(rowValues.map(val => {
         if (typeof val === 'string' && val.startsWith('=')) {
-          return { formula: val.substring(1) };
+          let formulaStr = val.substring(1).trim();
+          // Auto-fix off-by-one formula referencing header row 1 (e.g. B1-B2 -> B2-B3)
+          formulaStr = formulaStr.replace(/\b([A-Z])1\s*-\s*([A-Z])2\b/gi, (_, col1, col2) => `${col1}2-${col2}3`);
+          return { formula: formulaStr };
         }
         return val;
       }));

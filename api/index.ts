@@ -976,6 +976,8 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
       const promptWantsDoc = /\b(documento|relatório|relatorio|redação|redacao|resumo|artigo|tcc|texto|capítulo|capitulo|escrever|criar\s+doc|editar\s+doc|gerar\s+doc)\b/i.test(userStrPrompt);
       const promptHasRequestedActions = !isHtmlSiteRequest && !isSimpleGreetingOrMathPrompt && (promptWantsBrowser || promptWantsSearch);
 
+      const visitedUrlsInTurn: string[] = [];
+
       while (turnCount < 100) {
         if (turnCount > 0) {
           console.log(`[Pro] Waiting 2 seconds before next Gemini request to prevent rate limits...`);
@@ -993,7 +995,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
           };
         }
 
-        const response = await callGeminiWithFallback({
+        const responseStream = await callGeminiStreamWithFallback({
           model: mappedModel,
           contents: currentContents,
           tools: marteTools,
@@ -1018,22 +1020,26 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
           }
         });
 
-        const modelContent = response.candidates?.[0]?.content;
-        if (!modelContent) {
-          console.error("Gemini response missing content. Full response:", JSON.stringify(response, null, 2));
-          throw new Error("No content returned from Gemini model. Reason: " + (response.candidates?.[0]?.finishReason || 'Unknown'));
-        }
-
         let textForThisTurn = "";
         let functionCallsForThisTurn: any[] = [];
+        let modelContent: any = null;
 
-        if (modelContent.parts) {
-          for (const part of modelContent.parts) {
-            if (part.text) {
-              textForThisTurn += part.text;
-            }
-            if (part.functionCall) {
-              functionCallsForThisTurn.push(part.functionCall);
+        for await (const chunk of responseStream) {
+          const candidate = chunk.candidates?.[0];
+          if (candidate?.content) {
+            modelContent = candidate.content;
+          }
+          if (candidate?.content?.parts) {
+            for (const part of candidate.content.parts) {
+              if (part.text) {
+                textForThisTurn += part.text;
+                fullOutput += part.text;
+                // Real-time token streaming to frontend
+                sendEvent({ type: "chunk", text: part.text });
+              }
+              if (part.functionCall) {
+                functionCallsForThisTurn.push(part.functionCall);
+              }
             }
           }
         }
@@ -1146,20 +1152,8 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
 
           
 
-          if (cleanText.trim()) {
-            fullOutput += cleanText;
-            // Send text in simulated stream chunks for smooth UI typewriter feel
-            const words = cleanText.split(/(\s+)/);
-            let chunkGroup = "";
-            for (let i = 0; i < words.length; i++) {
-              chunkGroup += words[i];
-              if (i % 6 === 0 || i === words.length - 1) {
-                sendEvent({ type: "chunk", text: chunkGroup });
-                chunkGroup = "";
-                await new Promise(r => setTimeout(r, 15));
-              }
-            }
-          }
+          // Tokens were streamed in real time during responseStream
+          // No need to artificially re-stream or duplicate text
         }
 
         if (functionCallsForThisTurn.length > 0) {
@@ -1334,6 +1328,15 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                 delete result.screenshot;
               }
 
+              if (result && result.url) {
+                const normUrl = String(result.url).replace(/\/$/, '').toLowerCase();
+                visitedUrlsInTurn.push(normUrl);
+                const visitCount = visitedUrlsInTurn.filter(u => u === normUrl).length;
+                if (visitCount >= 2) {
+                  result.system_note = `[SISTEMA DE PREVENÇÃO DE LOOP DE NAVEGAÇÃO]: Você já acessou a URL '${result.url}' ${visitCount} vezes nesta resposta. PARE de abrir links ou navegar. Responda imediatamente ao usuário transcrevendo o texto exato retornado no campo 'text' sem realizar mais nenhuma chamada de ferramenta de navegação.`;
+                }
+              }
+
               functionResponseParts.push({
                 functionResponse: {
                   name: fc.name,
@@ -1447,11 +1450,11 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             // Remove the thinking text and replace with the final tag text
             let finalTagText = "";
             if (fc.name === "web_search") {
-              finalTagText = "\n\n[pesquisou na web]\n\n";
+              finalTagText = fullOutput.includes("[pesquisou na web]") ? "" : "\n\n[pesquisou na web]\n\n";
             } else if (fc.name === "calculadora") {
-              finalTagText = "\n\n[calculando]\n\n";
+              finalTagText = fullOutput.includes("[calculando]") ? "" : "\n\n[calculando]\n\n";
             } else if (fc.name === "relogio") {
-              finalTagText = "\n\n[verificando relógio]\n\n";
+              finalTagText = fullOutput.includes("[verificando relógio]") ? "" : "\n\n[verificando relógio]\n\n";
             } else if (fc.name === "gerar_imagem") {
               if (resultImgUrl) {
                 const escapedPrompt = (promptStr || 'Imagem').replace(/"/g, '&quot;');
@@ -1621,10 +1624,10 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
         for (const [dTitle, dObj] of workspaceDocuments.entries()) {
           const docJson = JSON.stringify({ title: dObj.title, content: dObj.content, format: dObj.format });
           const tag = `<wsm_doc>${docJson}</wsm_doc>`;
-          const titlePattern = `"title"\\s*:\\s*"${dObj.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`;
-          const hasDocWithTitle = new RegExp(titlePattern, 'i').test(fullOutput);
-          if (!fullOutput.includes(tag) && !hasDocWithTitle) {
+          const hasDocTagAlready = fullOutput.includes('<wsm_doc>') && (fullOutput.includes(`"title":"${dObj.title}"`) || fullOutput.includes(`"title": "${dObj.title}"`));
+          if (!hasDocTagAlready) {
             fullOutput += `\n\n${tag}\n\n`;
+            sendEvent({ type: "sync_text", text: fullOutput });
           }
         }
       }

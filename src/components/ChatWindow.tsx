@@ -215,6 +215,7 @@ interface ChatWindowProps {
   isTemporary?: boolean;
   isScheduled?: boolean;
   onOpenUpdateModal?: () => void;
+  sessionId?: string;
 }
 
 const displayUserText = (text: string) => {
@@ -268,7 +269,8 @@ export default function ChatWindow({
   onStartTemporaryChat,
   isTemporary = false,
   isScheduled = false,
-  onOpenUpdateModal
+  onOpenUpdateModal,
+  sessionId
 }: ChatWindowProps) {
   const [inputValue, setInputValue] = useState('');
   const [showModelInUseCard, setShowModelInUseCard] = useState(false);
@@ -487,6 +489,9 @@ export default function ChatWindow({
   const [isRateModalOpen, setIsRateModalOpen] = useState(false);
   const [ratingStars, setRatingStars] = useState(5);
   const [ratingComment, setRatingComment] = useState('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isCopiedShare, setIsCopiedShare] = useState(false);
 
   const [isListening, setIsListening] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
@@ -705,6 +710,9 @@ export default function ChatWindow({
       localStorage.setItem('wsm_evaluations_data', JSON.stringify(stored));
       saveEvaluationToDb(newEntry).catch(err => console.error("Error saving evaluation to Firestore:", err));
     } catch {}
+    
+    setToastMessage(rating === 'up' ? 'Obrigado pelo seu feedback positivo! 🌟' : 'Agradecemos o feedback! Vamos melhorar.');
+    setTimeout(() => setToastMessage(null), 3000);
   };
 
   const handleExportConversation = () => {
@@ -800,6 +808,8 @@ export default function ChatWindow({
       setIsRateModalOpen(false);
       setRatingComment('');
       setRatingStars(5);
+      setToastMessage('Avaliação enviada com sucesso! Agradecemos o seu feedback.');
+      setTimeout(() => setToastMessage(null), 3000);
     } catch (err) {
       console.error(err);
     }
@@ -1594,6 +1604,7 @@ export default function ChatWindow({
                   <button
                     onClick={() => {
                       setIsMenuOpen(false);
+                      setIsShareModalOpen(true);
                       if (onShareSession) onShareSession();
                     }}
                     className="w-full px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 flex items-center gap-2.5 transition-colors cursor-pointer"
@@ -3352,6 +3363,85 @@ export default function ChatWindow({
           />
         )}
       </AnimatePresence>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-[120] bg-gray-900 text-white dark:bg-white dark:text-gray-900 px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 dark:text-emerald-600 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Share Chat Modal */}
+      {isShareModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-900 border border-[#eae6e1] dark:border-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-5 flex flex-col gap-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-[#eae6e1] dark:border-gray-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                  <Share className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800 dark:text-white text-sm">Compartilhar Chat</h3>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">Qualquer pessoa com este link poderá acessar este chat</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsShareModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">Link público da conversa:</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={`${window.location.origin}/share/${sessionId || 'chat'}`}
+                  className="flex-1 text-xs p-2.5 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl outline-none font-mono text-gray-700 dark:text-gray-300"
+                />
+                <button
+                  onClick={async () => {
+                    const shareUrl = `${window.location.origin}/share/${sessionId || 'chat'}`;
+                    try {
+                      await navigator.clipboard.writeText(shareUrl);
+                    } catch {
+                      const tempInput = document.createElement('input');
+                      tempInput.value = shareUrl;
+                      document.body.appendChild(tempInput);
+                      tempInput.select();
+                      document.execCommand('copy');
+                      document.body.removeChild(tempInput);
+                    }
+                    setIsCopiedShare(true);
+                    setToastMessage('Link de compartilhamento copiado com sucesso! 🔗');
+                    setTimeout(() => {
+                      setIsCopiedShare(false);
+                      setToastMessage(null);
+                    }, 3000);
+                  }}
+                  className="px-3.5 py-2.5 bg-black dark:bg-white text-white dark:text-black hover:opacity-90 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  {isCopiedShare ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{isCopiedShare ? 'Copiado!' : 'Copiar'}</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setIsShareModalOpen(false)}
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Right Column: Split Screen Browser Preview Pane */}
       {isSplitScreenOpen && (currentScreenshots.length > 0 || allScreenshots.length > 0) && (
