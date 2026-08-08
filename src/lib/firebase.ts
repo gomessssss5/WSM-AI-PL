@@ -82,6 +82,7 @@ export {
   signOut, 
   onAuthStateChanged,
   sendPasswordResetEmail,
+  updateProfile,
   doc,
   setDoc,
   getDoc,

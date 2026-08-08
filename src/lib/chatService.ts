@@ -1,4 +1,4 @@
-import { db, auth } from './firebase';
+import { db, auth, updateProfile } from './firebase';
 import { 
   collection, 
   doc, 
@@ -396,5 +396,31 @@ export const dismissWelcomeCardForUser = async (userId: string): Promise<void> =
     }, { merge: true });
   } catch (err) {
     console.error("Error setting seenWelcomeCard:", err);
+  }
+};
+
+/**
+ * Saves or updates the user profile data in Firestore and Auth
+ */
+export const saveUserProfile = async (
+  userId: string,
+  data: { displayName?: string; photoURL?: string; [key: string]: any }
+): Promise<void> => {
+  if (!userId) return;
+  const userRef = doc(db, 'users', userId);
+  try {
+    await setDoc(userRef, {
+      ...data,
+      updatedAt: Timestamp.now()
+    }, { merge: true });
+
+    if (auth.currentUser) {
+      await updateProfile(auth.currentUser, {
+        ...(data.displayName !== undefined && { displayName: data.displayName }),
+        ...(data.photoURL !== undefined && { photoURL: data.photoURL })
+      }).catch(err => console.error("Error updating firebase auth profile:", err));
+    }
+  } catch (err) {
+    console.error("Error saving user profile:", err);
   }
 };

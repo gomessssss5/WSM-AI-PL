@@ -144,7 +144,31 @@ function sanitizeGeminiContents(rawContents: any[]): any[] {
       } else if (p.functionResponse) {
         validParts.push({ functionResponse: p.functionResponse });
       } else if (p.inlineData && p.inlineData.data) {
-        validParts.push({ inlineData: p.inlineData });
+        let cleanData = String(p.inlineData.data).trim();
+        let mimeType = p.inlineData.mimeType ? String(p.inlineData.mimeType).trim() : 'image/png';
+        
+        // Strip data URI prefix if embedded in base64 string
+        if (cleanData.includes('base64,')) {
+          const splitParts = cleanData.split('base64,');
+          if (splitParts[0].includes('image/')) {
+            const matchMime = splitParts[0].match(/image\/[a-zA-Z0-9+-]+/);
+            if (matchMime) mimeType = matchMime[0];
+          }
+          cleanData = splitParts[1] || '';
+        }
+
+        if (!mimeType || mimeType === 'application/octet-stream' || mimeType === 'binary/octet-stream') {
+          mimeType = 'image/png';
+        }
+
+        if (cleanData) {
+          validParts.push({
+            inlineData: {
+              mimeType: mimeType,
+              data: cleanData
+            }
+          });
+        }
       } else if (typeof p.text === "string") {
         let txt = p.text;
         txt = txt.replace(/<call[\s\S]*?(?:\/>|>)/gi, "");
@@ -939,11 +963,13 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
         /\b(site\s+de\s+[a-z0-9_-]+|site\s+html|pagina\s+html|página\s+html|cri\w*\s+site|gera\w*\s+site|desenvolv\w*\s+site)\b/i.test(userStrPrompt)
       );
 
-      const promptWantsBrowser = !isHtmlSiteRequest && ((Boolean(effectiveComputerEnabled) && !isSimpleGreetingOrMathPrompt) || 
-        /\b(abrir|abra|abre|acesse|acessar|acessa|entre|entrar|entra|navegar|navegue|ir\s+at[ée]|visit\w*|veja|olhe|confira|cadastr\w*|fazer\s+login|fa[çc]a\s+login)\b/i.test(userStrPrompt) ||
-        /\b(link|url|navegador|site|sites|p[áa]gina|paginas|web|google|youtube|wikipedia|github|brave|twitter|x\.com)\b/i.test(userStrPrompt) ||
-        (/(https?:\/\/|www\.|[a-zA-Z0-9-]+\.(com|org|net|io|br|gov|edu|ai|app|dev|co|xyz|online|store|tech|vercel\.app|netlify\.app))/i.test(userStrPrompt) && !/tailwindcss\.com|googleapis\.com|unpkg\.com|cdnjs\.com/i.test(userStrPrompt)));
-      const promptWantsSearch = !isHtmlSiteRequest && (Boolean(effectiveSearchEnabled) ||
+      const promptWantsBrowser = !isHtmlSiteRequest && (
+        Boolean(textRequestedComputer) ||
+        /\b(abrir|abra|abre|acesse|acessar|acessa|entre|entrar|entra|navegar|navegue|visit\w*|cadastr\w*|fazer\s+login|fa[çc]a\s+login)\s+(o\s+site|a\s+p[áa]gina|no\s+site|na\s+p[áa]gina|em\s+http|o\s+link|url)\b/i.test(userStrPrompt) ||
+        /\b(abra|acesse|entre\s+em|navegue\s+at[ée])\s+(https?:\/\/|www\.|google|youtube|wikipedia|github|brave|twitter|x\.com)\b/i.test(userStrPrompt) ||
+        (/(https?:\/\/|www\.|[a-zA-Z0-9-]+\.(com|org|net|io|br|gov|edu|ai|app|dev|co|xyz|online|store|tech|vercel\.app|netlify\.app))/i.test(userStrPrompt) && !/tailwindcss\.com|googleapis\.com|unpkg\.com|cdnjs\.com/i.test(userStrPrompt))
+      );
+      const promptWantsSearch = !isHtmlSiteRequest && (Boolean(textRequestedSearch) ||
         /\b(pesquis\w*|busc\w*|procur\w*)\s+(na\s+web|na\s+internet|no\s+google|sobre|por)\b/i.test(userStrPrompt) ||
         /\b(pesquise|pesquisar|busque|buscar|procure|procurar)\s+(na\s+web|na\s+internet|sobre|por)\b/i.test(userStrPrompt) ||
         /\b(últimas\s+notícias|noticias\s+de\s+hoje|notícias\s+recentes|cotação\s+do\s+dólar|cotação\s+do\s+euro)\b/i.test(userStrPrompt));
@@ -1467,7 +1493,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
           currentContents.push({ role: "user", parts: functionResponseParts });
           turnCount++;
           const userStrLow = (typeof text === 'string' ? text : JSON.stringify(text)).toLowerCase();
-          const promptHasBrowserSteps = promptWantsBrowser && /\b(cadastr\w*|login|entrar|entra|clic\w*|preench\w*|digit\w*|pesquis\w*|busc\w*|naveg\w*|fazer|veja|me conte|me diga)\b/i.test(userStrLow);
+          const promptHasBrowserSteps = promptWantsBrowser && /\b(cadastr\w*|login|entrar|entra|clic\w*|preench\w*|digit\w*|pesquis\w*|busc\w*|naveg\w*)\b/i.test(userStrLow);
           if (promptHasBrowserSteps && turnCount < 10) {
             forceNextTurnModeAny = true;
           } else {
@@ -1484,21 +1510,13 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
           const aiPromisedBrowser = !isHtmlRequestThisTurn && (/\b(vou|irei|estou|vamos|agora|próximo|proximo)\s+(abrir|acessar|navegar|digitar|clicar|rolar|preencher|enviar|colocar|selecionar|pressionar|aguardar|esperar|fechar)\b/i.test(aiStr) || /\b(preenchendo|enviando|clicando|digitando|abrindo|acessando|rolando|aguardando|fechando)\b/i.test(aiStr));
           const aiPromisedSearch = !isHtmlRequestThisTurn && (/\b(vou|irei|estou)\s+(pesquisar|buscar)\b|\bpesquisando\b/i.test(aiStr));
 
-          const isCreativeOrSubjectiveTask = /\b(poema|poesia|piada|hist[óo]ria|conto|m[úu]sica|letra|rap|reda[çc][ãa]o|ensaio|livro|cap[íi]tulo|script|c[óo]digo|fun[çc][ãa]o|algoritmo|traduza|traduzir|resuma|resumo|reescreva|mude|mudar|crie um document|crie um arquivo|crie uma planilha|gerar imagem|desenhe|ilustre)\b/i.test(userStr);
-          const promptExplicitlyWantsSearch = /\b(pesquis[ae]|busqu[ae]|procur[ae]|pesquisa|busca|google|brave|not[íi]cia|noticias|fonte|links?|sites?|pre[çc]o|cota[çc][ãa]o)\b/i.test(userStr);
-          const skipAutoSearchForce = isCreativeOrSubjectiveTask && !promptExplicitlyWantsSearch;
-
-          const isSimpleGreetingOrMath2 = /^(ol[áa]|oi|tudo\s+bem|boa\s+(tarde|noite|dia)|quanto\s+[ée]|calcul[ae]|1\+[123456789]|2\+2)$/i.test(userStr.trim());
-          const wantsBrowser = !isHtmlRequestThisTurn && ((Boolean(effectiveComputerEnabled) && !isSimpleGreetingOrMath2) || promptWantsBrowser);
-          const wantsSearch = !isHtmlRequestThisTurn && !skipAutoSearchForce && (Boolean(effectiveSearchEnabled) || promptWantsSearch);
-
-          const aiHasFinalConclusion = /\b(concluí|conclui|concluído|concluido|finalizei|finalizado|tudo certo|sucesso no teste|teste concluído)\b/i.test(aiStr);
+          const wantsBrowser = !isHtmlRequestThisTurn && (promptWantsBrowser || aiPromisedBrowser);
+          const wantsSearch = !isHtmlRequestThisTurn && (promptWantsSearch || aiPromisedSearch);
 
           const missingToolCall = !isHtmlRequestThisTurn && (
             aiHasTaskBlock ||
             aiPromisedBrowser ||
-            aiPromisedSearch ||
-            (turnCount < 10 && !isSimpleGreetingOrMath2 && (wantsBrowser || wantsSearch) && !aiHasFinalConclusion)
+            aiPromisedSearch
           );
 
           if (missingToolCall && turnCount < 100) {
@@ -1689,16 +1707,18 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
     console.error("Chat API Error:", error);
     
     const errorMessage = error.message || String(error);
-    let errorText = "Omnix 1.6 está temporariamente indisponível. Tente novamente em alguns instantes.";
+    let errorText = "⚠️ **Ocorreu um problema temporário ao processar sua resposta.** Por favor, tente novamente.";
 
-    if (errorMessage.includes("safety") || errorMessage.includes("SAFETY") || errorMessage.includes("BLOCKED")) {
+    if (errorMessage.includes("Unable to process input image") || (errorMessage.includes("INVALID_ARGUMENT") && (errorMessage.includes("image") || errorMessage.includes("file")))) {
+      errorText = "⚠️ **Não foi possível analisar este arquivo de imagem.** Por favor, certifique-se de anexa uma imagem válida (PNG, JPEG, WEBP) e tente novamente.";
+    } else if (errorMessage.includes("safety") || errorMessage.includes("SAFETY") || errorMessage.includes("BLOCKED")) {
       errorText = "⚠️ **A mensagem solicitada foi bloqueada pelas diretrizes de segurança da IA.** Por favor, reformule seu pedido.";
     } else if (errorMessage.includes("quota") || errorMessage.includes("RATE_LIMIT") || errorMessage.includes("429") || errorMessage.includes("resource_exhausted") || errorMessage.includes("RESOURCE_EXHAUSTED")) {
-      errorText = "⚠️ **Limite de cota ou requisições por minuto atingido na API do Gemini.** Aguarde alguns instantes antes de enviar uma nova mensagem.";
+      errorText = "⚠️ **Limite de cota ou requisições por minuto atingido na API.** Aguarde alguns instantes antes de enviar uma nova mensagem.";
     } else if (errorMessage.includes("No content returned") || errorMessage.includes("empty response") || errorMessage.includes("finishReason")) {
       errorText = "⚠️ **Nenhuma resposta foi gerada pelo modelo nesta tentativa.** O pedido pode ter sido longo demais ou ter excedido os limites do modelo.";
-    } else if (errorMessage) {
-      errorText = `⚠️ **Ocorreu um erro na geração da resposta:** ${errorMessage}`;
+    } else if (errorMessage.includes("INVALID_ARGUMENT")) {
+      errorText = "⚠️ **Conteúdo ou parâmetro de solicitação inválido.** Por favor, verifique os dados e tente novamente.";
     }
 
     if (res.headersSent) {

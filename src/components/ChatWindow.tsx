@@ -2244,9 +2244,15 @@ export default function ChatWindow({
 
                       {!isTasksExpanded ? (
                         <div className="flex items-center gap-2 truncate min-w-0">
-                          <Pause className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                          {taskProgress.completedCount === taskProgress.totalCount && !isThinking ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          ) : (
+                            <Pause className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                          )}
                           <span className="text-xs font-semibold text-gray-800 truncate">
-                            {taskProgress.tasks[taskProgress.activeIndex] || taskProgress.tasks[0] || "Progresso da tarefa"}
+                            {taskProgress.completedCount === taskProgress.totalCount && !isThinking
+                              ? `${taskProgress.totalCount} passos executados`
+                              : (taskProgress.tasks[taskProgress.activeIndex] || taskProgress.tasks[0] || "Progresso da tarefa")}
                           </span>
                         </div>
                       ) : (
@@ -2271,9 +2277,16 @@ export default function ChatWindow({
                           <Columns className="w-3.5 h-3.5" />
                         </button>
                       )}
-                      <span className="text-xs font-mono text-gray-500 bg-gray-200/70 px-1.5 py-0.5 rounded font-bold">
-                        {taskProgress.completedCount}/{taskProgress.totalCount}
-                      </span>
+                      {taskProgress.completedCount === taskProgress.totalCount && !isThinking ? (
+                        <span className="text-xs font-semibold text-emerald-700 bg-emerald-100/80 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          Concluído
+                        </span>
+                      ) : (
+                        <span className="text-xs font-mono text-gray-500 bg-gray-200/70 px-1.5 py-0.5 rounded font-bold">
+                          {taskProgress.completedCount}/{taskProgress.totalCount}
+                        </span>
+                      )}
                       {isTasksExpanded ? (
                         <ChevronDown className="w-4 h-4 text-gray-500" />
                       ) : (

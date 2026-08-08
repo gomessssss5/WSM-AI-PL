@@ -369,8 +369,8 @@ export default function DocumentViewerPane({
                   style={vscDarkPlus}
                   customStyle={{ margin: 0, padding: '1rem', minHeight: '100%', fontSize: '13.5px', background: 'transparent' }}
                   showLineNumbers={true}
-                  wrapLines={true}
                   wrapLongLines={true}
+                  codeTagProps={{ style: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' } }}
                 >
                   {docContent}
                 </SyntaxHighlighter>

@@ -1439,6 +1439,9 @@ export default function MainHome({
                     if (textarea) {
                       textarea.focus();
                     }
+                    if (item.text.toLowerCase().includes('imagem') && attachments.length === 0) {
+                      fileInputRef.current?.click();
+                    }
                   }}
                   className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-100/80 active:bg-gray-200/50 transition-all text-left group border-b border-black/[0.04] last:border-0 cursor-pointer select-none"
                 >

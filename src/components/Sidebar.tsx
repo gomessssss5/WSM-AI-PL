@@ -13,12 +13,14 @@ interface SidebarProps {
   isImagesView?: boolean;
   userEmail?: string | null;
   userName?: string | null;
+  userProfile?: any;
   onSignOut?: () => void;
   onOpenLibrary?: () => void;
   onOpenTasks?: () => void;
   isMobileHistoryOpen?: boolean;
   onCloseMobileHistory?: () => void;
   onOpenSearchModal?: () => void;
+  onOpenProfileModal?: () => void;
 }
 
 export default function Sidebar(props: SidebarProps) {
@@ -32,13 +34,17 @@ export default function Sidebar(props: SidebarProps) {
     isImagesView,
     userEmail,
     userName,
+    userProfile,
     onSignOut,
     onOpenLibrary,
     onOpenTasks,
     isMobileHistoryOpen,
     onCloseMobileHistory,
-    onOpenSearchModal
+    onOpenSearchModal,
+    onOpenProfileModal
   } = props;
+  
+  const userAvatarUrl = userProfile?.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(userEmail || 'omnix')}`;
   
   const [isMobile, setIsMobile] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -358,17 +364,26 @@ export default function Sidebar(props: SidebarProps) {
 
         {/* User Footer Profile */}
         <div className="p-3 border-t border-[#eae6e1] bg-[#f0ede8] flex items-center justify-between gap-1.5">
-          <div className="flex items-center gap-2 truncate">
-            <div className="w-8 h-8 bg-gradient-to-tr from-black to-neutral-800 rounded-full flex items-center justify-center text-white font-bold text-[12px] shadow-xs select-none shrink-0">
-              {userName 
-                ? userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() 
-                : (userEmail ? userEmail.substring(0, 2).toUpperCase() : 'AI')}
+          <div 
+            onClick={() => onOpenProfileModal && onOpenProfileModal()}
+            className="flex items-center gap-2 truncate cursor-pointer group flex-1 hover:opacity-80 transition-opacity"
+            title="Ver informações da conta e alterar foto"
+          >
+            <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 border border-gray-300 shadow-xs shrink-0 flex items-center justify-center">
+              <img 
+                src={userAvatarUrl} 
+                alt="Avatar do Usuário" 
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
             </div>
             <div className="flex flex-col truncate">
-              <span className="text-[12px] font-bold text-gray-800 truncate">
-                {userName || userEmail || 'Usuário Omnix AI'}
+              <span className="text-[12px] font-bold text-gray-800 truncate group-hover:text-amber-600 transition-colors">
+                {userProfile?.displayName || userName || userEmail || 'Usuário Omnix AI'}
               </span>
-              <span className="text-[9px] text-gray-400 uppercase tracking-wide font-semibold truncate">
+              <span className="text-[9px] text-gray-500 uppercase tracking-wide font-semibold truncate">
                 {userEmail || 'Conectado'}
               </span>
             </div>

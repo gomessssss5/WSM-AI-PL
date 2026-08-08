@@ -5,16 +5,45 @@ export interface TableData {
   rows: (string | number)[][];
 }
 
+function cleanContentString(content: string): string {
+  if (!content) return '';
+  let str = content.trim();
+  // Strip markdown code fences if present: ```json ... ``` or ```xlsx ... ``` or ``` ... ```
+  if (str.startsWith('```')) {
+    str = str.replace(/^```[a-zA-Z0-9_-]*\s*/, '').replace(/\s*```$/, '').trim();
+  }
+  return str;
+}
+
 export function parseTableDataFromContent(content: string): TableData {
   if (!content) return { headers: ['Coluna 1'], rows: [] };
 
-  const trimmed = content.trim();
+  const trimmed = cleanContentString(content);
 
   // 1. Try parsing JSON structure
-  try {
-    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-      const parsed = JSON.parse(trimmed);
+  const isLikelyJson = trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.includes('"sheets"') || trimmed.includes('"headers"') || trimmed.includes('"rows"');
+  
+  if (isLikelyJson) {
+    try {
+      // Clean potential control chars or unescaped newlines in JSON strings
+      const jsonCandidate = trimmed.startsWith('{') || trimmed.startsWith('[') 
+        ? trimmed 
+        : trimmed.substring(trimmed.indexOf('{'));
       
+      const parsed = JSON.parse(jsonCandidate);
+      
+      // Format: { sheets: [{ headers: [...], rows: [...] }] }
+      if (parsed && Array.isArray(parsed.sheets) && parsed.sheets.length > 0) {
+        const firstSheet = parsed.sheets[0];
+        const headers = Array.isArray(firstSheet.headers) ? firstSheet.headers.map(String) :
+                        Array.isArray(firstSheet.columns) ? firstSheet.columns.map(String) : [];
+        const rows = Array.isArray(firstSheet.rows) ? firstSheet.rows.map((r: any) => Array.isArray(r) ? r : [String(r)]) : [];
+        return {
+          headers: headers.length > 0 ? headers : (rows[0] ? rows[0].map((_, i) => `Coluna ${i + 1}`) : ['Coluna 1']),
+          rows
+        };
+      }
+
       // Format: { columns: ["A", "B"], rows: [["a1", "b1"], ["a2", "b2"]] }
       if (parsed && Array.isArray(parsed.columns) && Array.isArray(parsed.rows)) {
         return {
@@ -32,7 +61,7 @@ export function parseTableDataFromContent(content: string): TableData {
       }
 
       // Format: Array of objects [{ "Nome": "Ana", "Idade": 25 }, ...]
-      if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'object') {
+      if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'object' && !Array.isArray(parsed[0])) {
         const headersSet = new Set<string>();
         parsed.forEach(item => {
           if (item && typeof item === 'object') {
@@ -43,9 +72,17 @@ export function parseTableDataFromContent(content: string): TableData {
         const rows = parsed.map(item => headers.map(h => item[h] !== undefined ? item[h] : ''));
         return { headers, rows };
       }
+
+      // Format: Array of arrays [["Header1", "Header2"], ["Val1", "Val2"]]
+      if (Array.isArray(parsed) && parsed.length > 0 && Array.isArray(parsed[0])) {
+        const headers = parsed[0].map((h: any) => String(h));
+        const rows = parsed.slice(1).map((r: any) => Array.isArray(r) ? r : [String(r)]);
+        return { headers, rows };
+      }
+    } catch (e) {
+      // JSON parse failed on JSON-like text
+      console.warn("Failed to parse JSON table content:", e);
     }
-  } catch (e) {
-    // Not valid JSON, fall through to Markdown / CSV
   }
 
   // 2. Try parsing Markdown Tables
@@ -60,23 +97,19 @@ export function parseTableDataFromContent(content: string): TableData {
 
     const rows: (string | number)[][] = dataLines.map(line => {
       const cells = line.split('|').map(s => s.trim());
-      // Handle leading/trailing empty string from split
       if (line.startsWith('|')) cells.shift();
       if (line.endsWith('|')) cells.pop();
       
       return cells.map(cell => {
         const cleanCell = cell.replace(/[*_`]/g, '');
-        // Convert to number if numeric
         const isCurrency = /^R?\$\s*[\d.,]+$/.test(cleanCell.trim());
         const cleanedStr = isCurrency ? cleanCell.replace(/[^\d.,]/g, '') : cleanCell;
-        // If it looks like Brazilian format (1.000,00), convert to standard (1000.00)
         const parseNumStr = cleanedStr.includes(',') && cleanedStr.indexOf(',') > cleanedStr.lastIndexOf('.')
           ? cleanedStr.replace(/\./g, '').replace(',', '.')
           : cleanedStr.replace(/,/g, '');
           
         const num = Number(parseNumStr);
         if (!isNaN(num) && cleanedStr !== '' && !cleanedStr.startsWith('0') && cleanedStr.length < 15) {
-          // If it was currency, we prepend a special marker to know it's currency
           if (isCurrency) return '___CURRENCY___' + num;
           return num;
         }
@@ -92,24 +125,26 @@ export function parseTableDataFromContent(content: string): TableData {
     }
   }
 
-  // 3. Fallback: CSV or Line-by-Line
-  const csvRows: (string | number)[][] = lines.map(line => {
-    const delimiter = line.includes(';') ? ';' : ',';
-    return line.split(delimiter).map(cell => {
-      const clean = cell.trim();
-      const num = Number(clean.replace(',', '.'));
-      return !isNaN(num) && clean !== '' ? num : clean;
+  // 3. Fallback: CSV (ONLY IF NOT A FAILED JSON STRING to prevent 145 comma-split columns)
+  if (!isLikelyJson) {
+    const csvRows: (string | number)[][] = lines.map(line => {
+      const delimiter = line.includes(';') ? ';' : ',';
+      return line.split(delimiter).map(cell => {
+        const clean = cell.trim();
+        const num = Number(clean.replace(',', '.'));
+        return !isNaN(num) && clean !== '' ? num : clean;
+      });
     });
-  });
 
-  if (csvRows.length > 0) {
-    const headers = csvRows[0].map((c, i) => String(c) || `Coluna ${i + 1}`);
-    const rows = csvRows.slice(1);
-    return { headers, rows };
+    if (csvRows.length > 0) {
+      const headers = csvRows[0].map((c, i) => String(c) || `Coluna ${i + 1}`);
+      const rows = csvRows.slice(1);
+      return { headers, rows };
+    }
   }
 
   return {
-    headers: ['Conteúdo'],
+    headers: ['Dados da Planilha'],
     rows: [[content]]
   };
 }
@@ -122,16 +157,21 @@ export interface SheetData {
 
 export function parseMultiSheetData(content: string): SheetData[] {
   if (!content) return [];
-  const trimmed = content.trim();
+  const trimmed = cleanContentString(content);
 
   try {
-    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-      const parsed = JSON.parse(trimmed);
+    const isJson = trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.includes('"sheets"') || trimmed.includes('"planilhas"');
+    if (isJson) {
+      const jsonCandidate = trimmed.startsWith('{') || trimmed.startsWith('[') 
+        ? trimmed 
+        : trimmed.substring(trimmed.indexOf('{'));
       
-      // Check if top level object has 'sheets' array
-      if (parsed && Array.isArray(parsed.sheets) && parsed.sheets.length > 0) {
-        return parsed.sheets.map((s: any, idx: number) => {
-          const sheetName = (s.name || `Aba ${idx + 1}`).replace(/[*?:/\\[\\]]/g, '').substring(0, 31);
+      const parsed = JSON.parse(jsonCandidate);
+      
+      const sheetsArray = parsed?.sheets || parsed?.planilhas || parsed?.tables;
+      if (Array.isArray(sheetsArray) && sheetsArray.length > 0) {
+        return sheetsArray.map((s: any, idx: number) => {
+          const sheetName = (s.name || s.title || `Aba ${idx + 1}`).replace(/[*?:/\\[\\]]/g, '').substring(0, 31);
           let headers: string[] = [];
           let rows: (string | number)[][] = [];
 

@@ -23,6 +23,7 @@ import { getCleanSessionTitle } from './utils/sessionUtils';
 
 import { OfficialSkillsStore } from './components/OfficialSkillsStore';
 import CustomCursor from './components/CustomCursor';
+import UserProfileModal from './components/UserProfileModal';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -40,6 +41,7 @@ export default function App() {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // Listen to User Skills from Firestore
   useEffect(() => {
@@ -159,19 +161,53 @@ export default function App() {
     };
   }, []);
 
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        setUnreadCount(0);
+      }
+    };
+
+    const handleFocus = () => {
+      setUnreadCount(0);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (unreadCount > 0) {
+      const suffix = unreadCount === 1 ? '(1) Nova Mensagem!' : `(${unreadCount}) Novas Mensagens!`;
+      document.title = `Omnix AI - ${suffix}`;
+    } else {
+      document.title = 'Omnix AI';
+    }
+  }, [unreadCount]);
+
   const sendCompletionNotification = () => {
-    if (document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
-      try {
-        const title = "Resposta do Omnix AI está pronta!";
-        const options: any = {
-          body: `O modelo ${selectedModel} terminou de processar a sua resposta.`,
-          icon: '/favicon.ico',
-          tag: 'wsm-ai-response',
-          renotify: true
-        };
-        new Notification(title, options);
-      } catch (err) {
-        console.error('Erro ao disparar notificação:', err);
+    if (document.hidden || document.visibilityState === 'hidden') {
+      setUnreadCount((prev) => prev + 1);
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          const title = "Resposta do Omnix AI está pronta!";
+          const options: any = {
+            body: `O modelo ${selectedModel} terminou de processar a sua resposta.`,
+            icon: '/favicon.ico',
+            tag: 'wsm-ai-response',
+            renotify: true
+          };
+          new Notification(title, options);
+        } catch (err) {
+          console.error('Erro ao disparar notificação:', err);
+        }
       }
     }
   };
@@ -1051,11 +1087,32 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
 
             if (m.sender === 'user' && m.attachments && Array.isArray(m.attachments)) {
               m.attachments.forEach(att => {
-                if (att.base64 && att.mimeType) {
+                let base64 = att.base64 ? String(att.base64).trim() : '';
+                let mimeType = att.mimeType ? String(att.mimeType).trim() : '';
+
+                if (base64.includes('base64,')) {
+                  const partsB64 = base64.split('base64,');
+                  if (partsB64[0].includes('image/')) {
+                    const matchM = partsB64[0].match(/image\/[a-zA-Z0-9+-]+/);
+                    if (matchM) mimeType = matchM[0];
+                  }
+                  base64 = partsB64[1] || '';
+                }
+
+                if (!mimeType || mimeType === 'application/octet-stream' || mimeType === 'binary/octet-stream') {
+                  const ext = (att.name || '').split('.').pop()?.toLowerCase();
+                  if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
+                  else if (ext === 'png') mimeType = 'image/png';
+                  else if (ext === 'webp') mimeType = 'image/webp';
+                  else if (ext === 'gif') mimeType = 'image/gif';
+                  else if (att.type === 'image') mimeType = 'image/png';
+                }
+
+                if (base64) {
                   parts.push({
                     inlineData: {
-                      mimeType: att.mimeType,
-                      data: att.base64
+                      mimeType: mimeType || 'image/png',
+                      data: base64
                     }
                   });
                 }
@@ -1538,12 +1595,14 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         isImagesView={isImagesView}
         userEmail={currentUser.email}
         userName={currentUser.displayName}
+        userProfile={userProfile}
         onSignOut={handleSignOut}
         onOpenLibrary={() => { handleOpenLibraryView(); setIsMobileHistoryOpen(false); }}
         onOpenTasks={() => { handleOpenTasksView(); setIsMobileHistoryOpen(false); }}
         isMobileHistoryOpen={isMobileHistoryOpen}
         onCloseMobileHistory={() => setIsMobileHistoryOpen(false)}
         onOpenSearchModal={() => setIsSearchModalOpen(true)}
+        onOpenProfileModal={() => setIsProfileModalOpen(true)}
       />
 
       {/* Global Search Modal in Center of Screen */}
@@ -1705,6 +1764,15 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         <OfficialSkillsStore 
           onClose={() => setIsStoreModalOpen(false)}
           userSkills={skills}
+        />
+      )}
+
+      {isProfileModalOpen && (
+        <UserProfileModal
+          currentUser={currentUser}
+          userProfile={userProfile}
+          onClose={() => setIsProfileModalOpen(false)}
+          onSignOut={handleSignOut}
         />
       )}
 
