@@ -159,7 +159,17 @@ export default function DocumentViewerPane({
   const handleResetZoom = () => setZoom(100);
 
   const handleDownload = async () => {
-    if (format === 'md' || format === 'txt' || isCode) {
+    if (format === 'html') {
+      const blob = new Blob([cleanedHtmlDoc], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = window.document.createElement('a');
+      link.href = url;
+      let fname = document.title || 'site.html';
+      if (!fname.toLowerCase().endsWith('.html') && !fname.toLowerCase().endsWith('.htm')) fname += '.html';
+      link.download = fname;
+      link.click();
+      URL.revokeObjectURL(url);
+    } else if (format === 'md' || format === 'txt' || isCode) {
       const blob = new Blob([docContent], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const link = window.document.createElement('a');

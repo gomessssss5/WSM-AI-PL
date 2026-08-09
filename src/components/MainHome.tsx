@@ -1309,13 +1309,20 @@ export default function MainHome({
                   <button
                     type="button"
                     id="btn-search-toggle"
-                    onClick={() => setIsSearchEnabled(!isSearchEnabled)}
+                    onClick={() => {
+                      if (inputValue.trim()) {
+                        setIsSearchEnabled(true);
+                        handleSubmit();
+                      } else {
+                        setIsSearchEnabled(!isSearchEnabled);
+                      }
+                    }}
                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold transition-all cursor-pointer ${
                       isSearchEnabled
-                        ? 'bg-white text-black dark:text-white border border-black dark:border-white shadow-2xs'
+                        ? 'bg-black text-white dark:bg-white dark:text-black border border-black dark:border-white shadow-2xs'
                         : 'bg-white text-gray-700 border border-[#eae6e1] hover:border-gray-300 hover:bg-gray-50/50 shadow-2xs'
                     }`}
-                    title="Ativar busca web em tempo real"
+                    title="Pesquisar na Web"
                   >
                     <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-black dark:text-white animate-spin-slow' : 'text-gray-500'}`} />
                     <span>Pesquisar</span>

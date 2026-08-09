@@ -1,8 +1,10 @@
+import { WorkspaceTasksBlock } from "./WorkspaceTasksBlock";
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Paperclip, Globe, Monitor, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share, Columns, Pause, Cpu, Bot, PanelRight } from 'lucide-react';
 import BrowserPreviewPane from './BrowserPreviewPane';
 import DocumentViewerPane from './DocumentViewerPane';
+import WorkspaceViewerPane from './WorkspaceViewerPane';
 import { Skill } from '../lib/skills';
 import { Message, Draft, WsmDocument } from '../types';
 import { saveEvaluationToDb } from '../lib/chatService';
@@ -17,7 +19,9 @@ import PacmanLoadingAnimation from './PacmanLoadingAnimation';
 import { extractWsmForm } from '../utils/formParser';
 import { extractWsmDoc } from '../utils/docParser';
 import { extractWsmTask, extractWsmTasks, cleanWsmTaskTags } from '../utils/taskParser';
+import { cleanWorkspaceTags } from '../utils/workspaceParser';
 import { extractRaciocinio, cleanRaciocinioTags } from '../utils/raciocinioParser';
+import { cleanHistoryTags } from '../utils/historyParser';
 import { SearchImageCarousel } from './SearchImageCarousel';
 
 const UiverseLoader = ({ isThinking = false }: { isThinking?: boolean }) => (
@@ -71,6 +75,8 @@ const cleanWriterUpdateTags = (text: string) => {
   return text.replace(/<wsm_writer_update>[\s\S]*?<\/wsm_writer_update>/g, "").trim();
 };
 
+
+
 const cleanTaskTags = (text: string) => {
   if (!text) return "";
   let clean = cleanWsmTaskTags(text);
@@ -85,7 +91,7 @@ const cleanTaskTags = (text: string) => {
 
 const cleanSkillTags = (text: string) => {
   if (!text) return "";
-  let clean = text;
+  let clean = cleanHistoryTags(text);
   
   // Clean [Lendo Skill: ...] tags
   clean = clean.replace(/\[Lendo Skill:\s*(.*?)\]/gi, "");
@@ -288,6 +294,7 @@ export default function ChatWindow({
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [isTasksExpanded, setIsTasksExpanded] = useState(true);
   const [isSplitScreenOpen, setIsSplitScreenOpen] = useState(false);
+  const [isWorkspaceViewerOpen, setIsWorkspaceViewerOpen] = useState(false);
   const [activeDocument, setActiveDocument] = useState<{ doc: WsmDocument; isFullscreen: boolean } | null>(null);
   const [completedReasoningMsgIds, setCompletedReasoningMsgIds] = useState<Set<string>>(new Set());
   const [completedTypewriterMsgIds, setCompletedTypewriterMsgIds] = useState<Set<string>>(new Set());
@@ -728,7 +735,7 @@ export default function ChatWindow({
       if (msg.isHidden) return;
 
       // Clean internal skill protocol tags, system tags, reasoning tags from exported text
-      const rawTextToClean = cleanSkillTags(cleanRaciocinioTags(cleanTaskTags(cleanWriterUpdateTags(msg.text || ''))));
+      const rawTextToClean = cleanSkillTags(cleanRaciocinioTags(cleanTaskTags(cleanWriterUpdateTags(cleanWorkspaceTags(msg.text || '')))));
       const { cleanText: docCleanText, docObjs } = extractWsmDoc(rawTextToClean);
       let exportedText = docCleanText.trim();
       
@@ -1685,7 +1692,7 @@ export default function ChatWindow({
             const isUser = message.sender === 'user';
 
             const rawText = message.text || '';
-            const cleanedMsgText = cleanSkillTags(cleanRaciocinioTags(cleanTaskTags(cleanWriterUpdateTags(rawText)))).trim();
+            const cleanedMsgText = cleanSkillTags(cleanRaciocinioTags(cleanTaskTags(cleanWriterUpdateTags(cleanWorkspaceTags(rawText))))).trim();
             const { docObjs: msgDocObjs } = extractWsmDoc(extractWsmForm(cleanRaciocinioTags(rawText)).cleanText);
             const hasVisualContent = (message.attachments && message.attachments.length > 0) || (msgDocObjs && msgDocObjs.length > 0) || Boolean(message.imageUrl) || Boolean(message.codeBlock) || (Boolean(message.searchSteps) && message.searchSteps!.length > 0) || (Boolean(message.browserScreenshots) && message.browserScreenshots!.length > 0) || (Boolean(message.searchImages) && message.searchImages!.length > 0);
 
@@ -1808,6 +1815,7 @@ export default function ChatWindow({
                           setDrawerSources({ sources, query, count });
                         }}
                         onOpenDocument={(doc) => setActiveDocument({ doc, isFullscreen: false })}
+                        onOpenWorkspace={() => setIsWorkspaceViewerOpen(true)}
                         attachedImages={allSessionImages}
                       />
                     ) : (
@@ -1869,6 +1877,9 @@ export default function ChatWindow({
                                     return null;
                                   })()}
                                   
+                                  {/* 2.5 Workspace Tasks */}
+                                  <WorkspaceTasksBlock text={message.text} onOpenWorkspace={() => setIsWorkspaceViewerOpen(true)} />
+                                  
                                   {/* 3. Main AI Text response - only after reasoning sequence completes */}
                                   {isReasoningDone && (
                                     message.text.includes("Omnix 1.6 está muito sobrecarregado") ? (
@@ -1883,7 +1894,7 @@ export default function ChatWindow({
                                       </div>
                                     ) : (
                                       <TypewriterMarkdown
-                                        content={cleanSkillTags(cleanTaskTags(cleanWriterUpdateTags(extractWsmDoc(extractWsmForm(cleanRaciocinioTags(message.text)).cleanText).cleanText)))}
+                                        content={cleanSkillTags(cleanTaskTags(cleanWriterUpdateTags(cleanWorkspaceTags(extractWsmDoc(extractWsmForm(cleanRaciocinioTags(message.text)).cleanText).cleanText))))}
                                         searchSources={message.searchSources}
                                         searchSteps={message.searchSteps}
                                         enabled={!isHistorical}
@@ -2113,7 +2124,7 @@ export default function ChatWindow({
                       
                       {isUser && !editingMessageId && (
                         <div className="flex items-center justify-end gap-1.5 ml-1">
-                          <button onClick={() => copyToClipboard(cleanWriterUpdateTags(message.text), message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
+                          <button onClick={() => copyToClipboard(cleanWriterUpdateTags(cleanWorkspaceTags(message.text)), message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
                             {copiedId === message.id ? <Check size={12} /> : <Copy size={12} />}
                           </button>
                           <button onClick={() => { setEditingMessageId(message.id); setEditInputValue(displayUserText(message.text)); }} className="text-gray-400 hover:text-black p-0.5" title="Editar">
@@ -2124,7 +2135,7 @@ export default function ChatWindow({
 
                       {!isUser && (
                         <div className="flex items-center justify-start gap-1.5 ml-1">
-                          <button onClick={() => copyToClipboard(cleanSkillTags(cleanRaciocinioTags(cleanTaskTags(cleanWriterUpdateTags(message.text)))), message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
+                          <button onClick={() => copyToClipboard(cleanSkillTags(cleanRaciocinioTags(cleanTaskTags(cleanWriterUpdateTags(cleanWorkspaceTags(message.text))))), message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
                             {copiedId === message.id ? <Check size={12} /> : <Copy size={12} />}
                           </button>
                           <button onClick={() => handleEvaluate(message.id, 'up')} className={`p-0.5 transition-colors ${evaluations[message.id] === 'up' ? 'text-green-600' : 'text-gray-400 hover:text-green-600'}`} title="Boa resposta">
@@ -3363,6 +3374,18 @@ export default function ChatWindow({
             attachedImages={allSessionImages}
             onToggleFullscreen={() => setActiveDocument(prev => prev ? { ...prev, isFullscreen: !prev.isFullscreen } : null)}
             onClose={() => setActiveDocument(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Right Column: AI Workspace Viewer Pane */}
+      <AnimatePresence>
+        {isWorkspaceViewerOpen && (
+          <WorkspaceViewerPane
+            messages={messages}
+            isOpen={isWorkspaceViewerOpen}
+            onClose={() => setIsWorkspaceViewerOpen(false)}
+            attachedImages={allSessionImages}
           />
         )}
       </AnimatePresence>

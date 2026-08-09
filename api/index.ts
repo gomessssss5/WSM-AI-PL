@@ -285,7 +285,7 @@ async function callGeminiStreamWithFallback(options: any): Promise<any> {
 
 // API endpoint for chatbot communication and Web Search
 app.post("/api/chat", async (req: express.Request, res: express.Response) => {
-  const { text, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution, sessionId } = req.body;
+  const { text, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution, sessionId, chatMemoryDoc } = req.body;
 
   const userEmail = userInfo?.email || userContext?.email || req.body?.userEmail;
   let clientDisconnected = false;
@@ -327,15 +327,56 @@ Instruções Importantes:
 2. Ao realizar pesquisas ou análises temporais (como "notícias de hoje", "jogos de hoje"), tome a data (${userDate}) e a cidade do usuário (${userCity}) como referência absoluta.
 `;
 
-  // Ensure valid history format
+  const chatMemoryInstruction = `
+## DOCUMENTO INTERNO DE MEMÓRIA DA CONVERSA (HISTÓRICO CONCISO OBRIGATÓRIO)
+Você possui um Arquivo Interno de Memória Continuada desta conversa (invisível para o usuário). Ele armazena preferências do usuário, fatos do projeto, códigos, decisões e contextos relevantes para que você lembre de tudo sem precisar do histórico longo e pesado de mensagens passadas.
+
+Conteúdo atual da Memória Interna desta conversa:
+<chat_memory>
+${chatMemoryDoc && typeof chatMemoryDoc === 'string' && chatMemoryDoc.trim() ? chatMemoryDoc.trim() : "Nenhum histórico gravado ainda nesta conversa."}
+</chat_memory>
+
+REGRAS OBRIGATÓRIAS DA TAG DE HISTÓRICO (<history>...</history>):
+1. Ao responder, se a interação atual contiver informações, nomes, preferências, decisões, códigos, dados ou detalhes importantes que devam ser lembrados em mensagens futuras deste chat, inclua ao FINAL da sua resposta a tag:
+   <history>
+   [Conteúdo atualizado e refinado do documento de memória interno desta conversa]
+   </history>
+2. A tag <history> deve conter o documento de memória ATUALIZADO. Ou seja: EDITE e incorpore as novas informações ao documento existente sem apagar dados anteriores que ainda sejam úteis. Mantenha os dados importantes passados e adicione os novos.
+3. Mantenha o texto dentro da tag <history> curto, ultra-conciso e organizado em tópicos diretos.
+4. Para interações simples, cumprimentos ou conversas triviais sem informações novas (ex: "oi", "tudo bem?", "obrigado", "boa noite", "ok"), NÃO gere a tag <history>.
+5. A tag <history> e seu conteúdo são ESTRITAMENTE INTERNOS DO SISTEMA. O usuário NUNCA deve ver, editar ou ter ciência dessa tag ou documento.
+`;
+
+  // Helper to extract and clean history from AI output
+  const extractAndCleanHistory = (rawText: string) => {
+    if (!rawText) return { cleanedText: "", memoryDoc: null };
+    let memoryDoc: string | null = null;
+    const match = rawText.match(/<history>([\s\S]*?)<\/history>/i);
+    if (match && match[1]) {
+      memoryDoc = match[1].trim();
+    }
+    let cleanedText = rawText.replace(/<history>[\s\S]*?<\/history>/gi, "");
+    if (cleanedText.toLowerCase().includes("<history>")) {
+      const idx = cleanedText.toLowerCase().indexOf("<history>");
+      cleanedText = cleanedText.slice(0, idx);
+    }
+    return { cleanedText: cleanedText.trim(), memoryDoc };
+  };
+
+  // Ensure valid history format while keeping context ultra-fast (< 2s)
   let finalContents: any = text;
   if (history && Array.isArray(history) && history.length > 0) {
-    // Keep all messages that have a valid role and non-empty parts list, preserving text, functionCalls and functionResponses.
     const validHistory = history.filter(msg => {
       return msg && msg.role && msg.parts && Array.isArray(msg.parts) && msg.parts.length > 0;
     });
     if (validHistory.length > 0) {
-      finalContents = validHistory;
+      if (chatMemoryDoc && typeof chatMemoryDoc === 'string' && chatMemoryDoc.trim()) {
+        // Chat memory doc is loaded in system prompt, keep only the last 2 messages for immediate turn flow
+        finalContents = validHistory.slice(-2);
+      } else {
+        // Limit to max 4 messages to avoid high latency and timeouts
+        finalContents = validHistory.slice(-4);
+      }
     }
   }
 
@@ -743,9 +784,9 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
       if (effectiveSearchEnabled) {
         modeAdditions += `\n\n- **MODO PESQUISAR ATIVADO**: O usuário solicitou o Modo Pesquisar. Confirme ("✓ Modo Pesquisar ativado") e execute 'web_search' no mesmo turno.`;
       }
-      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + (userLocationContextInstruction ? userLocationContextInstruction + "\n\n" : "") + docInstruction + "\n\n" + formInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction + modeAdditions;
+      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + (userLocationContextInstruction ? userLocationContextInstruction + "\n\n" : "") + chatMemoryInstruction + "\n\n" + docInstruction + "\n\n" + formInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction + modeAdditions;
     } else {
-      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
+      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + chatMemoryInstruction + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
     }
 
     let mappedModel = "gemini-3.5-flash-lite";
@@ -1035,15 +1076,17 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               if (part.text) {
                 textForThisTurn += part.text;
                 fullOutput += part.text;
-                // Send text in simulated stream chunks for smooth UI typewriter feel
-                const words = part.text.split(/(\s+)/);
-                let chunkGroup = "";
-                for (let i = 0; i < words.length; i++) {
-                  chunkGroup += words[i];
-                  if (i % 6 === 0 || i === words.length - 1) {
-                    sendEvent({ type: "chunk", text: chunkGroup });
-                    chunkGroup = "";
-                    await new Promise(r => setTimeout(r, 15));
+                // Send text in simulated stream chunks for smooth UI typewriter feel (suppress <history> internal tags from streaming)
+                if (!fullOutput.includes("<history>")) {
+                  const words = part.text.split(/(\s+)/);
+                  let chunkGroup = "";
+                  for (let i = 0; i < words.length; i++) {
+                    chunkGroup += words[i];
+                    if (i % 6 === 0 || i === words.length - 1) {
+                      sendEvent({ type: "chunk", text: chunkGroup });
+                      chunkGroup = "";
+                      await new Promise(r => setTimeout(r, 15));
+                    }
                   }
                 }
               }
@@ -1224,11 +1267,11 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             else if (fc.name === "scroll_page") thinkingText = `\n\n[Rolando página para ${(fc.args as any)?.direction === 'up' ? 'cima' : 'baixo'}...]\n\n`;
             else if (fc.name === "extract_visible_text") thinkingText = `\n\n[Lendo conteúdo da página...]\n\n`;
             else if (fc.name === "wait_seconds") thinkingText = `\n\n[Aguardando ${(fc.args as any)?.seconds || 3}s para o site carregar...]\n\n`;
-            else if (fc.name === "create_document") thinkingText = `\n\n[Criando documento: "${(fc.args as any)?.title || 'Documento'}"...]\n\n`;
-            else if (fc.name === "read_document") thinkingText = `\n\n[Lendo documento: "${(fc.args as any)?.title || 'Documento'}"...]\n\n`;
-            else if (fc.name === "edit_document" || fc.name === "append_document") thinkingText = `\n\n[Editando documento: "${(fc.args as any)?.title || 'Documento'}"...]\n\n`;
-            else if (fc.name === "delete_document") thinkingText = `\n\n[Excluindo documento: "${(fc.args as any)?.title || 'Documento'}"...]\n\n`;
-            else if (fc.name === "list_documents") thinkingText = `\n\n[Listando documentos...]\n\n`;
+            else if (fc.name === "create_document") thinkingText = `\n\n<wsm_workspace_action status="working" type="create" file="${(fc.args as any)?.title || 'Documento'}" />\n\n`;
+            else if (fc.name === "read_document") thinkingText = `\n\n<wsm_workspace_action status="working" type="read" file="${(fc.args as any)?.title || 'Documento'}" />\n\n`;
+            else if (fc.name === "edit_document" || fc.name === "append_document") thinkingText = `\n\n<wsm_workspace_action status="working" type="edit" file="${(fc.args as any)?.title || 'Documento'}" />\n\n`;
+            else if (fc.name === "delete_document") thinkingText = `\n\n<wsm_workspace_action status="working" type="delete" file="${(fc.args as any)?.title || 'Documento'}" />\n\n`;
+            else if (fc.name === "list_documents") thinkingText = `\n\n<wsm_workspace_action status="working" type="list" file="workspace" />\n\n`;
 
             sendEvent({ type: "chunk", text: thinkingText });
             fullOutput += thinkingText;
@@ -1515,15 +1558,15 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             } else if (fc.name === "wait_seconds") {
               finalTagText = `\n\n[Aguardou ${(fc.args as any)?.seconds || 3}s no site para releitura]\n\n`;
             } else if (fc.name === "create_document") {
-              finalTagText = `\n\n[Criou documento: ${(fc.args as any)?.title || 'Documento'}]\n\n`;
+              finalTagText = `\n\n<wsm_workspace_action status="done" type="create" file="${(fc.args as any)?.title || 'Documento'}" />\n\n`;
             } else if (fc.name === "read_document") {
-              finalTagText = `\n\n[Leu documento: ${(fc.args as any)?.title || 'Documento'}]\n\n`;
+              finalTagText = `\n\n<wsm_workspace_action status="done" type="read" file="${(fc.args as any)?.title || 'Documento'}" />\n\n`;
             } else if (fc.name === "edit_document" || fc.name === "append_document") {
-              finalTagText = `\n\n[Editou documento: ${(fc.args as any)?.title || 'Documento'}]\n\n`;
+              finalTagText = `\n\n<wsm_workspace_action status="done" type="edit" file="${(fc.args as any)?.title || 'Documento'}" />\n\n`;
             } else if (fc.name === "delete_document") {
-              finalTagText = `\n\n[Excluiu documento: ${(fc.args as any)?.title || 'Documento'}]\n\n`;
+              finalTagText = `\n\n<wsm_workspace_action status="done" type="delete" file="${(fc.args as any)?.title || 'Documento'}" />\n\n`;
             } else if (fc.name === "list_documents") {
-              finalTagText = `\n\n[Listou documentos do workspace]\n\n`;
+              finalTagText = `\n\n<wsm_workspace_action status="done" type="list" file="workspace" />\n\n`;
             }
             const lastIdx = fullOutput.lastIndexOf(thinkingText);
             if (lastIdx !== -1) {
@@ -1719,12 +1762,14 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
         protectedOutput = protectedOutput.replace(`___WSM_IMAGE_PROTECTED_${idx}___`, tag);
       });
 
-      let sanitizedFullOutput = protectedOutput;
+      const { cleanedText: sanitizedFullOutput, memoryDoc: extractedMemoryDoc } = extractAndCleanHistory(protectedOutput);
+      const updatedMemoryDoc = extractedMemoryDoc || (typeof chatMemoryDoc === 'string' ? chatMemoryDoc : "");
 
       sendEvent({
         type: "final",
         text: sanitizedFullOutput || fallbackEmptyResponse,
         finalSynthesis: sanitizedFullOutput || fallbackEmptyResponse,
+        chatMemoryDoc: updatedMemoryDoc,
         searchSources: uniqueSources,
         searchImages: filteredImages.slice(0, 15)
       });
@@ -1732,20 +1777,40 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
       return;
     }
 
-    const normalResponse = await callGeminiWithFallback({
-      model: mappedModel,
-      contents: finalContents,
-      config: {
-        systemInstruction: activeSystemPrompt,
-      },
-    });
+    let normalResponse;
+    let rawResponseText = "";
+    let retryCount = 0;
+    const maxRetries = 2;
 
-    const textToReturn = normalResponse.text?.trim() || "";
-    if (!textToReturn) {
+    while (retryCount <= maxRetries) {
+      normalResponse = await callGeminiWithFallback({
+        model: mappedModel,
+        contents: finalContents,
+        config: {
+          systemInstruction: activeSystemPrompt,
+        },
+      });
+
+      rawResponseText = normalResponse.text?.trim() || "";
+      if (rawResponseText) {
+        break;
+      }
+      console.warn(`[ChatAPI] Resposta vazia recebida do Gemini. Tentativa ${retryCount + 1}/${maxRetries + 1}`);
+      retryCount++;
+      if (retryCount <= maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+
+    if (!rawResponseText) {
       return res.json({
-        text: "⚠️ **Nenhuma resposta foi gerada pelo modelo.** O pedido pode ter sido longo demais ou complexo demais (por favor, tente dividir seu pedido em partes menores).",
+        text: "⚠️ **Nenhuma resposta foi gerada pelo modelo após várias tentativas.** O pedido pode ter sido longo demais ou complexo demais (por favor, tente dividir seu pedido em partes menores).",
+        chatMemoryDoc: chatMemoryDoc || ""
       });
     }
+
+    const { cleanedText: textToReturn, memoryDoc: extractedMemoryDoc } = extractAndCleanHistory(rawResponseText);
+    const updatedMemoryDoc = extractedMemoryDoc || (typeof chatMemoryDoc === 'string' ? chatMemoryDoc : "");
 
     if (clientDisconnected && userEmail && isGmailUser(userEmail)) {
       console.log(`[ChatAPI] Disparando e-mail de resposta interrompida para: ${userEmail}`);
@@ -1756,6 +1821,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
 
     return res.json({
       text: textToReturn,
+      chatMemoryDoc: updatedMemoryDoc
     });
   } catch (error: any) {
     console.error("Chat API Error:", error);

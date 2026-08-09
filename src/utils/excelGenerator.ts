@@ -15,6 +15,71 @@ function cleanContentString(content: string): string {
   return str;
 }
 
+function repairAndParseJson(str: string): any {
+  if (!str) return null;
+  let cleaned = str.trim();
+  if (!cleaned.startsWith('{') && !cleaned.startsWith('[')) {
+    const idx = cleaned.search(/[\{\[]/);
+    if (idx !== -1) cleaned = cleaned.substring(idx);
+  }
+
+  // Attempt 1: Direct JSON.parse
+  try { return JSON.parse(cleaned); } catch (e) {}
+
+  // Attempt 2: Fix trailing commas and unescaped newlines inside quotes
+  try {
+    let sanitized = cleaned
+      .replace(/,\s*([\}\]])/g, '$1') // Remove trailing commas
+      .replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":'); // Quote unquoted keys
+    
+    // Fix unescaped newlines inside strings
+    sanitized = sanitized.replace(/("(?:[^"\\]|\\.)*")/g, (match) => {
+      return match.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+    });
+
+    return JSON.parse(sanitized);
+  } catch (e) {}
+
+  // Attempt 3: Regex-based extraction if JSON.parse fails completely
+  const headersMatch = cleaned.match(/"(?:headers|columns)"\s*:\s*\[([\s\S]*?)\]/i);
+  const rowsMatch = cleaned.match(/"rows"\s*:\s*\[([\s\S]*?)\]\s*\}?/i);
+
+  if (headersMatch || rowsMatch) {
+    let headers: string[] = [];
+    let rows: (string | number)[][] = [];
+
+    if (headersMatch) {
+      const rawHeaderItems = [...headersMatch[1].matchAll(/"([^"\\]*?)"/g)].map(m => m[1]);
+      if (rawHeaderItems.length > 0) headers = rawHeaderItems;
+    }
+
+    if (rowsMatch) {
+      const rawRowsContent = rowsMatch[1];
+      // Match inner arrays like [ "a", 10, "b" ]
+      const innerArrayMatches = [...rawRowsContent.matchAll(/\[([\s\S]*?)\]/g)];
+      for (const itemMatch of innerArrayMatches) {
+        const rowStr = itemMatch[1];
+        // Split row items by comma
+        const cellItems = rowStr.split(',').map(cell => {
+          let trimmedCell = cell.trim();
+          if ((trimmedCell.startsWith('"') && trimmedCell.endsWith('"')) || (trimmedCell.startsWith("'") && trimmedCell.endsWith("'"))) {
+            trimmedCell = trimmedCell.substring(1, trimmedCell.length - 1);
+          }
+          const num = Number(trimmedCell);
+          return !isNaN(num) && trimmedCell !== '' ? num : trimmedCell;
+        });
+        if (cellItems.length > 0) rows.push(cellItems);
+      }
+    }
+
+    if (headers.length > 0 || rows.length > 0) {
+      return { headers, rows };
+    }
+  }
+
+  return null;
+}
+
 export function parseTableDataFromContent(content: string): TableData {
   if (!content) return { headers: ['Coluna 1'], rows: [] };
 
@@ -24,16 +89,11 @@ export function parseTableDataFromContent(content: string): TableData {
   const isLikelyJson = trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.includes('"sheets"') || trimmed.includes('"headers"') || trimmed.includes('"rows"');
   
   if (isLikelyJson) {
-    try {
-      // Clean potential control chars or unescaped newlines in JSON strings
-      const jsonCandidate = trimmed.startsWith('{') || trimmed.startsWith('[') 
-        ? trimmed 
-        : trimmed.substring(trimmed.indexOf('{'));
-      
-      const parsed = JSON.parse(jsonCandidate);
-      
+    const parsed = repairAndParseJson(trimmed);
+    
+    if (parsed) {
       // Format: { sheets: [{ headers: [...], rows: [...] }] }
-      if (parsed && Array.isArray(parsed.sheets) && parsed.sheets.length > 0) {
+      if (Array.isArray(parsed.sheets) && parsed.sheets.length > 0) {
         const firstSheet = parsed.sheets[0];
         const headers = Array.isArray(firstSheet.headers) ? firstSheet.headers.map(String) :
                         Array.isArray(firstSheet.columns) ? firstSheet.columns.map(String) : [];
@@ -45,7 +105,7 @@ export function parseTableDataFromContent(content: string): TableData {
       }
 
       // Format: { columns: ["A", "B"], rows: [["a1", "b1"], ["a2", "b2"]] }
-      if (parsed && Array.isArray(parsed.columns) && Array.isArray(parsed.rows)) {
+      if (Array.isArray(parsed.columns) && Array.isArray(parsed.rows)) {
         return {
           headers: parsed.columns.map((c: any) => String(c)),
           rows: parsed.rows.map((r: any) => Array.isArray(r) ? r : [String(r)])
@@ -53,7 +113,7 @@ export function parseTableDataFromContent(content: string): TableData {
       }
 
       // Format: { headers: ["A", "B"], rows: [["a1", "b1"]] }
-      if (parsed && Array.isArray(parsed.headers) && Array.isArray(parsed.rows)) {
+      if (Array.isArray(parsed.headers) && Array.isArray(parsed.rows)) {
         return {
           headers: parsed.headers.map((h: any) => String(h)),
           rows: parsed.rows.map((r: any) => Array.isArray(r) ? r : [String(r)])
@@ -79,9 +139,6 @@ export function parseTableDataFromContent(content: string): TableData {
         const rows = parsed.slice(1).map((r: any) => Array.isArray(r) ? r : [String(r)]);
         return { headers, rows };
       }
-    } catch (e) {
-      // JSON parse failed on JSON-like text
-      console.warn("Failed to parse JSON table content:", e);
     }
   }
 
@@ -162,11 +219,7 @@ export function parseMultiSheetData(content: string): SheetData[] {
   try {
     const isJson = trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.includes('"sheets"') || trimmed.includes('"planilhas"');
     if (isJson) {
-      const jsonCandidate = trimmed.startsWith('{') || trimmed.startsWith('[') 
-        ? trimmed 
-        : trimmed.substring(trimmed.indexOf('{'));
-      
-      const parsed = JSON.parse(jsonCandidate);
+      const parsed = repairAndParseJson(trimmed);
       
       const sheetsArray = parsed?.sheets || parsed?.planilhas || parsed?.tables;
       if (Array.isArray(sheetsArray) && sheetsArray.length > 0) {

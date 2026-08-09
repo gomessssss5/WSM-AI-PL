@@ -1061,6 +1061,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         body: JSON.stringify({
           text: requestText,
           sessionId: sessionToUpdate.id,
+          chatMemoryDoc: sessionToUpdate.chatMemoryDoc || "",
           isSearchEnabled,
           isComputerEnabled,
           isTranslatorMode: false,
@@ -1139,6 +1140,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
               if (!currentSess) return prev;
               const finalSession = {
                 ...currentSess,
+                chatMemoryDoc: data.chatMemoryDoc || currentSess.chatMemoryDoc || "",
                 messages: currentSess.messages.map((m) =>
                   m.id === initialAiMsg.id
                     ? {
@@ -1330,6 +1332,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                     let matched = false;
                     const finalSession = {
                       ...currentSess,
+                      chatMemoryDoc: eventData.chatMemoryDoc || currentSess.chatMemoryDoc || "",
                       messages: currentSess.messages.map((m) => {
                         if (m.id === initialAiMsg.id) {
                           matched = true;

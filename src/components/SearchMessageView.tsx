@@ -6,6 +6,9 @@ import TypewriterMarkdown from './TypewriterMarkdown';
 import { extractWsmForm } from '../utils/formParser';
 import { extractWsmDoc } from '../utils/docParser';
 import { extractRaciocinio, cleanRaciocinioTags } from '../utils/raciocinioParser';
+import { cleanWorkspaceTags } from '../utils/workspaceParser';
+import { cleanHistoryTags } from '../utils/historyParser';
+import { WorkspaceTasksBlock } from './WorkspaceTasksBlock';
 import { ReasoningBlock } from './ReasoningBlock';
 import { SearchImageCarousel } from './SearchImageCarousel';
 import DocumentCard from './DocumentCard';
@@ -21,6 +24,7 @@ interface SearchMessageViewProps {
   onOpenSources?: (sources: { hostname: string; title: string; url: string; snippet?: string }[], query: string, count: number) => void;
   onOpenScheduledTasks?: () => void;
   onOpenDocument?: (doc: WsmDocument) => void;
+  onOpenWorkspace?: () => void;
   attachedImages?: string[];
 }
 
@@ -33,6 +37,7 @@ export default function SearchMessageView({
   onOpenSources,
   onOpenScheduledTasks,
   onOpenDocument,
+  onOpenWorkspace,
   attachedImages
 }: SearchMessageViewProps) {
   const steps = message.searchSteps || [];
@@ -382,15 +387,19 @@ export default function SearchMessageView({
 
       {/* 5. Final Synthesized Markdown Answer */}
       {(showFinal || !message.isSimulatingSearch) && (message.finalSynthesis || message.text) && (
+        <>
+        <WorkspaceTasksBlock text={message.finalSynthesis || message.text} onOpenWorkspace={onOpenWorkspace} />
+        
         <div className="prose max-w-none text-[14px] text-gray-800 leading-relaxed w-full mt-3 pt-3 border-t border-gray-150/50 animate-fade-in">
           <TypewriterMarkdown
-            content={extractWsmDoc(extractWsmForm(message.finalSynthesis || message.text || "").cleanText).cleanText}
+            content={cleanHistoryTags(cleanWorkspaceTags(extractWsmDoc(extractWsmForm(message.finalSynthesis || message.text || "").cleanText).cleanText))}
             searchSources={message.searchSources}
             searchSteps={message.searchSteps}
             enabled={message.isSimulatingSearch}
             onComplete={onStepChange}
           />
         </div>
+        </>
       )}
 
       {/* 5b. Document Cards Grid */}

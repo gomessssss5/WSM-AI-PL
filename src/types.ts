@@ -118,6 +118,7 @@ export interface ChatSession {
   isTemporary?: boolean;
   isPublic?: boolean;
   model?: string;
+  chatMemoryDoc?: string;
 }
 
 export interface Draft {

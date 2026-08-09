@@ -69,6 +69,7 @@ const mapDocToSession = (id: string, data: any): ChatSession => {
     isUnread: !!data.isUnread,
     isScheduled: !!data.isScheduled,
     model: data.model,
+    chatMemoryDoc: data.chatMemoryDoc || '',
     timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : new Date(data.timestamp || Date.now()),
     messages: (data.messages || []).map((msg: any) => ({
       ...msg,
@@ -94,6 +95,7 @@ const mapSessionToDoc = (session: ChatSession): any => {
     isUnread: !!session.isUnread,
     isScheduled: !!session.isScheduled,
     ...(session.model && { model: session.model }),
+    ...(session.chatMemoryDoc && { chatMemoryDoc: session.chatMemoryDoc }),
     timestamp: Timestamp.fromDate(session.timestamp instanceof Date ? session.timestamp : new Date(session.timestamp)),
     messages: session.messages.map((msg) => ({
       id: msg.id,
