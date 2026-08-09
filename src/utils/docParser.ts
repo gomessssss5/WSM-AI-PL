@@ -308,36 +308,6 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
     }
   }
 
-  // 3. Fallback for AI claiming to create PDF/Document without <wsm_doc> tag
-  if (rawDocObjs.length === 0 && text) {
-    const lowerText = text.toLowerCase();
-    const claimsPdf = lowerText.includes('pdf') || lowerText.includes('relatório') || lowerText.includes('artigo') || lowerText.includes('documento pdf') || lowerText.includes('criei o arquivo');
-    const claimsExcel = lowerText.includes('excel') || lowerText.includes('planilha') || lowerText.includes('.xlsx');
-    const claimsHtml = lowerText.includes('criei o site') || lowerText.includes('página web') || lowerText.includes('arquivo html');
-
-    if ((claimsPdf || claimsExcel || claimsHtml) && text.length > 150) {
-      let title = claimsExcel ? 'Planilha_Dados.xlsx' : claimsHtml ? 'Pagina.html' : 'Documento_Gerado.pdf';
-      let format = claimsExcel ? 'xlsx' : claimsHtml ? 'html' : 'pdf';
-
-      const firstLines = text.split('\n').filter(l => l.trim().length > 0);
-      for (const line of firstLines) {
-        if (line.startsWith('# ') || line.startsWith('## ')) {
-          const candidateTitle = line.replace(/^[#\s]+/, '').trim();
-          if (candidateTitle.length > 3 && candidateTitle.length < 50) {
-            title = candidateTitle.replace(/[^a-zA-Z0-9_-]/g, '_') + (format === 'xlsx' ? '.xlsx' : format === 'html' ? '.html' : '.pdf');
-            break;
-          }
-        }
-      }
-
-      rawDocObjs.push({
-        title,
-        content: text,
-        format
-      });
-    }
-  }
-
   // 3. Deduplicate docObjs by title / content signature
   const docObjs: WsmDocument[] = [];
   const seenKeys = new Set<string>();

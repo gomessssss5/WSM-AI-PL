@@ -11,7 +11,7 @@ import {
   updateProfile,
   sendPasswordResetEmail
 } from 'firebase/auth';
-import { Sparkles, Mail, Lock, User, AlertCircle, ArrowRight, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Mail, Lock, User, AlertCircle, ArrowRight, Eye, EyeOff, CheckCircle2, Loader2 } from 'lucide-react';
 
 interface LoginProps {
   onLoginSuccess: () => void;
@@ -193,7 +193,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type={showPassword ? "text" : "password"}
-              placeholder="Senha de segurança"
+              placeholder="Senha"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -213,7 +213,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           {!isSignUp && (
             <div className="flex items-center justify-between mt-1">
               <label className="flex items-center gap-1.5 cursor-pointer">
-                <input type="checkbox" className="w-3.5 h-3.5 text-black dark:text-white rounded border-gray-300 focus:ring-[#2563eb]" defaultChecked />
+                <input type="checkbox" className="w-3.5 h-3.5 text-black dark:text-white rounded border-gray-300 focus:ring-[#2563eb]" />
                 <span className="text-[11px] font-medium text-gray-500 select-none">Manter conectado</span>
               </label>
               <button
@@ -232,8 +232,12 @@ export default function Login({ onLoginSuccess }: LoginProps) {
             disabled={loading}
             className="w-full py-2.5 bg-[#1f1e1d] hover:bg-[#343230] text-white rounded-xl text-xs font-semibold cursor-pointer flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.99] transition-all disabled:opacity-75 disabled:cursor-not-allowed"
           >
-            <span>{isSignUp ? 'Criar minha conta' : 'Entrar com E-mail'}</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+              <>
+                <span>{isSignUp ? 'Criar minha conta' : 'Entrar com E-mail'}</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </>
+            )}
           </button>
         </form>
 
@@ -249,7 +253,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           type="button"
           onClick={handleGoogleSignIn}
           disabled={loading}
-          className="w-full py-2.5 bg-white border border-[#eae6e1] hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-semibold cursor-pointer flex items-center justify-center gap-2 shadow-2xs active:scale-[0.99] transition-all"
+          className="w-full py-2.5 bg-[#f2f2f2] hover:bg-[#e2e2e2] dark:bg-[#1a1a1a] dark:hover:bg-[#2a2a2a] dark:text-white dark:border-[#333] border border-[#f2f2f2] text-[#1f1f1f] rounded-xl text-xs font-semibold cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99] transition-all"
         >
           {/* Official Google Vector Logo */}
           <svg className="w-4 h-4" viewBox="0 0 24 24">

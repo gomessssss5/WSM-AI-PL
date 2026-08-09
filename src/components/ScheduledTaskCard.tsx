@@ -10,7 +10,8 @@ interface ScheduledTaskCardProps {
 
 export default function ScheduledTaskCard({ task, onOpenScheduledTasks }: ScheduledTaskCardProps) {
   const getScheduleLabel = (type?: string, time?: string) => {
-    const timeStr = time ? ` às ${time}` : '';
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const timeStr = time ? ` às ${time} (${timeZone})` : '';
     switch (type) {
       case 'daily':
         return `Diariamente${timeStr}`;

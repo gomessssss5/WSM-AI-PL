@@ -2117,13 +2117,13 @@ export default function ChatWindow({
                   )}
                   
                   {!(isThinking && index > lastVisibleUserIndex) && (
-                    <div className="flex items-center gap-2 mt-1 px-1">
+                    <div className={`flex items-center gap-2 mt-1 px-1 ${isUser ? 'flex-row-reverse' : ''}`}>
                       <span className="text-[9px] text-gray-400">
                         {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
                       </span>
                       
                       {isUser && !editingMessageId && (
-                        <div className="flex items-center justify-end gap-1.5 ml-1">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button onClick={() => copyToClipboard(cleanWriterUpdateTags(cleanWorkspaceTags(message.text)), message.id)} className="text-gray-400 hover:text-gray-600 p-0.5" title="Copiar">
                             {copiedId === message.id ? <Check size={12} /> : <Copy size={12} />}
                           </button>

@@ -537,7 +537,8 @@ export default function ScheduledTasksDashboard({
                             } else if (task.scheduleType === 'monthly' && task.dayOfMonth) {
                               label += ` (todo dia ${task.dayOfMonth})`;
                             }
-                            return `${label} às ${task.time}`;
+                            const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                            return `${label} às ${task.time} (${timeZone})`;
                           })()}
                         </span>
                         {task.nextRunAt && (

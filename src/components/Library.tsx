@@ -14,7 +14,13 @@ import {
   Menu,
   X,
   Plus,
-  ChevronDown
+  ChevronDown,
+  Trash2,
+  Edit2,
+  Link,
+  MoreVertical,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { ChatSession, Message } from '../types';
 import { extractWsmDoc } from '../utils/docParser';
@@ -45,6 +51,10 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedFile, setSelectedFile] = useState<LibraryFile | null>(null);
   const [showCreateDropdown, setShowCreateDropdown] = useState(false);
+  const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
+  const [deletedFileIds, setDeletedFileIds] = useState<Set<string>>(new Set());
+  const [renamedFiles, setRenamedFiles] = useState<Record<string, string>>({});
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
   // Dynamically extract all files from AI messages across all sessions
   const allFiles = useMemo(() => {
@@ -57,42 +67,51 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
           const { docObjs } = extractWsmDoc(msg.text);
           if (docObjs && docObjs.length > 0) {
             docObjs.forEach((doc, idx) => {
-              files.push({
-                id: `${msg.id}-doc-${idx}`,
-                title: doc.title || 'Documento sem título',
-                format: doc.format || 'pdf',
-                content: doc.content,
-                timestamp: new Date(msg.timestamp),
-                sessionTitle: session.title,
-                sessionId: session.id,
-              });
+              const fileId = `${msg.id}-doc-${idx}`;
+              if (!deletedFileIds.has(fileId)) {
+                files.push({
+                  id: fileId,
+                  title: renamedFiles[fileId] || doc.title || 'Documento sem título',
+                  format: doc.format || 'pdf',
+                  content: doc.content,
+                  timestamp: new Date(msg.timestamp),
+                  sessionTitle: session.title,
+                  sessionId: session.id,
+                });
+              }
             });
           }
 
           // 2. Extract tableData as XLSX/Planilha files
           if (msg.tableData) {
-            files.push({
-              id: `${msg.id}-table`,
-              title: `Planilha - ${session.title}`,
-              format: 'xlsx',
-              content: JSON.stringify(msg.tableData),
-              timestamp: new Date(msg.timestamp),
-              sessionTitle: session.title,
-              sessionId: session.id,
-            });
+            const fileId = `${msg.id}-table`;
+            if (!deletedFileIds.has(fileId)) {
+              files.push({
+                id: fileId,
+                title: renamedFiles[fileId] || `Planilha - ${session.title}`,
+                format: 'xlsx',
+                content: JSON.stringify(msg.tableData),
+                timestamp: new Date(msg.timestamp),
+                sessionTitle: session.title,
+                sessionId: session.id,
+              });
+            }
           }
 
           // 3. Extract code block as code files (if it hasn't been extracted as <wsm_doc>)
           if (msg.codeBlock && (!docObjs || docObjs.length === 0)) {
-            files.push({
-              id: `${msg.id}-code`,
-              title: `Código - ${msg.codeBlock.language.toUpperCase()}`,
-              format: msg.codeBlock.language || 'code',
-              content: msg.codeBlock.code,
-              timestamp: new Date(msg.timestamp),
-              sessionTitle: session.title,
-              sessionId: session.id,
-            });
+            const fileId = `${msg.id}-code`;
+            if (!deletedFileIds.has(fileId)) {
+              files.push({
+                id: fileId,
+                title: renamedFiles[fileId] || `Código - ${msg.codeBlock.language.toUpperCase()}`,
+                format: msg.codeBlock.language || 'code',
+                content: msg.codeBlock.code,
+                timestamp: new Date(msg.timestamp),
+                sessionTitle: session.title,
+                sessionId: session.id,
+              });
+            }
           }
         }
       });
@@ -100,7 +119,7 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
 
     // Sort by timestamp descending (newest first)
     return files.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-  }, [sessions]);
+  }, [sessions, deletedFileIds, renamedFiles]);
 
   // Filter based on search query and active tab
   const filteredFiles = useMemo(() => {
@@ -191,6 +210,52 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
     }
   };
 
+  const handleRename = (file: LibraryFile) => {
+    const newTitle = prompt("Digite o novo nome para o arquivo:", file.title);
+    if (newTitle && newTitle.trim() !== "") {
+      setRenamedFiles(prev => ({ ...prev, [file.id]: newTitle.trim() }));
+    }
+    setActiveMenuId(null);
+  };
+
+  const handleDelete = (fileId: string) => {
+    setDeletedFileIds(prev => {
+      const next = new Set(prev);
+      next.add(fileId);
+      return next;
+    });
+    setActiveMenuId(null);
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedFileIds.size === 0) return;
+    if (confirm(`Tem certeza que deseja excluir ${selectedFileIds.size} arquivo(s)?`)) {
+      setDeletedFileIds(prev => {
+        const next = new Set(prev);
+        selectedFileIds.forEach(id => next.add(id));
+        return next;
+      });
+      setSelectedFileIds(new Set());
+    }
+  };
+
+  const toggleSelection = (fileId: string) => {
+    setSelectedFileIds(prev => {
+      const next = new Set(prev);
+      if (next.has(fileId)) next.delete(fileId);
+      else next.add(fileId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedFileIds.size === filteredFiles.length && filteredFiles.length > 0) {
+      setSelectedFileIds(new Set());
+    } else {
+      setSelectedFileIds(new Set(filteredFiles.map(f => f.id)));
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full bg-[#faf9f6] overflow-hidden select-none">
       {/* Header Area */}
@@ -202,10 +267,32 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-gray-800" />
-            <h1 className="text-xl font-extrabold text-gray-900 tracking-tight">Biblioteca</h1>
-          </div>
+          
+          {selectedFileIds.size > 0 ? (
+            <div className="flex items-center gap-3 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg border border-blue-100">
+              <button onClick={toggleSelectAll} className="p-1 hover:bg-blue-100 rounded text-blue-600 cursor-pointer" title="Selecionar todos">
+                {selectedFileIds.size === filteredFiles.length ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+              </button>
+              <span className="text-sm font-semibold">{selectedFileIds.size} selecionado{selectedFileIds.size > 1 ? 's' : ''}</span>
+              <div className="w-px h-4 bg-blue-200 mx-1"></div>
+              <button 
+                onClick={handleDeleteSelected}
+                className="flex items-center gap-1 p-1 hover:bg-red-100 hover:text-red-600 rounded text-blue-600 cursor-pointer transition-colors"
+                title="Excluir selecionados"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span className="text-xs font-bold hidden sm:inline">Excluir</span>
+              </button>
+              <button onClick={() => setSelectedFileIds(new Set())} className="p-1 hover:bg-blue-100 rounded ml-2 cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-gray-800" />
+              <h1 className="text-xl font-extrabold text-gray-900 tracking-tight">Biblioteca</h1>
+            </div>
+          )}
         </div>
 
         {/* Search, Action and Filter tools */}
@@ -328,14 +415,38 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
                     {group.files.map(file => (
                       <div 
                         key={file.id}
-                        className="bg-white border border-[#eae6e1] rounded-2xl p-4 flex flex-col justify-between hover:shadow-md transition-all h-48 select-none group/card cursor-pointer"
+                        className={`bg-white border ${selectedFileIds.has(file.id) ? 'border-blue-500 ring-1 ring-blue-500' : 'border-[#eae6e1]'} rounded-2xl p-4 flex flex-col justify-between hover:shadow-md transition-all h-48 select-none group/card cursor-pointer relative`}
                         onClick={() => setSelectedFile(file)}
                       >
-                        {/* Header Title */}
+                        {/* Header Title with Checkbox & Menu */}
                         <div className="flex items-start justify-between">
-                          <h3 className="font-sans font-bold text-gray-900 text-[14px] leading-snug line-clamp-2 pr-2">
+                          <button 
+                            className="mr-2 p-1 text-gray-400 hover:text-blue-600 rounded"
+                            onClick={(e) => { e.stopPropagation(); toggleSelection(file.id); }}
+                          >
+                            {selectedFileIds.has(file.id) ? <CheckSquare className="w-4 h-4 text-blue-600" /> : <Square className="w-4 h-4" />}
+                          </button>
+                          <h3 className="font-sans font-bold text-gray-900 text-[14px] leading-snug line-clamp-2 pr-2 flex-1">
                             {file.title}
                           </h3>
+                          <div className="relative">
+                            <button 
+                              className="p-1 text-gray-400 hover:text-black rounded"
+                              onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === file.id ? null : file.id); }}
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                            {activeMenuId === file.id && (
+                              <div className="absolute right-0 top-6 bg-white shadow-lg border border-gray-100 rounded-lg py-1 w-32 z-10" onClick={e => e.stopPropagation()}>
+                                <button className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100 flex items-center gap-2" onClick={() => handleRename(file)}>
+                                  <Edit2 className="w-3.5 h-3.5" /> Renomear
+                                </button>
+                                <button className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2" onClick={() => handleDelete(file.id)}>
+                                  <Trash2 className="w-3.5 h-3.5" /> Excluir
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         {/* Centered Document Icon */}
@@ -380,9 +491,15 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
                       <div 
                         key={file.id}
                         onClick={() => setSelectedFile(file)}
-                        className="flex items-center justify-between px-4 py-3 hover:bg-gray-50/50 transition-colors cursor-pointer"
+                        className={`flex items-center justify-between px-4 py-3 hover:bg-gray-50/50 transition-colors cursor-pointer ${selectedFileIds.has(file.id) ? 'bg-blue-50/30' : ''}`}
                       >
                         <div className="flex items-center gap-3.5 min-w-0">
+                          <button 
+                            className="mr-1 p-1 text-gray-400 hover:text-blue-600 rounded"
+                            onClick={(e) => { e.stopPropagation(); toggleSelection(file.id); }}
+                          >
+                            {selectedFileIds.has(file.id) ? <CheckSquare className="w-4 h-4 text-blue-600" /> : <Square className="w-4 h-4" />}
+                          </button>
                           <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center shrink-0 border border-gray-100">
                             {getFileIcon(file.format)}
                           </div>
@@ -398,19 +515,31 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
 
                         <div className="flex items-center gap-2">
                           <button 
-                            onClick={(e) => { e.stopPropagation(); setSelectedFile(file); }}
-                            className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
-                            title="Visualizar"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button 
                             onClick={(e) => { e.stopPropagation(); handleDownload(file); }}
                             className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
                             title="Baixar"
                           >
                             <Download className="w-4 h-4" />
                           </button>
+                          
+                          <div className="relative">
+                            <button 
+                              className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
+                              onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === file.id ? null : file.id); }}
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                            {activeMenuId === file.id && (
+                              <div className="absolute right-0 top-10 bg-white shadow-lg border border-gray-100 rounded-lg py-1 w-32 z-10" onClick={e => e.stopPropagation()}>
+                                <button className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100 flex items-center gap-2" onClick={() => handleRename(file)}>
+                                  <Edit2 className="w-3.5 h-3.5" /> Renomear
+                                </button>
+                                <button className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2" onClick={() => handleDelete(file.id)}>
+                                  <Trash2 className="w-3.5 h-3.5" /> Excluir
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}

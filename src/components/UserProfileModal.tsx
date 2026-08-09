@@ -231,6 +231,47 @@ export default function UserProfileModal({
               </button>
             </div>
           </div>
+          
+          {/* Security Management */}
+          <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-800">
+            <h4 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-3">Segurança e Privacidade</h4>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                className="text-left px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between cursor-pointer"
+                onClick={() => alert("Função em desenvolvimento. Será possível alterar a senha em breve.")}
+              >
+                <span>Alterar Senha</span>
+                <span className="text-[10px] text-gray-400 font-normal">Recomendado</span>
+              </button>
+              <button
+                type="button"
+                className="text-left px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between cursor-pointer"
+                onClick={() => alert("A Autenticação em Duas Etapas (2FA) estará disponível na próxima atualização.")}
+              >
+                <span>Autenticação em Duas Etapas (2FA)</span>
+                <span className="px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700 text-[9px] font-bold text-gray-500 uppercase">Em breve</span>
+              </button>
+              <button
+                type="button"
+                className="text-left px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between cursor-pointer"
+                onClick={() => alert("Para encerrar sessões em outros dispositivos, você precisará confirmar sua identidade.")}
+              >
+                <span>Histórico de Sessões / Desconectar Todos</span>
+              </button>
+              <button
+                type="button"
+                className="text-left px-3.5 py-2.5 rounded-xl border border-red-200 dark:border-red-900/30 bg-red-50/50 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-xs font-semibold text-red-600 dark:text-red-400 flex items-center justify-between cursor-pointer mt-2"
+                onClick={() => {
+                  if(confirm("Tem certeza que deseja solicitar a exclusão permanente da sua conta? Todos os seus dados serão apagados de acordo com a LGPD e não poderão ser recuperados.")) {
+                    alert("Solicitação registrada. Sua conta será excluída em até 30 dias.");
+                  }
+                }}
+              >
+                <span>Excluir conta permanentemente (LGPD)</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Footer Actions */}

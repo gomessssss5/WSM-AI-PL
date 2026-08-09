@@ -1044,7 +1044,8 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             systemInstruction: activeSystemPrompt + 
               "\nREGRA PRINCIPAL E OBRIGATÓRIA DE DOCUMENTOS (PDF vs MD vs TEXTO): A preferência absoluta de geração de documentos longos (redações, relatórios, artigos, manuais, planilhas) É OBRIGATORIAMENTE PDF (ou XLSX). NUNCA crie PDFs ou documentos para pedidos simples de escrita criativa (ex: pequenos contos, poemas, letras de música, roteiros curtos, piadas); estes devem ser entregues APENAS em texto puro inline no chat. O formato Markdown (`format: 'md'`) NÃO deve ser usado para documentos comuns, sendo exclusivo para conteúdos de TI/desenvolvimento técnico (System Prompts, READMEs). NUNCA crie arquivos .md para trabalhos escolares/profissionais!" +
               "\nNUNCA gere manualmente as tags em colchetes como `[pesquisou na web]`, `[calculando]`, `[verificando relógio]` na sua resposta final de texto. O nosso sistema de backend já insere e renderiza essas tags de progresso e status automaticamente no chat. Sua tarefa é focar exclusivamente em gerar o conteúdo final explicativo e o código, sem adicionar essas tags de status ao final." +
-              "\nREGRA DA CALCULADORA: Chame a ferramenta 'calculadora' EXCLUSIVAMENTE quando o usuário solicitar explicitamente a resolução de uma conta ou expressão matemática (ex: v² = 20² + 2a, quanto é 154 * 32, porcentagens). É ESTRITAMENTE PROIBIDO chamar a 'calculadora' durante a leitura de arquivos, resumos de texto, análises de código ou conversas gerais." +
+              "\nREGRA DA CALCULADORA E CÓDIGO: Chame a ferramenta 'calculadora' SEMPRE que precisar realizar ou validar qualquer conta, expressão matemática, ou resultado de um código exato que envolva cálculos (ex: validando saídas numéricas de um código Python como stdev). Não confie na sua intuição para matemática. NÃO chame a calculadora para ler arquivos." +
+              "\nREGRA DE IMAGENS EM HTML/MD: Para placeholders de imagens em HTML ou Markdown, NUNCA use source.unsplash.com. Você é OBRIGADO a usar https://picsum.photos/ ou https://images.unsplash.com/photo-<ID>?w=800 ou SVGs inline." +
               "\nREGRA DA WEB SEARCH: Use web_search EXCLUSIVAMENTE para pesquisas de fatos do mundo real, notícias atualizadas ou quando o usuário pedir explicitamente para buscar algo na web. É ESTRITAMENTE PROIBIDO usar web_search para ler textos colados pelo usuário, resumir documentos, responder dúvidas de programação ou gerar códigos." +
               "\nREGRA DE NAVEGAÇÃO WEB REAL (PLAYWRIGHT): SEMPRE que o usuário pedir para abrir, acessar ou navegar em qualquer site (ex: Brave Search, Google, Wikipedia, etc), VOCÊ DEVE OBRIGATORIAMENTE emitir a chamada de função 'open_url' (functionCall) no MESMO TURNO. É ABSOLUTAMENTE PROIBIDO apenas escrever texto prometendo abrir o site sem enviar a chamada da ferramenta 'open_url'!" +
               "\nREGRAS OBRIGATÓRIAS DE AGENTE SEQUENCIAL MULTI-ETAPAS (PASSO A PASSO):" +
@@ -1355,6 +1356,11 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                 result = await extractText();
               } else if (fc.name === "wait_seconds") {
                 result = await waitSeconds((fc.args as any).seconds || 3);
+                const visitCount = visitedUrlsInTurn.filter(u => u === "WAIT_SECONDS").length;
+                visitedUrlsInTurn.push("WAIT_SECONDS");
+                if (visitCount >= 1) {
+                   result.system_note = `[SISTEMA DE PREVENÇÃO DE LOOP DE ESPERA]: Você já aguardou nesta página antes. A página parece estática. PARE de usar 'wait_seconds' repetidamente. Responda ao usuário com o que já foi lido ou tente clicar/scrollar para interagir.`;
+                }
               }
 
               if (result.screenshot) {
