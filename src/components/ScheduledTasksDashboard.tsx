@@ -391,7 +391,7 @@ export default function ScheduledTasksDashboard({
                     Agenda de {selectedDay} de {monthNames[currentDate.getMonth()]}
                   </h3>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {getTasksForDay(selectedDay).length} tarefas agendadas para este dia
+                    {getTasksForDay(selectedDay).length} {getTasksForDay(selectedDay).length === 1 ? 'tarefa agendada' : 'tarefas agendadas'} para este dia
                   </p>
                 </div>
 

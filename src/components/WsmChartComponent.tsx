@@ -1,151 +1,245 @@
 import React, { useMemo } from 'react';
 import {
-  PieChart, Pie, Cell,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
-  LineChart, Line
-} from 'recharts';
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  RadialLinearScale,
+  Title as ChartTitle,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js';
+import { Line, Bar, Pie, Doughnut, Radar } from 'react-chartjs-2';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  RadialLinearScale,
+  ChartTitle,
+  Tooltip,
+  Legend,
+  Filler
+);
 
 interface WsmChartComponentProps {
-  key?: string;
   type: string;
   title?: string;
-  data: string; // JSON string array of objects
+  subtitle?: string;
+  data: string | any; // JSON string or object
 }
 
-const COLORS = ['#2563eb', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#3b82f6', '#ec4899', '#14b8a6'];
+const PALETTE = [
+  '#111111',
+  '#3b82f6',
+  '#10b981',
+  '#f59e0b',
+  '#8b5cf6',
+  '#ec4899',
+  '#06b6d4',
+  '#f97316',
+  '#64748b'
+];
 
-export default function WsmChartComponent({ type, title, data }: WsmChartComponentProps) {
-  const parsedData = useMemo(() => {
+export default function WsmChartComponent({ type, title, subtitle, data }: WsmChartComponentProps) {
+  const chartData = useMemo(() => {
     try {
-      const parsed = JSON.parse(data);
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
-      if (typeof parsed === 'object' && parsed !== null) {
-        return [parsed];
-      }
-      return [];
-    } catch (e) {
-      console.error('Invalid JSON for chart data:', e);
-      return [];
-    }
-  }, [data]);
+      let raw: any = typeof data === 'string' ? JSON.parse(data) : data;
+      
+      if (!raw) return null;
 
-  if (!parsedData || parsedData.length === 0) {
+      // Case 1: Chart.js standard format { labels: [...], datasets: [...] }
+      if (raw.labels && Array.isArray(raw.datasets)) {
+        return raw;
+      }
+
+      // If array of items
+      if (Array.isArray(raw)) {
+        if (raw.length === 0) return null;
+
+        const first = raw[0];
+        const keys = Object.keys(first);
+
+        const labelKey = keys.find(k => ['name', 'label', 'categoria', 'mes', 'mês', 'ano', 'item'].includes(k.toLowerCase())) || keys[0];
+        const numericKeys = keys.filter(k => k !== labelKey && typeof first[k] === 'number');
+
+        const labels = raw.map(item => String(item[labelKey] ?? ''));
+
+        if (type === 'pie' || type === 'doughnut') {
+          const valueKey = numericKeys[0] || keys[1] || keys[0];
+          return {
+            labels,
+            datasets: [{
+              data: raw.map(item => Number(item[valueKey] ?? 0)),
+              backgroundColor: PALETTE.slice(0, labels.length),
+              borderColor: '#ffffff',
+              borderWidth: 3,
+              hoverOffset: 8
+            }]
+          };
+        }
+
+        // Bar or Line chart with 1 or more datasets
+        if (numericKeys.length > 0) {
+          const datasets = numericKeys.map((key, idx) => {
+            const color = PALETTE[idx % PALETTE.length];
+            return {
+              label: key.charAt(0).toUpperCase() + key.slice(1),
+              data: raw.map(item => Number(item[key] ?? 0)),
+              borderColor: color,
+              backgroundColor: type === 'line' ? `${color}18` : color,
+              borderWidth: 2,
+              borderRadius: type.includes('bar') ? 6 : 0,
+              tension: 0.4,
+              fill: type === 'line',
+              pointRadius: 3,
+              pointHoverRadius: 6,
+              pointBackgroundColor: color,
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+            };
+          });
+          return { labels, datasets };
+        } else {
+          // Fallback if all values are simple numbers
+          const valueKey = keys[1] || keys[0];
+          return {
+            labels,
+            datasets: [{
+              label: title || 'Valores',
+              data: raw.map(item => Number(item[valueKey] ?? 0)),
+              borderColor: '#111111',
+              backgroundColor: type === 'line' ? 'rgba(17, 17, 17, 0.06)' : '#111111',
+              borderWidth: 2,
+              borderRadius: type.includes('bar') ? 6 : 0,
+              tension: 0.4,
+              fill: true,
+              pointRadius: 3,
+              pointHoverRadius: 6,
+              pointBackgroundColor: '#111111',
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2
+            }]
+          };
+        }
+      }
+
+      // Single object key-value map e.g. { "Jan": 10, "Fev": 20 }
+      if (typeof raw === 'object') {
+        const labels = Object.keys(raw);
+        const values = Object.values(raw).map(v => Number(v));
+        return {
+          labels,
+          datasets: [{
+            label: title || 'Dados',
+            data: values,
+            borderColor: '#111111',
+            backgroundColor: (type === 'pie' || type === 'doughnut') ? PALETTE.slice(0, labels.length) : 'rgba(17, 17, 17, 0.06)',
+            borderWidth: 2,
+            tension: 0.4,
+            fill: true
+          }]
+        };
+      }
+
+      return null;
+    } catch (e) {
+      console.error('Erro ao processar dados do gráfico:', e);
+      return null;
+    }
+  }, [data, type, title]);
+
+  if (!chartData) {
     return (
-      <div className="my-6 p-4 border border-gray-200 rounded-2xl bg-gray-50 flex items-center justify-center h-[300px]">
-        <span className="text-gray-500 text-sm font-medium">Sem dados para exibir o gráfico.</span>
+      <div className="my-5 p-6 border border-gray-200 dark:border-neutral-800 rounded-2xl bg-gray-50 dark:bg-neutral-900 flex items-center justify-center min-h-[220px]">
+        <span className="text-gray-500 text-sm font-medium">Sem dados suficientes para renderizar o gráfico.</span>
       </div>
     );
   }
 
-  // Auto-detect keys if it's an array of objects
-  const keys = Object.keys(parsedData[0]).filter(k => k !== 'name');
+  // Base options for Chart.js
+  const baseOptions: any = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      intersect: false,
+      mode: 'index',
+    },
+    plugins: {
+      legend: {
+        display: type === 'pie' || type === 'doughnut' || (chartData.datasets && chartData.datasets.length > 1),
+        position: type === 'pie' || type === 'doughnut' ? 'bottom' : 'top',
+        labels: {
+          usePointStyle: true,
+          pointStyle: 'circle',
+          padding: 16,
+          color: '#666666',
+          font: { size: 12, weight: '500' }
+        }
+      },
+      tooltip: {
+        backgroundColor: '#111111',
+        titleColor: '#ffffff',
+        bodyColor: '#ffffff',
+        padding: 12,
+        cornerRadius: 10,
+        displayColors: false,
+        titleFont: { size: 12, weight: '500' },
+        bodyFont: { size: 13, weight: '600' }
+      }
+    },
+    scales: (type === 'pie' || type === 'doughnut' || type === 'radar') ? undefined : {
+      x: {
+        border: { display: false },
+        grid: { display: false },
+        ticks: { color: '#888888', font: { size: 12 } }
+      },
+      y: {
+        beginAtZero: true,
+        border: { display: false },
+        grid: { color: '#f1f1f1', drawTicks: false },
+        ticks: { color: '#888888', padding: 8, font: { size: 12 } }
+      }
+    }
+  };
 
-  const renderChart = () => {
-    switch (type) {
+  const renderChartCanvas = () => {
+    const normalizedType = type.toLowerCase();
+    switch (normalizedType) {
       case 'pie':
-        return (
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <RechartsTooltip contentStyle={{ borderRadius: '12px', border: '1px solid #eae6e1', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-              <Legend wrapperStyle={{ fontSize: '13px', paddingTop: '20px' }} />
-              <Pie
-                data={parsedData}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={100}
-                paddingAngle={2}
-                dataKey="value" // pie charts typically use 'value'
-                labelLine={false}
-                label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }) => {
-                  const RADIAN = Math.PI / 180;
-                  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                  return (
-                    <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-[11px] font-bold">
-                      {`${(percent * 100).toFixed(0)}%`}
-                    </text>
-                  );
-                }}
-              >
-                {parsedData.map((entry: any, index: number) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-        );
-
+        return <Pie data={chartData} options={baseOptions} />;
+      case 'doughnut':
+        return <Doughnut data={chartData} options={baseOptions} />;
       case 'bar_horizontal':
-        return (
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={parsedData} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f0f0f0" />
-              <XAxis type="number" tick={{ fontSize: 12, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: '#6b7280' }} axisLine={false} tickLine={false} width={80} />
-              <RechartsTooltip cursor={{ fill: '#f9fafb' }} contentStyle={{ borderRadius: '12px', border: '1px solid #eae6e1', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-              <Legend wrapperStyle={{ fontSize: '13px', paddingTop: '10px' }} />
-              {keys.map((key, index) => (
-                <Bar key={key} dataKey={key} fill={COLORS[index % COLORS.length]} radius={[0, 4, 4, 0]} barSize={24} />
-              ))}
-            </BarChart>
-          </ResponsiveContainer>
-        );
-
+        return <Bar data={chartData} options={{ ...baseOptions, indexAxis: 'y' as const }} />;
       case 'bar_vertical':
       case 'bar':
-        return (
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={parsedData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-              <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-              <RechartsTooltip cursor={{ fill: '#f9fafb' }} contentStyle={{ borderRadius: '12px', border: '1px solid #eae6e1', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-              <Legend wrapperStyle={{ fontSize: '13px', paddingTop: '10px' }} />
-              {keys.map((key, index) => (
-                <Bar key={key} dataKey={key} fill={COLORS[index % COLORS.length]} radius={[4, 4, 0, 0]} barSize={32} />
-              ))}
-            </BarChart>
-          </ResponsiveContainer>
-        );
-
+        return <Bar data={chartData} options={baseOptions} />;
+      case 'radar':
+        return <Radar data={chartData} options={baseOptions} />;
       case 'line':
-        return (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={parsedData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-              <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-              <RechartsTooltip contentStyle={{ borderRadius: '12px', border: '1px solid #eae6e1', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-              <Legend wrapperStyle={{ fontSize: '13px', paddingTop: '10px' }} />
-              {keys.map((key, index) => (
-                <Line key={key} type="monotone" dataKey={key} stroke={COLORS[index % COLORS.length]} strokeWidth={3} dot={{ r: 4, fill: COLORS[index % COLORS.length], strokeWidth: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        );
-
       default:
-        return (
-          <div className="flex items-center justify-center h-full text-gray-500 text-sm">
-            Tipo de gráfico não suportado.
-          </div>
-        );
+        return <Line data={chartData} options={baseOptions} />;
     }
   };
 
   return (
-    <div className="my-6 border border-gray-200 shadow-sm rounded-2xl overflow-hidden bg-white flex flex-col md:relative w-[calc(100%+2rem)] -ml-4 lg:w-[calc(100%+16rem)] lg:-ml-32 max-w-none">
-      {title && (
-        <div className="px-5 py-4 border-b border-gray-150 bg-gray-50/50">
-          <h4 className="text-gray-800 font-semibold text-[15px] leading-tight">{title}</h4>
+    <div className="my-5 w-full max-w-full border border-gray-200/80 dark:border-neutral-800 rounded-2xl bg-white dark:bg-neutral-900 p-5 sm:p-6 shadow-sm overflow-hidden transition-all">
+      {(title || subtitle) && (
+        <div className="mb-5">
+          {title && <h3 className="m-0 text-lg sm:text-xl font-semibold tracking-tight text-gray-900 dark:text-neutral-100">{title}</h3>}
+          {subtitle && <p className="mt-1 text-xs sm:text-sm text-gray-500 dark:text-neutral-400">{subtitle}</p>}
         </div>
       )}
-      <div className="p-4 h-[420px] w-full">
-        {renderChart()}
+      <div className="relative w-full h-[320px] sm:h-[380px]">
+        {renderChartCanvas()}
       </div>
     </div>
   );

@@ -222,7 +222,7 @@ export default function DocumentViewerPane({
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 20 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
-      className={`h-full bg-[#f4f3f1] dark:bg-gray-950 flex flex-col overflow-hidden relative border-l border-[#eae6e1] dark:border-gray-800 min-w-0 max-w-full ${
+      className={`h-full bg-[#f4f3f1] dark:bg-gray-950 flex flex-col overflow-hidden relative border-l border-[#eae6e1] dark:border-gray-800 min-w-0 max-w-full max-md:fixed max-md:inset-0 max-md:z-50 ${
         isFullscreen ? 'w-full flex-1' : 'w-full md:w-1/2 flex-1'
       }`}
     >

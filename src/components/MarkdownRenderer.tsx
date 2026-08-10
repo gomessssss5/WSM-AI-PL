@@ -5,6 +5,7 @@ import 'katex/dist/katex.min.css';
 import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin, TvMinimalPlay, Image as ImageIcon, Loader2, Download, ZoomIn, MousePointer2, Keyboard, ScanEye, ArrowDownUp, FileText, FilePlus, FolderOpen, Edit3, Trash2, BookOpen, ChevronDown, ChevronRight, Sparkles, Cpu } from 'lucide-react';
 import WsmMapComponent from './WsmMapComponent';
 import WsmChartComponent from './WsmChartComponent';
+import WsmMindmapComponent from './WsmMindmapComponent';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -964,13 +965,15 @@ export default function MarkdownRenderer({
                 let isActive = false;
                 
                 if (token.type === 'calc') {
+                  if (!isTyping) return null;
                   Icon = Calculator;
-                  displayType = (isTyping && token.text.includes('...')) ? 'Calculando...' : 'Calculou';
-                  isActive = isTyping && token.text.includes('...');
+                  displayType = 'Calculando...';
+                  isActive = true;
                 } else if (token.type === 'clock') {
+                  if (!isTyping) return null;
                   Icon = Clock;
-                  displayType = (isTyping && token.text.includes('...')) ? 'Verificando...' : 'Verificou relógio';
-                  isActive = isTyping && token.text.includes('...');
+                  displayType = 'Verificando...';
+                  isActive = true;
                 } else if (token.type === 'skill_create' || token.type === 'skill_edit' || token.type === 'skill_delete') {
                   Icon = CheckCircle2;
                   let rawText = token.text.replace(/\[|\]/g, '');
@@ -1180,7 +1183,7 @@ export default function MarkdownRenderer({
     
     // Ensure wsm tags are on their own lines so text before/after them doesn't get swallowed
     let formattedContent = cleanedContent;
-    const tagNames = ['wsm_chart', 'wsm_map', 'wsm_form', 'wsm_task'];
+    const tagNames = ['wsm_chart', 'wsm_map', 'wsm_form', 'wsm_task', 'wsm_mindmap'];
     tagNames.forEach(tagName => {
       // Matches both self-closing <wsm_chart ... /> and matching <wsm_chart ...>...</wsm_chart>
       const selfClosingRegex = new RegExp(`(<${tagName}[\\s\\S]*?\\/>)`, 'gi');
@@ -1216,6 +1219,31 @@ export default function MarkdownRenderer({
         
         const codeBlockId = `code-block-${i}`;
         const normalizedLang = lang.toLowerCase();
+
+        // Render Mindmap directly if code block is markmap or mindmap
+        if (normalizedLang === 'markmap' || normalizedLang === 'mindmap') {
+          blocks.push(
+            <WsmMindmapComponent
+              key={`mindmap-code-${i}`}
+              title="Mapa Mental Interativo"
+              markdown={code.trim()}
+            />
+          );
+          continue;
+        }
+
+        // Render Chart directly if code block is chart or chartjs
+        if (normalizedLang === 'chart' || normalizedLang === 'chartjs') {
+          blocks.push(
+            <WsmChartComponent
+              key={`chart-code-${i}`}
+              type="line"
+              title="Gráfico Interativo"
+              data={code.trim()}
+            />
+          );
+          continue;
+        }
 
         blocks.push(
           <div key={`code-${i}`} className="my-4 bg-gray-950 rounded-xl overflow-hidden shadow-md border border-gray-850 w-full max-w-full">
@@ -1566,6 +1594,50 @@ export default function MarkdownRenderer({
             <div key={`chart-skeleton-${i}`} className="my-3 w-full h-[350px] bg-gray-100 rounded-2xl flex flex-col items-center justify-center border border-gray-200 shadow-xs animate-pulse">
               <span className="text-xs text-gray-500 font-medium">Renderizando gráfico do Omnix Pro...</span>
             </div>
+          );
+          i++;
+          continue;
+        }
+      }
+
+      // 9.5. Custom Mindmap Tag: <wsm_mindmap ...> ... </wsm_mindmap> or <wsm_mindmap ... />
+      if (trimmed.startsWith('<wsm_mindmap') || trimmed.includes('<wsm_mindmap')) {
+        let mindmapLine = line;
+        while (i < lines.length && !mindmapLine.includes('/>') && !mindmapLine.includes('</wsm_mindmap>')) {
+          i++;
+          if (i < lines.length) {
+            mindmapLine += '\n' + lines[i];
+          }
+        }
+
+        const parseAttr = (str: string, attr: string): string => {
+          const regexSingle = new RegExp(`${attr}\\s*=\\s*'([^']*)'`, 'i');
+          const regexDouble = new RegExp(`${attr}\\s*=\\s*"([^"]*)"`, 'i');
+          const matchSingle = str.match(regexSingle);
+          if (matchSingle) return matchSingle[1];
+          const matchDouble = str.match(regexDouble);
+          if (matchDouble) return matchDouble[1];
+          return '';
+        };
+
+        const titleVal = parseAttr(mindmapLine, 'title');
+        let dataVal = parseAttr(mindmapLine, 'data');
+
+        if (!dataVal) {
+          dataVal = mindmapLine
+            .replace(/<wsm_mindmap[^>]*>/i, '')
+            .replace(/<\/wsm_mindmap>/i, '')
+            .replace(/\/>/i, '')
+            .trim();
+        }
+
+        if (dataVal) {
+          blocks.push(
+            <WsmMindmapComponent
+              key={`mindmap-${i}`}
+              title={titleVal || 'Mapa Mental Interativo'}
+              markdown={dataVal}
+            />
           );
           i++;
           continue;

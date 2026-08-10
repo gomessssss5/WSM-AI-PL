@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { MapPin, Search, ExternalLink, RefreshCw, Star } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ExternalLink, MapPin, Star, Maximize2, X } from 'lucide-react';
 
 interface WsmMapComponentProps {
   key?: string;
@@ -21,7 +22,7 @@ interface WikiData {
 export default function WsmMapComponent({
   lat,
   lon,
-  zoom = 15,
+  zoom = 12,
   place = '',
   wiki = '',
   text = '',
@@ -29,34 +30,34 @@ export default function WsmMapComponent({
   const [wikiData, setWikiData] = useState<WikiData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // If the AI specified custom text, we can use it directly as the wiki summary fallback
   useEffect(() => {
     if (text) {
       setWikiData({
         title: place || 'Localização',
         extract: text,
-        description: 'Informação fornecida pela IA',
+        description: 'Informações sobre a localização',
       });
       return;
     }
 
-    if (!wiki) {
+    if (!wiki && !place) {
       setWikiData(null);
       return;
     }
+
+    const searchTerm = wiki || place;
 
     const fetchWikipediaData = async () => {
       setLoading(true);
       setError(false);
       try {
-        // Try Portuguese Wikipedia first
-        let url = `https://pt.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wiki)}`;
+        let url = `https://pt.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(searchTerm)}`;
         let response = await fetch(url);
         
         if (!response.ok) {
-          // Fall back to English Wikipedia
-          url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wiki)}`;
+          url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(searchTerm)}`;
           response = await fetch(url);
         }
 
@@ -82,177 +83,254 @@ export default function WsmMapComponent({
     fetchWikipediaData();
   }, [wiki, text, place]);
 
-  // Calculate bbox bounding box for OpenStreetMap iframe
-  // Approx mapping of zoom level to bbox delta in degrees
-  const getBbox = (latitude: number, longitude: number, zoomLevel: number) => {
-    const baseDelta = 0.005;
-    const zoomFactor = Math.pow(2, 15 - zoomLevel);
-    const deltaX = baseDelta * zoomFactor;
-    const rad = (latitude * Math.PI) / 180;
-    const deltaY = baseDelta * zoomFactor * Math.cos(rad);
-
-    const minLon = longitude - deltaX;
-    const minLat = latitude - deltaY;
-    const maxLon = longitude + deltaX;
-    const maxLat = latitude + deltaY;
-
-    return `${minLon},${minLat},${maxLon},${maxLat}`;
-  };
-
-  const bbox = getBbox(lat, lon, zoom);
-  const osmEmbedUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lon}`;
-  const osmExternalUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=${zoom}/${lat}/${lon}`;
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+  const osmExternalUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=${zoom}/${lat}/${lon}`;
 
-  const hasCard = wikiData || loading || error || place;
+  const leafletSrcDoc = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body, #map { width: 100%; height: 100%; background: #e5e3df; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .controls {
+          position: absolute;
+          top: 12px;
+          left: 12px;
+          z-index: 1000;
+          background: #ffffff;
+          border-radius: 8px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          border: 1px solid rgba(0,0,0,0.12);
+        }
+        .control-btn {
+          width: 36px;
+          height: 36px;
+          border: none;
+          background: white;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          font-weight: bold;
+          color: #333;
+          transition: background 0.15s;
+          border-bottom: 1px solid #eee;
+        }
+        .control-btn:last-child { border-bottom: none; }
+        .control-btn:hover { background: #f5f5f5; }
+        .control-btn:active { background: #e5e5e5; }
+        .leaflet-control-zoom { display: none !important; }
+      </style>
+    </head>
+    <body>
+      <div class="controls">
+        <button class="control-btn" id="zoomIn" title="Ampliar">+</button>
+        <button class="control-btn" id="zoomOut" title="Reduzir">−</button>
+      </div>
+      <div id="map"></div>
+      <script>
+        const map = L.map('map', { zoomControl: false }).setView([${lat}, ${lon}], ${zoom});
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors',
+          maxZoom: 19
+        }).addTo(map);
 
-  return (
-    <div id="wsm-map-container" className="my-6 border border-gray-200 shadow-sm rounded-2xl overflow-hidden bg-[#faf9f6] flex flex-col md:relative md:h-[450px] w-[calc(100%+2rem)] -ml-4 lg:w-[calc(100%+16rem)] lg:-ml-32 max-w-none">
-      {/* Search Header/Status */}
-      <div className="bg-[#f5f4f0] px-4 py-2 border-b border-gray-200 flex items-center justify-between text-xs text-gray-500 font-medium select-none shrink-0">
-        <div className="flex items-center gap-1.5">
-          <Search className="w-3.5 h-3.5 text-gray-400" />
-          <span>
-            {wiki ? `Buscando informações para: "${wiki}"` : place ? `Visualizando: ${place}` : 'Mapa Interativo'}
+        const marker = L.marker([${lat}, ${lon}]).addTo(map);
+        marker.bindPopup('<strong>${(place || wiki || 'Localização').replace(/'/g, "\\'")}</strong>', { closeButton: true });
+
+        document.getElementById('zoomIn').addEventListener('click', () => map.zoomIn());
+        document.getElementById('zoomOut').addEventListener('click', () => map.zoomOut());
+      </script>
+    </body>
+    </html>
+  `;
+
+  const displayTitle = place || wikiData?.title || wiki || 'Localização';
+
+  const renderMapContent = (isModal: boolean) => (
+    <div className={`flex flex-col bg-white dark:bg-neutral-900 overflow-hidden ${
+      isModal 
+        ? 'w-full h-full rounded-2xl border border-gray-200 dark:border-neutral-800 shadow-2xl' 
+        : 'relative w-full max-w-full my-5 border border-gray-200 dark:border-neutral-800 rounded-2xl shadow-sm'
+    }`}>
+      {/* Search Header Bar */}
+      <div className="bg-gray-50 dark:bg-neutral-800/80 px-4 py-2.5 border-b border-gray-200 dark:border-neutral-800 flex items-center justify-between text-xs text-gray-600 dark:text-neutral-300 font-medium select-none shrink-0 gap-2">
+        <div className="flex items-center gap-1.5 truncate">
+          <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
+          <span className="truncate font-semibold text-gray-800 dark:text-neutral-200">
+            {displayTitle} <span className="font-normal opacity-60">({lat.toFixed(4)}, {lon.toFixed(4)})</span>
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <a
             href={googleMapsUrl}
             target="_blank"
             rel="noreferrer"
-            className="hover:text-purple-600 transition-colors inline-flex items-center gap-1 text-[11px]"
+            className="hover:text-purple-600 dark:hover:text-purple-400 transition-colors inline-flex items-center gap-1 text-[11px] font-medium"
             title="Abrir no Google Maps"
           >
             Google Maps <ExternalLink className="w-3 h-3" />
           </a>
-          <span className="text-gray-300">|</span>
+          <span className="text-gray-300 dark:text-neutral-700">|</span>
           <a
             href={osmExternalUrl}
             target="_blank"
             rel="noreferrer"
-            className="hover:text-purple-600 transition-colors inline-flex items-center gap-1 text-[11px]"
+            className="hover:text-purple-600 dark:hover:text-purple-400 transition-colors inline-flex items-center gap-1 text-[11px] font-medium"
             title="Abrir no OpenStreetMap"
           >
             OpenStreetMap <ExternalLink className="w-3 h-3" />
           </a>
+          <button
+            onClick={() => setIsFullscreen(!isModal)}
+            title={isModal ? 'Fechar Tela Cheia' : 'Abrir Tela Cheia'}
+            className="p-1.5 text-gray-700 hover:text-black dark:text-neutral-300 dark:hover:text-white bg-gray-200/80 hover:bg-gray-300 dark:bg-neutral-700/80 dark:hover:bg-neutral-600 rounded-lg transition-colors ml-1"
+          >
+            {isModal ? <X className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
         </div>
       </div>
 
-      {/* Main Container */}
-      <div className="flex-1 flex flex-col md:flex-row md:relative min-h-[450px] md:min-h-[350px]">
-        {/* OpenStreetMap Iframe */}
-        <div className="flex-1 h-[450px] md:h-full w-full relative shrink-0 md:shrink">
+      {/* Main Map + Details Layout */}
+      <div className={`flex flex-col md:flex-row w-full relative ${
+        isModal ? 'flex-1 h-full overflow-hidden' : 'min-h-[420px] md:h-[420px]'
+      }`}>
+        {/* Map View - takes remaining majority of width */}
+        <div className={`flex-1 min-w-0 bg-gray-100 dark:bg-neutral-950 overflow-hidden ${
+          isModal ? 'h-full' : 'h-[300px] md:h-full'
+        }`}>
           <iframe
-            title={`Mapa de ${place || 'localização'}`}
-            src={osmEmbedUrl}
-            className="w-full h-full border-0 select-none pointer-events-auto"
+            title={`Mapa de ${displayTitle}`}
+            srcDoc={leafletSrcDoc}
+            className="w-full h-full border-0"
             loading="lazy"
           />
         </div>
 
-        {/* Floating Card Overlay */}
-        {hasCard && (
-          <div className="w-full md:w-[280px] bg-white border-t md:border-t-0 md:border-l border-gray-150 flex flex-col p-4 overflow-y-auto max-h-[300px] md:max-h-none shrink-0">
-            {loading ? (
-              <div className="flex flex-col gap-3 animate-pulse">
-                <div className="h-5 bg-gray-200 rounded w-3/4" />
-                <div className="flex gap-3">
-                  <div className="w-16 h-16 bg-gray-200 rounded-lg shrink-0" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-gray-200 rounded w-1/2" />
-                    <div className="h-3 bg-gray-200 rounded w-full" />
-                    <div className="h-3 bg-gray-200 rounded w-5/6" />
+        {/* Card Section / Info Sidebar */}
+        <div className={`border-t md:border-t-0 md:border-l border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex flex-col overflow-y-auto shrink-0 ${
+          isModal
+            ? 'w-full md:w-[320px] lg:w-[360px] h-full p-5'
+            : 'w-full md:w-[250px] lg:w-[270px] p-3.5 sm:p-4 max-h-[320px] md:max-h-none'
+        }`}>
+          {loading ? (
+            <div className="flex flex-col gap-3 animate-pulse py-2">
+              <div className="h-5 bg-gray-200 dark:bg-neutral-800 rounded w-3/4" />
+              <div className="h-3.5 bg-gray-200 dark:bg-neutral-800 rounded w-1/2" />
+              <div className="h-16 bg-gray-200 dark:bg-neutral-800 rounded-lg my-2" />
+              <div className="h-3 bg-gray-200 dark:bg-neutral-800 rounded w-full" />
+            </div>
+          ) : wikiData ? (
+            <div className="flex flex-col justify-between h-full space-y-3">
+              <div>
+                {/* Header Info */}
+                <div className="pb-2.5 border-b border-gray-100 dark:border-neutral-800">
+                  <h3 className="font-bold text-gray-900 dark:text-neutral-100 text-base sm:text-lg leading-tight truncate">
+                    {wikiData.title}
+                  </h3>
+                  <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-neutral-400 font-medium mt-1">
+                    <span className="font-semibold text-gray-800 dark:text-neutral-200">4.7</span>
+                    <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />
+                    <span>(Wikipedia)</span>
                   </div>
                 </div>
-              </div>
-            ) : error ? (
-              <div className="text-center py-6 text-gray-500 text-xs flex flex-col items-center gap-2">
-                <RefreshCw className="w-5 h-5 text-gray-300 animate-spin-slow" />
-                <span>Não foi possível carregar detalhes do Wikipedia para "{wiki}".</span>
-                {place && <span className="font-semibold text-gray-700 mt-1">{place}</span>}
-              </div>
-            ) : wikiData ? (
-              <div className="flex flex-col h-full">
-                {/* Title */}
-                <h3 className="font-bold text-gray-900 text-base leading-tight tracking-tight mb-2 select-text">
-                  {wikiData.title}
-                </h3>
 
-                {/* Main Details Wrapper */}
-                <div className="flex gap-3 items-start select-text">
-                  {/* Thumbnail */}
-                  {wikiData.thumbnailUrl && (
-                    <img
-                      src={wikiData.thumbnailUrl}
-                      alt={wikiData.title}
-                      className="w-20 h-20 rounded-lg object-cover border border-gray-100 shadow-3xs shrink-0"
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  )}
-
-                  {/* Rating / Meta Info Block */}
-                  <div className="flex-1 flex flex-col min-w-0">
-                    {/* Fake Rating & Category mimicking Google maps aesthetic */}
-                    <div className="flex items-center gap-1 text-xs text-gray-500 font-medium flex-wrap mb-1">
-                      <span className="font-semibold text-gray-800">4.7</span>
-                      <div className="flex items-center text-amber-500">
-                        <Star className="w-3.5 h-3.5 fill-amber-500 shrink-0" />
-                      </div>
-                      <span>(Wikipedia)</span>
-                      <span className="text-gray-300">•</span>
-                      <span className="truncate max-w-[110px] text-gray-600 font-medium">
-                        {wikiData.description || 'Ponto Turístico'}
-                      </span>
-                    </div>
-
-                    {/* Summary Extract */}
-                    <p className="text-[12.5px] text-gray-600 leading-relaxed font-medium line-clamp-4">
+                {/* Sobre / Highlight Box */}
+                <div className="mt-2.5">
+                  <div className="text-[10px] font-semibold tracking-wider text-gray-400 dark:text-neutral-500 uppercase mb-1">
+                    Sobre
+                  </div>
+                  <div className="bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 p-2.5 rounded-xl">
+                    <p className="text-xs text-emerald-950 dark:text-emerald-200 leading-relaxed font-medium">
                       {wikiData.extract}
                     </p>
                   </div>
                 </div>
 
-                {/* Footer link to Wikipedia if we fetched from wiki */}
-                {wiki && (
-                  <div className="mt-4 pt-3 border-t border-gray-100 flex justify-end shrink-0">
-                    <a
-                      href={`https://pt.wikipedia.org/wiki/${encodeURIComponent(wiki)}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-bold text-black dark:text-white hover:text-purple-700 transition-colors"
-                    >
-                      Artigo Completo na Wikipédia <ExternalLink className="w-3 h-3" />
-                    </a>
+                {/* Thumbnail image if available */}
+                {wikiData.thumbnailUrl && (
+                  <div className="mt-2.5 rounded-xl overflow-hidden border border-gray-100 dark:border-neutral-800">
+                    <img
+                      src={wikiData.thumbnailUrl}
+                      alt={wikiData.title}
+                      className="w-full h-28 object-cover"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
                   </div>
                 )}
               </div>
-            ) : place ? (
-              // Case: Just show the Place Name with a clean minimalist card
-              <div className="flex flex-col items-center justify-center text-center py-6 select-text">
-                <div className="bg-purple-50 p-2.5 rounded-full mb-3">
-                  <MapPin className="w-6 h-6 text-black dark:text-white" />
-                </div>
-                <h4 className="font-bold text-gray-900 text-sm">{place}</h4>
-                <p className="text-xs text-gray-500 mt-1">Coordenadas: {lat.toFixed(4)}, {lon.toFixed(4)}</p>
-                <div className="flex gap-2 mt-4">
+
+              {/* Wikipedia Link Footer */}
+              {(wiki || place) && (
+                <div className="pt-2.5 border-t border-gray-100 dark:border-neutral-800 shrink-0">
                   <a
-                    href={googleMapsUrl}
+                    href={`https://pt.wikipedia.org/wiki/${encodeURIComponent(wiki || place)}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="px-3 py-1.5 bg-[#f5f4f0] hover:bg-gray-200 rounded-lg text-xs font-semibold text-gray-700 transition-colors inline-flex items-center gap-1"
+                    className="w-full py-1.5 px-2.5 bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-800 dark:text-neutral-200 rounded-lg text-[11px] font-semibold transition-colors flex items-center justify-center gap-1"
                   >
-                    Rotas <ExternalLink className="w-3 h-3" />
+                    Artigo na Wikipédia <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col justify-between h-full py-1">
+              <div>
+                <div className="pb-2.5 border-b border-gray-100 dark:border-neutral-800">
+                  <h3 className="font-bold text-gray-900 dark:text-neutral-100 text-base leading-tight truncate">
+                    {displayTitle}
+                  </h3>
+                  <p className="text-[11px] text-gray-500 dark:text-neutral-400 mt-1">
+                    Coordenadas: {lat.toFixed(4)}, {lon.toFixed(4)}
+                  </p>
+                </div>
+
+                <div className="bg-purple-50 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/40 p-2.5 rounded-xl mt-2.5">
+                  <p className="text-xs text-purple-900 dark:text-purple-200 font-medium leading-relaxed">
+                    Localização marcada no mapa interativo.
+                  </p>
+                </div>
               </div>
-            ) : null}
-          </div>
-        )}
+
+              <a
+                href={googleMapsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full py-1.5 px-2.5 bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-800 dark:text-neutral-200 rounded-lg text-[11px] font-semibold transition-colors flex items-center justify-center gap-1 mt-3"
+              >
+                Abrir no Google Maps <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          )}
+        </div>
       </div>
     </div>
+  );
+
+  return (
+    <>
+      {renderMapContent(false)}
+
+      {isFullscreen &&
+        createPortal(
+          <div className="fixed inset-0 z-[99999] bg-black/70 backdrop-blur-sm p-3 sm:p-6 flex items-center justify-center animate-in fade-in duration-200">
+            {renderMapContent(true)}
+          </div>,
+          document.body
+        )}
+    </>
   );
 }

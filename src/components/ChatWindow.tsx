@@ -501,6 +501,7 @@ export default function ChatWindow({
   const [isCopiedShare, setIsCopiedShare] = useState(false);
 
   const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const [interimTranscript, setInterimTranscript] = useState('');
   const [audioLevels, setAudioLevels] = useState<number[]>(Array(42).fill(3));
   const recognitionRef = useRef<any>(null);
@@ -546,6 +547,11 @@ export default function ChatWindow({
            console.error("Speech recognition error", event.error);
            setIsListening(false);
            setInterimTranscript('');
+           if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+             setVoiceError('Permissão para uso do microfone foi negada no seu navegador.');
+           } else if (event.error !== 'no-speech') {
+             setVoiceError(`Erro no microfone (${event.error}).`);
+           }
         };
       }
     }
@@ -3395,6 +3401,13 @@ export default function ChatWindow({
         <div className="fixed top-6 right-6 z-[120] bg-gray-900 text-white dark:bg-white dark:text-gray-900 px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-bottom-3 duration-200">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 dark:text-emerald-600 shrink-0" />
           <span>{toastMessage}</span>
+        </div>
+      )}
+      {voiceError && (
+        <div className="fixed top-6 right-6 z-[120] bg-red-900 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <AlertCircle className="w-4 h-4 text-red-300 shrink-0" />
+          <span>{voiceError}</span>
+          <button onClick={() => setVoiceError(null)} className="ml-2 p-1 hover:opacity-80"><X className="w-3.5 h-3.5" /></button>
         </div>
       )}
 

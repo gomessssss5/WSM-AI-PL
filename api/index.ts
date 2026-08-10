@@ -202,10 +202,10 @@ function sanitizeGeminiContents(rawContents: any[]): any[] {
 }
 
 async function executeWithAllFallbacks(options: any, isStream: boolean): Promise<any> {
-  // Ensure config object exists and maxOutputTokens is capped at 8192 for Gemini models
+  // Ensure config object exists and maxOutputTokens is capped at 16384 for Gemini models
   const reqConfig = { ...(options.config || {}) };
-  if (!reqConfig.maxOutputTokens || reqConfig.maxOutputTokens > 8192) {
-    reqConfig.maxOutputTokens = 8192;
+  if (!reqConfig.maxOutputTokens || reqConfig.maxOutputTokens > 16384) {
+    reqConfig.maxOutputTokens = 16384;
   }
   if (options.tools && !reqConfig.tools) {
     reqConfig.tools = options.tools;
@@ -1042,7 +1042,11 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
           tools: marteTools,
           config: {
             systemInstruction: activeSystemPrompt + 
-              "\nREGRA PRINCIPAL E OBRIGATÓRIA DE DOCUMENTOS (PDF vs MD vs TEXTO): A preferência absoluta de geração de documentos longos (redações, relatórios, artigos, manuais, planilhas) É OBRIGATORIAMENTE PDF (ou XLSX). NUNCA crie PDFs ou documentos para pedidos simples de escrita criativa (ex: pequenos contos, poemas, letras de música, roteiros curtos, piadas); estes devem ser entregues APENAS em texto puro inline no chat. O formato Markdown (`format: 'md'`) NÃO deve ser usado para documentos comuns, sendo exclusivo para conteúdos de TI/desenvolvimento técnico (System Prompts, READMEs). NUNCA crie arquivos .md para trabalhos escolares/profissionais!" +
+              "\nREGRA PRINCIPAL E OBRIGATÓRIA DE ROTEAMENTO DE ARQUIVOS E MÚLTIPLOS ENTREGÁVEIS:\n" +
+              "1. RESPEITO ABSOLUTO AO FORMATO SOLICITADO: Quando o usuário pedir um formato específico (PDF, Markdown/MD, Planilha Excel/XLSX, HTML, TXT, Word/DOCX), VOCÊ É OBRIGADO A GERAR EXATAMENTE NO FORMATO SOLICITADO (format: 'md', 'pdf', 'xlsx', 'html', 'txt').\n" +
+              "2. MÚLTIPLOS ENTREGÁVEIS (2 OU MAIS ARQUIVOS): Se o usuário solicitar 2 ou mais entregáveis/arquivos na mesma mensagem (ex: 'Gere um relatório em PDF e uma planilha Excel', 'Crie 2 relatórios em PDF'), VOCÊ É OBRIGADO A GERAR TODOS OS ARQUIVOS SOLICITADOS! Crie um bloco `<wsm_doc>` ou chamada `create_document` independente para CADA arquivo pedido.\n" +
+              "3. TÍTULOS DESCRITIVOS E ÚNICOS: NUNCA nomeie arquivos como 'Documento', 'Arquivo' ou 'Documento.pdf'. Use títulos descritivos referentes ao assunto (ex: 'Relatorio_Vendas_2026.pdf', 'Planilha_Orcamento.xlsx', 'Resumo_Executivo.md', 'index.html').\n" +
+              "4. TITULO HTML: O título `<title>` de um site HTML gerado deve corresponder estritamente ao tema solicitado (ex: 'Cafeteria Aroma', 'Restaurante'). NUNCA use o nome do modelo 'Omnix' no título de sites HTML gerados para o usuário.\n" +
               "\nNUNCA gere manualmente as tags em colchetes como `[pesquisou na web]`, `[calculando]`, `[verificando relógio]` na sua resposta final de texto. O nosso sistema de backend já insere e renderiza essas tags de progresso e status automaticamente no chat. Sua tarefa é focar exclusivamente em gerar o conteúdo final explicativo e o código, sem adicionar essas tags de status ao final." +
               "\nREGRA DA CALCULADORA E CÓDIGO: Chame a ferramenta 'calculadora' SEMPRE que precisar realizar ou validar qualquer conta, expressão matemática, ou resultado de um código exato que envolva cálculos (ex: validando saídas numéricas de um código Python como stdev). Não confie na sua intuição para matemática. NÃO chame a calculadora para ler arquivos." +
               "\nREGRA DE IMAGENS EM HTML/MD: Para placeholders de imagens em HTML ou Markdown, NUNCA use source.unsplash.com. Você é OBRIGADO a usar https://picsum.photos/ ou https://images.unsplash.com/photo-<ID>?w=800 ou SVGs inline." +

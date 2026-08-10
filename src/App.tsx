@@ -22,7 +22,6 @@ import { subscribeScheduledTasks, subscribeTaskExecutions, saveScheduledTask, de
 import { getCleanSessionTitle } from './utils/sessionUtils';
 
 import { OfficialSkillsStore } from './components/OfficialSkillsStore';
-import CustomCursor from './components/CustomCursor';
 import UserProfileModal from './components/UserProfileModal';
 
 export default function App() {
@@ -1531,27 +1530,20 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
     const uid = new URLSearchParams(window.location.search).get("uid");
     if (uid && sessionId) {
       return (
-        <>
-          <CustomCursor />
-          <SharedChatView sessionId={sessionId} uid={uid} />
-        </>
+        <SharedChatView sessionId={sessionId} uid={uid} />
       );
     }
   }
 
   if (isBenchmarkRoute) {
     return (
-      <>
-        <CustomCursor />
-        <BenchmarkPage />
-      </>
+      <BenchmarkPage />
     );
   }
 
   if (authLoading) {
     return (
       <div id="wsm-loading-screen" className="flex h-[100dvh] w-screen flex-col items-center justify-center bg-[#fcfbfa] select-none dot-grid">
-        <CustomCursor />
         <div className="w-12 h-12 bg-gradient-to-br from-[#2563eb] to-[#3b82f6] rounded-xl flex items-center justify-center shadow-md animate-spin mb-4">
           <svg 
             viewBox="0 0 24 24" 
@@ -1573,16 +1565,12 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
   // If no user is authenticated, force them to Login
   if (!currentUser) {
     return (
-      <>
-        <CustomCursor />
-        <Login onLoginSuccess={() => {}} />
-      </>
+      <Login onLoginSuccess={() => {}} />
     );
   }
 
   return (
     <div className="flex h-[100dvh] w-screen bg-[#faf9f6] text-gray-800 font-sans overflow-hidden">
-      <CustomCursor />
       {/* Sidebar Area */}
       <Sidebar
         sessions={sessions.filter((s) => !s.isTemporary)}

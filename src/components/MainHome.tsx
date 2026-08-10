@@ -77,10 +77,7 @@ export default function MainHome({
   onOpenUpdateModal
 }: MainHomeProps) {
   const [inputValue, setInputValue] = useState('');
-  const [currentHeadline] = useState(() => {
-    const randomIndex = Math.floor(Math.random() * RANDOM_HEADLINES.length);
-    return RANDOM_HEADLINES[randomIndex];
-  });
+  const [currentHeadline] = useState("O que vamos criar hoje?");
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
   const [isComputerEnabled, setIsComputerEnabled] = useState(false);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
@@ -166,6 +163,11 @@ export default function MainHome({
            console.error("Speech recognition error", event.error);
            setIsListening(false);
            setInterimTranscript('');
+           if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+             setVoiceError('Permissão para uso do microfone foi negada no navegador. Habilite o microfone para gravar voz.');
+           } else if (event.error !== 'no-speech') {
+             setVoiceError(`Erro no reconhecimento de voz (${event.error}). Verifique o microfone.`);
+           }
         };
       }
     }
