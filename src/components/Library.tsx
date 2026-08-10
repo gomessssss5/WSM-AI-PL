@@ -55,6 +55,16 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
   const [deletedFileIds, setDeletedFileIds] = useState<Set<string>>(new Set());
   const [renamedFiles, setRenamedFiles] = useState<Record<string, string>>({});
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [hideIntermediate, setHideIntermediate] = useState(false);
+
+  // Helper to identify intermediate technical scripts vs final documents
+  const isIntermediateFile = (file: LibraryFile) => {
+    const fmt = file.format.toLowerCase();
+    const title = file.title.toLowerCase();
+    const isScriptExt = ['py', 'js', 'ts', 'jsx', 'tsx', 'code', 'script'].includes(fmt);
+    const isScriptTitle = title.startsWith('gerar_') || title.startsWith('gerador_') || title.includes('_script') || title.startsWith('script_');
+    return isScriptExt || isScriptTitle;
+  };
 
   // Dynamically extract all files from AI messages across all sessions
   const allFiles = useMemo(() => {
@@ -121,9 +131,13 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
     return files.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   }, [sessions, deletedFileIds, renamedFiles]);
 
-  // Filter based on search query and active tab
+  // Filter based on search query, active tab, and intermediate script filter
   const filteredFiles = useMemo(() => {
     return allFiles.filter(file => {
+      if (hideIntermediate && isIntermediateFile(file)) {
+        return false;
+      }
+
       const matchesSearch = file.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                             file.sessionTitle.toLowerCase().includes(searchQuery.toLowerCase());
       
@@ -133,7 +147,7 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
       }
       return matchesSearch;
     });
-  }, [allFiles, searchQuery, activeTab]);
+  }, [allFiles, searchQuery, activeTab, hideIntermediate]);
 
   // Group files by session (separados por seções de cada chat)
   const groupedFiles = useMemo(() => {
@@ -373,6 +387,17 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
             >
               Arquivos
             </button>
+            <button 
+              onClick={() => setHideIntermediate(!hideIntermediate)}
+              className={`ml-2 px-3 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer flex items-center gap-1.5 border ${
+                hideIntermediate 
+                  ? 'bg-amber-100 border-amber-300 text-amber-900 font-bold' 
+                  : 'bg-gray-100 border-gray-200 text-gray-600 hover:bg-gray-200'
+              }`}
+              title="Filtrar ou exibir arquivos e scripts intermediários"
+            >
+              <span>{hideIntermediate ? 'Ocultando Scripts' : 'Exibir Todos os Scripts'}</span>
+            </button>
           </div>
 
           {/* View Mode Toggle Button */}
@@ -426,9 +451,16 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
                           >
                             {selectedFileIds.has(file.id) ? <CheckSquare className="w-4 h-4 text-blue-600" /> : <Square className="w-4 h-4" />}
                           </button>
-                          <h3 className="font-sans font-bold text-gray-900 text-[14px] leading-snug line-clamp-2 pr-2 flex-1">
-                            {file.title}
-                          </h3>
+                          <div className="flex-1 min-w-0 pr-2">
+                            <h3 className="font-sans font-bold text-gray-900 text-[14px] leading-snug line-clamp-2">
+                              {file.title}
+                            </h3>
+                            {isIntermediateFile(file) && (
+                              <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                                Script Intermediário
+                              </span>
+                            )}
+                          </div>
                           <div className="relative">
                             <button 
                               className="p-1 text-gray-400 hover:text-black rounded"

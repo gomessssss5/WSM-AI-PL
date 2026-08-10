@@ -79,6 +79,7 @@ export default function WorkspaceViewerPane({
 
   // Edit buffer state for currently selected file
   const [editingContentBuffer, setEditingContentBuffer] = useState('');
+  const [showSaveToast, setShowSaveToast] = useState(false);
 
   // Extract all AI generated documents from session messages
   const parsedAiFiles = useMemo(() => {
@@ -258,6 +259,12 @@ export default function WorkspaceViewerPane({
     };
     setCustomFiles(prev => [updatedFile, ...prev.filter(f => f.title !== activeFile.title)]);
     setIsEditingContent(false);
+    setShowSaveToast(true);
+    setTimeout(() => setShowSaveToast(false), 2500);
+
+    if (['html', 'htm'].includes(activeFile.format.toLowerCase())) {
+      setHtmlPreviewMode(true);
+    }
   };
 
   const getFileIcon = (title: string, format: string) => {
@@ -451,36 +458,51 @@ export default function WorkspaceViewerPane({
                     </div>
                   )}
 
-                  {/* Toggle Edit Mode */}
+                  {/* Toggle Edit Mode / Cancel */}
                   {!isImageFile(activeFile) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (isEditingContent) {
-                          handleSaveEdit();
-                        } else {
-                          setEditingContentBuffer(activeFile.content);
-                          setIsEditingContent(true);
-                        }
-                      }}
-                      className={`px-2.5 py-1 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all border ${
-                        isEditingContent
-                          ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
-                          : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700'
-                      }`}
-                    >
-                      {isEditingContent ? (
-                        <>
-                          <Save className="w-3.5 h-3.5" />
-                          <span>Salvar</span>
-                        </>
-                      ) : (
-                        <>
-                          <Edit3 className="w-3.5 h-3.5" />
-                          <span>Editar</span>
-                        </>
+                    <div className="flex items-center gap-1.5">
+                      {isEditingContent && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingContentBuffer(activeFile.content);
+                            setIsEditingContent(false);
+                          }}
+                          className="px-2.5 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>Cancelar</span>
+                        </button>
                       )}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isEditingContent) {
+                            handleSaveEdit();
+                          } else {
+                            setEditingContentBuffer(activeFile.content);
+                            setIsEditingContent(true);
+                          }
+                        }}
+                        className={`px-2.5 py-1 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all border cursor-pointer ${
+                          isEditingContent
+                            ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 shadow-sm'
+                            : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700'
+                        }`}
+                      >
+                        {isEditingContent ? (
+                          <>
+                            <Save className="w-3.5 h-3.5" />
+                            <span>Salvar Edição</span>
+                          </>
+                        ) : (
+                          <>
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Editar</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   )}
 
                   {/* Copy Button */}
@@ -507,6 +529,19 @@ export default function WorkspaceViewerPane({
 
               {/* Main Active File Display */}
               <div className="flex-1 overflow-auto relative p-4 bg-white dark:bg-gray-950">
+                <AnimatePresence>
+                  {showSaveToast && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="absolute top-2 right-4 z-30 bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg shadow-lg flex items-center gap-1.5 font-medium"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Arquivo salvo no Workspace com sucesso!</span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 {isEditingContent ? (
                   <textarea
                     value={editingContentBuffer}

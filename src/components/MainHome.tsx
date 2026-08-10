@@ -77,6 +77,7 @@ export default function MainHome({
   onOpenUpdateModal
 }: MainHomeProps) {
   const [inputValue, setInputValue] = useState('');
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const [currentHeadline] = useState("O que vamos criar hoje?");
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
   const [isComputerEnabled, setIsComputerEnabled] = useState(false);
@@ -1210,6 +1211,12 @@ export default function MainHome({
             </div>
           ) : (
             <>
+              {voiceError && (
+                <div className="mb-2 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center justify-between">
+                  <span>{voiceError}</span>
+                  <button type="button" onClick={() => setVoiceError(null)} className="font-bold text-red-800 hover:text-black">✕</button>
+                </div>
+              )}
               {/* Text Area Input */}
               <textarea
                 id="chat-input-textarea"
@@ -1356,6 +1363,13 @@ export default function MainHome({
                   <button
                     type="submit"
                     id="btn-send-message"
+                    title={
+                      inputValue.length > 5000
+                        ? "Mensagem excede o limite máximo de 5.000 caracteres"
+                        : (!inputValue.trim() && attachments.length === 0)
+                        ? "Digite uma mensagem ou anexe um arquivo para enviar"
+                        : "Enviar mensagem (Enter)"
+                    }
                     onClick={(e) => {
                       handleSubmit(e);
                     }}

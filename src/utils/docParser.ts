@@ -313,6 +313,36 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
     }
   }
 
+  // 2.5. Intercept raw JSON Excel sheets blocks e.g. ```json {"sheets": ...} ``` or standalone {"sheets": ...}
+  const rawSheetsBlockRegex = /(?:```(?:json|xlsx|excel)?\s*)?(\{[\s\S]*?"sheets"\s*:\s*\[[\s\S]*?\})(?:\s*```|$)/gi;
+  let sheetsMatch;
+  while ((sheetsMatch = rawSheetsBlockRegex.exec(currentText)) !== null) {
+    const fullMatchedString = sheetsMatch[0];
+    const sheetsJson = sheetsMatch[1].trim();
+
+    if (sheetsJson.length > 20) {
+      let docTitle = 'Planilha.xlsx';
+      try {
+        const parsed = JSON.parse(sheetsJson);
+        if (parsed.title) docTitle = String(parsed.title);
+        else if (parsed.sheets && parsed.sheets[0] && parsed.sheets[0].name) {
+          docTitle = `${parsed.sheets[0].name}.xlsx`;
+        }
+      } catch (e) {}
+
+      if (!docTitle.endsWith('.xlsx')) docTitle += '.xlsx';
+
+      rawDocObjs.push({
+        title: docTitle,
+        content: sheetsJson,
+        format: 'xlsx'
+      });
+
+      currentText = currentText.replace(fullMatchedString, '');
+      rawSheetsBlockRegex.lastIndex = 0;
+    }
+  }
+
   // 3. Deduplicate docObjs by title / content signature
   const docObjs: WsmDocument[] = [];
   const seenKeys = new Set<string>();

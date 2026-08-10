@@ -1150,19 +1150,19 @@ export default function MarkdownRenderer({
 
         if (isBold && isItalic) {
           elements.push(
-            <strong key={`bi-${bIdx}-${iIdx}`} className="font-bold italic text-gray-900">
+            <strong key={`bi-${bIdx}-${iIdx}`} className="font-bold italic text-gray-900 dark:text-gray-100">
               {contentNodes}
             </strong>
           );
         } else if (isBold) {
           elements.push(
-            <strong key={`b-${bIdx}-${iIdx}`} className="font-bold text-gray-900">
+            <strong key={`b-${bIdx}-${iIdx}`} className="font-bold text-gray-900 dark:text-gray-100">
               {contentNodes}
             </strong>
           );
         } else if (isItalic) {
           elements.push(
-            <em key={`i-${bIdx}-${iIdx}`} className="italic text-gray-800">
+            <em key={`i-${bIdx}-${iIdx}`} className="italic text-gray-800 dark:text-gray-200">
               {contentNodes}
             </em>
           );

@@ -2944,6 +2944,15 @@ export default function ChatWindow({
 
                   <button
                     type={isThinking ? "button" : "submit"}
+                    title={
+                      isThinking
+                        ? "Interromper geração de resposta"
+                        : inputValue.length > 5000
+                        ? "Mensagem excede o limite máximo de 5.000 caracteres"
+                        : (!inputValue.trim() && !attachedText && attachments.length === 0)
+                        ? "Digite uma mensagem ou anexe um arquivo para enviar"
+                        : "Enviar mensagem (Enter)"
+                    }
                     onClick={(e) => {
                       if (isThinking) {
                         onCancelGeneration?.();
