@@ -65,6 +65,11 @@ export function sanitizeDocumentContent(rawContent: string): string {
     str = str.replace(/^```[a-zA-Z0-9_-]*\s*/i, '').replace(/\s*```$/, '').trim();
   }
 
+  // 4. Fix AI tokenizer hallucination where __main__ becomes __mainజ్య__
+  str = str.replace(/__mainజ్య__/g, '__main__');
+  // General fix for any trailing weird characters after __main
+  str = str.replace(/__main[\u0C00-\u0C7F]+__/g, '__main__'); // Telugu block
+
   return str;
 }
 
@@ -202,7 +207,7 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
       currentText = currentText.substring(0, startIndex) + currentText.substring(endIndex);
 
       // Check if innerContent is raw HTML / XML without JSON wrapping
-      if (jsonStr.startsWith('<!DOCTYPE') || jsonStr.startsWith('<html') || (jsonStr.includes('<head>') && jsonStr.includes('</body>'))) {
+      if (!jsonStr.startsWith('{') && (jsonStr.startsWith('<!DOCTYPE') || jsonStr.startsWith('<html') || (jsonStr.includes('<head>') && jsonStr.includes('</body>')))) {
         let docTitle = 'index.html';
         const titleTagMatch = jsonStr.match(/<title>([^<]+)<\/title>/i);
         if (titleTagMatch && titleTagMatch[1].trim()) {
@@ -322,6 +327,10 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
   }
 
   let finalCleanText = currentText.trim();
+  
+  // Fix AI tokenizer hallucination for python __main__ in regular chat text
+  finalCleanText = finalCleanText.replace(/__main[\u0C00-\u0C7F]+__/g, '__main__');
+  finalCleanText = finalCleanText.replace(/__mainజ్య__/g, '__main__');
 
   // If text became empty after stripping document/code dumps, provide a friendly fallback text
   if (!finalCleanText && docObjs.length > 0) {
