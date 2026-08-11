@@ -12,17 +12,44 @@ interface WsmMindmapComponentProps {
 const transformer = new Transformer();
 
 export default function WsmMindmapComponent({ title, markdown }: WsmMindmapComponentProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const fullscreenContainerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const fullscreenSvgRef = useRef<SVGSVGElement | null>(null);
-  const markmapRef = useRef<Markmap | null>(null);
-  const fullscreenMarkmapRef = useRef<Markmap | null>(null);
-
+  const [svgSize, setSvgSize] = useState({ width: 0, height: 0 });
+  const [fullscreenSvgSize, setFullscreenSvgSize] = useState({ width: 0, height: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        setSvgSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+      }
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!isFullscreen || !fullscreenContainerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        setFullscreenSvgSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+      }
+    });
+    observer.observe(fullscreenContainerRef.current);
+    return () => observer.disconnect();
+  }, [isFullscreen]);
+  const markmapRef = useRef<Markmap | null>(null);
+  const fullscreenMarkmapRef = useRef<Markmap | null>(null);
+
+
+
   // Initialize/update standard view
   useEffect(() => {
-    if (!svgRef.current || !markdown) return;
+    if (!svgRef.current || !markdown || svgSize.width === 0) return;
 
     try {
       const { root } = transformer.transform(markdown);
@@ -38,11 +65,11 @@ export default function WsmMindmapComponent({ title, markdown }: WsmMindmapCompo
     } catch (err) {
       console.error('Erro ao renderizar o mapa mental:', err);
     }
-  }, [markdown]);
+  }, [markdown, svgSize.width]);
 
   // Initialize/update fullscreen view when opened
   useEffect(() => {
-    if (!isFullscreen || !fullscreenSvgRef.current || !markdown) return;
+    if (!isFullscreen || !fullscreenSvgRef.current || !markdown || fullscreenSvgSize.width === 0) return;
 
     try {
       const { root } = transformer.transform(markdown);
@@ -61,7 +88,7 @@ export default function WsmMindmapComponent({ title, markdown }: WsmMindmapCompo
     } catch (err) {
       console.error('Erro ao renderizar o mapa mental em tela cheia:', err);
     }
-  }, [isFullscreen, markdown]);
+  }, [isFullscreen, markdown, fullscreenSvgSize.width]);
 
   const handleFit = () => {
     if (isFullscreen && fullscreenMarkmapRef.current) {
@@ -149,10 +176,16 @@ export default function WsmMindmapComponent({ title, markdown }: WsmMindmapCompo
       </div>
 
       {/* SVG Container */}
-      <div className={`relative w-full ${isModal ? 'flex-1 h-full' : 'h-[380px] sm:h-[430px]'} bg-white dark:bg-neutral-900 overflow-hidden`}>
+      <div 
+        ref={isModal ? fullscreenContainerRef : containerRef}
+        className={`relative w-full ${isModal ? 'flex-1 h-full' : 'h-[380px] sm:h-[430px]'} bg-white dark:bg-neutral-900 overflow-hidden`}
+      >
         <svg 
           ref={isModal ? fullscreenSvgRef : svgRef} 
-          className="w-full h-full text-gray-900 dark:text-neutral-100" 
+          width={isModal ? fullscreenSvgSize.width : svgSize.width}
+          height={isModal ? fullscreenSvgSize.height : svgSize.height}
+          className="text-gray-900 dark:text-neutral-100"
+          style={{ visibility: ((isModal ? fullscreenSvgSize.width : svgSize.width) > 0) ? 'visible' : 'hidden' }}
         />
       </div>
     </div>

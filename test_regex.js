@@ -1,26 +1,14 @@
-const str = `{
-  "title": "index.html",
-  "content": "<!DOCTYPE html>\n<html>\n</html>",
-  "format": "html"
-}`;
-
-  let content = '';
-  const contentStartIdx = str.search(/"content"\s*:\s*["'`]/i);
-  if (contentStartIdx !== -1) {
-    const colonIdx = str.indexOf(':', contentStartIdx);
-    const match = str.substring(colonIdx).match(/["'`]/);
+const regex = /<(wsm_doc)(?:\s+[^>]*)?>([\s\S]*?)<\/\1>/i;
+let text = "<wsm_doc format=\"html\"><h1>hello</h1></wsm_doc>\n<wsm_doc format=\"md\"># markdown</wsm_doc>";
+let currentText = text;
+const rawDocObjs = [];
+while (true) {
+    const match = regex.exec(currentText);
     if (match) {
-      const quoteChar = match[0];
-      const quoteStart = colonIdx + match.index;
-      let rest = str.substring(quoteStart + 1);
-      
-      console.log("REST before:", JSON.stringify(rest));
-      rest = rest.replace(new RegExp(quoteChar + "\\s*,\\s*\\\"format\\\"[\\s\\S]*$", "i"), '');
-      rest = rest.replace(new RegExp(quoteChar + "\\s*,\\s*\\\"title\\\"[\\s\\S]*$", "i"), '');
-      rest = rest.replace(new RegExp(quoteChar + "\\s*\\}[\\s\\S]*$", "i"), '');
-      rest = rest.replace(/["'`]$/, '');
-
-      console.log("REST after:", JSON.stringify(rest));
-      content = rest;
+        rawDocObjs.push(match[2]);
+        currentText = currentText.substring(0, match.index) + currentText.substring(match.index + match[0].length);
+    } else {
+        break;
     }
-  }
+}
+console.log(rawDocObjs);

@@ -349,6 +349,23 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
 
   for (const doc of rawDocObjs) {
     doc.title = normalizeFilename(doc.title);
+    
+    if (doc.format) {
+      let ext = doc.format.toLowerCase();
+      if (ext === 'markdown') ext = 'md';
+      else if (ext === 'excel' || ext === 'csv' || ext === 'sheet' || ext === 'planilha') ext = 'xlsx';
+      else if (ext === 'python') ext = 'py';
+      else if (ext === 'javascript') ext = 'js';
+      else if (ext === 'typescript') ext = 'ts';
+
+      if (ext && ext !== 'documento' && ext !== 'code') {
+        const dotExt = `.${ext}`;
+        if (!doc.title.toLowerCase().endsWith(dotExt)) {
+          doc.title += dotExt;
+        }
+      }
+    }
+
     const key = `${doc.title.toLowerCase()}:::${doc.content.substring(0, 100)}`;
     if (!seenKeys.has(key)) {
       seenKeys.add(key);

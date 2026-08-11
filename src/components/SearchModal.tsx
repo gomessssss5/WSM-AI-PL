@@ -122,50 +122,75 @@ export default function SearchModal({
     }
   };
 
-  // Get message snippet (last user or AI message text)
-  const getMessageSnippet = (session: ChatSession) => {
+  // Get search match context (title and preview)
+  const getSearchMatchContext = (session: ChatSession, query: string) => {
+    const defaultTitle = session.title || 'Nova conversa';
+    
     if (!session.messages || session.messages.length === 0) {
-      return 'Nenhuma mensagem nesta conversa';
+      return { title: defaultTitle, preview: 'Nenhuma mensagem nesta conversa' };
     }
     
-    // Find the first AI message that actually has text
-    let msgWithText = session.messages
-      .find(m => m.sender === 'ai' && !m.isHidden && (m.text || m.finalSynthesis));
+    const cleanText = (text: string) => {
+      let t = text || '';
+      t = t.replace(/<raciocinio>[\s\S]*?<\/raciocinio>/g, '');
+      if (t.includes('<raciocinio>')) t = t.substring(0, t.indexOf('<raciocinio>'));
+      t = t.replace(/<task>[\s\S]*?<\/task>/g, '');
+      if (t.includes('<task>')) t = t.substring(0, t.indexOf('<task>'));
       
-    if (!msgWithText) {
-      // Fallback to user message if no AI message
-      msgWithText = session.messages
-        .find(m => m.sender === 'user' && !m.isHidden && m.text);
-    }
-      
-    if (!msgWithText) return 'Conversa vazia';
-    
-    let textToUse = msgWithText.finalSynthesis || msgWithText.text || '';
-    
-    // Remove reasoning blocks
-    textToUse = textToUse.replace(/<raciocinio>[\s\S]*?<\/raciocinio>/g, '');
-    if (textToUse.includes('<raciocinio>')) {
-      textToUse = textToUse.substring(0, textToUse.indexOf('<raciocinio>'));
-    }
-    
-    // Remove task blocks
-    textToUse = textToUse.replace(/<task>[\s\S]*?<\/task>/g, '');
-    if (textToUse.includes('<task>')) {
-      textToUse = textToUse.substring(0, textToUse.indexOf('<task>'));
-    }
-    
-    // Clean markdown bold, lists, headers to make snippet look clean
-    let cleaned = textToUse
-      .replace(/[\*\#\`\_\-\>\[\]\(\)]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-      
-    if (!cleaned) return 'Conversa vazia';
+      return t
+        .replace(/[\*\#\`\_\-\>\[\]\(\)]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
 
-    if (cleaned.length > 100) {
-      return cleaned.substring(0, 100) + '...';
+    const truncate = (t: string, len: number) => t.length > len ? t.substring(0, len) + '...' : t;
+    
+    // Fallback if no query or no match found
+    const fallback = () => {
+      let msgWithText = session.messages.find(m => m.sender === 'ai' && !m.isHidden && (m.text || m.finalSynthesis)) || 
+                        session.messages.find(m => m.sender === 'user' && !m.isHidden && m.text);
+      let preview = msgWithText ? cleanText(msgWithText.finalSynthesis || msgWithText.text || '') : 'Conversa vazia';
+      return { title: defaultTitle, preview: truncate(preview, 100) };
+    };
+
+    if (!query.trim()) {
+      return fallback();
     }
-    return cleaned;
+
+    const q = query.toLowerCase();
+
+    // Find the first message that matches the query
+    const matchIndex = session.messages.findIndex(m => {
+      const text = (m.finalSynthesis || m.text || '').toLowerCase();
+      return text.includes(q);
+    });
+
+    if (matchIndex === -1) {
+      return fallback();
+    }
+
+    const matchedMsg = session.messages[matchIndex];
+
+    if (matchedMsg.sender === 'user') {
+      // User message matched -> show user message as title context, next AI as preview
+      const titleText = cleanText(matchedMsg.text || '');
+      const title = truncate(titleText, 60);
+      
+      let nextAi = session.messages.slice(matchIndex + 1).find(m => m.sender === 'ai' && !m.isHidden);
+      let preview = nextAi ? cleanText(nextAi.finalSynthesis || nextAi.text || '') : 'Nenhuma resposta da IA';
+      
+      return { title: title || defaultTitle, preview: truncate(preview, 100) };
+    } else {
+      // AI message matched -> show previous user message as title context, AI message as preview
+      const previewText = cleanText(matchedMsg.finalSynthesis || matchedMsg.text || '');
+      const preview = truncate(previewText, 100);
+      
+      let prevUser = [...session.messages].slice(0, matchIndex).reverse().find(m => m.sender === 'user' && !m.isHidden);
+      const titleText = prevUser ? cleanText(prevUser.text || '') : '';
+      const title = titleText ? truncate(titleText, 60) : defaultTitle;
+      
+      return { title, preview };
+    }
   };
 
   // Render Category Icon
@@ -285,7 +310,9 @@ export default function SearchModal({
 
                     {/* Group Items */}
                     <div className="flex flex-col gap-0.5">
-                      {groupSessions.map((session) => (
+                      {groupSessions.map((session) => {
+                        const matchContext = getSearchMatchContext(session, searchQuery);
+                        return (
                         <button
                           key={session.id}
                           onClick={() => {
@@ -303,7 +330,7 @@ export default function SearchModal({
                           <div className="flex-1 min-w-0 flex flex-col">
                             <div className="flex items-center justify-between gap-2">
                               <h4 className="text-[13px] font-semibold text-gray-800 truncate group-hover:text-black transition-colors leading-tight">
-                                {session.title || 'Nova conversa'}
+                                {matchContext.title}
                               </h4>
                               <span className="text-[10px] text-gray-400 group-hover:text-gray-500 shrink-0 font-medium font-mono">
                                 {formatSessionTime(session.timestamp)}
@@ -311,11 +338,11 @@ export default function SearchModal({
                             </div>
                             
                             <p className="text-[11.5px] text-gray-500 group-hover:text-gray-600 transition-colors mt-0.5 line-clamp-2 leading-relaxed">
-                              {getMessageSnippet(session)}
+                              {matchContext.preview}
                             </p>
                           </div>
                         </button>
-                      ))}
+                      )})}
                     </div>
                   </div>
                 );

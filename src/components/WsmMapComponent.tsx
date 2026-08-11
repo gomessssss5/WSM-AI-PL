@@ -2,6 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ExternalLink, MapPin, Star, Maximize2, X } from 'lucide-react';
 
+interface MarkerData {
+  lat: number;
+  lon: number;
+  title: string;
+}
+
 interface WsmMapComponentProps {
   key?: string;
   lat: number;
@@ -10,6 +16,7 @@ interface WsmMapComponentProps {
   place?: string;
   wiki?: string;
   text?: string;
+  markers?: MarkerData[];
 }
 
 interface WikiData {
@@ -26,6 +33,7 @@ export default function WsmMapComponent({
   place = '',
   wiki = '',
   text = '',
+  markers = [],
 }: WsmMapComponentProps) {
   const [wikiData, setWikiData] = useState<WikiData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -144,8 +152,24 @@ export default function WsmMapComponent({
           maxZoom: 19
         }).addTo(map);
 
-        const marker = L.marker([${lat}, ${lon}]).addTo(map);
-        marker.bindPopup('<strong>${(place || wiki || 'Localização').replace(/'/g, "\\'")}</strong>', { closeButton: true });
+        const markersList = ${JSON.stringify(markers && markers.length > 0 ? markers : [{lat, lon, title: place || wiki || 'Localização'}])};
+        const featureGroup = L.featureGroup();
+        
+        markersList.forEach(m => {
+          const marker = L.marker([m.lat, m.lon]);
+          if (m.title) {
+            marker.bindPopup('<strong>' + m.title.replace(/'/g, "\\'") + '</strong>', { closeButton: true });
+          }
+          marker.addTo(featureGroup);
+        });
+        
+        featureGroup.addTo(map);
+        
+        if (markersList.length > 1) {
+          map.fitBounds(featureGroup.getBounds(), { padding: [20, 20] });
+        } else if (markersList.length === 1) {
+          map.setView([markersList[0].lat, markersList[0].lon], ${zoom});
+        }
 
         document.getElementById('zoomIn').addEventListener('click', () => map.zoomIn());
         document.getElementById('zoomOut').addEventListener('click', () => map.zoomOut());

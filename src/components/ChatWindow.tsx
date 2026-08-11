@@ -490,7 +490,33 @@ export default function ChatWindow({
     }
   });
 
+  const menuRef = useRef<HTMLDivElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isMenuOpen) {
+        setIsMenuOpen(false);
+      }
+    };
+    
+    const handleClickOutside = (e: MouseEvent) => {
+      if (isMenuOpen && menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    if (isMenuOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMenuOpen]);
+
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [reportText, setReportText] = useState('');
   const [isRateModalOpen, setIsRateModalOpen] = useState(false);
@@ -1560,7 +1586,7 @@ export default function ChatWindow({
               Nova conversa
             </button>
           ) : (
-            <div className="relative">
+            <div className="relative" ref={menuRef}>
               <button
                 id="btn-chat-options"
                 onClick={() => setIsMenuOpen(!isMenuOpen)}

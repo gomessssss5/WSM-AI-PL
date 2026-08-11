@@ -66,6 +66,25 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
     return isScriptExt || isScriptTitle;
   };
 
+  // Helper to ensure all filenames in the library have their proper extension appended
+  const ensureFileExtension = (rawTitle: string, format: string): string => {
+    if (!rawTitle) return `documento.${format || 'pdf'}`;
+    let ext = (format || '').toLowerCase();
+    if (ext === 'markdown') ext = 'md';
+    else if (ext === 'excel' || ext === 'csv' || ext === 'sheet' || ext === 'planilha') ext = 'xlsx';
+    else if (ext === 'python') ext = 'py';
+    else if (ext === 'javascript') ext = 'js';
+    else if (ext === 'typescript') ext = 'ts';
+    
+    if (!ext || ext === 'code' || ext === 'documento') return rawTitle;
+
+    const dotExt = `.${ext}`;
+    if (!rawTitle.toLowerCase().endsWith(dotExt)) {
+      return `${rawTitle}${dotExt}`;
+    }
+    return rawTitle;
+  };
+
   // Dynamically extract all files from AI messages across all sessions
   const allFiles = useMemo(() => {
     const files: LibraryFile[] = [];
@@ -79,10 +98,12 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
             docObjs.forEach((doc, idx) => {
               const fileId = `${msg.id}-doc-${idx}`;
               if (!deletedFileIds.has(fileId)) {
+                const fmt = doc.format || 'pdf';
+                const baseTitle = renamedFiles[fileId] || doc.title || 'Documento sem título';
                 files.push({
                   id: fileId,
-                  title: renamedFiles[fileId] || doc.title || 'Documento sem título',
-                  format: doc.format || 'pdf',
+                  title: ensureFileExtension(baseTitle, fmt),
+                  format: fmt,
                   content: doc.content,
                   timestamp: new Date(msg.timestamp),
                   sessionTitle: session.title,
@@ -96,10 +117,12 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
           if (msg.tableData) {
             const fileId = `${msg.id}-table`;
             if (!deletedFileIds.has(fileId)) {
+              const fmt = 'xlsx';
+              const baseTitle = renamedFiles[fileId] || `Planilha - ${session.title}`;
               files.push({
                 id: fileId,
-                title: renamedFiles[fileId] || `Planilha - ${session.title}`,
-                format: 'xlsx',
+                title: ensureFileExtension(baseTitle, fmt),
+                format: fmt,
                 content: JSON.stringify(msg.tableData),
                 timestamp: new Date(msg.timestamp),
                 sessionTitle: session.title,
@@ -112,10 +135,12 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
           if (msg.codeBlock && (!docObjs || docObjs.length === 0)) {
             const fileId = `${msg.id}-code`;
             if (!deletedFileIds.has(fileId)) {
+              const fmt = msg.codeBlock.language || 'code';
+              const baseTitle = renamedFiles[fileId] || `Código - ${msg.codeBlock.language.toUpperCase()}`;
               files.push({
                 id: fileId,
-                title: renamedFiles[fileId] || `Código - ${msg.codeBlock.language.toUpperCase()}`,
-                format: msg.codeBlock.language || 'code',
+                title: ensureFileExtension(baseTitle, fmt),
+                format: fmt,
                 content: msg.codeBlock.code,
                 timestamp: new Date(msg.timestamp),
                 sessionTitle: session.title,
@@ -455,11 +480,16 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
                             <h3 className="font-sans font-bold text-gray-900 text-[14px] leading-snug line-clamp-2">
                               {file.title}
                             </h3>
-                            {isIntermediateFile(file) && (
-                              <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-                                Script Intermediário
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                              <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-gray-100 text-gray-700 border border-gray-200">
+                                {file.format}
                               </span>
-                            )}
+                              {isIntermediateFile(file) && (
+                                <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                                  Script Intermediário
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div className="relative">
                             <button 
@@ -536,9 +566,14 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
                             {getFileIcon(file.format)}
                           </div>
                           <div className="min-w-0">
-                            <h3 className="font-sans font-semibold text-gray-900 text-[13.5px] truncate pr-2">
-                              {file.title}
-                            </h3>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-sans font-semibold text-gray-900 text-[13.5px] truncate">
+                                {file.title}
+                              </h3>
+                              <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-gray-100 text-gray-700 border border-gray-200">
+                                {file.format}
+                              </span>
+                            </div>
                             <span className="text-[11px] text-gray-400">
                               Gerado em {file.timestamp.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
                             </span>

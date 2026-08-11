@@ -773,7 +773,7 @@ export default function MarkdownRenderer({
     interface SlashToken { id: string; text: string; }
     const slashTokens: SlashToken[] = [];
 
-    // Extract slash commands (e.g., /web, /calculadora, /relogio, /função)
+    // 0. Extract slash commands (e.g., /web, /calculadora, /relogio, /função)
     const slashRegex = /(?:^|\s)(\/[a-zA-Z0-9áéíóúâêîôûãõàèìòùäëïöüÿñçÇÁÉÍÓÚÂÊÎÔÛÃÕÀÈÌÒÙÄËÏÖÜŸÑ_]+)/gi;
     currentText = currentText.replace(slashRegex, (match, cmd) => {
       const id = `:::SLASHTOKEN-${slashTokens.length}:::`;
@@ -782,8 +782,71 @@ export default function MarkdownRenderer({
       return space + id;
     });
 
-    // 0. Extract agentic tags: [pesquisou na web], [calculando], [verificando relógio], and active/completed states
-    const agenticRegex = /\[(pesquisou na web|pesquisando[\s\S]*?|acessando site[\s\S]*?|acessando[\s\S]*?|abrindo site[\s\S]*?|lendo página[\s\S]*?|lendo conteúdo[\s\S]*?|preparando resumo[\s\S]*?|preparando[\s\S]*?|elaborando resposta[\s\S]*?|elaborando[\s\S]*?|analisando[\s\S]*?|processando[\s\S]*?|sintetizando[\s\S]*?|extraindo[\s\S]*?|buscando[\s\S]*?|calculando[\s\S]*?|verificando[\s\S]*?|clicando[\s\S]*?|digitando[\s\S]*?|rolando[\s\S]*?|aguardando[\s\S]*?|aguardou[\s\S]*?|criando skill[\s\S]*?|editando skill[\s\S]*?|excluindo skill[\s\S]*?|criou skill[\s\S]*?|editou skill[\s\S]*?|excluiu skill[\s\S]*?|criando documento[\s\S]*?|criou documento[\s\S]*?|lendo documento[\s\S]*?|leu documento[\s\S]*?|editando documento[\s\S]*?|editou documento[\s\S]*?|excluindo documento[\s\S]*?|excluiu documento[\s\S]*?|listando documentos[\s\S]*?|listou documentos[\s\S]*?|código 100% verificado[\s\S]*?|corrigindo erro[\s\S]*?|sandbox de depuração[\s\S]*?|nova tarefa[\s\S]*?|passo concluído[\s\S]*?|documento não encontrado[\s\S]*?|[a-zà-ú0-9_ \.:\-\/'"\(\)]+(?:\.\.\.|…))\]/gi;
+    // 0.1 Extract markdown images: ![alt](url) FIRST
+    const inlineImageRegex = /!\[([^\[\]]*)\]\(([^)]+)\)/g;
+    currentText = currentText.replace(inlineImageRegex, (match, altText, url) => {
+      // If it's a base64 data URI, strip it completely so raw base64 text is never dumped into chat text
+      if (url.trim().startsWith('data:image/')) {
+        return '';
+      }
+      const id = `:::LINKTOKEN-${linkTokens.length}:::`;
+      linkTokens.push({ id, text: altText || 'Imagem', url });
+      return id;
+    });
+
+    // 0.2 Extract links: [text](url) FIRST so agenticRegex does not swallow citation links [Title...](url)
+    // Use [^\[\]]+ to ensure nested brackets [ [Title](url) ] are not matched across outer brackets
+    const inlineLinkRegex = /\[([^\[\]]+)\]\(([^)]+)\)/g;
+    currentText = currentText.replace(inlineLinkRegex, (match, textContent, url) => {
+      if (!textContent.trim() || !url.trim()) return match;
+      if (url.trim().startsWith('data:image/')) return '';
+      const id = `:::LINKTOKEN-${linkTokens.length}:::`;
+      linkTokens.push({ id, text: textContent.trim(), url });
+      return id;
+    });
+
+    // 0.3 Extract standalone citation numbers [1], [2], [1, 2] or [Fonte #1]
+    const standaloneCitationRegex = /\[(?:Fonte\s*:?\s*#?|#)?\s*(\d+)(?:\s*,\s*#?\s*(\d+))?\]/gi;
+    currentText = currentText.replace(standaloneCitationRegex, (match, n1, n2) => {
+      const nums = [n1, n2].filter(Boolean);
+      let replacement = '';
+      for (const numStr of nums) {
+        const idx = parseInt(numStr, 10) - 1;
+        const src = (searchSources && searchSources[idx]) ? searchSources[idx] : null;
+        let domain = '';
+        let url = '#';
+        let label = `Fonte #${numStr}`;
+
+        if (src && src.url) {
+          url = src.url;
+          try {
+            domain = new URL(src.url).hostname.replace(/^www\./, '');
+          } catch {
+            domain = src.url;
+          }
+          label = src.title || domain || `Fonte #${numStr}`;
+        }
+
+        const id = `:::LINKTOKEN-${linkTokens.length}:::`;
+        linkTokens.push({ id, text: label, url });
+        replacement += (replacement ? ' ' : '') + id;
+      }
+      return replacement || match;
+    });
+
+    // 0.4 Strip outer brackets wrapping link tokens, e.g. [ :::LINKTOKEN-0::: ] or [ :::LINKTOKEN-0::: , :::LINKTOKEN-1::: ]
+    const outerBracketsLinkRegex = /\[\s*((?::::LINKTOKEN-\d+:::|[\s,;])+)\]/g;
+    currentText = currentText.replace(outerBracketsLinkRegex, (match, inner) => {
+      const cleanInner = inner.replace(/\s+,/g, ',').trim();
+      return cleanInner ? ` ${cleanInner}` : match;
+    });
+
+    // Clean up trailing spaces before punctuation
+    currentText = currentText.replace(/(:::LINKTOKEN-\d+:::)\s+([.,;!])/g, '$1$2');
+
+    // 1. Extract agentic tags: [pesquisou na web], [calculando], [verificando relógio], and active/completed states
+    // Note negative lookahead (?!\s*\() to prevent matching markdown link text [Text](url)
+    const agenticRegex = /\[(pesquisou na web|pesquisando[\s\S]*?|acessando site[\s\S]*?|acessando[\s\S]*?|abrindo site[\s\S]*?|lendo página[\s\S]*?|lendo conteúdo[\s\S]*?|preparando resumo[\s\S]*?|preparando[\s\S]*?|elaborando resposta[\s\S]*?|elaborando[\s\S]*?|analisando[\s\S]*?|processando[\s\S]*?|sintetizando[\s\S]*?|extraindo[\s\S]*?|buscando[\s\S]*?|calculando[\s\S]*?|verificando[\s\S]*?|clicando[\s\S]*?|digitando[\s\S]*?|rolando[\s\S]*?|aguardando[\s\S]*?|aguardou[\s\S]*?|criando skill[\s\S]*?|editando skill[\s\S]*?|excluindo skill[\s\S]*?|criou skill[\s\S]*?|editou skill[\s\S]*?|excluiu skill[\s\S]*?|criando documento[\s\S]*?|criou documento[\s\S]*?|lendo documento[\s\S]*?|leu documento[\s\S]*?|editando documento[\s\S]*?|editou documento[\s\S]*?|excluindo documento[\s\S]*?|excluiu documento[\s\S]*?|listando documentos[\s\S]*?|listou documentos[\s\S]*?|código 100% verificado[\s\S]*?|corrigindo erro[\s\S]*?|sandbox de depuração[\s\S]*?|nova tarefa[\s\S]*?|passo concluído[\s\S]*?|documento não encontrado[\s\S]*?)\](?!\s*\()/gi;
     const seenAgenticTypes = new Set<string>();
     currentText = currentText.replace(agenticRegex, (match, tagContent) => {
       const id = `:::AGENTICTOKEN-${agenticTokens.length}:::`;
@@ -863,28 +926,6 @@ export default function MarkdownRenderer({
       if (!code.trim()) return match;
       const id = `:::CODETOKEN-${codeTokens.length}:::`;
       codeTokens.push({ id, code });
-      return id;
-    });
-
-    // 2.8 Extract markdown images: ![alt](url)
-    const inlineImageRegex = /!\[(.*?)\]\((.*?)\)/g;
-    currentText = currentText.replace(inlineImageRegex, (match, altText, url) => {
-      // If it's a base64 data URI, strip it completely so raw base64 text is never dumped into chat text
-      if (url.trim().startsWith('data:image/')) {
-        return '';
-      }
-      const id = `:::LINKTOKEN-${linkTokens.length}:::`;
-      linkTokens.push({ id, text: altText || 'Imagem', url });
-      return id;
-    });
-
-    // 3. Extract links: [text](url)
-    const inlineLinkRegex = /\[(.*?)\]\((.*?)\)/g;
-    currentText = currentText.replace(inlineLinkRegex, (match, textContent, url) => {
-      if (!textContent.trim() || !url.trim()) return match;
-      if (url.trim().startsWith('data:image/')) return '';
-      const id = `:::LINKTOKEN-${linkTokens.length}:::`;
-      linkTokens.push({ id, text: textContent, url });
       return id;
     });
 
@@ -1116,18 +1157,27 @@ export default function MarkdownRenderer({
               if (token) {
                 let domain = '';
                 try {
-                  domain = new URL(token.url).hostname.replace('www.', '');
+                  domain = new URL(token.url).hostname.replace(/^www\./, '');
                 } catch {
                   domain = token.text;
                 }
+
+                let displayText = token.text.trim();
+                // Clean up raw URLs to domain
+                if (displayText.startsWith('http://') || displayText.startsWith('https://')) {
+                  displayText = domain;
+                }
+
                 const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+
                 return (
                   <a
                     key={`link-${pIdx}-${keyIndex++}`}
                     href={token.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#f0ede8] hover:bg-gray-200 border border-gray-200 rounded-full text-xs text-gray-700 font-medium transition-colors select-none mx-0.5 align-middle cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-0.5 my-0.5 mx-1 bg-gray-100/90 hover:bg-gray-200/90 dark:bg-zinc-800/90 dark:hover:bg-zinc-700/90 border border-gray-200/80 dark:border-zinc-700/80 rounded-full text-[12px] font-medium text-gray-700 dark:text-gray-300 transition-all select-none cursor-pointer align-baseline max-w-full truncate no-underline shadow-2xs"
+                    title={displayText}
                   >
                     <img
                       src={faviconUrl}
@@ -1137,7 +1187,7 @@ export default function MarkdownRenderer({
                         (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%23666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>';
                       }}
                     />
-                    <span>{token.text}</span>
+                    <span className="truncate">{displayText}</span>
                   </a>
                 );
               }
@@ -1523,6 +1573,17 @@ export default function MarkdownRenderer({
         const placeVal = parseAttr(mapLine, 'place');
         const wikiVal = parseAttr(mapLine, 'wiki');
         const textVal = parseAttr(mapLine, 'text');
+        
+        let markersVal = [];
+        const markersAttr = parseAttr(mapLine, 'markers');
+        if (markersAttr) {
+          try {
+             const decoded = markersAttr.replace(/&quot;/g, '"');
+             markersVal = JSON.parse(decoded);
+          } catch(e) {
+             console.error("Failed to parse map markers:", e);
+          }
+        }
 
         if (!isNaN(latVal) && !isNaN(lonVal)) {
           blocks.push(
@@ -1534,6 +1595,7 @@ export default function MarkdownRenderer({
               place={placeVal}
               wiki={wikiVal}
               text={textVal}
+              markers={markersVal}
             />
           );
           i++;

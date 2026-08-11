@@ -327,6 +327,72 @@ Instruções Importantes:
 2. Ao realizar pesquisas ou análises temporais (como "notícias de hoje", "jogos de hoje"), tome a data (${userDate}) e a cidade do usuário (${userCity}) como referência absoluta.
 `;
 
+  async function searchWebFallback(query: string): Promise<{ title: string; url: string; snippet: string }[]> {
+    const results: { title: string; url: string; snippet: string }[] = [];
+    const cleanQuery = query.replace(/^pesquise\s*(sobre|por)?\s*/i, "").trim();
+    if (!cleanQuery) return results;
+
+    // 1. Google News RSS Search
+    try {
+      const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(cleanQuery)}&hl=pt-BR&gl=BR&ceid=BR:pt-419`;
+      const res = await fetch(rssUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+      });
+      if (res.ok) {
+        const xml = await res.text();
+        const itemRegex = /<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<link>(.*?)<\/link>[\s\S]*?<pubDate>(.*?)<\/pubDate>[\s\S]*?(?:<description>(.*?)<\/description>)?[\s\S]*?<\/item>/gi;
+        let match;
+        while ((match = itemRegex.exec(xml)) !== null && results.length < 8) {
+          let rawTitle = match[1] || "";
+          let title = rawTitle.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1").replace(/<[^>]+>/g, "").trim();
+          let link = (match[2] || "").trim();
+          let pubDate = match[3] ? match[3].trim() : "";
+          let rawDesc = match[4] || "";
+          let desc = rawDesc.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1").replace(/<[^>]+>/g, "").trim();
+
+          if (title && link) {
+            results.push({
+              title,
+              url: link,
+              snippet: `${pubDate ? "[" + pubDate.slice(0, 16) + "] " : ""}${desc || title}`
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error("[Search Fallback] Google News RSS error:", e);
+    }
+
+    // 2. Wikipedia Search API
+    try {
+      const wikiUrl = `https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(cleanQuery)}&utf8=&format=json&origin=*`;
+      const res = await fetch(wikiUrl);
+      if (res.ok) {
+        const data = await res.json();
+        const items = data.query?.search || [];
+        for (const item of items) {
+          if (results.length >= 10) break;
+          const cleanSnippet = (item.snippet || "")
+            .replace(/<[^>]+>/g, "")
+            .replace(/&quot;/g, '"')
+            .replace(/&amp;/g, '&')
+            .trim();
+          results.push({
+            title: `${item.title} - Wikipédia`,
+            url: `https://pt.wikipedia.org/wiki/${encodeURIComponent(item.title.replace(/ /g, "_"))}`,
+            snippet: cleanSnippet
+          });
+        }
+      }
+    } catch (e) {
+      console.error("[Search Fallback] Wikipedia error:", e);
+    }
+
+    return results;
+  }
+
   const chatMemoryInstruction = `
 ## DOCUMENTO INTERNO DE MEMÓRIA DA CONVERSA (HISTÓRICO CONCISO OBRIGATÓRIO)
 Você possui um Arquivo Interno de Memória Continuada desta conversa (invisível para o usuário). Ele armazena preferências do usuário, fatos do projeto, códigos, decisões e contextos relevantes para que você lembre de tudo sem precisar do histórico longo e pesado de mensagens passadas.
@@ -389,12 +455,20 @@ REGRAS OBRIGATÓRIAS DA TAG DE HISTÓRICO (<history>...</history>):
       });
     }
 
-    let shouldSearch = effectiveSearchEnabled;
+    const userPromptText = typeof text === 'string' ? text : JSON.stringify(text);
+    const userPromptLow = userPromptText.toLowerCase();
+    const isHtmlSiteRequest = /\b(html|site|landing\s*page|página|pagina|website|frontend)\b/i.test(userPromptLow);
 
-    // Pro uses its own agentic flow for autonomous tool use, but if search is explicitly enabled (manual toggle, scheduled task, or text prompt request), we let it use the structured search flow!
-    if (model === 'Omnix 1.6' && !effectiveSearchEnabled) {
-      shouldSearch = false;
-    } else if (!shouldSearch && process.env.TAVILY_API_KEY) {
+    const promptExplicitSearch = !isHtmlSiteRequest && (
+      Boolean(effectiveSearchEnabled) ||
+      /\b(pesquis\w*|busc\w*|procur\w*)\s+(na\s+web|na\s+internet|no\s+google|sobre|por)\b/i.test(userPromptLow) ||
+      /\b(pesquise|pesquisar|busque|buscar|procure|procurar)\s+(na\s+web|na\s+internet|sobre|por)\b/i.test(userPromptLow) ||
+      /\b(últimas\s+notícias|noticias\s+de\s+hoje|notícias\s+recentes|cotação\s+do\s+dólar|cotação\s+do\s+euro)\b/i.test(userPromptLow)
+    );
+
+    let shouldSearch = promptExplicitSearch;
+
+    if (!shouldSearch && process.env.TAVILY_API_KEY && !isHtmlSiteRequest) {
       // AI autonomously decides if it needs to search the web for this query
       const triageBase = getSystemPrompt('web_search_triage', `Você é o classificador de intenção de busca web do assistente Omnix AI.`);
       const triagePrompt = `${triageBase}\n\nO usuário enviou a seguinte mensagem/pergunta: "${text}"\n\nAvalie se esta mensagem requer uma pesquisa na web em tempo real para ser respondida adequadamente. Se sim, responda EXCLUSIVAMENTE com a palavra "SIM". Se puder responder sem pesquisa, responda EXCLUSIVAMENTE "NAO".`;
@@ -568,10 +642,20 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
               allImages.push(...imgs);
             }
           } else {
-            console.error(`Tavily error for "${step.tag}":`, response.statusText);
+            console.log(`[Search] Tavily API returned ${response.status} ${response.statusText} for "${step.tag}". Switching to Web Fallback.`);
           }
         } catch (err) {
-          console.error(`Tavily error for "${step.tag}":`, err);
+          console.log(`[Search] Tavily request failed for "${step.tag}". Switching to Web Fallback.`);
+        }
+
+        // If Tavily search returned no results or failed, execute web fallback
+        if (stepResults.length === 0) {
+          console.log(`[Search] Fallback to searchWebFallback for step tag: "${step.tag}"`);
+          const fallbackRes = await searchWebFallback(step.tag);
+          fallbackRes.forEach((r) => {
+            stepResults.push(r);
+            allSources.push(r);
+          });
         }
 
         const completedStepData = {
@@ -592,6 +676,13 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
 
         // Small delay (300ms)
         await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+
+      // If all steps yielded no sources, do a global fallback on the entire user text
+      if (allSources.length === 0) {
+        console.log(`[Search] Fallback to searchWebFallback for global query: "${text}"`);
+        const globalFallback = await searchWebFallback(text);
+        globalFallback.forEach((r) => allSources.push(r));
       }
 
       // De-duplicate images and sources
@@ -661,26 +752,42 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
 - **Data e Dia Atual**: ${userDate}
 - **Horário Exato Local**: ${userTime} (${userTimezone})
 
---- REGRA OBRIGATÓRIA DE CITAÇÃO INLINE ---
-CITE ATIVAMENTE as fontes fornecidas inserindo links Markdown [Nome da Fonte](URL) diretamente no corpo do texto ao final das frases/parágrafos correspondentes. Exemplo: "Segundo os dados mais recentes [Globo Rural](https://globorural.globo.com)...". É OBRIGATÓRIO espalhar as citações em formato de link [Nome da Fonte](URL) ao longo de todo o texto.
+--- REGRA OBRIGATÓRIA E ABSOLUTA DE CITAÇÃO INLINE NO MEIO DO TEXTO ---
+Você É ESTRITAMENTE OBRIGADO a colocar as citações das fontes NO MEIO DO TEXTO, no final dos parágrafos ou frases onde cada informação é apresentada.
+É PROIBIDO colocar citações apenas no final do texto ou omiti-las nos parágrafos.
+Formato obrigatório para citar no meio do texto:
+Use o formato de link Markdown [Nome do Veículo/Site](URL) com o título da fonte e a URL real correspondente da lista de Informações de Pesquisa abaixo, ou use [Fonte #1], [Fonte #2] ao final de cada parágrafo.
+IMPORTANTE: NÃO envolva os links em colchetes adicionais. Escreva [Nome](URL) diretamente, NUNCA [ [Nome](URL) ] ou [[Fonte #1]].
+Exemplo de como escrever:
+"Neymar é um dos principais jogadores da seleção brasileira [Globo Esporte](https://ge.globo.com/...). Ele passou por cirurgia recente e segue em recuperação [UOL Esporte](https://www.uol.com.br/esporte/...)."
+OU
+"Neymar atua atualmente no futebol da Arábia Saudita [Fonte #1]. Ele acumula diversos investimentos e patrimônio [Fonte #2]."
 
 --- Informações de Pesquisa ---
 ${contextInfo}`;
 
-      let finalSynthesisText = "Desculpe, não consegui sintetizar uma resposta com os resultados obtidos.";
-      
+      let finalSynthesisText = "";
       try {
-        const aiResponse = await callGeminiWithFallback({
+        const stream = await callGeminiStreamWithFallback({
           model: "gemini-3.5-flash-lite",
           contents: finalContents,
           config: {
             systemInstruction: systemPrompt
           }
         });
-        finalSynthesisText = aiResponse.text || finalSynthesisText;
+        for await (const chunk of stream) {
+          const cText = chunk.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (cText) {
+            finalSynthesisText += cText;
+            sendEvent({ type: "chunk", text: cText });
+          }
+        }
       } catch (err) {
-        console.error("Error generating final synthesis:", err);
-        finalSynthesisText = "⚠️ **Ocorreu um erro ao sintetizar os resultados da pesquisa.** Por favor, tente novamente.";
+        console.error("Error generating streaming final synthesis:", err);
+      }
+
+      if (!finalSynthesisText.trim()) {
+        finalSynthesisText = "Desculpe, não consegui sintetizar uma resposta com os resultados obtidos.";
       }
 
       // Send the final result event
@@ -1020,10 +1127,11 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
       const visitedUrlsInTurn: string[] = [];
 
       while (turnCount < 100) {
-        if (turnCount > 0) {
-          console.log(`[Pro] Waiting 2 seconds before next Gemini request to prevent rate limits...`);
-          await new Promise(r => setTimeout(r, 2000));
-        }
+        try {
+          if (turnCount > 0) {
+            console.log(`[Pro] Waiting 2 seconds before next Gemini request to prevent rate limits...`);
+            await new Promise(r => setTimeout(r, 2000));
+          }
 
         let currentToolConfig: any = undefined;
         if (!isHtmlSiteRequest && (forceNextTurnModeAny || (turnCount === 0 && (promptWantsBrowser || promptWantsSearch)))) {
@@ -1036,35 +1144,71 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
           };
         }
 
-        const responseStream = await callGeminiStreamWithFallback({
-          model: mappedModel,
-          contents: currentContents,
-          tools: marteTools,
-          config: {
-            systemInstruction: activeSystemPrompt + 
-              "\nREGRA PRINCIPAL E OBRIGATÓRIA DE ROTEAMENTO DE ARQUIVOS E MÚLTIPLOS ENTREGÁVEIS:\n" +
-              "1. RESPEITO ABSOLUTO AO FORMATO SOLICITADO: Quando o usuário pedir um formato específico (PDF, Markdown/MD, Planilha Excel/XLSX, HTML, TXT, Word/DOCX), VOCÊ É OBRIGADO A GERAR EXATAMENTE NO FORMATO SOLICITADO (format: 'md', 'pdf', 'xlsx', 'html', 'txt').\n" +
-              "2. MÚLTIPLOS ENTREGÁVEIS (2 OU MAIS ARQUIVOS): Se o usuário solicitar 2 ou mais entregáveis/arquivos na mesma mensagem (ex: 'Gere um relatório em PDF e uma planilha Excel', 'Crie 2 relatórios em PDF'), VOCÊ É OBRIGADO A GERAR TODOS OS ARQUIVOS SOLICITADOS! Crie um bloco `<wsm_doc>` ou chamada `create_document` independente para CADA arquivo pedido.\n" +
-              "3. TÍTULOS DESCRITIVOS E ÚNICOS: NUNCA nomeie arquivos como 'Documento', 'Arquivo' ou 'Documento.pdf'. Use títulos descritivos referentes ao assunto (ex: 'Relatorio_Vendas_2026.pdf', 'Planilha_Orcamento.xlsx', 'Resumo_Executivo.md', 'index.html').\n" +
-              "4. TITULO HTML: O título `<title>` de um site HTML gerado deve corresponder estritamente ao tema solicitado (ex: 'Cafeteria Aroma', 'Restaurante'). NUNCA use o nome do modelo 'Omnix' no título de sites HTML gerados para o usuário.\n" +
-              "\nNUNCA gere manualmente as tags em colchetes como `[pesquisou na web]`, `[calculando]`, `[verificando relógio]` na sua resposta final de texto. O nosso sistema de backend já insere e renderiza essas tags de progresso e status automaticamente no chat. Sua tarefa é focar exclusivamente em gerar o conteúdo final explicativo e o código, sem adicionar essas tags de status ao final." +
-              "\nREGRA DA CALCULADORA E CÓDIGO: Chame a ferramenta 'calculadora' SEMPRE que precisar realizar ou validar qualquer conta, expressão matemática, ou resultado de um código exato que envolva cálculos (ex: validando saídas numéricas de um código Python como stdev). Não confie na sua intuição para matemática. NÃO chame a calculadora para ler arquivos." +
-              "\nREGRA DE IMAGENS EM HTML/MD: Para placeholders de imagens em HTML ou Markdown, NUNCA use source.unsplash.com. Você é OBRIGADO a usar https://picsum.photos/ ou https://images.unsplash.com/photo-<ID>?w=800 ou SVGs inline." +
-              "\nREGRA DA WEB SEARCH: Use web_search EXCLUSIVAMENTE para pesquisas de fatos do mundo real, notícias atualizadas ou quando o usuário pedir explicitamente para buscar algo na web. É ESTRITAMENTE PROIBIDO usar web_search para ler textos colados pelo usuário, resumir documentos, responder dúvidas de programação ou gerar códigos." +
-              "\nREGRA DE NAVEGAÇÃO WEB REAL (PLAYWRIGHT): SEMPRE que o usuário pedir para abrir, acessar ou navegar em qualquer site (ex: Brave Search, Google, Wikipedia, etc), VOCÊ DEVE OBRIGATORIAMENTE emitir a chamada de função 'open_url' (functionCall) no MESMO TURNO. É ABSOLUTAMENTE PROIBIDO apenas escrever texto prometendo abrir o site sem enviar a chamada da ferramenta 'open_url'!" +
-              "\nREGRAS OBRIGATÓRIAS DE AGENTE SEQUENCIAL MULTI-ETAPAS (PASSO A PASSO):" +
-              "\n1. Atue como um AGENTE SEQUENCIAL AUTÔNOMO que executa tarefas agênticas em múltiplos turnos encadeados (pesquisar na web, abrir sites, clicar em botões, ler conteúdos, preparar resumos)." +
-              "\n2. Quando for realizar ações agênticas:" +
-              "\n   - Descreva brevemente para o usuário o que você vai fazer em cada etapa (ex: 'Olá! Vou abrir tal site e pesquisar sobre tal coisa para você.', 'Agora vou acessar tal site:', 'Clicando no botão do site:')." +
-              "\n   - Acompanhe cada etapa com a chamada da ferramenta correspondente ou tag de status apropriada (ex: [Pesquisando na web sobre X...], [Acessando site Y...], [Lendo conteúdo...], [Preparando resumo...])." +
-              "\n   - Use tags diversificadas de progresso para que o usuário saiba exatamente o que está acontecendo em cada passo (ex: 'Acessando site...', 'Lendo conteúdo...', 'Preparando resumo...'). NUNCA repita a mesma tag sem contexto." +
-              "\n   - Execute as ferramentas necessárias passo a passo até concluir todas as ações pedidas." +
-              "\n   - Após realizar todas as ações e ferramentas agênticas, apresente a resposta e síntese final completa para o usuário." +
-              "\n3. CRÍTICO: NUNCA escreva apenas texto conversacional prometendo ações sem enviar a chamada da ferramenta (functionCall) quando uma ação for necessária!",
-            ...(currentToolConfig ? { toolConfig: currentToolConfig } : {}),
-            temperature: 0.7
+        let responseStream: any;
+        let retryStreamCount = 0;
+        const maxStreamRetries = 2;
+        
+        while (retryStreamCount <= maxStreamRetries) {
+          try {
+             const streamPromise = callGeminiStreamWithFallback({
+              model: mappedModel,
+              contents: currentContents,
+              tools: marteTools,
+              config: {
+                systemInstruction: activeSystemPrompt + 
+                  "\nREGRA PRINCIPAL E OBRIGATÓRIA DE ROTEAMENTO DE ARQUIVOS E MÚLTIPLOS ENTREGÁVEIS:\n" +
+                  "1. RESPEITO ABSOLUTO AO FORMATO SOLICITADO: Quando o usuário pedir um formato específico (PDF, Markdown/MD, Planilha Excel/XLSX, HTML, TXT, Word/DOCX), VOCÊ É OBRIGADO A GERAR EXATAMENTE NO FORMATO SOLICITADO (format: 'md', 'pdf', 'xlsx', 'html', 'txt').\n" +
+                  "2. MÚLTIPLOS ENTREGÁVEIS (2 OU MAIS ARQUIVOS): Se o usuário solicitar 2 ou mais entregáveis/arquivos na mesma mensagem (ex: 'Gere um Markdown E um HTML'), VOCÊ É OBRIGADO A GERAR TODOS OS ARQUIVOS SOLICITADOS em blocos <wsm_doc> separados! NUNCA gere arquivos soltos no corpo do texto usando crases triplas (```) se o usuário pediu para gerar um arquivo. SEMPRE use a tag <wsm_doc> para CADA arquivo pedido.\n" +
+                  "3. TÍTULOS DESCRITIVOS E ÚNICOS: NUNCA nomeie arquivos como 'Documento', 'Arquivo' ou 'Documento.pdf'. Use títulos descritivos referentes ao assunto (ex: 'Relatorio_Vendas_2026.pdf', 'Planilha_Orcamento.xlsx', 'Resumo_Executivo.md', 'index.html').\n" +
+                  "4. TITULO HTML: O título `<title>` de um site HTML gerado deve corresponder estritamente ao tema solicitado (ex: 'Cafeteria Aroma', 'Restaurante'). NUNCA use o nome do modelo 'Omnix' no título de sites HTML gerados para o usuário.\n" +
+                  "\nNUNCA gere manualmente as tags em colchetes como `[pesquisou na web]`, `[calculando]`, `[verificando relógio]` na sua resposta final de texto. O nosso sistema de backend já insere e renderiza essas tags de progresso e status automaticamente no chat. Sua tarefa é focar exclusivamente em gerar o conteúdo final explicativo e o código, sem adicionar essas tags de status ao final." +
+                  "\nREGRA DA CALCULADORA E CÓDIGO: Chame a ferramenta 'calculadora' SEMPRE que precisar realizar ou validar qualquer conta, expressão matemática, ou resultado de um código exato que envolva cálculos (ex: validando saídas numéricas de um código Python como stdev). Não confie na sua intuição para matemática. NÃO chame a calculadora para ler arquivos." +
+                  "\nREGRA DE IMAGENS EM HTML/MD: Para placeholders de imagens em HTML ou Markdown, NUNCA use source.unsplash.com. Você é OBRIGADO a usar https://picsum.photos/ ou https://images.unsplash.com/photo-<ID>?w=800 ou SVGs inline." +
+                  "\nREGRA DA WEB SEARCH: Use web_search EXCLUSIVAMENTE para pesquisas de fatos do mundo real, notícias atualizadas ou quando o usuário pedir explicitamente para buscar algo na web. É ESTRITAMENTE PROIBIDO usar web_search para ler textos colados pelo usuário, resumir documentos, responder dúvidas de programação ou gerar códigos." +
+                  "\nREGRA DE NAVEGAÇÃO WEB REAL (PLAYWRIGHT): SEMPRE que o usuário pedir para abrir, acessar ou navegar em qualquer site (ex: Brave Search, Google, Wikipedia, etc), VOCÊ DEVE OBRIGATORIAMENTE emitir a chamada de função 'open_url' (functionCall) no MESMO TURNO. É ABSOLUTAMENTE PROIBIDO apenas escrever texto prometendo abrir o site sem enviar a chamada da ferramenta 'open_url'!" +
+                  "\nREGRAS OBRIGATÓRIAS DE AGENTE SEQUENCIAL MULTI-ETAPAS (PASSO A PASSO):" +
+                  "\n1. Atue como um AGENTE SEQUENCIAL AUTÔNOMO que executa tarefas agênticas em múltiplos turnos encadeados (pesquisar na web, abrir sites, clicar em botões, ler conteúdos, preparar resumos)." +
+                  "\n2. Quando for realizar ações agênticas:" +
+                  "\n   - Descreva brevemente para o usuário o que você vai fazer em cada etapa (ex: 'Olá! Vou abrir tal site e pesquisar sobre tal coisa para você.', 'Agora vou acessar tal site:', 'Clicando no botão do site:')." +
+                  "\n   - Acompanhe cada etapa com a chamada da ferramenta correspondente ou tag de status apropriada (ex: [Pesquisando na web sobre X...], [Acessando site Y...], [Lendo conteúdo...], [Preparando resumo...])." +
+                  "\n   - Use tags diversificadas de progresso para que o usuário saiba exatamente o que está acontecendo em cada passo (ex: 'Acessando site...', 'Lendo conteúdo...', 'Preparando resumo...'). NUNCA repita a mesma tag sem contexto." +
+                  "\n   - Execute as ferramentas necessárias passo a passo até concluir todas as ações pedidas." +
+                  "\n   - Após realizar todas as ações e ferramentas agênticas, apresente a resposta e síntese final completa para o usuário." +
+                  "\n3. CRÍTICO: NUNCA escreva apenas texto conversacional prometendo ações sem enviar a chamada da ferramenta (functionCall) quando uma ação for necessária!",
+                ...(currentToolConfig ? { toolConfig: currentToolConfig } : {}),
+                temperature: 0.7
+              }
+             });
+             
+             const rawStream = await streamPromise;
+             const iterator = rawStream[Symbol.asyncIterator]();
+             
+             const firstChunkPromise = iterator.next();
+             const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("STREAM_TIMEOUT")), 20000));
+             
+             const firstChunkResult: any = await Promise.race([firstChunkPromise, timeoutPromise]);
+             
+             responseStream = (async function* () {
+                if (!firstChunkResult.done) {
+                   yield firstChunkResult.value;
+                }
+                while (true) {
+                   const next = await iterator.next();
+                   if (next.done) break;
+                   yield next.value;
+                }
+             })();
+             
+             break;
+          } catch (err: any) {
+             if (err.message === "STREAM_TIMEOUT" && retryStreamCount < maxStreamRetries) {
+               retryStreamCount++;
+               console.log(`[ChatAPI] Timeout de 20s atingido. Retentando silenciosamente (tentativa ${retryStreamCount})...`);
+               continue;
+             }
+             throw err;
           }
-        });
+        }
 
         let textForThisTurn = "";
         let functionCallsForThisTurn: any[] = [];
@@ -1283,7 +1427,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             
             if (fc.name === "web_search") {
               const args = fc.args as any;
-              let resultData = null;
+              let resultData: any = null;
               try {
                 if (process.env.TAVILY_API_KEY) {
                   const tvRes = await fetch("https://api.tavily.com/search", {
@@ -1291,33 +1435,51 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                       api_key: process.env.TAVILY_API_KEY,
-                      query: args.query,
+                      query: args.query || args.search_query || text,
                       search_depth: "basic",
                       include_images: true,
                       include_answer: true,
-                      max_results: 20,
+                      max_results: 10,
                     })
                   });
                   if (tvRes.ok) {
                     const data = await tvRes.json();
-                    resultData = data.results;
+                    const cleanResults = (data.results || []).slice(0, 8).map((r: any) => ({
+                      title: r.title || r.url,
+                      url: r.url,
+                      snippet: (r.content || "").slice(0, 450)
+                    }));
+                    resultData = {
+                      answer: data.answer || undefined,
+                      results: cleanResults
+                    };
                     if (data.results) {
-                      data.results.forEach((r: any) => marteSources.push({ title: r.title || r.url, url: r.url, snippet: r.content }));
+                      data.results.forEach((r: any) => marteSources.push({ title: r.title || r.url, url: r.url, snippet: (r.content || "").slice(0, 450) }));
                     }
                     if (data.images) {
                       marteImages.push(...data.images.map((i:any) => typeof i === "string" ? i : i.url));
                     }
                   } else {
-                     resultData = { error: "Failed to search web" };
+                    console.log("[Pro Search] Tavily search failed or forbidden. Falling back to searchWebFallback...");
+                    const fallbackRes = await searchWebFallback(args.query || args.search_query || text);
+                    resultData = { results: fallbackRes };
+                    fallbackRes.forEach(r => marteSources.push(r));
                   }
                 } else {
-                   resultData = { error: "TAVILY_API_KEY is not configured" };
+                  console.log("[Pro Search] TAVILY_API_KEY not configured. Falling back to searchWebFallback...");
+                  const fallbackRes = await searchWebFallback(args.query || args.search_query || text);
+                  resultData = { results: fallbackRes };
+                  fallbackRes.forEach(r => marteSources.push(r));
                 }
               } catch (e) {
-                 resultData = { error: String(e) };
+                console.log("[Pro Search] Error in search. Falling back to searchWebFallback...", e);
+                const fallbackRes = await searchWebFallback(args.query || args.search_query || text);
+                resultData = { results: fallbackRes };
+                fallbackRes.forEach(r => marteSources.push(r));
               }
+              const callId = fc.id || `call_${fc.name}_${Math.random().toString(36).substring(2, 8)}`;
               functionResponseParts.push({
-                functionResponse: { id: fc.id, name: fc.name, response: { result: resultData } }
+                functionResponse: { id: callId, name: fc.name, response: { result: resultData } }
               });
             } else if (fc.name === "calculadora") {
               const args = fc.args as any;
@@ -1722,6 +1884,27 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             break; // no more function calls, we are done
           }
         }
+        } catch (turnErr) {
+          console.error(`[Agentic Loop Error] Turn ${turnCount} failed:`, turnErr);
+          if (marteSources.length > 0) {
+            console.log("[Agentic Loop] Attempting fallback final synthesis from collected search sources...");
+            const sourcesSummary = marteSources.map((s, idx) => `[Fonte #${idx+1}] ${s.title} (${s.url}): ${s.snippet}`).join('\n\n');
+            try {
+              const fallbackSynth = await callGeminiWithFallback({
+                model: "gemini-3.5-flash-lite",
+                contents: `O usuário solicitou: "${text}".\n\nInformações pesquisadas na web:\n${sourcesSummary}\n\nCom base nessas informações, escreva a resposta final completa, detalhada e bem estruturada em Markdown para o usuário, incluindo citações das fontes [Nome](URL).`,
+              });
+              const fallbackText = fallbackSynth.text || "";
+              if (fallbackText) {
+                sendEvent({ type: "chunk", text: "\n\n" + fallbackText });
+                fullOutput += "\n\n" + fallbackText;
+              }
+            } catch (synthErr) {
+              console.error("Fallback synthesis also failed:", synthErr);
+            }
+          }
+          break; // Exit loop gracefully
+        }
       }
 
       if (workspaceDocuments.size > 0) {
@@ -1793,13 +1976,24 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
     const maxRetries = 2;
 
     while (retryCount <= maxRetries) {
-      normalResponse = await callGeminiWithFallback({
-        model: mappedModel,
-        contents: finalContents,
-        config: {
-          systemInstruction: activeSystemPrompt,
-        },
-      });
+      try {
+        const fetchPromise = callGeminiWithFallback({
+          model: mappedModel,
+          contents: finalContents,
+          config: {
+            systemInstruction: activeSystemPrompt,
+          },
+        });
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("STREAM_TIMEOUT")), 20000));
+        normalResponse = await Promise.race([fetchPromise, timeoutPromise]);
+      } catch (err: any) {
+        if (err.message === "STREAM_TIMEOUT" && retryCount < maxRetries) {
+          console.warn(`[ChatAPI] Timeout de 20s atingido na resposta final. Retentando silenciosamente...`);
+          retryCount++;
+          continue;
+        }
+        throw err;
+      }
 
       rawResponseText = normalResponse.text?.trim() || "";
       if (rawResponseText) {
