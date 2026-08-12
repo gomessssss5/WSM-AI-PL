@@ -16,6 +16,17 @@ export interface Skill {
   content: string;
   updatedAt?: any;
   isOfficial?: boolean;
+  version?: string;
+  scope?: string;
+  permissions?: string[];
+  allowed_tools?: string[];
+  input_schema?: string;
+  output_schema?: string;
+  estimated_time?: string;
+  compatibility?: string;
+  limits?: string;
+  approval_policy?: string;
+  acceptance_tests?: string[];
 }
 
 enum OperationType {

@@ -6,6 +6,17 @@ export const OFFICIAL_SKILLS: Skill[] = [
     name: 'web-html',
     description: 'Gera sites e páginas HTML/CSS de altíssima fidelidade e fluidez.',
     isOfficial: true,
+    version: '1.6.0',
+    scope: 'Geração Front-end Web (Single Page)',
+    permissions: ['read_assets', 'embed_cdn', 'write_html'],
+    allowed_tools: ['html_compiler', 'cdn_validator', 'accessibility_checker'],
+    input_schema: '{"prompt": "string", "theme": "string?", "sections": "string[]?"}',
+    output_schema: '{"html": "string (Standalone Document)", "assets": "CDN URLs"}',
+    estimated_time: '< 10s',
+    compatibility: 'Navegadores Modernos (HTML5, Tailwind 3/4)',
+    limits: 'Máx. 50KB HTML em arquivo único',
+    approval_policy: 'Aprovação Automática',
+    acceptance_tests: ['Checklist 9 itens HTML/CDN passados', 'Layout responsivo em 320px e 1920px'],
     content: `# Web Moderno 2026 — v2 (Skill de Geração de Sites HTML/CSS)
 
 Você é um engenheiro front-end sênior especializado em interfaces de altíssima fidelidade visual. Cada entrega deve parecer um produto de uma agência premium, não um template genérico gerado por IA.
@@ -142,6 +153,17 @@ Antes de responder com o código final, verifique:
     name: 'code',
     description: 'Gera códigos limpos, completos, seguros e com arquitetura profissional.',
     isOfficial: true,
+    version: '1.6.0',
+    scope: 'Geração de Código Multi-linguagem / Engenharia',
+    permissions: ['read_workspace', 'write_code', 'run_tests', 'execute_linter'],
+    allowed_tools: ['sandbox_runner', 'pytest', 'tsc', 'eslint', 'diff_generator'],
+    input_schema: '{"prompt": "string", "language": "string", "isolated_sandbox": "boolean"}',
+    output_schema: '{"files": "Record<string, string>", "test_suite": "string", "hash": "sha256"}',
+    estimated_time: '< 15s',
+    compatibility: 'Python 3.10+, TS 5.0+, Node 18+, Go 1.20+',
+    limits: 'Isolamento em Container / Processo Seguro',
+    approval_policy: 'Requer Validação Sandbox',
+    acceptance_tests: ['Zero Placeholders', 'Suíte de Testes com Pass/Fail', 'Análise Estática Linter'],
     content: `# Codegen Elite — Skill de Geração de Código (v1)
 
 Você atua como um Desenvolvedor Principal 10x. Seu código é impecável, arquitetonicamente sólido, tipado e feito para ir direto para produção sem refatoração. Você não faz esboços, você faz engenharia.
@@ -205,6 +227,17 @@ Se tudo estiver verde, entregue o código.`
     name: 'write',
     description: 'Escreve textos humanizados, naturais e sem clichês de IA.',
     isOfficial: true,
+    version: '1.6.0',
+    scope: 'Redação & Redação Humanizada',
+    permissions: ['read_prompt', 'format_text'],
+    allowed_tools: ['grammar_checker', 'style_linter'],
+    input_schema: '{"prompt": "string", "register": "informal | formal | academic", "audience": "string?"}',
+    output_schema: '{"text": "string"}',
+    estimated_time: '< 5s',
+    compatibility: 'Geral (PT-BR)',
+    limits: 'Sem jargões robóticos / Clichês banidos',
+    approval_policy: 'Aprovação Automática',
+    acceptance_tests: ['Checklist 9 itens de humanização passados', 'Zero uso de clichês banidos'],
     content: `# Escrita Humanizada — Skill (v1)
 
 Você escreve como uma pessoa competente escrevendo pra outra pessoa — não como um relatório corporativo, nem como um texto que "parece gerado por IA". **Isso vale pra qualquer texto que você gerar, sem exceção**: resposta de chat, e-mail, post, redação, resposta de pergunta de livro didático, trabalho escolar, resumo de pesquisa, texto técnico, o que for. Não é uma skill "de redação" — é a forma padrão de escrever, sempre.
@@ -295,6 +328,17 @@ Se qualquer item falhar, reescreva antes de entregar.`
     name: 'creative-writing',
     description: 'Cria histórias, poemas, redações, brainstorms e ideias fora da caixa.',
     isOfficial: true,
+    version: '1.6.0',
+    scope: 'Escrita Criativa & Ideação Avançada',
+    permissions: ['read_prompt', 'generate_narrative'],
+    allowed_tools: ['brainstorm_engine', 'metaphor_linter'],
+    input_schema: '{"prompt": "string", "genre": "string?", "angle": "string?"}',
+    output_schema: '{"creative_content": "string"}',
+    estimated_time: '< 8s',
+    compatibility: 'Geral',
+    limits: 'Proibido clichês de metáforas batidas',
+    approval_policy: 'Aprovação Automática',
+    acceptance_tests: ['Avaliação de Metáforas Inéditas', 'Abertura Não-Previsível'],
     content: `# Escrita Criativa & Ideação — Skill (v1)
 
 Esta skill entra em ação sempre que a tarefa pede ideia, imaginação, originalidade ou uma abordagem que não é a óbvia: histórias, poemas, redações criativas, brainstorm, títulos, metáforas, roteiros, nomes, conceitos, virada de perspectiva num tema comum.

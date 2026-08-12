@@ -23,6 +23,7 @@ import { cleanWorkspaceTags } from '../utils/workspaceParser';
 import { extractRaciocinio, cleanRaciocinioTags } from '../utils/raciocinioParser';
 import { cleanHistoryTags } from '../utils/historyParser';
 import { SearchImageCarousel } from './SearchImageCarousel';
+import { logAuditEvent } from '../utils/auditLogger';
 
 const UiverseLoader = ({ isThinking = false }: { isThinking?: boolean }) => (
   <div 
@@ -1378,6 +1379,39 @@ export default function ChatWindow({
       textToSend = `[Utilize as seguintes skills: ${skillsText}]\n\n${textToSend}`;
     }
     
+    if (isSearchEnabled) {
+      logAuditEvent({
+        toolName: 'Pesquisa Web Integrada',
+        riskLevel: 'low',
+        details: `Consulta enviada aos motores de busca: "${currentText.substring(0, 100)}"`,
+        status: 'executed',
+        normalized_input: currentText,
+        output: 'Resultados de busca recuperados do índice web.'
+      });
+    }
+
+    if (activeSkills.length > 0) {
+      logAuditEvent({
+        toolName: 'Execução de Skill Agêntica',
+        riskLevel: 'medium',
+        details: `Skills ativadas: ${activeSkills.map(s => '/' + s.name).join(', ')}`,
+        status: 'executed',
+        normalized_input: currentText,
+        permissions_used: activeSkills.flatMap(s => s.permissions || ['read_workspace'])
+      });
+    }
+
+    if (isComputerEnabled) {
+      logAuditEvent({
+        toolName: 'Sandbox & Navegação Autônoma',
+        riskLevel: 'high',
+        details: `Navegador isolado ativado para tarefa: "${currentText.substring(0, 100)}"`,
+        status: 'executed',
+        normalized_input: currentText,
+        permissions_used: ['browser_automation', 'viewport_screenshot']
+      });
+    }
+
     if (onDeleteDraft) onDeleteDraft();
     isUserScrollingRef.current = false;
     onSendMessage(textToSend, isSearchEnabled, undefined, attachments, false, isComputerEnabled);

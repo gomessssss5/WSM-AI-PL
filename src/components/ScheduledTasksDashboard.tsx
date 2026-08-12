@@ -3,6 +3,7 @@ import { Calendar as CalendarIcon, Clock, CheckCircle2, ChevronLeft, ChevronRigh
 import { ScheduledTask, TaskExecution, ChatSession } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { calculateNextRunAt } from '../lib/scheduledTasks';
+import { logAuditEvent } from '../utils/auditLogger';
 
 interface ScheduledTasksDashboardProps {
   tasks: ScheduledTask[];
@@ -240,6 +241,16 @@ export default function ScheduledTasksDashboard({
     };
 
     onSaveTask(newTask);
+
+    logAuditEvent({
+      toolName: 'Automação Agendada (Scheduler)',
+      riskLevel: 'medium',
+      details: `Tarefa Agendada "${title}" ${editingTask ? 'atualizada' : 'criada'} (Tipo: ${scheduleType}, Horário: ${time})`,
+      status: 'executed',
+      normalized_input: `Title: ${title}, Prompt: ${prompt}, Schedule: ${scheduleType} @ ${time}`,
+      output: `Agendamento ativado para execução em ${nextRun?.toISOString() || 'próximo ciclo'}.`
+    });
+
     setIsModalOpen(false);
     resetForm();
   };

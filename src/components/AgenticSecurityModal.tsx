@@ -82,9 +82,26 @@ export default function AgenticSecurityModal({ isOpen, onClose, userId }: Agenti
         return parsed.map((item: any) => ({ ...item, timestamp: new Date(item.timestamp) }));
       }
     } catch (e) {}
-    // Seeding with empty array instead of fake data to maintain honesty as a source of truth
     return [];
   });
+
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+  const [filterType, setFilterType] = useState<'all' | 'real' | 'demo'>('all');
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      try {
+        const saved = localStorage.getItem('wsm_agent_audit_logs');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setAuditLogs(parsed.map((item: any) => ({ ...item, timestamp: new Date(item.timestamp) })));
+        }
+      } catch (e) {}
+    };
+
+    window.addEventListener('wsm_audit_log_updated', handleUpdate);
+    return () => window.removeEventListener('wsm_audit_log_updated', handleUpdate);
+  }, []);
 
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -279,38 +296,123 @@ export default function AgenticSecurityModal({ isOpen, onClose, userId }: Agenti
 
           {activeTab === 'audit' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">Histórico de Ações Agênticas</span>
-                <span className="text-[11px] text-gray-500">Auditável e imutável</span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-3 gap-2">
+                <div>
+                  <span className="text-xs font-bold text-gray-800 uppercase tracking-wider block">Histórico de Ações Agênticas e Telemetria</span>
+                  <span className="text-[11px] text-gray-500">Fonte de verdade imutável para eventos em tempo real</span>
+                </div>
+                
+                <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-lg">
+                  <button 
+                    onClick={() => setFilterType('all')}
+                    className={`px-2.5 py-1 rounded text-[11px] font-bold cursor-pointer transition-all ${filterType === 'all' ? 'bg-white text-black shadow-xs' : 'text-gray-600 hover:text-black'}`}
+                  >
+                    Todos ({auditLogs.length})
+                  </button>
+                  <button 
+                    onClick={() => setFilterType('real')}
+                    className={`px-2.5 py-1 rounded text-[11px] font-bold cursor-pointer transition-all ${filterType === 'real' ? 'bg-white text-emerald-800 shadow-xs' : 'text-gray-600 hover:text-black'}`}
+                  >
+                    Execuções Reais ({auditLogs.filter(l => l.status !== 'demonstracao').length})
+                  </button>
+                  <button 
+                    onClick={() => setFilterType('demo')}
+                    className={`px-2.5 py-1 rounded text-[11px] font-bold cursor-pointer transition-all ${filterType === 'demo' ? 'bg-white text-amber-800 shadow-xs' : 'text-gray-600 hover:text-black'}`}
+                  >
+                    Demonstração ({auditLogs.filter(l => l.status === 'demonstracao').length})
+                  </button>
+                </div>
               </div>
 
-              <div className="divide-y divide-gray-100 border border-[#eae6e1] rounded-xl overflow-hidden bg-white">
-                {auditLogs.map((log) => (
-                  <div key={log.id} className="p-3.5 hover:bg-gray-50 transition-colors flex items-start justify-between gap-3 text-xs">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-gray-900">{log.toolName}</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          log.riskLevel === 'high' ? 'bg-red-100 text-red-800' :
-                          log.riskLevel === 'medium' ? 'bg-amber-100 text-amber-800' :
-                          'bg-emerald-100 text-emerald-800'
-                        }`}>
-                          Risco: {log.riskLevel.toUpperCase()}
-                        </span>
-                      </div>
-                      <p className="text-gray-600 leading-normal">{log.details}</p>
-                      <p className="text-[10px] text-gray-400">
-                        {log.timestamp.toLocaleDateString('pt-BR')} às {log.timestamp.toLocaleTimeString('pt-BR')}
-                      </p>
-                    </div>
+              {auditLogs.length === 0 ? (
+                <div className="p-8 text-center border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                  <ListFilter className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-xs font-bold text-gray-700">Nenhum evento registrado ainda nesta sessão.</p>
+                  <p className="text-[11px] text-gray-500 mt-1">Execute buscas na web, gere documentos, acione automações ou baixe artefatos para popular o registro de auditoria.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100 border border-[#eae6e1] rounded-xl overflow-hidden bg-white shadow-3xs">
+                  {auditLogs
+                    .filter(log => {
+                      if (filterType === 'real') return log.status !== 'demonstracao';
+                      if (filterType === 'demo') return log.status === 'demonstracao';
+                      return true;
+                    })
+                    .map((log) => {
+                      const isExpanded = expandedLogId === log.id;
+                      return (
+                        <div key={log.id} className="p-3.5 hover:bg-gray-50/80 transition-colors">
+                          <div className="flex items-start justify-between gap-3 text-xs cursor-pointer" onClick={() => setExpandedLogId(isExpanded ? null : log.id)}>
+                            <div className="space-y-1 min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-bold text-gray-900">{log.toolName}</span>
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  log.riskLevel === 'high' ? 'bg-red-100 text-red-800' :
+                                  log.riskLevel === 'medium' ? 'bg-amber-100 text-amber-800' :
+                                  'bg-emerald-100 text-emerald-800'
+                                }`}>
+                                  Risco: {log.riskLevel.toUpperCase()}
+                                </span>
+                                <span className="font-mono text-[10px] text-gray-400">
+                                  run: {log.run_id?.substring(0, 10)}
+                                </span>
+                              </div>
+                              <p className="text-gray-700 leading-normal font-medium">{log.details}</p>
+                              <div className="flex items-center gap-3 text-[10px] text-gray-400">
+                                <span>UTC: {log.timestamp.toISOString()}</span>
+                                <span>•</span>
+                                <span>Local: {log.timestamp_local || log.timestamp.toLocaleString('pt-BR')}</span>
+                              </div>
+                            </div>
 
-                    <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700 flex items-center gap-1 shrink-0">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                      {log.status === 'executed' ? 'Executado' : log.status === 'demonstracao' ? 'Demonstração' : 'Permitido'}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className={`px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 ${
+                                log.status === 'demonstracao' 
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-200' 
+                                  : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              }`}>
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                {log.status === 'executed' ? 'Executado' : log.status === 'demonstracao' ? 'Demonstração' : 'Permitido'}
+                              </span>
+                              <button className="text-gray-400 hover:text-black p-1 text-xs font-mono">
+                                {isExpanded ? '[-]' : '[+]'}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Expanded Telemetry Panel */}
+                          {isExpanded && (
+                            <div className="mt-3 pt-3 border-t border-gray-150 text-[11px] font-mono bg-gray-50 p-3 rounded-lg space-y-2 text-gray-700">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div><strong className="text-gray-900">Tenant ID:</strong> {log.tenant_id}</div>
+                                <div><strong className="text-gray-900">User ID:</strong> {log.user_id}</div>
+                                <div><strong className="text-gray-900">Task ID:</strong> {log.task_id}</div>
+                                <div><strong className="text-gray-900">Tool Call ID:</strong> {log.tool_call_id}</div>
+                              </div>
+                              <div>
+                                <strong className="text-gray-900 block mb-0.5">Entrada Normalizada:</strong>
+                                <div className="bg-white p-2 rounded border border-gray-200 text-gray-800 whitespace-pre-wrap">{log.normalized_input}</div>
+                              </div>
+                              <div>
+                                <strong className="text-gray-900 block mb-0.5">Saída:</strong>
+                                <div className="bg-white p-2 rounded border border-gray-200 text-gray-800 whitespace-pre-wrap">{log.output}</div>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                <div><strong className="text-gray-900">Permissões Utilizadas:</strong> {log.permissions_used?.join(', ')}</div>
+                                <div><strong className="text-gray-900">Hash de Integridade:</strong> <span className="bg-gray-200 px-1 py-0.5 rounded">{log.integrity_hash}</span></div>
+                              </div>
+                              {log.evidence && (
+                                <div className="text-gray-500 italic text-[10px]">
+                                  Evidência: {log.evidence}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
             </div>
           )}
         </div>
