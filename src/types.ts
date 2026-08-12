@@ -10,10 +10,22 @@ export interface WsmForm {
   questions: WsmFormQuestion[];
 }
 
+export interface ValidationState {
+  status: 'pending' | 'running' | 'success' | 'failed' | 'unvalidated';
+  testsPassed?: number;
+  testsTotal?: number;
+  version?: string;
+  hash?: string;
+  filesGenerated?: string[];
+  commandsReproduced?: string[];
+  logs?: string;
+}
+
 export interface WsmDocument {
   title: string;
   content: string;
   format?: 'pdf' | 'md' | string;
+  validation?: ValidationState;
 }
 
 export interface SearchStep {
@@ -87,6 +99,7 @@ export interface ScheduledTask {
   prompt: string;
   scheduleType: 'once' | 'daily' | 'weekly' | 'monthly';
   time: string;
+  timezone?: string; // IANA timezone, e.g., 'America/Sao_Paulo'
   date?: string;
   daysOfWeek?: number[];
   dayOfMonth?: number;
@@ -107,9 +120,10 @@ export interface TaskExecution {
   finishedAt?: Date;
   triggerType?: 'manual' | 'scheduled' | 'event';
   sessionId: string;
-  status: 'success' | 'error';
+  status: 'queued' | 'planning' | 'waiting_approval' | 'running' | 'waiting_user' | 'partial' | 'succeeded' | 'failed' | 'canceled' | 'expired';
   outputSummary?: string;
   error?: string;
+  steps?: ExecutionStep[];
 }
 
 export interface LibraryFile {

@@ -7,6 +7,7 @@ interface TypewriterMarkdownProps {
   content: string;
   enabled?: boolean;
   onComplete?: () => void;
+  onTick?: () => void;
   searchSources?: Array<{ title: string; url: string; snippet?: string }>;
   searchSteps?: Array<{ tag: string; sources: Array<{ title: string; url: string }> }>;
 }
@@ -15,6 +16,7 @@ export default function TypewriterMarkdown({
   content,
   enabled = true,
   onComplete,
+  onTick,
   searchSources,
   searchSteps
 }: TypewriterMarkdownProps) {
@@ -248,6 +250,11 @@ export default function TypewriterMarkdown({
         }
         const slicedText = currentSegments.slice(0, currentIndexRef.current).join('');
         setDisplayedText(slicedText);
+        
+        // Notify parent on each tick so it can auto-scroll
+        if (onTick) {
+          onTick();
+        }
       }
 
       if (currentIndexRef.current < currentTotalLen) {

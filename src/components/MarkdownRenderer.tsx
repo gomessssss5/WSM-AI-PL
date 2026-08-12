@@ -854,9 +854,18 @@ export default function MarkdownRenderer({
     const agenticRegex = /\[(pesquisou na web|pesquisando[\s\S]*?|acessando site[\s\S]*?|acessando[\s\S]*?|abrindo site[\s\S]*?|lendo página[\s\S]*?|lendo conteúdo[\s\S]*?|preparando resumo[\s\S]*?|preparando[\s\S]*?|elaborando resposta[\s\S]*?|elaborando[\s\S]*?|analisando[\s\S]*?|processando[\s\S]*?|sintetizando[\s\S]*?|extraindo[\s\S]*?|buscando[\s\S]*?|calculando[\s\S]*?|verificando[\s\S]*?|clicando[\s\S]*?|digitando[\s\S]*?|rolando[\s\S]*?|aguardando[\s\S]*?|aguardou[\s\S]*?|criando skill[\s\S]*?|editando skill[\s\S]*?|excluindo skill[\s\S]*?|criou skill[\s\S]*?|editou skill[\s\S]*?|excluiu skill[\s\S]*?|criando documento[\s\S]*?|criou documento[\s\S]*?|lendo documento[\s\S]*?|leu documento[\s\S]*?|editando documento[\s\S]*?|editou documento[\s\S]*?|excluindo documento[\s\S]*?|excluiu documento[\s\S]*?|listando documentos[\s\S]*?|listou documentos[\s\S]*?|código 100% verificado[\s\S]*?|corrigindo erro[\s\S]*?|sandbox de depuração[\s\S]*?|nova tarefa[\s\S]*?|passo concluído[\s\S]*?|documento não encontrado[\s\S]*?)\](?!\s*\()/gi;
     const seenAgenticTypes = new Set<string>();
     currentText = currentText.replace(agenticRegex, (match, tagContent) => {
+      let finalTagContent = tagContent;
+      const linkMatches = finalTagContent.match(/:::LINKTOKEN-\d+:::/g);
+      if (linkMatches) {
+        linkMatches.forEach(tok => {
+          const t = linkTokens.find(l => l.id === tok);
+          if (t) finalTagContent = finalTagContent.replace(tok, t.text);
+        });
+      }
+
       const id = `:::AGENTICTOKEN-${agenticTokens.length}:::`;
       let type = 'web';
-      const lower = tagContent.toLowerCase();
+      const lower = finalTagContent.toLowerCase();
       if (lower.includes('calculando') || lower.includes('calculou')) type = 'calc';
       else if (lower.includes('relógio') || lower.includes('verificando')) type = 'clock';
       else if (lower.includes('erros no código') || lower.includes('100% verificado') || lower.includes('depuração') || lower.includes('corrigindo erro')) type = 'debug';
@@ -884,13 +893,13 @@ export default function MarkdownRenderer({
         }
         seenAgenticTypes.add(type);
       } else {
-        if (seenAgenticTypes.has(tagContent.toLowerCase()) || seenAgenticTypes.has(type)) {
+        if (seenAgenticTypes.has(finalTagContent.toLowerCase()) || seenAgenticTypes.has(type)) {
           return ''; // Completely remove duplicate tag from text
         }
-        seenAgenticTypes.add(tagContent.toLowerCase());
+        seenAgenticTypes.add(finalTagContent.toLowerCase());
         seenAgenticTypes.add(type);
       }
-      agenticTokens.push({ id, type, text: tagContent });
+      agenticTokens.push({ id, type, text: finalTagContent });
       
       return id;
     });
@@ -898,8 +907,17 @@ export default function MarkdownRenderer({
     // 0.1 Extract parenthesized process messages (e.g. (Gerando e validando...), (Corrigindo...))
     const parenStatusRegex = /\(((?:Gerando|Corrigindo|Validando|Processando|Analisando|Criando|Executando|Ajustando|Testando)[\s\S]*?)\)/gi;
     currentText = currentText.replace(parenStatusRegex, (match, tagContent) => {
+      let finalTagContent = tagContent;
+      const linkMatches = finalTagContent.match(/:::LINKTOKEN-\d+:::/g);
+      if (linkMatches) {
+        linkMatches.forEach(tok => {
+          const t = linkTokens.find(l => l.id === tok);
+          if (t) finalTagContent = finalTagContent.replace(tok, t.text);
+        });
+      }
+
       const id = `:::AGENTICTOKEN-${agenticTokens.length}:::`;
-      agenticTokens.push({ id, type: 'paren_status', text: tagContent });
+      agenticTokens.push({ id, type: 'paren_status', text: finalTagContent });
       return id;
     });
 

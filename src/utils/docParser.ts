@@ -73,7 +73,7 @@ export function sanitizeDocumentContent(rawContent: string): string {
   return str;
 }
 
-export function parseJsonDocSafely(jsonStr: string): { title?: string; content?: string; format?: string } | null {
+export function parseJsonDocSafely(jsonStr: string): { title?: string; content?: string; format?: string; validation?: any } | null {
   if (!jsonStr) return null;
   let str = jsonStr.trim();
 
@@ -83,6 +83,7 @@ export function parseJsonDocSafely(jsonStr: string): { title?: string; content?:
     let title = obj.title ? String(obj.title).trim() : undefined;
     let format = obj.format || obj.type ? String(obj.format || obj.type).toLowerCase() : undefined;
     let content = obj.content !== undefined ? obj.content : '';
+    let validation = obj.validation;
 
     if (typeof content === 'object' && content !== null) {
       try { content = JSON.stringify(content); } catch (e) { content = String(content); }
@@ -97,11 +98,12 @@ export function parseJsonDocSafely(jsonStr: string): { title?: string; content?:
           if (inner.content !== undefined) content = String(inner.content);
           if (inner.title && !title) title = String(inner.title).trim();
           if (inner.format && !format) format = String(inner.format).toLowerCase();
+          if (inner.validation && !validation) validation = inner.validation;
         }
       } catch (e) {}
     }
 
-    return { title, content, format };
+    return { title, content, format, validation };
   };
 
   try {
@@ -250,7 +252,8 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
           rawDocObjs.push({
             title,
             content,
-            format
+            format,
+            validation: parsedDoc.validation
           });
         }
       }
@@ -274,7 +277,7 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
              if (rawFormat === 'markdown') format = 'md';
              else if (rawFormat === 'excel' || rawFormat === 'csv' || rawFormat === 'sheet' || rawFormat === 'planilha') format = 'xlsx';
 
-             rawDocObjs.push({ title, content, format });
+             rawDocObjs.push({ title, content, format, validation: parsedDoc.validation });
            } else if (incompleteContent.startsWith('<!DOCTYPE') || incompleteContent.startsWith('<html') || incompleteContent.includes('<head>')) {
               let docTitle = 'index.html';
               const titleTagMatch = incompleteContent.match(/<title>([^<]+)<\/title>/i);

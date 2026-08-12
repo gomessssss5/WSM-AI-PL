@@ -10,8 +10,8 @@ interface ScheduledTaskCardProps {
 
 export default function ScheduledTaskCard({ task, onOpenScheduledTasks }: ScheduledTaskCardProps) {
   const getScheduleLabel = (type?: string, time?: string) => {
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const timeStr = time ? ` às ${time} (${timeZone})` : '';
+    const tz = task.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const timeStr = time ? ` às ${time} (${tz})` : '';
     switch (type) {
       case 'daily':
         return `Diariamente${timeStr}`;
@@ -69,7 +69,7 @@ export default function ScheduledTaskCard({ task, onOpenScheduledTasks }: Schedu
             <span className="text-[10.5px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Horário Programado</span>
             <div className="text-[13px] font-bold text-orange-950 flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-orange-600" />
-              <span>{task.time || '09:00'} (Horário local)</span>
+              <span>{task.time || '09:00'} ({task.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone})</span>
             </div>
           </div>
         </div>

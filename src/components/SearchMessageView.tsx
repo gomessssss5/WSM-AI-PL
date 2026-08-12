@@ -397,6 +397,7 @@ export default function SearchMessageView({
             searchSteps={message.searchSteps}
             enabled={message.isSimulatingSearch}
             onComplete={onStepChange}
+            onTick={onStepChange}
           />
         </div>
         </>

@@ -221,12 +221,15 @@ export default function ScheduledTasksDashboard({
       scheduleType === 'monthly' ? selectedDayOfMonth : undefined
     );
 
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
     const newTask: ScheduledTask = {
       id: editingTask ? editingTask.id : crypto.randomUUID(),
       title,
       prompt,
       scheduleType,
       time,
+      timezone: editingTask?.timezone || timeZone,
       date: scheduleType === 'once' ? selectedDate : undefined,
       daysOfWeek: scheduleType === 'weekly' && selectedDaysOfWeek.length > 0 ? selectedDaysOfWeek : undefined,
       dayOfMonth: scheduleType === 'monthly' ? selectedDayOfMonth : undefined,
@@ -304,7 +307,7 @@ export default function ScheduledTasksDashboard({
             onClick={() => setActiveTab('completed')}
             className={`pb-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'completed' ? 'border-black text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
           >
-            Concluídas
+            Histórico
           </button>
         </div>
 
@@ -608,8 +611,28 @@ export default function ScheduledTasksDashboard({
                             } else if (task.scheduleType === 'monthly' && task.dayOfMonth) {
                               label += ` (todo dia ${task.dayOfMonth})`;
                             }
-                            const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-                            return `${label} às ${task.time} (${timeZone})`;
+                            const timeZone = task.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+                            
+                            // Calculate equivalent UTC time
+                            let utcTimeStr = '';
+                            if (task.time) {
+                              try {
+                                const [h, m] = task.time.split(':').map(Number);
+                                const dateInTZ = new Date(new Date().toLocaleString('en-US', { timeZone }));
+                                const localNow = new Date();
+                                const tzOffsetMinutes = Math.round((localNow.getTime() - dateInTZ.getTime()) / 60000);
+                                
+                                const d = new Date();
+                                d.setHours(h, m, 0, 0);
+                                const utcDate = new Date(d.getTime() + tzOffsetMinutes * 60000);
+                                
+                                const utcHours = utcDate.getUTCHours().toString().padStart(2, '0');
+                                const utcMinutes = utcDate.getUTCMinutes().toString().padStart(2, '0');
+                                utcTimeStr = ` / ${utcHours}:${utcMinutes} UTC`;
+                              } catch(e) {}
+                            }
+
+                            return `${label} às ${task.time} (${timeZone}${utcTimeStr})`;
                           })()}
                         </span>
                         {task.nextRunAt && (
@@ -636,7 +659,9 @@ export default function ScheduledTasksDashboard({
               ) : (
                 executions.map(exec => {
                   const relatedSession = sessions.find(s => s.id === exec.sessionId);
-                  const isSuccess = exec.status === 'success';
+                  const isSuccess = exec.status === 'succeeded';
+                  const isFailed = exec.status === 'failed' || exec.status === 'error' as any;
+                  const isRunning = exec.status === 'running' || exec.status === 'planning' || exec.status === 'waiting_approval' || exec.status === 'waiting_user';
                   const summaryText = exec.outputSummary || (relatedSession?.messages?.find(m => m.sender === 'ai')?.text) || 'Execução processada pelo agente em segundo plano.';
 
                   return (
@@ -652,18 +677,29 @@ export default function ScheduledTasksDashboard({
                             <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
                               <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                             </div>
-                          ) : (
+                          ) : isFailed ? (
                             <div className="w-9 h-9 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center shrink-0">
                               <X className="w-5 h-5 text-red-600" />
+                            </div>
+                          ) : isRunning ? (
+                            <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center shrink-0">
+                              <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                            </div>
+                          ) : (
+                            <div className="w-9 h-9 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-center shrink-0">
+                              <Clock className="w-5 h-5 text-gray-600" />
                             </div>
                           )}
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="font-bold text-gray-900 text-base">{exec.taskTitle}</h3>
                               <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                isSuccess ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-red-100 text-red-800 border border-red-200'
+                                isSuccess ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 
+                                isFailed ? 'bg-red-100 text-red-800 border border-red-200' :
+                                isRunning ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                                'bg-gray-100 text-gray-800 border border-gray-200'
                               }`}>
-                                {isSuccess ? 'Sucesso' : 'Falha'}
+                                {exec.status}
                               </span>
                               {exec.runId && (
                                 <span className="font-mono text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded border border-gray-200">

@@ -443,51 +443,6 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
               className="w-full pl-9 pr-4 py-1.5 bg-gray-50 border border-gray-200 rounded-full text-sm focus:outline-hidden focus:ring-1 focus:ring-gray-300 focus:bg-white transition-all"
             />
           </div>
-
-          {/* New Document / Upload Action Dropdown */}
-          <div className="relative">
-            <input 
-              id="omnix-library-file-input"
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleFileUpload} 
-              accept=".txt,.pdf,.doc,.docx,.csv,.xlsx,.json,.md,.png,.jpg,.jpeg,.gif,.webp,*/*"
-              className="hidden" 
-              multiple 
-            />
-            <button 
-              onClick={() => setShowCreateDropdown(!showCreateDropdown)}
-              className="flex items-center gap-1.5 bg-black hover:bg-neutral-800 text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-2xs transition-all active:scale-95 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Adicionar</span>
-              <ChevronDown className="w-3.5 h-3.5" />
-            </button>
-            {showCreateDropdown && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowCreateDropdown(false)} />
-                <div className="absolute right-0 mt-1 w-56 bg-white border border-gray-150 rounded-xl shadow-lg py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-100">
-                  <label 
-                    htmlFor="omnix-library-file-input"
-                    id="omnix-library-file-upload-label"
-                    onClick={() => { setShowCreateDropdown(false); fileInputRef.current?.click(); }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-50 transition-colors flex items-center gap-2.5 font-medium cursor-pointer"
-                  >
-                    <Upload className="w-4 h-4 text-emerald-600" />
-                    Upload de Fonte / Arquivo
-                  </label>
-                  <div className="h-px bg-gray-100 my-1" />
-                  <button 
-                    onClick={() => { setShowCreateDropdown(false); onNewChat(); }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-50 transition-colors flex items-center gap-2.5 font-medium"
-                  >
-                    <Plus className="w-4 h-4 text-gray-600" />
-                    Iniciar Novo Projeto / Chat
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
         </div>
       </header>
 

@@ -1944,6 +1944,7 @@ export default function ChatWindow({
                                         searchSteps={message.searchSteps}
                                         enabled={!isHistorical}
                                         onComplete={() => handleTypewriterComplete(message.id)}
+                                        onTick={scrollToBottom}
                                       />
                                     )
                                   )}

@@ -31,10 +31,21 @@ export interface SecuritySettings {
 
 export interface AgentAuditLog {
   id: string;
+  tenant_id?: string;
+  user_id?: string;
+  run_id?: string;
+  task_id?: string;
+  tool_call_id?: string;
   timestamp: Date;
+  timestamp_local?: string;
+  normalized_input?: string;
+  output?: string;
+  status: 'allowed' | 'blocked' | 'requires_approval' | 'executed' | 'demonstracao';
+  permissions_used?: string[];
+  evidence?: string;
+  integrity_hash?: string;
   toolName: string;
   riskLevel: 'low' | 'medium' | 'high';
-  status: 'allowed' | 'blocked' | 'requires_approval' | 'executed';
   details: string;
 }
 
@@ -71,33 +82,8 @@ export default function AgenticSecurityModal({ isOpen, onClose, userId }: Agenti
         return parsed.map((item: any) => ({ ...item, timestamp: new Date(item.timestamp) }));
       }
     } catch (e) {}
-    // Seed initial realistic audit logs for demonstration
-    return [
-      {
-        id: 'log-1',
-        timestamp: new Date(Date.now() - 1000 * 60 * 5),
-        toolName: 'Execução de Tarefa Agendada',
-        riskLevel: 'medium',
-        status: 'executed',
-        details: 'Execução automática do script de reavaliação em segundo plano (ID: run-8921)'
-      },
-      {
-        id: 'log-2',
-        timestamp: new Date(Date.now() - 1000 * 60 * 15),
-        toolName: 'Pesquisa Web (Tavily/RSS)',
-        riskLevel: 'low',
-        status: 'allowed',
-        details: 'Pesquisa por fontes públicas sobre dados de mercado (39 fontes encontradas)'
-      },
-      {
-        id: 'log-3',
-        timestamp: new Date(Date.now() - 1000 * 60 * 45),
-        toolName: 'Criação de Documento no Workspace',
-        riskLevel: 'low',
-        status: 'executed',
-        details: 'Geração do arquivo "Relatório_Executivo.pdf" na Biblioteca'
-      }
-    ];
+    // Seeding with empty array instead of fake data to maintain honesty as a source of truth
+    return [];
   });
 
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -320,7 +306,7 @@ export default function AgenticSecurityModal({ isOpen, onClose, userId }: Agenti
 
                     <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700 flex items-center gap-1 shrink-0">
                       <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                      {log.status === 'executed' ? 'Executado' : 'Permitido'}
+                      {log.status === 'executed' ? 'Executado' : log.status === 'demonstracao' ? 'Demonstração' : 'Permitido'}
                     </span>
                   </div>
                 ))}
