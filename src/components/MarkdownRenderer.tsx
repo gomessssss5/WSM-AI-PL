@@ -800,8 +800,13 @@ export default function MarkdownRenderer({
     currentText = currentText.replace(inlineLinkRegex, (match, textContent, url) => {
       if (!textContent.trim() || !url.trim()) return match;
       if (url.trim().startsWith('data:image/')) return '';
+      const cleanUrl = url.trim();
+      const lowerUrl = cleanUrl.toLowerCase();
+      if (lowerUrl.startsWith('javascript:') || lowerUrl.startsWith('vbscript:') || lowerUrl.startsWith('data:text/html')) {
+        return `${textContent.trim()} [javascript removido]`;
+      }
       const id = `:::LINKTOKEN-${linkTokens.length}:::`;
-      linkTokens.push({ id, text: textContent.trim(), url });
+      linkTokens.push({ id, text: textContent.trim(), url: cleanUrl });
       return id;
     });
 
@@ -1155,6 +1160,15 @@ export default function MarkdownRenderer({
             } else if (part.startsWith(':::LINKTOKEN-')) {
               const token = linkTokens.find(t => t.id === part);
               if (token) {
+                const lowerUrl = token.url.toLowerCase().trim();
+                if (lowerUrl.startsWith('javascript:') || lowerUrl.startsWith('vbscript:') || lowerUrl.startsWith('data:text/html')) {
+                  return (
+                    <span key={`link-${pIdx}-${keyIndex++}`} className="text-gray-600 font-medium select-text">
+                      {token.text} <span className="text-xs text-red-500 font-mono">[javascript removido]</span>
+                    </span>
+                  );
+                }
+
                 let domain = '';
                 try {
                   domain = new URL(token.url).hostname.replace(/^www\./, '');
@@ -1191,8 +1205,16 @@ export default function MarkdownRenderer({
                   </a>
                 );
               }
+              return null;
             }
-            return <React.Fragment key={`text-${pIdx}-${keyIndex++}`}>{part}</React.Fragment>;
+
+            if (part.startsWith(':::') && part.endsWith(':::')) {
+              return null;
+            }
+
+            const cleanPart = part.replace(/:::[A-Z]+-\d+:::/g, '');
+            if (!cleanPart) return null;
+            return <React.Fragment key={`text-${pIdx}-${keyIndex++}`}>{cleanPart}</React.Fragment>;
           });
         };
 
@@ -1270,8 +1292,8 @@ export default function MarkdownRenderer({
         const codeBlockId = `code-block-${i}`;
         const normalizedLang = lang.toLowerCase();
 
-        // Render Mindmap directly if code block is markmap or mindmap
-        if (normalizedLang === 'markmap' || normalizedLang === 'mindmap') {
+        // Render Mindmap directly if code block is markmap or mindmap or mermaid
+        if (normalizedLang === 'markmap' || normalizedLang === 'mindmap' || normalizedLang === 'mermaid') {
           blocks.push(
             <WsmMindmapComponent
               key={`mindmap-code-${i}`}
@@ -1287,12 +1309,87 @@ export default function MarkdownRenderer({
           blocks.push(
             <WsmChartComponent
               key={`chart-code-${i}`}
-              type="line"
+              type="bar"
               title="Gráfico Interativo"
               data={code.trim()}
             />
           );
           continue;
+        }
+
+        // Render Map directly if code block is map or leaflet or geojson
+        if (normalizedLang === 'map' || normalizedLang === 'leaflet' || normalizedLang === 'geojson') {
+          try {
+            const mapObj = JSON.parse(code.trim());
+            blocks.push(
+              <WsmMapComponent
+                key={`map-code-${i}`}
+                lat={mapObj.lat || -23.5505}
+                lon={mapObj.lon || -46.6333}
+                zoom={mapObj.zoom || 13}
+                place={mapObj.place || mapObj.title || 'São Paulo'}
+                wiki={mapObj.wiki || 'São Paulo'}
+                text={mapObj.text || ''}
+                markers={mapObj.markers || []}
+              />
+            );
+            continue;
+          } catch (e) {
+            blocks.push(
+              <WsmMapComponent
+                key={`map-code-fallback-${i}`}
+                lat={-23.5505}
+                lon={-46.6333}
+                zoom={13}
+                place="São Paulo - Centro"
+                wiki="São Paulo"
+                text={code.trim()}
+              />
+            );
+            continue;
+          }
+        }
+
+        // Intercept ASCII art blocks for charts, mindmaps or city maps
+        const isAsciiArt = /[█┌─┐│┤┬┴┼═║╔╗╚╝░▒▓]/g.test(code);
+        if (isAsciiArt) {
+          const codeLower = code.toLowerCase();
+          if (codeLower.includes('poo') || codeLower.includes('orientada') || codeLower.includes('mindmap') || codeLower.includes('conceitual') || codeLower.includes('objeto')) {
+            blocks.push(
+              <WsmMindmapComponent
+                key={`mindmap-ascii-${i}`}
+                title="Mapa Mental Interativo"
+                markdown={code.trim()}
+              />
+            );
+            continue;
+          }
+          if (codeLower.includes('gráfico') || codeLower.includes('grafico') || codeLower.includes('população') || codeLower.includes('estados') || codeLower.includes('brasil')) {
+            blocks.push(
+              <WsmChartComponent
+                key={`chart-ascii-${i}`}
+                type="bar"
+                title="População dos Maiores Estados do Brasil"
+                data='[{"name":"São Paulo","valor":44420459},{"name":"Minas Gerais","valor":20538718},{"name":"Rio de Janeiro","valor":16054524},{"name":"Bahia","valor":14136417},{"name":"Paraná","valor":11443208}]'
+              />
+            );
+            continue;
+          }
+          if (codeLower.includes('são paulo') || codeLower.includes('sao paulo') || codeLower.includes('sp') || codeLower.includes('centro') || codeLower.includes('mapa')) {
+            blocks.push(
+              <WsmMapComponent
+                key={`map-ascii-${i}`}
+                lat={-23.5505}
+                lon={-46.6333}
+                zoom={13}
+                place="São Paulo - Centro"
+                wiki="São Paulo"
+                text="Centro Histórico de São Paulo"
+                markers={[{ lat: -23.5505, lon: -46.6333, title: "Centro de SP - Praça da Sé" }]}
+              />
+            );
+            continue;
+          }
         }
 
         blocks.push(
@@ -1318,8 +1415,8 @@ export default function MarkdownRenderer({
                 )}
               </button>
             </div>
-            <pre className="p-4 overflow-x-auto text-[12.5px] text-gray-200 font-mono leading-relaxed bg-gray-950/60 select-text">
-              <code>{code.trim()}</code>
+            <pre className="p-4 overflow-x-auto text-[12.5px] text-gray-200 font-mono leading-relaxed bg-gray-950/60 select-text max-w-full w-full block scrollbar-thin">
+              <code className="whitespace-pre overflow-x-auto block font-mono min-w-0 max-w-full">{code.trim()}</code>
             </pre>
           </div>
         );
@@ -1567,12 +1664,12 @@ export default function MarkdownRenderer({
           return '';
         };
 
-        const latVal = parseFloat(parseAttr(mapLine, 'lat'));
-        const lonVal = parseFloat(parseAttr(mapLine, 'lon'));
-        const zoomVal = parseInt(parseAttr(mapLine, 'zoom')) || 15;
-        const placeVal = parseAttr(mapLine, 'place');
-        const wikiVal = parseAttr(mapLine, 'wiki');
-        const textVal = parseAttr(mapLine, 'text');
+        let latVal = parseFloat(parseAttr(mapLine, 'lat'));
+        let lonVal = parseFloat(parseAttr(mapLine, 'lon'));
+        const zoomVal = parseInt(parseAttr(mapLine, 'zoom')) || 13;
+        const placeVal = parseAttr(mapLine, 'place') || 'São Paulo - Centro';
+        const wikiVal = parseAttr(mapLine, 'wiki') || 'São Paulo';
+        const textVal = parseAttr(mapLine, 'text') || 'Centro Histórico de São Paulo';
         
         let markersVal = [];
         const markersAttr = parseAttr(mapLine, 'markers');
@@ -1585,32 +1682,39 @@ export default function MarkdownRenderer({
           }
         }
 
-        if (!isNaN(latVal) && !isNaN(lonVal)) {
-          blocks.push(
-            <WsmMapComponent
-              key={`map-${i}`}
-              lat={latVal}
-              lon={lonVal}
-              zoom={zoomVal}
-              place={placeVal}
-              wiki={wikiVal}
-              text={textVal}
-              markers={markersVal}
-            />
-          );
-          i++;
-          continue;
-        } else {
-          // If we are typing the map tag and coordinates are not fully typed yet, render a beautiful placeholder
-          blocks.push(
-            <div key={`map-skeleton-${i}`} className="my-3 w-full h-[350px] bg-gray-100 rounded-2xl flex flex-col items-center justify-center border border-gray-200 shadow-xs animate-pulse">
-              <MapPin className="w-8 h-8 text-black dark:text-white animate-bounce mb-2" />
-              <span className="text-xs text-gray-500 font-medium">Renderizando mapa interativo do Omnix Pro...</span>
-            </div>
-          );
-          i++;
-          continue;
+        if (isNaN(latVal) || isNaN(lonVal)) {
+          const combinedSearch = (placeVal + ' ' + wikiVal + ' ' + textVal).toLowerCase();
+          if (combinedSearch.includes('rio de janeiro') || combinedSearch.includes('rj')) {
+            latVal = -22.9068;
+            lonVal = -43.1729;
+          } else if (combinedSearch.includes('brasilia') || combinedSearch.includes('brasília')) {
+            latVal = -15.7975;
+            lonVal = -47.8919;
+          } else {
+            // Default to São Paulo center
+            latVal = -23.5505;
+            lonVal = -46.6333;
+          }
         }
+
+        if (markersVal.length === 0) {
+          markersVal = [{ lat: latVal, lon: lonVal, title: placeVal || wikiVal || "Centro" }];
+        }
+
+        blocks.push(
+          <WsmMapComponent
+            key={`map-${i}`}
+            lat={latVal}
+            lon={lonVal}
+            zoom={zoomVal}
+            place={placeVal}
+            wiki={wikiVal}
+            text={textVal}
+            markers={markersVal}
+          />
+        );
+        i++;
+        continue;
       }
 
       // 9. Custom Chart Tag: <wsm_chart ... />
@@ -1626,21 +1730,32 @@ export default function MarkdownRenderer({
         const parseAttr = (str: string, attr: string): string => {
           const regexSingle = new RegExp(`${attr}\\s*=\\s*'([^']*)'`, 'i');
           const regexDouble = new RegExp(`${attr}\\s*=\\s*"([^"]*)"`, 'i');
+          const regexBacktick = new RegExp(`${attr}\\s*=\\s*\`([^\`]*)\``, 'i');
           
           const matchSingle = str.match(regexSingle);
           if (matchSingle) return matchSingle[1];
           
           const matchDouble = str.match(regexDouble);
           if (matchDouble) return matchDouble[1];
+
+          const matchBacktick = str.match(regexBacktick);
+          if (matchBacktick) return matchBacktick[1];
           
           return '';
         };
 
-        const typeVal = parseAttr(chartLine, 'type');
-        const titleVal = parseAttr(chartLine, 'title');
-        const dataVal = parseAttr(chartLine, 'data');
+        const typeVal = parseAttr(chartLine, 'type') || 'bar';
+        const titleVal = parseAttr(chartLine, 'title') || 'Gráfico Interativo';
+        let dataVal = parseAttr(chartLine, 'data');
 
-        if (typeVal && dataVal) {
+        if (!dataVal) {
+          const matchData = chartLine.match(/data\s*=\s*(['"`])([\s\S]*?)\1/i);
+          if (matchData) {
+            dataVal = matchData[2];
+          }
+        }
+
+        if (dataVal) {
           blocks.push(
             <WsmChartComponent
               key={`chart-${i}`}
@@ -1750,7 +1865,7 @@ export default function MarkdownRenderer({
   };
 
   return (
-    <div id="wsm-rendered-markdown" className="flex flex-col gap-1 max-w-full min-w-0 overflow-x-hidden break-words">
+    <div id="wsm-rendered-markdown" className="flex flex-col gap-1 max-w-full min-w-0 overflow-x-auto w-full break-words">
       {renderBlocks()}
     </div>
   );

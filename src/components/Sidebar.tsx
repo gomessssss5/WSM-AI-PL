@@ -383,7 +383,7 @@ export default function Sidebar(props: SidebarProps) {
               <span className="text-[12px] font-bold text-gray-800 truncate group-hover:text-amber-600 transition-colors">
                 {userProfile?.displayName || userName || userEmail || 'Usuário Omnix AI'}
               </span>
-              <span className="text-[9px] text-gray-500 uppercase tracking-wide font-semibold truncate">
+              <span className="text-[10px] text-gray-500 tracking-wide font-medium truncate">
                 {userEmail || 'Conectado'}
               </span>
             </div>

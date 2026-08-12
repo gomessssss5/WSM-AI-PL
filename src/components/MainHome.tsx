@@ -1318,14 +1318,7 @@ export default function MainHome({
                   <button
                     type="button"
                     id="btn-search-toggle"
-                    onClick={() => {
-                      if (inputValue.trim()) {
-                        setIsSearchEnabled(true);
-                        handleSubmit();
-                      } else {
-                        setIsSearchEnabled(!isSearchEnabled);
-                      }
-                    }}
+                    onClick={() => setIsSearchEnabled(!isSearchEnabled)}
                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold transition-all cursor-pointer ${
                       isSearchEnabled
                         ? 'bg-black text-white dark:bg-white dark:text-black border border-black dark:border-white shadow-2xs'

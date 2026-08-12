@@ -45,9 +45,64 @@ interface LibraryFile {
   sessionId: string;
 }
 
+import React, { useState, useMemo, useRef } from 'react';
+import { 
+  FileText, 
+  FileCode2, 
+  Table, 
+  FileCode, 
+  Search, 
+  Download, 
+  Eye, 
+  ChevronRight, 
+  Grid, 
+  List, 
+  BookOpen, 
+  Menu,
+  X,
+  Plus,
+  ChevronDown,
+  Trash2,
+  Edit2,
+  Link,
+  MoreVertical,
+  CheckSquare,
+  Square,
+  Upload,
+  Paperclip,
+  Share2,
+  File,
+  FolderOpen,
+  Send
+} from 'lucide-react';
+import { ChatSession, Message } from '../types';
+import { extractWsmDoc } from '../utils/docParser';
+import { generatePdfBlob } from '../utils/pdfGenerator';
+import { generateExcelBlob } from '../utils/excelGenerator';
+import DocumentViewerPane from './DocumentViewerPane';
+
+interface LibraryProps {
+  sessions: ChatSession[];
+  onOpenMobileHistory?: () => void;
+  onSelectSession: (id: string) => void;
+  onNewChat: () => void;
+}
+
+export interface LibraryFile {
+  id: string;
+  title: string;
+  format: 'pdf' | 'html' | 'xlsx' | 'md' | 'code' | 'txt' | string;
+  content: string;
+  timestamp: Date;
+  sessionTitle: string;
+  sessionId: string;
+  origin?: 'ai_doc' | 'user_attachment' | 'workspace_upload';
+  fileSize?: string;
+}
+
 export default function Library({ sessions, onOpenMobileHistory, onSelectSession, onNewChat }: LibraryProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'tudo' | 'arquivos'>('tudo');
+  const [activeTab, setActiveTab] = useState<'tudo' | 'fontes' | 'documentos' | 'planilhas' | 'codigo'>('tudo');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedFile, setSelectedFile] = useState<LibraryFile | null>(null);
   const [showCreateDropdown, setShowCreateDropdown] = useState(false);
@@ -56,6 +111,57 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
   const [renamedFiles, setRenamedFiles] = useState<Record<string, string>>({});
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [hideIntermediate, setHideIntermediate] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Custom uploaded workspace files stored locally
+  const [workspaceUploads, setWorkspaceUploads] = useState<LibraryFile[]>(() => {
+    try {
+      const saved = localStorage.getItem('wsm_workspace_library_uploads');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.map((item: any) => ({
+          ...item,
+          timestamp: new Date(item.timestamp)
+        }));
+      }
+    } catch (e) {}
+    return [];
+  });
+
+  const saveWorkspaceUploads = (newUploads: LibraryFile[]) => {
+    setWorkspaceUploads(newUploads);
+    try {
+      localStorage.setItem('wsm_workspace_library_uploads', JSON.stringify(newUploads));
+    } catch (e) {}
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const textContent = (event.target?.result as string) || '';
+        const ext = file.name.split('.').pop() || 'txt';
+        const newFile: LibraryFile = {
+          id: `workspace-upload-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          title: file.name,
+          format: ext.toLowerCase(),
+          content: textContent,
+          timestamp: new Date(),
+          sessionTitle: 'Workspace do Agente',
+          sessionId: 'workspace-root',
+          origin: 'workspace_upload',
+          fileSize: `${(file.size / 1024).toFixed(1)} KB`
+        };
+        saveWorkspaceUploads([newFile, ...workspaceUploads]);
+      };
+      reader.readAsText(file);
+    });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setShowCreateDropdown(false);
+  };
 
   // Helper to identify intermediate technical scripts vs final documents
   const isIntermediateFile = (file: LibraryFile) => {
@@ -85,12 +191,35 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
     return rawTitle;
   };
 
-  // Dynamically extract all files from AI messages across all sessions
+  // Dynamically extract all files from messages (AI + User attachments) across all sessions + Workspace uploads
   const allFiles = useMemo(() => {
-    const files: LibraryFile[] = [];
+    const files: LibraryFile[] = [...workspaceUploads];
     
     sessions.forEach(session => {
       session.messages.forEach(msg => {
+        // Parse User / Session Attachments
+        if (msg.attachments && msg.attachments.length > 0) {
+          msg.attachments.forEach((att, idx) => {
+            const fileId = `${msg.id}-att-${idx}`;
+            if (!deletedFileIds.has(fileId)) {
+              const ext = att.name.split('.').pop() || 'txt';
+              const baseTitle = renamedFiles[fileId] || att.name;
+              files.push({
+                id: fileId,
+                title: ensureFileExtension(baseTitle, ext),
+                format: ext.toLowerCase(),
+                content: att.base64 || att.url || `[Conteúdo do anexo: ${att.name}]`,
+                timestamp: new Date(msg.timestamp),
+                sessionTitle: session.title,
+                sessionId: session.id,
+                origin: 'user_attachment',
+                fileSize: att.size ? `${(att.size / 1024).toFixed(1)} KB` : undefined
+              });
+            }
+          });
+        }
+
+        // Parse AI generated documents
         if (msg.sender === 'ai') {
           // 1. Extract <wsm_doc> tags
           const { docObjs } = extractWsmDoc(msg.text);
@@ -108,6 +237,7 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
                   timestamp: new Date(msg.timestamp),
                   sessionTitle: session.title,
                   sessionId: session.id,
+                  origin: 'ai_doc'
                 });
               }
             });
@@ -127,11 +257,12 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
                 timestamp: new Date(msg.timestamp),
                 sessionTitle: session.title,
                 sessionId: session.id,
+                origin: 'ai_doc'
               });
             }
           }
 
-          // 3. Extract code block as code files (if it hasn't been extracted as <wsm_doc>)
+          // 3. Extract code block as code files
           if (msg.codeBlock && (!docObjs || docObjs.length === 0)) {
             const fileId = `${msg.id}-code`;
             if (!deletedFileIds.has(fileId)) {
@@ -145,6 +276,7 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
                 timestamp: new Date(msg.timestamp),
                 sessionTitle: session.title,
                 sessionId: session.id,
+                origin: 'ai_doc'
               });
             }
           }
@@ -154,7 +286,7 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
 
     // Sort by timestamp descending (newest first)
     return files.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-  }, [sessions, deletedFileIds, renamedFiles]);
+  }, [sessions, deletedFileIds, renamedFiles, workspaceUploads]);
 
   // Filter based on search query, active tab, and intermediate script filter
   const filteredFiles = useMemo(() => {
@@ -166,11 +298,22 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
       const matchesSearch = file.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                             file.sessionTitle.toLowerCase().includes(searchQuery.toLowerCase());
       
-      if (activeTab === 'arquivos') {
-        // Files category includes pdf, doc, xlsx, md, etc.
-        return matchesSearch && ['pdf', 'xlsx', 'md', 'html', 'code', 'txt', 'js', 'ts', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'css', 'json'].includes(file.format.toLowerCase());
+      if (!matchesSearch) return false;
+
+      const fmt = file.format.toLowerCase();
+      if (activeTab === 'fontes') {
+        return file.origin === 'user_attachment' || file.origin === 'workspace_upload';
       }
-      return matchesSearch;
+      if (activeTab === 'documentos') {
+        return ['pdf', 'doc', 'docx', 'md', 'html', 'txt'].includes(fmt);
+      }
+      if (activeTab === 'planilhas') {
+        return ['xlsx', 'xls', 'csv', 'tsv', 'json'].includes(fmt);
+      }
+      if (activeTab === 'codigo') {
+        return ['code', 'js', 'ts', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'css', 'json', 'sql', 'sh', 'bash'].includes(fmt);
+      }
+      return true;
     });
   }, [allFiles, searchQuery, activeTab, hideIntermediate]);
 
@@ -348,25 +491,41 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
             />
           </div>
 
-          {/* New Document Placeholder / Action Dropdown */}
+          {/* New Document / Upload Action Dropdown */}
           <div className="relative">
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileUpload} 
+              className="hidden" 
+              multiple 
+            />
             <button 
               onClick={() => setShowCreateDropdown(!showCreateDropdown)}
               className="flex items-center gap-1.5 bg-black hover:bg-neutral-800 text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-2xs transition-all active:scale-95 cursor-pointer"
             >
-              <span>Novo</span>
+              <Plus className="w-4 h-4" />
+              <span>Adicionar</span>
               <ChevronDown className="w-3.5 h-3.5" />
             </button>
             {showCreateDropdown && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowCreateDropdown(false)} />
-                <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-150 rounded-xl shadow-lg py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-100">
+                <div className="absolute right-0 mt-1 w-56 bg-white border border-gray-150 rounded-xl shadow-lg py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-100">
+                  <button 
+                    onClick={() => { setShowCreateDropdown(false); fileInputRef.current?.click(); }}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-50 transition-colors flex items-center gap-2.5 font-medium"
+                  >
+                    <Upload className="w-4 h-4 text-emerald-600" />
+                    Upload de Fonte / Arquivo
+                  </button>
+                  <div className="h-px bg-gray-100 my-1" />
                   <button 
                     onClick={() => { setShowCreateDropdown(false); onNewChat(); }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-50 transition-colors flex items-center gap-2.5 font-medium"
                   >
-                    <Plus className="w-4 h-4" />
-                    Iniciar novo chat
+                    <Plus className="w-4 h-4 text-gray-600" />
+                    Iniciar Novo Projeto / Chat
                   </button>
                 </div>
               </>
@@ -390,38 +549,69 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
         </div>
 
         {/* Filter Tabs and Layout Controls */}
-        <div className="flex items-center justify-between border-b border-gray-200/60 pb-3 shrink-0">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between border-b border-gray-200/60 pb-3 gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <button 
               onClick={() => setActiveTab('tudo')}
-              className={`px-4 py-1.5 text-xs font-bold rounded-full transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all cursor-pointer ${
                 activeTab === 'tudo' 
                   ? 'bg-gray-900 text-white shadow-2xs' 
                   : 'bg-transparent text-gray-600 hover:bg-gray-100'
               }`}
             >
-              Tudo
+              Tudo ({allFiles.length})
             </button>
             <button 
-              onClick={() => setActiveTab('arquivos')}
-              className={`px-4 py-1.5 text-xs font-bold rounded-full transition-all cursor-pointer ${
-                activeTab === 'arquivos' 
+              onClick={() => setActiveTab('fontes')}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all cursor-pointer flex items-center gap-1 ${
+                activeTab === 'fontes' 
                   ? 'bg-gray-900 text-white shadow-2xs' 
                   : 'bg-transparent text-gray-600 hover:bg-gray-100'
               }`}
             >
-              Arquivos
+              <Paperclip className="w-3 h-3" />
+              Fontes & Anexos
+            </button>
+            <button 
+              onClick={() => setActiveTab('documentos')}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all cursor-pointer ${
+                activeTab === 'documentos' 
+                  ? 'bg-gray-900 text-white shadow-2xs' 
+                  : 'bg-transparent text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              Documentos
+            </button>
+            <button 
+              onClick={() => setActiveTab('planilhas')}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all cursor-pointer ${
+                activeTab === 'planilhas' 
+                  ? 'bg-gray-900 text-white shadow-2xs' 
+                  : 'bg-transparent text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              Planilhas
+            </button>
+            <button 
+              onClick={() => setActiveTab('codigo')}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all cursor-pointer ${
+                activeTab === 'codigo' 
+                  ? 'bg-gray-900 text-white shadow-2xs' 
+                  : 'bg-transparent text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              Código
             </button>
             <button 
               onClick={() => setHideIntermediate(!hideIntermediate)}
-              className={`ml-2 px-3 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer flex items-center gap-1.5 border ${
+              className={`ml-1 px-3 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer flex items-center gap-1 border ${
                 hideIntermediate 
                   ? 'bg-amber-100 border-amber-300 text-amber-900 font-bold' 
                   : 'bg-gray-100 border-gray-200 text-gray-600 hover:bg-gray-200'
               }`}
               title="Filtrar ou exibir arquivos e scripts intermediários"
             >
-              <span>{hideIntermediate ? 'Ocultando Scripts' : 'Exibir Todos os Scripts'}</span>
+              <span>{hideIntermediate ? 'Ocultando Scripts' : 'Exibir Scripts'}</span>
             </button>
           </div>
 
@@ -484,6 +674,16 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
                               <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-gray-100 text-gray-700 border border-gray-200">
                                 {file.format}
                               </span>
+                              {file.origin === 'user_attachment' && (
+                                <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200/80 flex items-center gap-0.5">
+                                  <Paperclip className="w-2.5 h-2.5" /> Anexo
+                                </span>
+                              )}
+                              {file.origin === 'workspace_upload' && (
+                                <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center gap-0.5">
+                                  <Upload className="w-2.5 h-2.5" /> Fonte
+                                </span>
+                              )}
                               {isIntermediateFile(file) && (
                                 <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
                                   Script Intermediário
@@ -499,7 +699,10 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
                               <MoreVertical className="w-4 h-4" />
                             </button>
                             {activeMenuId === file.id && (
-                              <div className="absolute right-0 top-6 bg-white shadow-lg border border-gray-100 rounded-lg py-1 w-32 z-10" onClick={e => e.stopPropagation()}>
+                              <div className="absolute right-0 top-6 bg-white shadow-lg border border-gray-100 rounded-lg py-1 w-36 z-10" onClick={e => e.stopPropagation()}>
+                                <button className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100 flex items-center gap-2 font-medium" onClick={() => { setActiveMenuId(null); onNewChat(); }}>
+                                  <Send className="w-3.5 h-3.5 text-black" /> Usar no Chat
+                                </button>
                                 <button className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100 flex items-center gap-2" onClick={() => handleRename(file)}>
                                   <Edit2 className="w-3.5 h-3.5" /> Renomear
                                 </button>
@@ -619,12 +822,19 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
           /* Empty State */
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-4 border border-gray-150">
-              <BookOpen className="w-8 h-8 text-gray-400" />
+              <FolderOpen className="w-8 h-8 text-gray-400" />
             </div>
-            <h3 className="text-base font-bold text-gray-800">Nenhum arquivo na biblioteca</h3>
-            <p className="text-gray-400 text-xs mt-1 max-w-xs leading-relaxed">
-              Sua biblioteca é alimentada automaticamente com todos os documentos, planilhas, códigos e arquivos que a inteligência artificial gera nas suas conversas.
+            <h3 className="text-base font-bold text-gray-800">Nenhum arquivo na área de trabalho</h3>
+            <p className="text-gray-400 text-xs mt-1 max-w-sm leading-relaxed">
+              Esta biblioteca é sua área de trabalho do agente. Ela centraliza arquivos e documentos anexados por você, fontes enviadas e todos os relatórios, planilhas e códigos gerados em suas conversas.
             </p>
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="mt-4 px-4 py-2 bg-black hover:bg-neutral-800 text-white rounded-full text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-2xs"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Fazer Upload de Arquivo / Fonte
+            </button>
           </div>
         )}
       </div>

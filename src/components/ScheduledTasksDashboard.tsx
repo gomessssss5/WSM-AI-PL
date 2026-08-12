@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, Plus, List, X, MoreHorizontal, Settings, RefreshCw, RefreshCcw, Pencil } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, Plus, List, X, MoreHorizontal, Settings, RefreshCw, RefreshCcw, Pencil, Play, Loader2 } from 'lucide-react';
 import { ScheduledTask, TaskExecution, ChatSession } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { calculateNextRunAt } from '../lib/scheduledTasks';
@@ -51,6 +51,31 @@ export default function ScheduledTasksDashboard({
   
   const [hasExpiration, setHasExpiration] = useState(false);
   const [expirationDate, setExpirationDate] = useState('');
+  const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
+
+  const handleExecuteNow = async (task: ScheduledTask) => {
+    if (runningTaskId) return;
+    setRunningTaskId(task.id);
+    try {
+      const res = await fetch('/api/scheduled-tasks/execute-now', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: 'guest',
+          taskId: task.id,
+          taskData: task
+        })
+      });
+      const data = await res.json();
+      if (data.sessionId) {
+        onOpenSession(data.sessionId);
+      }
+    } catch (e) {
+      console.error('Erro ao executar tarefa agora:', e);
+    } finally {
+      setRunningTaskId(null);
+    }
+  };
 
   // Selected day on the calendar for active responsive/agenda view
   const [selectedDay, setSelectedDay] = useState<number>(new Date().getDate());
@@ -422,6 +447,21 @@ export default function ScheduledTasksDashboard({
                           </div>
                           
                           <div className="flex items-center gap-2 shrink-0">
+                            <button 
+                              type="button"
+                              onClick={() => handleExecuteNow(t)} 
+                              disabled={runningTaskId === t.id}
+                              className="text-gray-900 bg-gray-100 hover:bg-black hover:text-white px-2 py-1 rounded text-[11px] font-semibold transition-colors flex items-center gap-1"
+                              title="Executar tarefa agora"
+                            >
+                              {runningTaskId === t.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Play className="w-3 h-3 fill-current" />
+                              )}
+                              <span>Rodar</span>
+                            </button>
+
                             <label className="relative inline-flex items-center cursor-pointer scale-75">
                               <input 
                                 type="checkbox" 
@@ -495,7 +535,26 @@ export default function ScheduledTasksDashboard({
                         <Clock className="w-5 h-5 text-gray-400" />
                         <h3 className="font-semibold text-gray-900 text-base">{task.title}</h3>
                       </div>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3">
+                        <button 
+                          type="button"
+                          onClick={() => handleExecuteNow(task)} 
+                          disabled={runningTaskId === task.id}
+                          className="flex items-center gap-1.5 bg-[#18181b] hover:bg-black text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                          title="Executar tarefa imediatamente"
+                        >
+                          {runningTaskId === task.id ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Executando...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-3.5 h-3.5 fill-current" />
+                              <span>Executar Agora</span>
+                            </>
+                          )}
+                        </button>
                          <label className="relative inline-flex items-center cursor-pointer">
                             <input 
                               type="checkbox" 

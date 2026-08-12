@@ -11,7 +11,7 @@ import {
   isGmailUser 
 } from "./emailService.js";
 import { runAllEmailAutomations } from "./emailAutomation.js";
-import { processBackgroundTasks } from "./scheduledTasksBackground.js";
+import { processBackgroundTasks, executeScheduledTaskNow } from "./scheduledTasksBackground.js";
 import { getAllSystemPrompts, getSystemPrompt, updateSystemPrompt } from "./systemPromptsManager.js";
 
 dotenv.config();
@@ -285,7 +285,7 @@ async function callGeminiStreamWithFallback(options: any): Promise<any> {
 
 // API endpoint for chatbot communication and Web Search
 app.post("/api/chat", async (req: express.Request, res: express.Response) => {
-  const { text, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution, sessionId, chatMemoryDoc } = req.body;
+  const { text, attachments, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution, sessionId, chatMemoryDoc } = req.body;
 
   const userEmail = userInfo?.email || userContext?.email || req.body?.userEmail;
   let clientDisconnected = false;
@@ -459,7 +459,14 @@ REGRAS OBRIGATÓRIAS DA TAG DE HISTÓRICO (<history>...</history>):
     const userPromptLow = userPromptText.toLowerCase();
     const isHtmlSiteRequest = /\b(html|site|landing\s*page|página|pagina|website|frontend)\b/i.test(userPromptLow);
 
-    const promptExplicitSearch = !isHtmlSiteRequest && (
+    // Explicit user prohibition against web search or tools
+    const userForbidsSearch = /\b(não\s+(pesquis|busq|procur|use\s+a\s+web|use\s+a\s+internet|consulte\s+a\s+web|use\s+ferramentas)|sem\s+(web|internet|pesquisa|busca|ferramentas)|proibid\w*\s+(pesquis|buscar|usar\s+web)|desligad\w*\s+a\s+busca)\b/i.test(userPromptLow);
+
+    // Document, memory, code, or local context request
+    const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+    const isDocumentOrLocalTask = hasAttachments || /\b(documento|arquivo|anexo|resumo|resumir|memória|memoria|chat\s+temporário|código|codigo|função|traduzir|tradução|redigir|calcular|matemática)\b/i.test(userPromptLow);
+
+    const promptExplicitSearch = !isHtmlSiteRequest && !userForbidsSearch && (
       Boolean(effectiveSearchEnabled) ||
       /\b(pesquis\w*|busc\w*|procur\w*)\s+(na\s+web|na\s+internet|no\s+google|sobre|por)\b/i.test(userPromptLow) ||
       /\b(pesquise|pesquisar|busque|buscar|procure|procurar)\s+(na\s+web|na\s+internet|sobre|por)\b/i.test(userPromptLow) ||
@@ -468,10 +475,10 @@ REGRAS OBRIGATÓRIAS DA TAG DE HISTÓRICO (<history>...</history>):
 
     let shouldSearch = promptExplicitSearch;
 
-    if (!shouldSearch && process.env.TAVILY_API_KEY && !isHtmlSiteRequest) {
-      // AI autonomously decides if it needs to search the web for this query
+    if (!shouldSearch && process.env.TAVILY_API_KEY && !isHtmlSiteRequest && !userForbidsSearch && !isDocumentOrLocalTask) {
+      // AI autonomously decides if it strictly needs real-time live internet facts
       const triageBase = getSystemPrompt('web_search_triage', `Você é o classificador de intenção de busca web do assistente Omnix AI.`);
-      const triagePrompt = `${triageBase}\n\nO usuário enviou a seguinte mensagem/pergunta: "${text}"\n\nAvalie se esta mensagem requer uma pesquisa na web em tempo real para ser respondida adequadamente. Se sim, responda EXCLUSIVAMENTE com a palavra "SIM". Se puder responder sem pesquisa, responda EXCLUSIVAMENTE "NAO".`;
+      const triagePrompt = `${triageBase}\n\nO usuário enviou a seguinte mensagem: "${text}"\n\nREGRAS ESTRITAS DE RESPOSTA:\n1. Se a pergunta for sobre documentos, código, lógica, redação, matemática, tradução, conceitos, ou se puder ser respondida sem dados ao vivo de hoje, responda EXCLUSIVAMENTE "NAO".\n2. Responda "SIM" APENAS se a pergunta exigir ESTRITAMENTE informações e notícias em tempo real do dia de hoje.`;
 
       try {
         const triageResponse = await callGeminiWithFallback({
@@ -2197,6 +2204,22 @@ app.post("/api/send-scheduled-email", async (req: express.Request, res: express.
   } catch (error: any) {
     console.error("Erro ao enviar e-mail da tarefa agendada:", error);
     return res.status(500).json({ success: false, message: error?.message || "Erro ao disparar e-mail." });
+  }
+});
+
+// Endpoint para execução imediata (Run Now) de tarefa agendada
+app.post("/api/scheduled-tasks/execute-now", async (req: express.Request, res: express.Response) => {
+  const { userId, taskId, taskData } = req.body;
+  if (!taskId || !taskData) {
+    return res.status(400).json({ success: false, error: "Parâmetros 'taskId' e 'taskData' são obrigatórios." });
+  }
+
+  try {
+    const result = await executeScheduledTaskNow(userId || 'guest', taskId, taskData);
+    return res.json(result);
+  } catch (err: any) {
+    console.error("Erro ao executar tarefa agendada manualmente:", err);
+    return res.status(500).json({ success: false, error: err?.message || "Erro ao executar tarefa agendada." });
   }
 });
 
