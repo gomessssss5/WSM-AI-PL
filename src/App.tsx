@@ -9,7 +9,8 @@ import Library from './components/Library';
 import Login from './components/Login';
 import { auth, onAuthStateChanged, signOut, User, getRedirectResult } from './lib/firebase';
 import { subscribeSessions, saveSession, deleteSessionFromDb, subscribeDrafts, saveDraft, deleteDraft, subscribeUserProfile, dismissNewsCardForUser, dismissWelcomeCardForUser } from './lib/chatService';
-import { ChatSession, Message, Draft, ScheduledTask, TaskExecution } from './types';
+import { ChatSession, Message, Draft, ScheduledTask, TaskExecution, ExecutionLedgerEntry } from './types';
+import ExecutionLedgerModal from './components/ExecutionLedgerModal';
 import { Sparkles, Trash2 } from 'lucide-react';
 import ScheduledTasksDashboard from './components/ScheduledTasksDashboard';
 import SharedChatView from "./components/SharedChatView";
@@ -23,6 +24,7 @@ import { getCleanSessionTitle } from './utils/sessionUtils';
 
 import { OfficialSkillsStore } from './components/OfficialSkillsStore';
 import UserProfileModal from './components/UserProfileModal';
+import AgenticSecurityModal from './components/AgenticSecurityModal';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -41,6 +43,43 @@ export default function App() {
   const [isThinking, setIsThinking] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
+  const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
+  const [executionLedgerEntries, setExecutionLedgerEntries] = useState<ExecutionLedgerEntry[]>([
+    {
+      runId: 'RUN-2026-0812',
+      sessionId: 'default-session',
+      sessionTitle: 'Pesquisa Mercado & Relatório',
+      intentGoal: 'Analisar tendências de tecnologia e consolidar relatório para a equipe de produto',
+      constraints: ['Apenas dados pós-2025', 'Formato Markdown sem saudações'],
+      state: 'succeeded',
+      riskLevel: 'low',
+      requiresApproval: false,
+      isApproved: true,
+      steps: [
+        { id: 's1', name: 'Interpretação de Intenção & Escopo', tool: 'workspace', status: 'completed', details: 'Filtros e critérios estabelecidos' },
+        { id: 's2', name: 'Execução de Busca Web Integrada', tool: 'browser', status: 'completed', details: '25 fontes primárias consultadas' },
+        { id: 's3', name: 'Validação de Integridade e Citações', tool: 'code', status: 'completed', details: 'Verificação de duplicações e síntese' },
+      ],
+      validations: [
+        { id: 'v1', description: 'Sem duplicações ou loops de busca', status: 'passed' },
+        { id: 'v2', description: 'Atendimento estrito às restrições', status: 'passed' }
+      ],
+      artifacts: [
+        { id: 'a1', title: 'Relatório de Tendências.md', format: 'md' }
+      ],
+      evidenceLogs: [
+        'Intenção extraída: Pesquisa e Relatório',
+        'Busca web efetuada em api.tavily.com (25 fontes)',
+        'Validador de convergência executado: OK',
+        'Ledger gravado com sucesso'
+      ],
+      startedAt: new Date(Date.now() - 3600000),
+      finishedAt: new Date(Date.now() - 3540000),
+      durationMs: 60000,
+      tokensUsed: 420
+    }
+  ]);
 
   // Listen to User Skills from Firestore
   useEffect(() => {
@@ -1061,6 +1100,42 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           text: requestText,
           sessionId: sessionToUpdate.id,
           chatMemoryDoc: sessionToUpdate.chatMemoryDoc || "",
+          workspaceFiles: (() => {
+            const files: any[] = [];
+            sessions.forEach(s => {
+              s.messages?.forEach(m => {
+                if (m.attachments && Array.isArray(m.attachments)) {
+                  m.attachments.forEach(att => {
+                    files.push({
+                      id: att.url || att.name,
+                      title: att.name,
+                      format: att.type,
+                      sessionTitle: s.title,
+                      origin: 'anexo_conversa',
+                      content: `Anexo (${att.name}, ${att.type})`
+                    });
+                  });
+                }
+              });
+            });
+            try {
+              const savedUploads = localStorage.getItem('wsm_workspace_library_uploads');
+              if (savedUploads) {
+                const parsed = JSON.parse(savedUploads);
+                parsed.forEach((u: any) => {
+                  files.push({
+                    id: u.id || u.name,
+                    title: u.name,
+                    format: u.type || 'documento',
+                    sessionTitle: 'Biblioteca do Usuário',
+                    origin: 'upload_biblioteca',
+                    content: u.preview || u.content || `Documento (${u.name})`
+                  });
+                });
+              }
+            } catch (e) {}
+            return files;
+          })(),
           isSearchEnabled,
           isComputerEnabled,
           isTranslatorMode: false,
@@ -1586,6 +1661,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         onSignOut={handleSignOut}
         onOpenLibrary={() => { handleOpenLibraryView(); setIsMobileHistoryOpen(false); }}
         onOpenTasks={() => { handleOpenTasksView(); setIsMobileHistoryOpen(false); }}
+        onOpenLedger={() => setIsLedgerModalOpen(true)}
         isMobileHistoryOpen={isMobileHistoryOpen}
         onCloseMobileHistory={() => setIsMobileHistoryOpen(false)}
         onOpenSearchModal={() => setIsSearchModalOpen(true)}
@@ -1708,6 +1784,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                 isTemporary={!!activeSession.isTemporary}
                 isScheduled={!!activeSession.isScheduled}
                 onStartTemporaryChat={handleNewTemporaryChat}
+                onOpenLedger={() => setIsLedgerModalOpen(true)}
               />
             ) : (
               <MainHome
@@ -1760,6 +1837,31 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           userProfile={userProfile}
           onClose={() => setIsProfileModalOpen(false)}
           onSignOut={handleSignOut}
+          onOpenSecurityModal={() => setIsSecurityModalOpen(true)}
+        />
+      )}
+
+      {isSecurityModalOpen && (
+        <AgenticSecurityModal
+          isOpen={isSecurityModalOpen}
+          onClose={() => setIsSecurityModalOpen(false)}
+        />
+      )}
+
+      {isLedgerModalOpen && (
+        <ExecutionLedgerModal
+          isOpen={isLedgerModalOpen}
+          onClose={() => setIsLedgerModalOpen(false)}
+          entries={executionLedgerEntries}
+          onApproveRun={(runId) => {
+            setExecutionLedgerEntries(prev => prev.map(e => e.runId === runId ? { ...e, state: 'running', isApproved: true } : e));
+          }}
+          onCancelRun={(runId) => {
+            setExecutionLedgerEntries(prev => prev.map(e => e.runId === runId ? { ...e, state: 'cancelled' } : e));
+          }}
+          onRetryRun={(runId) => {
+            setExecutionLedgerEntries(prev => prev.map(e => e.runId === runId ? { ...e, state: 'queued' } : e));
+          }}
         />
       )}
 

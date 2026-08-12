@@ -1865,7 +1865,7 @@ export default function MarkdownRenderer({
   };
 
   return (
-    <div id="wsm-rendered-markdown" className="flex flex-col gap-1 max-w-full min-w-0 overflow-x-auto w-full break-words">
+    <div id="wsm-rendered-markdown" className="flex flex-col gap-1 max-w-full min-w-0 overflow-x-hidden w-full break-words">
       {renderBlocks()}
     </div>
   );

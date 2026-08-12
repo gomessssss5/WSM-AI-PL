@@ -81,5 +81,11 @@ service cloud.firestore {
     match /{path=**}/drafts/{draftId} {
       allow list, read, write: if true;
     }
+    match /{path=**}/scheduledTasks/{taskId} {
+      allow list, read, write: if true;
+    }
+    match /{path=**}/taskExecutions/{executionId} {
+      allow list, read, write: if true;
+    }
   }
 }

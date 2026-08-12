@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Image as ImageIcon, MessageSquare, Trash2, LogOut, Clock, BookOpen, Folder, MessageSquarePlus, User, X, Languages, Wrench, Menu, Download } from 'lucide-react';
+import { Plus, Search, Image as ImageIcon, MessageSquare, Trash2, LogOut, Clock, BookOpen, Folder, MessageSquarePlus, User, X, Languages, Wrench, Menu, Download, Activity } from 'lucide-react';
 import { ChatSession } from '../types';
 import { getCleanSessionTitle } from '../utils/sessionUtils';
 
@@ -17,6 +17,7 @@ interface SidebarProps {
   onSignOut?: () => void;
   onOpenLibrary?: () => void;
   onOpenTasks?: () => void;
+  onOpenLedger?: () => void;
   isMobileHistoryOpen?: boolean;
   onCloseMobileHistory?: () => void;
   onOpenSearchModal?: () => void;
@@ -38,6 +39,7 @@ export default function Sidebar(props: SidebarProps) {
     onSignOut,
     onOpenLibrary,
     onOpenTasks,
+    onOpenLedger,
     isMobileHistoryOpen,
     onCloseMobileHistory,
     onOpenSearchModal,
@@ -147,6 +149,14 @@ export default function Sidebar(props: SidebarProps) {
               title="Biblioteca"
             >
               <BookOpen className="w-4 h-4 text-gray-600" />
+            </button>
+
+            <button
+              onClick={() => { if (onOpenLedger) onOpenLedger(); }}
+              className="w-9 h-9 flex items-center justify-center bg-white hover:bg-[#fafaf9] text-emerald-800 rounded-full border border-emerald-200 shadow-2xs transition-all duration-200 active:scale-[0.95] cursor-pointer"
+              title="Ledger de Execução Agêntica"
+            >
+              <Activity className="w-4 h-4 text-emerald-600" />
             </button>
 
             <button
@@ -301,6 +311,15 @@ export default function Sidebar(props: SidebarProps) {
             {sessions.some(s => s.isScheduled && s.isUnread) && (
               <span className="absolute right-3.5 top-1/2 -translate-y-1/2 w-2 h-2 bg-black rounded-full animate-pulse"></span>
             )}
+          </button>
+          <button
+            onClick={() => {
+              if (onOpenLedger) onOpenLedger();
+            }}
+            className="w-full flex items-center justify-start gap-3 bg-transparent hover:bg-black/5 text-gray-700 hover:text-gray-900 py-2 px-3.5 rounded-lg border border-transparent transition-all duration-150 cursor-pointer text-left font-medium text-[13.5px] group"
+          >
+            <Activity className="w-4.5 h-4.5 text-emerald-600 group-hover:text-emerald-700 transition-colors" />
+            <span className="font-semibold text-gray-800">Ledger de Execução</span>
           </button>
         </div>
 

@@ -8,6 +8,7 @@ interface UserProfileModalProps {
   userProfile?: any;
   onClose: () => void;
   onSignOut?: () => void;
+  onOpenSecurityModal?: () => void;
 }
 
 export function getDiceBearAvatar(seed: string): string {
@@ -18,7 +19,8 @@ export default function UserProfileModal({
   currentUser,
   userProfile,
   onClose,
-  onSignOut
+  onSignOut,
+  onOpenSecurityModal
 }: UserProfileModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -236,6 +238,20 @@ export default function UserProfileModal({
           <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-800">
             <h4 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-3">Segurança e Privacidade</h4>
             <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                className="text-left px-3.5 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/20 hover:bg-emerald-100/50 transition-colors text-xs font-bold text-emerald-900 dark:text-emerald-300 flex items-center justify-between cursor-pointer"
+                onClick={() => {
+                  onClose();
+                  if (onOpenSecurityModal) onOpenSecurityModal();
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-emerald-600" />
+                  <span>Segurança Agêntica & Governança</span>
+                </div>
+                <span className="px-2 py-0.5 rounded bg-emerald-200 dark:bg-emerald-800 text-[10px] font-bold text-emerald-900 dark:text-emerald-100 uppercase">Configurar</span>
+              </button>
               <button
                 type="button"
                 className="text-left px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between cursor-pointer"

@@ -8,6 +8,7 @@ interface ScheduledTasksDashboardProps {
   tasks: ScheduledTask[];
   executions: TaskExecution[];
   sessions: ChatSession[];
+  currentUserId?: string;
   onOpenMobileHistory?: () => void;
   onSaveTask: (task: ScheduledTask) => void;
   onDeleteTask: (taskId: string) => void;
@@ -19,6 +20,7 @@ export default function ScheduledTasksDashboard({
   tasks,
   executions,
   sessions,
+  currentUserId,
   onOpenMobileHistory,
   onSaveTask,
   onDeleteTask,
@@ -61,7 +63,7 @@ export default function ScheduledTasksDashboard({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: 'guest',
+          userId: currentUserId || 'guest',
           taskId: task.id,
           taskData: task
         })
@@ -614,41 +616,84 @@ export default function ScheduledTasksDashboard({
           {activeTab === 'completed' && (
             <div className="flex flex-col gap-4 max-w-4xl">
               {executions.length === 0 ? (
-                <div className="text-center py-20 text-gray-500">
-                  Nenhuma execução registrada.
+                <div className="text-center py-20 text-gray-500 bg-white border border-[#eae6e1] rounded-2xl p-8">
+                  <CheckCircle2 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <p className="font-semibold text-gray-800">Nenhuma execução registrada.</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Execute uma tarefa manualmente ou aguarde o próximo ciclo agendado.
+                  </p>
                 </div>
               ) : (
                 executions.map(exec => {
                   const relatedSession = sessions.find(s => s.id === exec.sessionId);
+                  const isSuccess = exec.status === 'success';
+                  const summaryText = exec.outputSummary || (relatedSession?.messages?.find(m => m.sender === 'ai')?.text) || 'Execução processada pelo agente em segundo plano.';
+
                   return (
                     <motion.div 
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       key={exec.id} 
-                      onClick={() => onOpenSession(exec.sessionId)}
-                      className="bg-white border border-[#eae6e1] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-3 cursor-pointer"
+                      className="bg-white border border-[#eae6e1] rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-3"
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          {exec.status === 'success' ? (
-                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                          {isSuccess ? (
+                            <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
+                              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                            </div>
                           ) : (
-                            <X className="w-5 h-5 text-red-500" />
+                            <div className="w-9 h-9 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center shrink-0">
+                              <X className="w-5 h-5 text-red-600" />
+                            </div>
                           )}
                           <div>
-                            <h3 className="font-semibold text-gray-900 text-base">{exec.taskTitle}</h3>
-                            <p className="text-xs text-gray-500 mt-0.5">Executado em {formatShortDate(exec.executedAt)} às {formatShortTime(exec.executedAt)}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-bold text-gray-900 text-base">{exec.taskTitle}</h3>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                isSuccess ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-red-100 text-red-800 border border-red-200'
+                              }`}>
+                                {isSuccess ? 'Sucesso' : 'Falha'}
+                              </span>
+                              {exec.runId && (
+                                <span className="font-mono text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded border border-gray-200">
+                                  {exec.runId}
+                                </span>
+                              )}
+                              {exec.triggerType && (
+                                <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium border border-blue-100">
+                                  {exec.triggerType === 'manual' ? 'Disparo Manual' : 'Agendamento Automático'}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Executado em {formatShortDate(exec.executedAt)} às {formatShortTime(exec.executedAt)}
+                            </p>
                           </div>
                         </div>
-                        {relatedSession?.isUnread && (
-                          <div className="w-2.5 h-2.5 bg-gray-1000 rounded-full mt-1.5"></div>
-                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => onOpenSession(exec.sessionId)}
+                          className="px-3 py-1.5 rounded-lg bg-black hover:bg-neutral-800 text-white text-xs font-semibold transition-all active:scale-95 shrink-0 flex items-center gap-1 cursor-pointer shadow-sm"
+                        >
+                          Ver Conversa
+                        </button>
                       </div>
+
+                      {/* Summary output snippet */}
+                      <div className="bg-[#f9f8f6] border border-[#eae6e1] rounded-xl p-3 text-xs text-gray-700 leading-relaxed font-normal">
+                        <p className="font-bold text-gray-900 text-[11px] mb-1 uppercase tracking-wider">Resultado da Execução Agêntica:</p>
+                        <p className="line-clamp-3 whitespace-pre-line">{summaryText}</p>
+                      </div>
+
                       {exec.error && (
-                        <p className="text-red-500 text-xs bg-red-50 p-2 rounded-md border border-red-100">{exec.error}</p>
+                        <p className="text-red-600 text-xs bg-red-50 p-2.5 rounded-xl border border-red-200 font-mono">
+                          ⚠️ Erro: {exec.error}
+                        </p>
                       )}
                     </motion.div>
-                  )
+                  );
                 })
               )}
             </div>

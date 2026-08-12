@@ -99,12 +99,81 @@ export interface ScheduledTask {
 
 export interface TaskExecution {
   id: string;
+  runId?: string;
   taskId: string;
   taskTitle: string;
   executedAt: Date;
+  startedAt?: Date;
+  finishedAt?: Date;
+  triggerType?: 'manual' | 'scheduled' | 'event';
   sessionId: string;
   status: 'success' | 'error';
+  outputSummary?: string;
   error?: string;
+}
+
+export interface LibraryFile {
+  id: string;
+  title: string;
+  type: 'document' | 'code' | 'table' | 'script';
+  format: 'pdf' | 'excel' | 'doc' | 'ts' | 'js' | 'python' | 'html' | 'css' | 'json' | 'md' | string;
+  updatedAt: Date;
+  size: string;
+  sessionTitle?: string;
+  sessionId?: string;
+  content: string;
+  previewSnippet: string;
+  downloadFilename: string;
+  origin?: string;
+}
+
+export type ExecutionState = 
+  | 'draft' 
+  | 'awaiting_approval' 
+  | 'queued' 
+  | 'running' 
+  | 'waiting_user' 
+  | 'validating' 
+  | 'succeeded' 
+  | 'partially_succeeded' 
+  | 'failed' 
+  | 'cancelled';
+
+export interface ExecutionStep {
+  id: string;
+  name: string;
+  tool: 'browser' | 'workspace' | 'code' | 'api' | 'scheduler';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  details?: string;
+  timestamp?: Date;
+}
+
+export interface ValidationCriterion {
+  id: string;
+  description: string;
+  status: 'passed' | 'failed' | 'pending';
+  details?: string;
+}
+
+export interface ExecutionLedgerEntry {
+  runId: string;
+  sessionId: string;
+  sessionTitle: string;
+  intentGoal: string;
+  constraints?: string[];
+  state: ExecutionState;
+  riskLevel: 'low' | 'medium' | 'high';
+  requiresApproval: boolean;
+  isApproved?: boolean;
+  steps: ExecutionStep[];
+  validations: ValidationCriterion[];
+  artifacts: { id: string; title: string; format: string; url?: string }[];
+  evidenceLogs: string[];
+  startedAt: Date;
+  finishedAt?: Date;
+  durationMs?: number;
+  tokensUsed?: number;
+  errorMessage?: string;
 }
 
 export interface ChatSession {

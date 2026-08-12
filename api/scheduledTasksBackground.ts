@@ -273,15 +273,22 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
     console.warn('[ScheduledTasks] Warning updating session with AI message:', e);
   }
 
-  // Record task execution log
+  // Record task execution log with complete agentic provenance
+  const finishedAt = new Date();
+  const runId = `run-${executionId.slice(0, 8)}`;
   try {
     await setDoc(doc(db, 'users', userId, 'taskExecutions', executionId), {
+      id: executionId,
+      runId: runId,
       taskId: taskId,
       taskTitle: taskData.title,
       executedAt: Timestamp.fromDate(now),
+      startedAt: Timestamp.fromDate(now),
+      finishedAt: Timestamp.fromDate(finishedAt),
+      triggerType: taskData.triggerType || 'manual',
       sessionId: newSessionId,
       status: executionStatus,
-      outputSummary: finalOutput.slice(0, 300),
+      outputSummary: finalOutput.slice(0, 400),
       ...(executionError ? { error: executionError } : {})
     });
 
@@ -323,8 +330,11 @@ export async function processBackgroundTasks() {
           taskData
         });
       });
-    } catch (groupErr) {
-      console.warn('[ScheduledTasks] collectionGroup fallback to user iteration:', groupErr);
+    } catch (groupErr: any) {
+      // Fallback silently or log simple note if collectionGroup is not available
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[ScheduledTasks] collectionGroup fallback to user iteration:', groupErr?.message || groupErr);
+      }
     }
 
     // Strategy 2: If collectionGroup found nothing or failed, loop over known users + guest

@@ -285,7 +285,7 @@ async function callGeminiStreamWithFallback(options: any): Promise<any> {
 
 // API endpoint for chatbot communication and Web Search
 app.post("/api/chat", async (req: express.Request, res: express.Response) => {
-  const { text, attachments, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution, sessionId, chatMemoryDoc } = req.body;
+  const { text, attachments, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution, sessionId, chatMemoryDoc, workspaceFiles } = req.body;
 
   const userEmail = userInfo?.email || userContext?.email || req.body?.userEmail;
   let clientDisconnected = false;
@@ -298,6 +298,9 @@ app.post("/api/chat", async (req: express.Request, res: express.Response) => {
   });
 
   const userPromptText = typeof text === 'string' ? text : JSON.stringify(text || '');
+
+  // Detect Deterministic Mode ("Exatamente", "Literalmente", "Exato", "Manter formato")
+  const isDeterministicRequested = /\b(exatamente|literal|literalmente|exato|sem alterar|manter formato|conteúdo exato|manter exatamente)\b/i.test(userPromptText);
 
   const textRequestedComputer = /\b(ativ\w*|us\w*|habilit\w*|lig\w*)\s+(o(s)?\s+)?(modo(s)?\s+)?(computador|agente|navegador|playwright)\b/i.test(userPromptText) ||
     /\b(modo\s+computador|modo\s+agente|modo\s+navegador)\b/i.test(userPromptText);
@@ -315,6 +318,35 @@ app.post("/api/chat", async (req: express.Request, res: express.Response) => {
   const userTime = userContext?.time || now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const userTimezone = userContext?.timezone || "America/Sao_Paulo";
 
+  // Build Workspace Files System Instruction (Unified Truth of System State)
+  let workspaceContextInstruction = "";
+  if (Array.isArray(workspaceFiles) && workspaceFiles.length > 0) {
+    const fileListStr = workspaceFiles.slice(0, 20).map((f: any, i: number) => {
+      const summary = f.content ? String(f.content).slice(0, 1000) : (f.summary || "Sem visualização rápida.");
+      return `[Arquivo #${i+1}] ID: ${f.id || 'doc-' + i} | Título: "${f.title || f.name}" | Formato: ${f.format || 'documento'} | Origem: ${f.origin || 'workspace'}\nConteúdo / Exemplo:\n${summary}`;
+    }).join('\n\n');
+
+    workspaceContextInstruction = `
+## REPOSITÓRIO DE ARQUIVOS E DOCUMENTOS DO WORKSPACE DA BIBLIOTECA (FONTE DA VERDADE UNIFICADA)
+Abaixo está a lista oficial de TODOS os arquivos presentes no Workspace / Biblioteca do Usuário:
+${fileListStr}
+
+INSTRUÇÕES OBRIGATÓRIAS SOBRE O WORKSPACE:
+1. Se o usuário perguntar o que há em sua Biblioteca/Workspace, pedir para ler, resumir ou consultar um arquivo anteriormente criado ou anexado em qualquer conversa, UTILIZE A LISTA ACIMA.
+2. NUNCA responda que o workspace está vazio se existirem arquivos listados acima.
+3. Se o arquivo solicitado estiver presente na lista, forneça as informações extraídas com total precisão.
+`;
+  }
+
+  // Build Deterministic System Instruction if triggered
+  const deterministicInstruction = isDeterministicRequested ? `
+## [MODO DETERMINÍSTICO DE ALTA PRECISÃO ATIVADO]
+O usuário exigiu fidelidade literal ("exatamente" / "exato").
+1. É ESTRITAMENTE PROIBIDO alterar textos literais solicitados ou criar colunas/dados não especificados.
+2. É ESTRITAMENTE PROIBIDO adicionar saudações, introduções ou conversas paralelas não solicitadas.
+3. Preserve rigorosamente os termos, caracteres e formatos especificados pelo usuário.
+` : "";
+
   const userLocationContextInstruction = `
 ## Contexto de Localização, Data e Horário em Tempo Real do Usuário (OBRIGATÓRIO)
 Você tem acesso direto aos dados exatos de localização, dia e horário do usuário em tempo real:
@@ -325,6 +357,8 @@ Você tem acesso direto aos dados exatos de localização, dia e horário do usu
 Instruções Importantes:
 1. Sempre que o usuário perguntar que horas são, que dia é hoje, qual é a previsão do tempo na cidade dele, eventos ou fatos locais, utilize EXATAMENTE as informações acima (${userCity}, ${userDate}, ${userTime}).
 2. Ao realizar pesquisas ou análises temporais (como "notícias de hoje", "jogos de hoje"), tome a data (${userDate}) e a cidade do usuário (${userCity}) como referência absoluta.
+${workspaceContextInstruction}
+${deterministicInstruction}
 `;
 
   async function searchWebFallback(query: string): Promise<{ title: string; url: string; snippet: string }[]> {
@@ -601,15 +635,34 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
         }))
       });
 
-      // Step 2: Query Tavily sequentially for each step
+      // Step 2: Query Tavily sequentially for each step with Repetition & Convergence Loop Guards
       const searchSteps: any[] = [];
       const allImages: string[] = [];
       const allSources: { title: string; url: string; snippet?: string }[] = [];
+      const executedTags = new Set<string>();
+      let consecutiveZeroGainSteps = 0;
 
       for (let idx = 0; idx < plan.steps.length; idx++) {
         const step = plan.steps[idx];
+        const normalizedTag = (step.tag || '').trim().toLowerCase();
+
+        // 🛑 Repetition Detector Rule: If tag was already executed, stop redundant step
+        if (executedTags.has(normalizedTag)) {
+          console.log(`[Search Loop Guard] Tag repetida detectada ("${step.tag}"). Interrompendo passos redundantes.`);
+          sendEvent({
+            type: "step_complete",
+            index: idx,
+            sources: [],
+            isCompleted: true,
+            note: "Passo interrompido por repetição de consulta."
+          });
+          break;
+        }
+        executedTags.add(normalizedTag);
+
         console.log(`Executing search for tag: "${step.tag}"`);
         const stepResults: any[] = [];
+        const prevSourcesCount = allSources.length;
         
         try {
           const response = await fetch("https://api.tavily.com/search", {
@@ -681,8 +734,27 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
           isCompleted: true
         });
 
-        // Small delay (300ms)
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        // 🛑 Convergence Detector Rule: Check if new unique sources were gained
+        const newSourcesGained = allSources.length - prevSourcesCount;
+        if (newSourcesGained === 0) {
+          consecutiveZeroGainSteps++;
+        } else {
+          consecutiveZeroGainSteps = 0;
+        }
+
+        // If 2 steps passed without gaining new information or if we already have sufficient sources (>= 15), terminate search loop
+        if (consecutiveZeroGainSteps >= 2) {
+          console.log(`[Search Loop Guard] Encerrando ciclo de busca: 2 passos sem ganho de informação (convergência atingida).`);
+          break;
+        }
+
+        if (allSources.length >= 25) {
+          console.log(`[Search Loop Guard] Orçamento de fontes atingido (${allSources.length} fontes). Finalizando busca.`);
+          break;
+        }
+
+        // Small delay (200ms)
+        await new Promise((resolve) => setTimeout(resolve, 200));
       }
 
       // If all steps yielded no sources, do a global fallback on the entire user text

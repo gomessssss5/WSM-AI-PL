@@ -1,7 +1,7 @@
 import { WorkspaceTasksBlock } from "./WorkspaceTasksBlock";
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Paperclip, Globe, Monitor, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share, Columns, Pause, Cpu, Bot, PanelRight } from 'lucide-react';
+import { Paperclip, Globe, Monitor, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share, Columns, Pause, Cpu, Bot, PanelRight, Activity } from 'lucide-react';
 import BrowserPreviewPane from './BrowserPreviewPane';
 import DocumentViewerPane from './DocumentViewerPane';
 import WorkspaceViewerPane from './WorkspaceViewerPane';
@@ -221,6 +221,7 @@ interface ChatWindowProps {
   isTemporary?: boolean;
   isScheduled?: boolean;
   onOpenUpdateModal?: () => void;
+  onOpenLedger?: () => void;
   sessionId?: string;
 }
 
@@ -276,6 +277,7 @@ export default function ChatWindow({
   isTemporary = false,
   isScheduled = false,
   onOpenUpdateModal,
+  onOpenLedger,
   sessionId
 }: ChatWindowProps) {
   const [inputValue, setInputValue] = useState('');
@@ -1564,6 +1566,15 @@ export default function ChatWindow({
         {/* Right side controls */}
         <div className="flex items-center gap-2 relative z-50">
           <button
+            onClick={onOpenLedger}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer active:scale-95 border bg-emerald-50 hover:bg-emerald-100/70 border-emerald-200 text-emerald-800 shadow-2xs"
+            title="Abrir Ledger de Execução Agêntica (SO de Tarefas)"
+          >
+            <Activity className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span className="hidden sm:inline">Ledger OS</span>
+          </button>
+
+          <button
             onClick={onStartTemporaryChat}
             disabled={isTemporary}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer active:scale-95 border ${
@@ -1877,11 +1888,11 @@ export default function ChatWindow({
                                   <span>Você cancelou essa resposta</span>
                                 </div>
                               ) : isUser ? (
-                                <div className="prose max-w-none text-[14px] text-gray-800 whitespace-pre-wrap overflow-x-auto max-w-full">
+                                <div className="prose max-w-none text-[14px] text-gray-800 whitespace-pre-wrap break-words overflow-x-hidden max-w-full">
                                   {displayUserText(message.text)}
                                 </div>
                               ) : (
-                                <div className="wsm-answer-state fade-in prose max-w-none text-[14.5px] text-black dark:text-gray-100 min-w-0 break-words overflow-x-auto max-w-full w-full">
+                                <div className="wsm-answer-state fade-in prose max-w-none text-[14.5px] text-black dark:text-gray-100 min-w-0 break-words overflow-x-hidden max-w-full w-full">
                                   {/* 1. Reasoning Block */}
                                   {raciocinio && (
                                     <ReasoningBlock
