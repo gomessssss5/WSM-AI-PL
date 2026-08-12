@@ -433,6 +433,17 @@ export default function ChatWindow({
   }, [isThinking]);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isThinking) {
+        e.preventDefault();
+        onCancelGeneration?.();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isThinking, onCancelGeneration]);
+
+  useEffect(() => {
     if (currentScreenshots.length > 0 && isThinking && !isSplitScreenOpen) {
       setIsSplitScreenOpen(true);
     }
@@ -2332,6 +2343,20 @@ export default function ChatWindow({
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
+                      {isThinking && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onCancelGeneration?.();
+                          }}
+                          className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-100 hover:bg-red-200 text-red-700 border border-red-200 transition-all active:scale-95 flex items-center gap-1 cursor-pointer shrink-0 shadow-2xs"
+                          title="Interromper execução (Atalho: Esc)"
+                        >
+                          <XCircle className="w-3.5 h-3.5 text-red-600" />
+                          <span>Interromper</span>
+                        </button>
+                      )}
                       {latestScreenshot && (
                         <button
                           type="button"
@@ -2480,9 +2505,11 @@ export default function ChatWindow({
               >
           {/* Hidden File Input */}
           <input 
+            id="omnix-chat-file-input"
             type="file" 
             ref={fileInputRef} 
             onChange={handleFileChange} 
+            accept=".txt,.pdf,.doc,.docx,.csv,.xlsx,.json,.md,.png,.jpg,.jpeg,.gif,.webp,*/*"
             multiple 
             className="hidden" 
           />
@@ -2871,7 +2898,9 @@ export default function ChatWindow({
                     <div className="absolute bottom-full left-0 mb-2 w-56 bg-white border border-gray-100 rounded-xl shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 z-50">
                       {!isSkillsSubMenuOpen ? (
                         <div className="p-1.5 flex flex-col gap-0.5">
-                          <button
+                          <label
+                            htmlFor="omnix-chat-file-input"
+                            id="omnix-chat-file-upload-label"
                             onClick={() => {
                               setIsAttachMenuOpen(false);
                               handleAttachFileDirectly();
@@ -2882,7 +2911,7 @@ export default function ChatWindow({
                               <Paperclip className="w-4 h-4 text-gray-500" />
                               <span className="text-[13px] font-medium text-gray-700">Adicionar arquivos</span>
                             </div>
-                          </button>
+                          </label>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

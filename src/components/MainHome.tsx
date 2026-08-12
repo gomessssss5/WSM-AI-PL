@@ -842,9 +842,11 @@ export default function MainHome({
           >
           {/* Hidden File Input */}
           <input 
+            id="omnix-home-file-input"
             type="file" 
             ref={fileInputRef} 
             onChange={handleFileChange} 
+            accept=".txt,.pdf,.doc,.docx,.csv,.xlsx,.json,.md,.png,.jpg,.jpeg,.gif,.webp,*/*"
             multiple 
             className="hidden" 
           />
@@ -1239,7 +1241,9 @@ export default function MainHome({
                     <div className="absolute bottom-full left-0 mb-2 w-56 bg-white border border-gray-100 rounded-xl shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 z-50">
                       {!isSkillsSubMenuOpen ? (
                         <div className="p-1.5 flex flex-col gap-0.5">
-                          <button
+                          <label
+                            htmlFor="omnix-home-file-input"
+                            id="omnix-home-file-upload-label"
                             onClick={() => {
                               setIsAttachMenuOpen(false);
                               handleAttachFileDirectly();
@@ -1250,7 +1254,7 @@ export default function MainHome({
                               <Paperclip className="w-4 h-4 text-gray-500" />
                               <span className="text-[13px] font-medium text-gray-700">Adicionar arquivos</span>
                             </div>
-                          </button>
+                          </label>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

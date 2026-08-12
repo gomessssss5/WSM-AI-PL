@@ -14,6 +14,8 @@ interface ScheduledTasksDashboardProps {
   onDeleteTask: (taskId: string) => void;
   onToggleTask: (taskId: string, isActive: boolean) => void;
   onOpenSession: (sessionId: string) => void;
+  onSessionCreated?: (session: ChatSession) => void;
+  onExecutionCreated?: (execution: TaskExecution) => void;
 }
 
 export default function ScheduledTasksDashboard({
@@ -25,7 +27,9 @@ export default function ScheduledTasksDashboard({
   onSaveTask,
   onDeleteTask,
   onToggleTask,
-  onOpenSession
+  onOpenSession,
+  onSessionCreated,
+  onExecutionCreated
 }: ScheduledTasksDashboardProps) {
   const [activeTab, setActiveTab] = useState<'calendar' | 'tasks' | 'completed'>('calendar');
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -69,6 +73,12 @@ export default function ScheduledTasksDashboard({
         })
       });
       const data = await res.json();
+      if (data.session && onSessionCreated) {
+        onSessionCreated(data.session);
+      }
+      if (data.execution && onExecutionCreated) {
+        onExecutionCreated(data.execution);
+      }
       if (data.sessionId) {
         onOpenSession(data.sessionId);
       }

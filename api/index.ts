@@ -321,20 +321,21 @@ app.post("/api/chat", async (req: express.Request, res: express.Response) => {
   // Build Workspace Files System Instruction (Unified Truth of System State)
   let workspaceContextInstruction = "";
   if (Array.isArray(workspaceFiles) && workspaceFiles.length > 0) {
-    const fileListStr = workspaceFiles.slice(0, 20).map((f: any, i: number) => {
-      const summary = f.content ? String(f.content).slice(0, 1000) : (f.summary || "Sem visualização rápida.");
-      return `[Arquivo #${i+1}] ID: ${f.id || 'doc-' + i} | Título: "${f.title || f.name}" | Formato: ${f.format || 'documento'} | Origem: ${f.origin || 'workspace'}\nConteúdo / Exemplo:\n${summary}`;
+    const fileListStr = workspaceFiles.slice(0, 30).map((f: any, i: number) => {
+      const summary = f.content ? String(f.content).slice(0, 1500) : (f.summary || "Sem visualização rápida.");
+      const scopeLabel = f.scope || f.sessionTitle || f.origin || 'Biblioteca do Usuário (Global)';
+      return `[Arquivo #${i+1}] ID: ${f.id || 'doc-' + i} | Título: "${f.title || f.name}" | Escopo Explicito: ${scopeLabel} | Formato: ${f.format || 'documento'}\nConteúdo / Amostra de Texto:\n${summary}`;
     }).join('\n\n');
 
     workspaceContextInstruction = `
-## REPOSITÓRIO DE ARQUIVOS E DOCUMENTOS DO WORKSPACE DA BIBLIOTECA (FONTE DA VERDADE UNIFICADA)
-Abaixo está a lista oficial de TODOS os arquivos presentes no Workspace / Biblioteca do Usuário:
+## REGISTRO CENTRAL DE ARTEFATOS E WORKSPACE (FONTE ÚNICA DE VERDADE)
+Abaixo está a lista oficial e completa de TODOS os arquivos e documentos no Registro de Artefatos / Biblioteca do Usuário:
 ${fileListStr}
 
-INSTRUÇÕES OBRIGATÓRIAS SOBRE O WORKSPACE:
-1. Se o usuário perguntar o que há em sua Biblioteca/Workspace, pedir para ler, resumir ou consultar um arquivo anteriormente criado ou anexado em qualquer conversa, UTILIZE A LISTA ACIMA.
-2. NUNCA responda que o workspace está vazio se existirem arquivos listados acima.
-3. Se o arquivo solicitado estiver presente na lista, forneça as informações extraídas com total precisão.
+REGRAS INVIOLÁVEIS DO REGISTRO DE ARTEFATOS:
+1. Se um arquivo consta na lista acima (seja com escopo "Biblioteca do Usuário", "Artefato de Conversa" ou "Anexo"), ele ESTÁ TOTALMENTE ACESSÍVEL E DISPONÍVEL para leitura e análise imediata.
+2. É ESTRITAMENTE PROIBIDO responder "o workspace está vazio", "a lista de documentos está vazia" ou "não tenho acesso ao arquivo" se o arquivo constar nesta lista.
+3. Se o usuário perguntar por um arquivo (como "regressao-omnix-20260812.txt" ou qualquer outro listado acima), confirme imediatamente o acesso ao arquivo, extraia e analise seu conteúdo fornecido acima, informando o seu Escopo Explícito (ex: "[Escopo: Biblioteca do Usuário]").
 `;
   }
 

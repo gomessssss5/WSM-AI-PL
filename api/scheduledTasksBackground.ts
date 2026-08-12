@@ -115,7 +115,7 @@ export function calculateNextRunAt(
   return fallback;
 }
 
-export async function executeScheduledTaskNow(userId: string, taskId: string, taskData: any): Promise<{ success: boolean; aiResponse?: string; error?: string; sessionId?: string }> {
+export async function executeScheduledTaskNow(userId: string, taskId: string, taskData: any): Promise<{ success: boolean; aiResponse?: string; error?: string; sessionId?: string; session?: any; execution?: any }> {
   const db = getDb();
   if (!db) return { success: false, error: 'Database instance unavailable' };
 
@@ -300,11 +300,39 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
     console.warn('[ScheduledTasks] Warning recording task execution log:', e);
   }
 
+  const createdSessionObj = {
+    id: newSessionId,
+    title: `[Execução Agendada] ${taskData.title}`,
+    createdAt: now,
+    updatedAt: finishedAt,
+    messages: initialMessages,
+    isUnread: true,
+    isTemporary: false,
+    isScheduled: true
+  };
+
+  const createdExecutionObj = {
+    id: executionId,
+    runId: runId,
+    taskId: taskId,
+    taskTitle: taskData.title,
+    executedAt: now,
+    startedAt: now,
+    finishedAt: finishedAt,
+    triggerType: taskData.triggerType || 'manual',
+    sessionId: newSessionId,
+    status: executionStatus,
+    outputSummary: finalOutput.slice(0, 400),
+    ...(executionError ? { error: executionError } : {})
+  };
+
   return {
     success: executionStatus === 'success',
     aiResponse: finalOutput,
     error: executionError,
-    sessionId: newSessionId
+    sessionId: newSessionId,
+    session: createdSessionObj,
+    execution: createdExecutionObj
   };
 }
 

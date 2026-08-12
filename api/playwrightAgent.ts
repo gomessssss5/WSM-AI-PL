@@ -96,17 +96,54 @@ export function cleanUrlString(u: string): string {
 export async function openUrl(rawUrl: string) {
   let url = cleanUrlString(rawUrl);
 
-  await initPlaywright();
-  if (!page || page.isClosed()) return { error: "Não foi possível inicializar o navegador." };
-  
+  let pState: any = null;
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-  } catch (e: any) {
-    console.log("Goto error/timeout, proceeding anyway:", e.message);
+    const initPromise = initPlaywright();
+    const initTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout init Playwright")), 7000));
+    await Promise.race([initPromise, initTimeout]);
+
+    if (page && !page.isClosed()) {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 8000 }).catch(e => console.log("Goto timeout/error:", e.message));
+      await page.waitForTimeout(1000);
+      pState = await getPageState();
+    }
+  } catch (err: any) {
+    console.warn("Playwright openUrl failed or timed out:", err.message);
   }
-  
-  await page.waitForTimeout(1500);
-  return await getPageState();
+
+  if (pState && (pState.title || pState.text)) {
+    return pState;
+  }
+
+  // Fast HTTP Fetch Fallback
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+      },
+      signal: AbortSignal.timeout(6000)
+    });
+    if (res.ok) {
+      const html = await res.text();
+      const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/i);
+      const title = titleMatch ? titleMatch[1].trim() : 'Página sem título';
+      const cleanText = html.replace(/<script[\s\S]*?<\/script>/gi, '')
+                            .replace(/<style[\s\S]*?<\/style>/gi, '')
+                            .replace(/<[^>]+>/g, ' ')
+                            .replace(/\s+/g, ' ')
+                            .trim();
+      return {
+        url,
+        title,
+        text: cleanText.slice(0, 4000) || `Conteúdo lido com sucesso de ${url}.`,
+        screenshot: null
+      };
+    }
+  } catch (e: any) {
+    console.error("HTTP fetch fallback failed:", e.message);
+  }
+
+  return { error: `Não foi possível carregar a URL ${url}.` };
 }
 
 export async function clickSelector(selector: string) {
