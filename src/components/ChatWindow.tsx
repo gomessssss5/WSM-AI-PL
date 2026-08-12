@@ -1577,15 +1577,6 @@ export default function ChatWindow({
         {/* Right side controls */}
         <div className="flex items-center gap-2 relative z-50">
           <button
-            onClick={onOpenLedger}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer active:scale-95 border bg-emerald-50 hover:bg-emerald-100/70 border-emerald-200 text-emerald-800 shadow-2xs"
-            title="Abrir Ledger de Execução Agêntica (SO de Tarefas)"
-          >
-            <Activity className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <span className="hidden sm:inline">Ledger OS</span>
-          </button>
-
-          <button
             onClick={onStartTemporaryChat}
             disabled={isTemporary}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer active:scale-95 border ${

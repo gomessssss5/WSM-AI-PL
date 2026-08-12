@@ -2017,23 +2017,6 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         />
       )}
 
-      {isLedgerModalOpen && (
-        <ExecutionLedgerModal
-          isOpen={isLedgerModalOpen}
-          onClose={() => setIsLedgerModalOpen(false)}
-          entries={executionLedgerEntries}
-          onApproveRun={(runId) => {
-            setExecutionLedgerEntries(prev => prev.map(e => e.runId === runId ? { ...e, state: 'running', isApproved: true } : e));
-          }}
-          onCancelRun={(runId) => {
-            setExecutionLedgerEntries(prev => prev.map(e => e.runId === runId ? { ...e, state: 'cancelled' } : e));
-          }}
-          onRetryRun={(runId) => {
-            setExecutionLedgerEntries(prev => prev.map(e => e.runId === runId ? { ...e, state: 'queued' } : e));
-          }}
-        />
-      )}
-
       <AnimatePresence>
         {sessionToDeleteId && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
