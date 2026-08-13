@@ -262,7 +262,7 @@ export default function AgenticSecurityModal({ isOpen, onClose, userId }: Agenti
                       <FolderCheck className="w-4 h-4 text-amber-600" />
                       <div>
                         <p className="text-xs font-bold text-gray-800">Acesso ao Workspace</p>
-                        <p className="text-[11px] text-gray-500">Leitura/Escrita na Biblioteca de arquivos</p>
+                        <p className="text-[11px] text-gray-500">Leitura/Escrita no Workspace de arquivos</p>
                       </div>
                     </div>
                     <input 

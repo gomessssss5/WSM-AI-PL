@@ -15,7 +15,6 @@ interface SidebarProps {
   userName?: string | null;
   userProfile?: any;
   onSignOut?: () => void;
-  onOpenLibrary?: () => void;
   onOpenTasks?: () => void;
   onOpenLedger?: () => void;
   isMobileHistoryOpen?: boolean;
@@ -37,7 +36,6 @@ export default function Sidebar(props: SidebarProps) {
     userName,
     userProfile,
     onSignOut,
-    onOpenLibrary,
     onOpenTasks,
     onOpenLedger,
     isMobileHistoryOpen,
@@ -141,14 +139,6 @@ export default function Sidebar(props: SidebarProps) {
               title="Nova conversa"
             >
               <Plus className="w-4.5 h-4.5 text-gray-600" />
-            </button>
-
-            <button
-              onClick={() => { if (onOpenLibrary) onOpenLibrary(); }}
-              className="w-9 h-9 flex items-center justify-center bg-white hover:bg-[#fafaf9] text-gray-800 rounded-full border border-[#eae6e1] shadow-2xs transition-all duration-200 active:scale-[0.95] cursor-pointer"
-              title="Biblioteca"
-            >
-              <BookOpen className="w-4 h-4 text-gray-600" />
             </button>
 
             <button
@@ -281,16 +271,6 @@ export default function Sidebar(props: SidebarProps) {
           >
             <Plus className="w-4.5 h-4.5 text-gray-500 group-hover:text-gray-800 transition-colors" />
             <span>Nova conversa</span>
-          </button>
-          <button
-            id="btn-library"
-            onClick={() => {
-              if (onOpenLibrary) onOpenLibrary();
-            }}
-            className="w-full flex items-center justify-start gap-3 bg-transparent hover:bg-black/5 text-gray-700 hover:text-gray-900 py-2 px-3.5 rounded-lg border border-transparent transition-all duration-150 cursor-pointer text-left font-medium text-[13.5px] group"
-          >
-            <BookOpen className="w-4.5 h-4.5 text-gray-500 group-hover:text-gray-800 transition-colors" />
-            <span>Biblioteca</span>
           </button>
           <button
             onClick={() => {

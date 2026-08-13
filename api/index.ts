@@ -1721,31 +1721,84 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                  } catch(e) {}
               }
               
-              workspaceDocuments.set(title, { title, content, format });
-              functionResponseParts.push({
-                functionResponse: {
-                  id: fc.id,
-                  name: fc.name,
-                  response: {
-                    success: true,
-                    message: `Documento "${title}" criado com sucesso no workspace de documentos.`,
-                    content_length: content.length,
-                    total_documents_in_workspace: workspaceDocuments.size
-                  }
+              try {
+                workspaceDocuments.set(title, { title, content, format });
+                const readBack = workspaceDocuments.get(title);
+                const isPersisted = readBack && readBack.content === content;
+                
+                if (isPersisted) {
+                  const sha256 = crypto.createHash('sha256').update(content, 'utf8').digest('hex');
+                  const bytes = Buffer.byteLength(content, 'utf8');
+                  const artifact_id = "art_" + crypto.randomBytes(6).toString('hex');
+                  
+                  functionResponseParts.push({
+                    functionResponse: {
+                      id: fc.id,
+                      name: fc.name,
+                      response: {
+                        status: "succeeded",
+                        operation: "workspace.create_artifact",
+                        artifact_id,
+                        name: title,
+                        uri: `/workspace/${encodeURIComponent(title)}`,
+                        sha256,
+                        bytes,
+                        format,
+                        created_at: new Date().toISOString(),
+                        read_back_verified: true,
+                        total_documents_in_workspace: workspaceDocuments.size
+                      }
+                    }
+                  });
+                } else {
+                  functionResponseParts.push({
+                    functionResponse: {
+                      id: fc.id,
+                      name: fc.name,
+                      response: {
+                        status: "failed",
+                        operation: "workspace.create_artifact",
+                        name: title,
+                        error: "Falha na verificação de leitura de volta (read-back mismatch)",
+                        failed_at: new Date().toISOString()
+                      }
+                    }
+                  });
                 }
-              });
+              } catch (err: any) {
+                functionResponseParts.push({
+                  functionResponse: {
+                    id: fc.id,
+                    name: fc.name,
+                    response: {
+                      status: "failed",
+                      operation: "workspace.create_artifact",
+                      name: title,
+                      error: err?.message || String(err),
+                      failed_at: new Date().toISOString()
+                    }
+                  }
+                });
+              }
             } else if (fc.name === "read_document") {
               const args = fc.args as any;
               const title = String(args.title || '').trim();
               const docObj = workspaceDocuments.get(title);
               if (docObj) {
+                const sha256 = crypto.createHash('sha256').update(docObj.content, 'utf8').digest('hex');
+                const bytes = Buffer.byteLength(docObj.content, 'utf8');
                 functionResponseParts.push({
                   functionResponse: {
-                  id: fc.id,
+                    id: fc.id,
                     name: fc.name,
                     response: {
-                      success: true,
-                      title: docObj.title,
+                      status: "succeeded",
+                      operation: "workspace.read_artifact",
+                      name: docObj.title,
+                      uri: `/workspace/${encodeURIComponent(docObj.title)}`,
+                      sha256,
+                      bytes,
+                      format: docObj.format,
                       content: docObj.content
                     }
                   }
@@ -1753,11 +1806,14 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               } else {
                 functionResponseParts.push({
                   functionResponse: {
-                  id: fc.id,
+                    id: fc.id,
                     name: fc.name,
                     response: {
-                      success: false,
-                      error: `Documento "${title}" não encontrado no workspace. Documentos disponíveis: ${Array.from(workspaceDocuments.keys()).join(', ') || 'Nenhum'}`
+                      status: "failed",
+                      operation: "workspace.read_artifact",
+                      name: title,
+                      error: `Documento "${title}" não encontrado no workspace. Documentos disponíveis: ${Array.from(workspaceDocuments.keys()).join(', ') || 'Nenhum'}`,
+                      failed_at: new Date().toISOString()
                     }
                   }
                 });
@@ -1777,20 +1833,65 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                  } catch(e) {}
               }
               
-              const existingDoc = workspaceDocuments.get(title);
-              const format = inferFormat(title, args.format || existingDoc?.format, content);
-              workspaceDocuments.set(title, { title, content, format });
-              functionResponseParts.push({
-                functionResponse: {
-                  id: fc.id,
-                  name: fc.name,
-                  response: {
-                    success: true,
-                    message: `Documento "${title}" atualizado com sucesso no workspace.`,
-                    content_length: content.length
-                  }
+              try {
+                const existingDoc = workspaceDocuments.get(title);
+                const format = inferFormat(title, args.format || existingDoc?.format, content);
+                workspaceDocuments.set(title, { title, content, format });
+                const readBack = workspaceDocuments.get(title);
+                const isPersisted = readBack && readBack.content === content;
+                
+                if (isPersisted) {
+                  const sha256 = crypto.createHash('sha256').update(content, 'utf8').digest('hex');
+                  const bytes = Buffer.byteLength(content, 'utf8');
+                  const artifact_id = "art_" + crypto.randomBytes(6).toString('hex');
+                  functionResponseParts.push({
+                    functionResponse: {
+                      id: fc.id,
+                      name: fc.name,
+                      response: {
+                        status: "succeeded",
+                        operation: "workspace.update_artifact",
+                        artifact_id,
+                        name: title,
+                        uri: `/workspace/${encodeURIComponent(title)}`,
+                        sha256,
+                        bytes,
+                        format,
+                        updated_at: new Date().toISOString(),
+                        read_back_verified: true
+                      }
+                    }
+                  });
+                } else {
+                  functionResponseParts.push({
+                    functionResponse: {
+                      id: fc.id,
+                      name: fc.name,
+                      response: {
+                        status: "failed",
+                        operation: "workspace.update_artifact",
+                        name: title,
+                        error: "Falha ao verificar persistência da edição no workspace",
+                        failed_at: new Date().toISOString()
+                      }
+                    }
+                  });
                 }
-              });
+              } catch (err: any) {
+                functionResponseParts.push({
+                  functionResponse: {
+                    id: fc.id,
+                    name: fc.name,
+                    response: {
+                      status: "failed",
+                      operation: "workspace.update_artifact",
+                      name: title,
+                      error: err?.message || String(err),
+                      failed_at: new Date().toISOString()
+                    }
+                  }
+                });
+              }
             } else if (fc.name === "append_document") {
               const args = fc.args as any;
               const title = String(args.title || 'Documento').trim();
@@ -1798,14 +1899,34 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               const existingDoc = workspaceDocuments.get(title);
               const newContent = existingDoc ? existingDoc.content + "\n\n" + textToAppend : textToAppend;
               const format = inferFormat(title, existingDoc?.format, newContent);
+              
               workspaceDocuments.set(title, { title, content: newContent, format });
+              const readBack = workspaceDocuments.get(title);
+              const isPersisted = readBack && readBack.content === newContent;
+              const sha256 = crypto.createHash('sha256').update(newContent, 'utf8').digest('hex');
+              const bytes = Buffer.byteLength(newContent, 'utf8');
+              const artifact_id = "art_" + crypto.randomBytes(6).toString('hex');
+              
               functionResponseParts.push({
                 functionResponse: {
                   id: fc.id,
                   name: fc.name,
-                  response: {
-                    success: true,
-                    message: `Texto adicionado com sucesso ao documento "${title}". Tamanho atual: ${newContent.length} caracteres.`
+                  response: isPersisted ? {
+                    status: "succeeded",
+                    operation: "workspace.append_artifact",
+                    artifact_id,
+                    name: title,
+                    uri: `/workspace/${encodeURIComponent(title)}`,
+                    sha256,
+                    bytes,
+                    updated_at: new Date().toISOString(),
+                    read_back_verified: true
+                  } : {
+                    status: "failed",
+                    operation: "workspace.append_artifact",
+                    name: title,
+                    error: "Falha na verificação de leitura de volta após append",
+                    failed_at: new Date().toISOString()
                   }
                 }
               });
@@ -1818,19 +1939,33 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                   id: fc.id,
                   name: fc.name,
                   response: {
-                    success: existed,
-                    message: existed ? `Documento "${title}" excluído com sucesso do workspace.` : `Documento "${title}" não encontrado no workspace.`
+                    status: existed ? "succeeded" : "failed",
+                    operation: "workspace.delete_artifact",
+                    name: title,
+                    message: existed ? `Documento "${title}" excluído com sucesso do workspace.` : `Documento "${title}" não encontrado no workspace.`,
+                    deleted_at: new Date().toISOString()
                   }
                 }
               });
             } else if (fc.name === "list_documents") {
-              const docsList = Array.from(workspaceDocuments.values()).map(d => ({ title: d.title, length: d.content.length }));
+              const docsList = Array.from(workspaceDocuments.values()).map(d => {
+                const sha256 = crypto.createHash('sha256').update(d.content, 'utf8').digest('hex');
+                const bytes = Buffer.byteLength(d.content, 'utf8');
+                return {
+                  name: d.title,
+                  format: d.format,
+                  bytes,
+                  sha256,
+                  uri: `/workspace/${encodeURIComponent(d.title)}`
+                };
+              });
               functionResponseParts.push({
                 functionResponse: {
                   id: fc.id,
                   name: fc.name,
                   response: {
-                    success: true,
+                    status: "succeeded",
+                    operation: "workspace.list_artifacts",
                     total_documents: docsList.length,
                     documents: docsList
                   }

@@ -97,7 +97,7 @@ export const SkillsHub: React.FC = () => {
   const handleInstallOfficial = (officialSkill: ComposableSkill) => {
     const exists = skills.some(s => s.id === officialSkill.id);
     if (exists) {
-      alert('Esta Skill já está instalada na sua Biblioteca!');
+      alert('Esta Skill já está instalada nas suas Skills!');
       return;
     }
     const updated = [officialSkill, ...skills];

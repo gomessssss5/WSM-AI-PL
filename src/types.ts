@@ -72,7 +72,7 @@ export interface ComposableSkill {
   updatedAt?: string | Date;
 }
 
-export interface ExecutionTaskState = 
+export type ExecutionTaskState = 
   | 'planned' 
   | 'awaiting_confirmation' 
   | 'running' 

@@ -157,7 +157,7 @@ export function OfficialSkillsStore({ onClose, userSkills }: OfficialSkillsStore
                         <button 
                           onClick={() => handleAddSkill(skill)}
                           className="p-1.5 hover:bg-black text-white rounded-md transition-colors bg-gray-900 cursor-pointer"
-                          title="Habilitar Skill na Biblioteca"
+                          title="Habilitar Skill"
                         >
                           <Plus className="w-4 h-4" />
                         </button>

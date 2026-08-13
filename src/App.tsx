@@ -5,7 +5,6 @@ import SearchModal from './components/SearchModal';
 import MainHome from './components/MainHome';
 import ChatWindow from './components/ChatWindow';
 import ImagesGallery from './components/ImagesGallery';
-import Library from './components/Library';
 import Login from './components/Login';
 import { auth, onAuthStateChanged, signOut, User, getRedirectResult } from './lib/firebase';
 import { subscribeSessions, saveSession, deleteSessionFromDb, subscribeDrafts, saveDraft, deleteDraft, subscribeUserProfile, dismissNewsCardForUser, dismissWelcomeCardForUser } from './lib/chatService';
@@ -37,7 +36,6 @@ export default function App() {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isImagesView, setIsImagesView] = useState(false);
-  const [isLibraryView, setIsLibraryView] = useState(false);
   const [isScheduledTasksView, setIsScheduledTasksView] = useState(false);
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
   const [taskExecutions, setTaskExecutions] = useState<TaskExecution[]>([]);
@@ -562,7 +560,6 @@ export default function App() {
     }
 
     setIsImagesView(false);
-    setIsLibraryView(false);
     setIsScheduledTasksView(false);
     setActiveSessionId(id);
   };
@@ -575,7 +572,6 @@ export default function App() {
     // Discard all temporary chats
     setSessions((prev) => prev.filter((s) => !s.isTemporary));
     setIsImagesView(false);
-    setIsLibraryView(false);
     setIsScheduledTasksView(false);
     setActiveSessionId(null);
   };
@@ -602,7 +598,6 @@ export default function App() {
     setActiveSessionId(tempId);
     
     setIsImagesView(false);
-    setIsLibraryView(false);
     setIsScheduledTasksView(false);
     setIsMobileHistoryOpen(false);
   };
@@ -611,23 +606,13 @@ export default function App() {
   const handleToggleImagesView = () => {
     setSessions((prev) => prev.filter((s) => !s.isTemporary));
     setIsImagesView(!isImagesView);
-    setIsLibraryView(false);
     setIsScheduledTasksView(false);
-  };
-
-  const handleOpenLibraryView = () => {
-    setSessions((prev) => prev.filter((s) => !s.isTemporary));
-    setIsImagesView(false);
-    setActiveSessionId(null);
-    setIsScheduledTasksView(false);
-    setIsLibraryView(true);
   };
 
   const handleOpenTasksView = () => {
     setSessions((prev) => prev.filter((s) => !s.isTemporary));
     setIsImagesView(false);
     setActiveSessionId(null);
-    setIsLibraryView(false);
     setIsScheduledTasksView(true);
   };
 
@@ -1238,8 +1223,8 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                     id: u.id || u.name,
                     title: u.name,
                     format: u.type || 'documento',
-                    scope: 'Biblioteca do Usuário (Global)',
-                    origin: 'Biblioteca do Usuário',
+                    scope: 'Workspace do Usuário (Global)',
+                    origin: 'Workspace do Usuário',
                     content: u.preview || u.content || `Documento (${u.name})`
                   });
                 });
@@ -1820,7 +1805,6 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         userName={currentUser.displayName}
         userProfile={userProfile}
         onSignOut={handleSignOut}
-        onOpenLibrary={() => { handleOpenLibraryView(); setIsMobileHistoryOpen(false); }}
         onOpenTasks={() => { handleOpenTasksView(); setIsMobileHistoryOpen(false); }}
         onOpenLedger={() => setIsLedgerModalOpen(true)}
         isMobileHistoryOpen={isMobileHistoryOpen}
@@ -1844,7 +1828,6 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           <motion.div
             key={
               isAdminView ? 'admin' :
-              isLibraryView ? 'library' :
               isScheduledTasksView ? 'scheduled' :
               isImagesView ? 'images' :
               activeSession ? activeSession.id : 'home'
@@ -1859,13 +1842,6 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
               <AdminDashboard 
                 onBack={() => setIsAdminView(false)} 
                 actualSessionsCount={sessions.filter((s) => !s.isTemporary).length}
-              />
-            ) : isLibraryView ? (
-              <Library
-                sessions={sessions}
-                onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
-                onSelectSession={(id) => { handleSelectSession(id); setIsLibraryView(false); }}
-                onNewChat={() => { handleNewChat(); setIsLibraryView(false); }}
               />
             ) : isScheduledTasksView ? (
               <ScheduledTasksDashboard

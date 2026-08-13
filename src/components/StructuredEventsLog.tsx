@@ -79,6 +79,16 @@ export const StructuredEventsLog: React.FC<StructuredEventsLogProps> = ({ events
     }
   };
 
+  const hasFailed = events.some(e => e.status === 'failed');
+  const hasPending = events.some(e => e.status === 'pending');
+  const isAllVerified = !hasFailed && !hasPending && events.length > 0;
+
+  const headerStatusText = hasFailed 
+    ? 'Falha na persistência ou execução de ferramenta' 
+    : hasPending 
+      ? 'Executando e validando persistência de artefatos...' 
+      : 'Persistência e integridade verificadas pelo backend';
+
   return (
     <div className="w-full my-3 border border-[#eae6e1] dark:border-[#2e2e2e] rounded-2xl bg-[#faf9f6] dark:bg-[#181818] overflow-hidden shadow-xs transition-all">
       {/* Accordion Toggle Bar */}
@@ -93,18 +103,22 @@ export const StructuredEventsLog: React.FC<StructuredEventsLogProps> = ({ events
               Eventos de Execução Estruturados ({events.length})
             </span>
             <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">
-              Contrato de integridade verificado com sucesso
+              {headerStatusText}
             </span>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {events.some(e => e.status === 'pending') ? (
+          {hasFailed ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/50">
+              Falha
+            </span>
+          ) : hasPending ? (
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/50">
               Processando
             </span>
           ) : (
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/50">
-              Validado
+              Verificado
             </span>
           )}
           <button 

@@ -114,7 +114,7 @@ const INITIAL_DEFAULT_MEMORIES: LayeredMemoryStore = {
       id: 'mem_proj_1',
       layer: 'projects',
       title: 'Omnix AI Studio Extensível',
-      content: 'Transformar a Omnix de um chat em uma plataforma extensível com Biblioteca de Skills abertas e Grafo de Execução.',
+      content: 'Transformar a Omnix de um chat em uma plataforma extensível com Skills abertas e Grafo de Execução.',
       origin: 'Projeto Principal',
       confidence: 'high',
       confidenceScore: 0.98,

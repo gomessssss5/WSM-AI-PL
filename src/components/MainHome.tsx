@@ -904,7 +904,7 @@ export default function MainHome({
                       {skillsSection.length > 0 && (
                         <div className="flex flex-col">
                           <div className="text-[10px] font-bold text-gray-400 tracking-wider px-3 py-1.5 uppercase select-none">
-                            Biblioteca de Skills
+                            Skills Componíveis
                           </div>
                           {skillsSection.map((tool) => {
                             const globalIndex = filteredTools.indexOf(tool);
@@ -1024,7 +1024,7 @@ export default function MainHome({
                               <div className="absolute left-[100%] bottom-0 pl-2 z-50 animate-in fade-in slide-in-from-left-2 duration-150">
                                 <div className="w-64 bg-white border border-gray-150 rounded-xl shadow-lg p-1 flex flex-col max-h-72 overflow-y-auto scrollbar-thin select-none">
                                   <div className="text-[10px] font-bold text-gray-400 tracking-wider px-3 py-1.5 uppercase select-none">
-                                    Biblioteca de Skills
+                                    Skills Componíveis
                                   </div>
                                   {skillsSection.map((tool) => {
                                     const Icon = tool.icon;
