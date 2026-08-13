@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ComposableSkill, SkillExample, SkillTest } from '../types';
+import { ComposableSkill, SkillExample, SkillTest, SkillFixture, SkillRetryPolicy, SkillRollbackPlan } from '../types';
 import { DEFAULT_COMPOSABLE_SKILLS } from '../utils/defaultSkills';
 import { 
   Sparkles, 
@@ -24,7 +24,13 @@ import {
   Info,
   Code2,
   Table,
-  Filter
+  Filter,
+  Clock,
+  RotateCcw,
+  ShieldCheck,
+  Database,
+  FileCode,
+  CheckCheck
 } from 'lucide-react';
 
 const SKILLS_STORAGE_KEY = 'wsm_composable_skills_v1';
@@ -48,18 +54,38 @@ export const SkillsHub: React.FC = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<{ [key: string]: boolean }>({});
 
-  // Skill Form State
+  // Skill Form State with Complete Versioned Manifest
   const [formSkill, setFormSkill] = useState<Partial<ComposableSkill>>({
     name: '',
+    version: '1.0.0',
     description: '',
     instructions: '',
     category: 'custom',
     risk_policy: 'low',
+    timeout: 60,
     tools_allowed: ['web_search', 'create_document'],
+    permissions: ['workspace:read', 'workspace:write'],
+    retry_policy: {
+      max_retries: 2,
+      backoff: 'exponential',
+      backoff_delay_ms: 1000,
+      retry_on_errors: ['ETIMEDOUT', 'RATE_LIMIT']
+    },
+    rollback: {
+      enabled: true,
+      cleanup_artifacts: true,
+      revert_files: false,
+      rollback_instructions: 'Descartar artefatos temporários em caso de falha.'
+    },
+    data_access: {
+      read_paths: ['/workspace/*'],
+      write_paths: ['/workspace/*']
+    },
     inputs: [{ name: 'parametro_1', type: 'string', description: 'Entrada principal da skill', required: true }],
     outputs: [{ name: 'resultado_1', type: 'file', description: 'Arquivo ou texto gerado' }],
-    examples: [{ input: 'Exemplo de solicitação do usuário', expected_output: 'Resultado esperado da execução' }],
-    tests: [{ name: 'Teste básico de validação', input: 'Entrada de teste', assertions: ['Deve gerar resultado estruturado'] }],
+    examples: [{ input: 'Exemplo de solicitação do usuário', expected_output: 'Resultado esperado da execução', notes: 'Notas de validação' }],
+    fixtures: [{ name: 'sample_input.json', type: 'json', content: '{"key": "value"}' }],
+    tests: [{ name: 'Teste básico de validação', input: 'Entrada de teste', assertions: ['Deve gerar resultado estruturado', 'Deve validar persistência no Workspace'] }],
     resources: []
   });
 
@@ -75,6 +101,7 @@ export const SkillsHub: React.FC = () => {
       ...skill,
       id: `skill_custom_${Date.now()}`,
       name: `${skill.name} (Cópia)`,
+      version: `${skill.version || '1.0.0'}.1`,
       isOfficial: false,
       author: 'Você',
       updatedAt: new Date().toISOString()
@@ -119,7 +146,7 @@ export const SkillsHub: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${skill.name.toLowerCase().replace(/\s+/g, '_')}_skill.json`;
+    a.download = `${skill.name.toLowerCase().replace(/\s+/g, '_')}_manifest.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -137,13 +164,18 @@ export const SkillsHub: React.FC = () => {
         }
         imported.id = `skill_imported_${Date.now()}`;
         imported.isOfficial = false;
+        imported.version = imported.version || '1.0.0';
+        imported.timeout = imported.timeout || 60;
+        imported.retry_policy = imported.retry_policy || { max_retries: 2, backoff: 'exponential', backoff_delay_ms: 1000 };
+        imported.rollback = imported.rollback || { enabled: true, cleanup_artifacts: true, revert_files: false };
+        imported.permissions = imported.permissions || ['workspace:read', 'workspace:write'];
         imported.updatedAt = new Date().toISOString();
         const updated = [imported, ...skills];
         saveSkills(updated);
         setSelectedSkill(imported);
         setActiveTab('installed');
       } catch (err) {
-        alert('Erro ao importar arquivo JSON de Skill.');
+        alert('Erro ao importar arquivo JSON de Manifesto de Skill.');
       }
     };
     reader.readAsText(file);
@@ -152,7 +184,6 @@ export const SkillsHub: React.FC = () => {
   const handleRunTests = (skill: ComposableSkill) => {
     const results: { [key: string]: boolean } = {};
     skill.tests.forEach((test, idx) => {
-      // Simulation of assertion validation
       results[`${skill.id}_${idx}`] = true;
     });
     setTestResults(results);
@@ -170,8 +201,13 @@ export const SkillsHub: React.FC = () => {
         ...(selectedSkill as ComposableSkill),
         ...formSkill,
         name: formSkill.name!,
+        version: formSkill.version || selectedSkill.version || '1.0.0',
         description: formSkill.description || '',
         instructions: formSkill.instructions!,
+        timeout: Number(formSkill.timeout) || 60,
+        retry_policy: formSkill.retry_policy || { max_retries: 2, backoff: 'exponential', backoff_delay_ms: 1000 },
+        rollback: formSkill.rollback || { enabled: true, cleanup_artifacts: true, revert_files: false },
+        permissions: formSkill.permissions || ['workspace:read', 'workspace:write'],
         updatedAt: new Date().toISOString()
       };
       const updatedList = skills.map(s => s.id === updatedSkill.id ? updatedSkill : s);
@@ -182,19 +218,25 @@ export const SkillsHub: React.FC = () => {
       const newSkill: ComposableSkill = {
         id: `skill_custom_${Date.now()}`,
         name: formSkill.name!,
+        version: formSkill.version || '1.0.0',
         description: formSkill.description || '',
         instructions: formSkill.instructions!,
         category: formSkill.category || 'custom',
         risk_policy: formSkill.risk_policy || 'low',
+        timeout: Number(formSkill.timeout) || 60,
+        retry_policy: formSkill.retry_policy || { max_retries: 2, backoff: 'exponential', backoff_delay_ms: 1000 },
+        rollback: formSkill.rollback || { enabled: true, cleanup_artifacts: true, revert_files: false },
+        permissions: formSkill.permissions || ['workspace:read', 'workspace:write'],
         tools_allowed: formSkill.tools_allowed || ['web_search', 'create_document'],
+        data_access: formSkill.data_access || { read_paths: ['/workspace/*'], write_paths: ['/workspace/*'] },
         inputs: formSkill.inputs || [],
         outputs: formSkill.outputs || [],
         examples: formSkill.examples || [],
+        fixtures: formSkill.fixtures || [],
         tests: formSkill.tests || [],
         resources: formSkill.resources || [],
         isOfficial: false,
         author: 'Você',
-        version: '1.0.0',
         updatedAt: new Date().toISOString()
       };
       saveSkills([newSkill, ...skills]);
@@ -220,18 +262,18 @@ export const SkillsHub: React.FC = () => {
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-amber-600 dark:text-amber-400" />
               <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                Skills Abertas & Componíveis
+                Skills & Manifestos Versionados
               </h2>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Crie, instale, teste e componha fluxos especializados e reutilizáveis para o agente.
+              Manifestos completos com esquemas de entrada/saída, permissões, políticas de retry, rollback, timeouts e testes de aceitação.
             </p>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
             <label className="px-3 py-2 text-xs font-semibold bg-white dark:bg-[#202020] text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-zinc-700 rounded-xl hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs">
               <Upload className="w-3.5 h-3.5 text-gray-500" />
-              Importar JSON
+              Importar Manifesto JSON
               <input type="file" accept=".json" onChange={handleImportSkillFile} className="hidden" />
             </label>
 
@@ -241,22 +283,28 @@ export const SkillsHub: React.FC = () => {
                 setIsEditing(false);
                 setFormSkill({
                   name: '',
+                  version: '1.0.0',
                   description: '',
                   instructions: '',
                   category: 'custom',
                   risk_policy: 'low',
+                  timeout: 60,
                   tools_allowed: ['web_search', 'create_document'],
+                  permissions: ['workspace:read', 'workspace:write'],
+                  retry_policy: { max_retries: 2, backoff: 'exponential', backoff_delay_ms: 1000 },
+                  rollback: { enabled: true, cleanup_artifacts: true, revert_files: false, rollback_instructions: 'Descartar artefatos temporários' },
                   inputs: [{ name: 'parametro_1', type: 'string', description: 'Entrada principal', required: true }],
                   outputs: [{ name: 'resultado_1', type: 'file', description: 'Arquivo gerado' }],
-                  examples: [{ input: '', expected_output: '' }],
-                  tests: [{ name: 'Teste de Aceitação', input: '', assertions: ['Gera arquivo .md'] }],
+                  examples: [{ input: '', expected_output: '', notes: '' }],
+                  fixtures: [{ name: 'sample.json', type: 'json', content: '{}' }],
+                  tests: [{ name: 'Teste de Aceitação', input: '', assertions: ['Gera arquivo com validação'] }],
                   resources: []
                 });
                 setActiveTab('create');
               }}
               className="px-3.5 py-2 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
-              <Plus className="w-4 h-4" /> Criar Nova Skill
+              <Plus className="w-4 h-4" /> Criar Novo Manifesto
             </button>
           </div>
         </div>
@@ -291,14 +339,14 @@ export const SkillsHub: React.FC = () => {
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {activeTab === 'create' ? (
-          /* CREATE / EDIT FORM */
+          /* CREATE / EDIT FORM WITH COMPLETE MANIFEST */
           <div className="max-w-3xl mx-auto bg-white dark:bg-[#181818] p-6 rounded-2xl border border-[#eae6e1] dark:border-[#282828] shadow-xs space-y-5">
             <div className="flex items-center justify-between border-b border-gray-100 dark:border-zinc-800 pb-4">
               <div>
                 <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">
-                  {isEditing ? 'Editar Skill' : 'Criar Nova Skill Componível'}
+                  {isEditing ? 'Editar Manifesto de Skill' : 'Criar Novo Manifesto Versionado'}
                 </h3>
-                <p className="text-xs text-gray-500">Defina o formato padronizado com ferramentas, esquemas e testes de aceitação.</p>
+                <p className="text-xs text-gray-500">Defina versionamento, permissões de escopo, política de retry, rollback e asserções de contrato.</p>
               </div>
               <button
                 type="button"
@@ -310,8 +358,8 @@ export const SkillsHub: React.FC = () => {
             </div>
 
             <form onSubmit={handleSaveForm} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="sm:col-span-2">
                   <label className="font-bold text-gray-700 dark:text-gray-300 block mb-1">Nome da Skill *</label>
                   <input
                     type="text"
@@ -323,6 +371,19 @@ export const SkillsHub: React.FC = () => {
                   />
                 </div>
 
+                <div>
+                  <label className="font-bold text-gray-700 dark:text-gray-300 block mb-1">Versão Semântica</label>
+                  <input
+                    type="text"
+                    value={formSkill.version || '1.0.0'}
+                    onChange={(e) => setFormSkill({ ...formSkill, version: e.target.value })}
+                    placeholder="1.0.0"
+                    className="w-full px-3 py-2 font-mono border border-gray-200 dark:border-zinc-700 rounded-xl bg-transparent text-gray-900 dark:text-gray-100 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="font-bold text-gray-700 dark:text-gray-300 block mb-1">Categoria</label>
                   <select
@@ -336,6 +397,18 @@ export const SkillsHub: React.FC = () => {
                     <option value="produtividade">Produtividade</option>
                     <option value="custom">Personalizado</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-700 dark:text-gray-300 block mb-1">Timeout Máximo (segundos)</label>
+                  <input
+                    type="number"
+                    min={5}
+                    max={300}
+                    value={formSkill.timeout || 60}
+                    onChange={(e) => setFormSkill({ ...formSkill, timeout: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-zinc-700 rounded-xl bg-transparent text-gray-900 dark:text-gray-100"
+                  />
                 </div>
               </div>
 
@@ -377,12 +450,12 @@ export const SkillsHub: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="font-bold text-gray-700 dark:text-gray-300 block mb-1">Ferramentas Permitidas (separadas por vírgula)</label>
+                  <label className="font-bold text-gray-700 dark:text-gray-300 block mb-1">Permissões de Escopo (separadas por vírgula)</label>
                   <input
                     type="text"
-                    value={formSkill.tools_allowed?.join(', ')}
-                    onChange={(e) => setFormSkill({ ...formSkill, tools_allowed: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                    placeholder="web_search, create_document, open_url, calculadora"
+                    value={formSkill.permissions?.join(', ') || 'workspace:read, workspace:write'}
+                    onChange={(e) => setFormSkill({ ...formSkill, permissions: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                    placeholder="workspace:read, workspace:write, web:search"
                     className="w-full px-3 py-2 border border-gray-200 dark:border-zinc-700 rounded-xl bg-transparent text-gray-900 dark:text-gray-100"
                   />
                 </div>
@@ -400,7 +473,7 @@ export const SkillsHub: React.FC = () => {
                   type="submit"
                   className="px-5 py-2 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition-colors cursor-pointer shadow-xs"
                 >
-                  {isEditing ? 'Salvar Alterações' : 'Salvar e Publicar Skill'}
+                  {isEditing ? 'Salvar Alterações' : 'Salvar e Publicar Manifesto'}
                 </button>
               </div>
             </form>
@@ -498,11 +571,9 @@ export const SkillsHub: React.FC = () => {
                           <span className="font-bold text-xs text-gray-900 dark:text-gray-100 truncate">
                             {skill.name}
                           </span>
-                          {skill.isOfficial && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                              Oficial
-                            </span>
-                          )}
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300">
+                            v{skill.version || '1.0.0'}
+                          </span>
                         </div>
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 line-clamp-2 mt-1">
                           {skill.description}
@@ -514,7 +585,7 @@ export const SkillsHub: React.FC = () => {
               </div>
             </div>
 
-            {/* Right: Selected Skill Inspector */}
+            {/* Right: Selected Skill Inspector with Full Manifest Tabs */}
             <div className="lg:col-span-2">
               {selectedSkill ? (
                 <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#eae6e1] dark:border-[#282828] p-5 space-y-4 shadow-xs">
@@ -525,9 +596,14 @@ export const SkillsHub: React.FC = () => {
                         <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">
                           {selectedSkill.name}
                         </h3>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300">
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold">
                           v{selectedSkill.version || '1.0.0'}
                         </span>
+                        {selectedSkill.isOfficial && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                            Oficial
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-gray-500 mt-1">{selectedSkill.description}</p>
                     </div>
@@ -537,7 +613,7 @@ export const SkillsHub: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleDuplicate(selectedSkill)}
-                        title="Duplicar Skill"
+                        title="Duplicar Manifesto"
                         className="p-2 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer"
                       >
                         <Copy className="w-4 h-4" />
@@ -545,7 +621,7 @@ export const SkillsHub: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleShareJson(selectedSkill)}
-                        title="Copiar JSON da Skill"
+                        title="Copiar JSON do Manifesto"
                         className="p-2 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer"
                       >
                         {copiedId === selectedSkill.id ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4" />}
@@ -553,7 +629,7 @@ export const SkillsHub: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleDownloadSkillFile(selectedSkill)}
-                        title="Baixar Arquivo JSON"
+                        title="Baixar Arquivo JSON do Manifesto"
                         className="p-2 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer"
                       >
                         <Download className="w-4 h-4" />
@@ -567,7 +643,7 @@ export const SkillsHub: React.FC = () => {
                               setFormSkill(selectedSkill);
                               setActiveTab('create');
                             }}
-                            title="Editar Skill"
+                            title="Editar Manifesto"
                             className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg cursor-pointer"
                           >
                             <Edit3 className="w-4 h-4" />
@@ -583,6 +659,60 @@ export const SkillsHub: React.FC = () => {
                         </>
                       )}
                     </div>
+                  </div>
+
+                  {/* Metadata Chips (Timeout, Retries, Rollback, Permissions) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                    <div className="p-2.5 bg-[#faf9f6] dark:bg-[#151515] rounded-xl border border-gray-100 dark:border-zinc-800">
+                      <span className="text-[10px] text-gray-400 flex items-center gap-1 font-semibold uppercase tracking-wider">
+                        <Clock className="w-3 h-3 text-amber-600" /> Timeout
+                      </span>
+                      <p className="font-bold text-gray-800 dark:text-gray-200 mt-0.5">{selectedSkill.timeout || 60}s</p>
+                    </div>
+
+                    <div className="p-2.5 bg-[#faf9f6] dark:bg-[#151515] rounded-xl border border-gray-100 dark:border-zinc-800">
+                      <span className="text-[10px] text-gray-400 flex items-center gap-1 font-semibold uppercase tracking-wider">
+                        <RotateCcw className="w-3 h-3 text-blue-600" /> Retry Policy
+                      </span>
+                      <p className="font-bold text-gray-800 dark:text-gray-200 mt-0.5">
+                        {selectedSkill.retry_policy?.max_retries || 2}x ({selectedSkill.retry_policy?.backoff || 'exponential'})
+                      </p>
+                    </div>
+
+                    <div className="p-2.5 bg-[#faf9f6] dark:bg-[#151515] rounded-xl border border-gray-100 dark:border-zinc-800">
+                      <span className="text-[10px] text-gray-400 flex items-center gap-1 font-semibold uppercase tracking-wider">
+                        <ShieldCheck className="w-3 h-3 text-emerald-600" /> Risco
+                      </span>
+                      <p className="font-bold text-gray-800 dark:text-gray-200 mt-0.5 capitalize">{selectedSkill.risk_policy}</p>
+                    </div>
+
+                    <div className="p-2.5 bg-[#faf9f6] dark:bg-[#151515] rounded-xl border border-gray-100 dark:border-zinc-800">
+                      <span className="text-[10px] text-gray-400 flex items-center gap-1 font-semibold uppercase tracking-wider">
+                        <ShieldAlert className="w-3 h-3 text-purple-600" /> Rollback
+                      </span>
+                      <p className="font-bold text-gray-800 dark:text-gray-200 mt-0.5">
+                        {selectedSkill.rollback?.enabled ? 'Ativo (Seguro)' : 'Desativado'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Permissions & Scoped Data Access */}
+                  <div className="p-3 bg-gray-50 dark:bg-[#141414] rounded-xl border border-gray-200 dark:border-zinc-800 text-xs space-y-1.5">
+                    <span className="font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider text-[10px] block">
+                      Permissões & Escopos Concedidos:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(selectedSkill.permissions || ['workspace:read', 'workspace:write']).map((perm) => (
+                        <span key={perm} className="px-2 py-0.5 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-md font-mono text-[10.5px] text-gray-700 dark:text-gray-300">
+                          {perm}
+                        </span>
+                      ))}
+                    </div>
+                    {selectedSkill.data_access && (
+                      <div className="text-[10.5px] text-gray-500 dark:text-gray-400 pt-1 font-mono">
+                        Paths de Leitura: {selectedSkill.data_access.read_paths?.join(', ') || 'N/A'} | Escrita: {selectedSkill.data_access.write_paths?.join(', ') || 'N/A'}
+                      </div>
+                    )}
                   </div>
 
                   {/* Inputs & Outputs Grid */}
@@ -610,10 +740,38 @@ export const SkillsHub: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Fixtures & Rollback Instructions */}
+                  {((selectedSkill.fixtures && selectedSkill.fixtures.length > 0) || selectedSkill.rollback?.rollback_instructions) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                      {selectedSkill.fixtures && selectedSkill.fixtures.length > 0 && (
+                        <div className="p-3 bg-[#faf9f6] dark:bg-[#151515] rounded-xl border border-gray-100 dark:border-zinc-800 space-y-1">
+                          <span className="font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider text-[10px] block">
+                            Fixtures de Teste ({selectedSkill.fixtures.length}):
+                          </span>
+                          {selectedSkill.fixtures.map((f, i) => (
+                            <div key={i} className="font-mono text-[11px] text-gray-600 dark:text-gray-400">
+                              📄 {f.name} ({f.type})
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {selectedSkill.rollback?.rollback_instructions && (
+                        <div className="p-3 bg-[#faf9f6] dark:bg-[#151515] rounded-xl border border-gray-100 dark:border-zinc-800 space-y-1">
+                          <span className="font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider text-[10px] block">
+                            Instruções de Rollback em Falha:
+                          </span>
+                          <p className="text-[11px] text-gray-600 dark:text-gray-400">
+                            {selectedSkill.rollback.rollback_instructions}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* System Prompt / Instructions */}
                   <div className="space-y-1.5">
                     <span className="font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider text-[10px] block">
-                      Instruções de Execução (System Prompt):
+                      Instruções de Execução (System Prompt da Skill):
                     </span>
                     <pre className="p-3.5 bg-gray-50 dark:bg-[#141414] text-gray-800 dark:text-gray-200 rounded-xl border border-gray-200 dark:border-zinc-800 font-mono text-[11px] whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
                       {selectedSkill.instructions}
@@ -624,7 +782,7 @@ export const SkillsHub: React.FC = () => {
                   <div className="pt-2 border-t border-gray-100 dark:border-zinc-800 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider text-[10px]">
-                        Testes de Aceitação da Skill ({selectedSkill.tests?.length || 0})
+                        Testes de Aceitação & Contrato ({selectedSkill.tests?.length || 0})
                       </span>
                       <button
                         type="button"
@@ -660,7 +818,7 @@ export const SkillsHub: React.FC = () => {
                 <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-2xl">
                   <Sparkles className="w-8 h-8 text-gray-300 dark:text-gray-600 mb-2" />
                   <p className="text-sm font-semibold text-gray-600 dark:text-gray-400">
-                    Selecione uma Skill para visualizar detalhes, esquemas e testes.
+                    Selecione um manifesto de Skill para visualizar detalhes, esquemas e testes.
                   </p>
                 </div>
               )}
@@ -671,3 +829,4 @@ export const SkillsHub: React.FC = () => {
     </div>
   );
 };
+

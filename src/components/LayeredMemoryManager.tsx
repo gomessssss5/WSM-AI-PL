@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { MemoryLayerItem, MemoryLayerType, LayeredMemoryStore } from '../types';
+import { MemoryLayerItem, MemoryLayerType, MemoryNatureType, LayeredMemoryStore } from '../types';
 import { 
   getLayeredMemories, 
   saveLayeredMemories, 
   addMemoryItem, 
   updateMemoryItem, 
   deleteMemoryItem, 
-  LAYER_METADATA 
+  LAYER_METADATA,
+  NATURE_METADATA
 } from '../utils/layeredMemory';
 import { 
   Brain, 
@@ -27,12 +28,18 @@ import {
   Layers, 
   Tag, 
   Sparkles,
-  Info
+  Info,
+  UserCheck,
+  Bot,
+  FileSearch,
+  HelpCircle,
+  Check
 } from 'lucide-react';
 
 export const LayeredMemoryManager: React.FC = () => {
   const [memoryStore, setMemoryStore] = useState<LayeredMemoryStore>(getLayeredMemories);
   const [selectedLayer, setSelectedLayer] = useState<MemoryLayerType | 'all'>('all');
+  const [selectedNature, setSelectedNature] = useState<MemoryNatureType | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingItem, setEditingItem] = useState<MemoryLayerItem | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
@@ -40,15 +47,15 @@ export const LayeredMemoryManager: React.FC = () => {
   // New Memory Form State
   const [newMemory, setNewMemory] = useState<Partial<MemoryLayerItem>>({
     layer: 'confirmed_facts',
+    nature: 'declared',
     title: '',
     content: '',
     origin: 'Inserção Manual do Usuário',
     confidence: 'high',
     confidenceScore: 0.95,
+    ttlDays: 30,
     tags: []
   });
-
-  const [tagInput, setTagInput] = useState('');
 
   const refreshStore = () => {
     setMemoryStore(getLayeredMemories());
@@ -59,6 +66,18 @@ export const LayeredMemoryManager: React.FC = () => {
       deleteMemoryItem(layer, id);
       refreshStore();
     }
+  };
+
+  const handlePromoteToDeclared = (item: MemoryLayerItem) => {
+    const updated: MemoryLayerItem = {
+      ...item,
+      nature: 'declared',
+      confidence: 'high',
+      confidenceScore: 1.0,
+      origin: `Promovido de inferência pelo usuário (${new Date().toLocaleDateString('pt-BR')})`
+    };
+    updateMemoryItem(updated);
+    refreshStore();
   };
 
   const handleSaveEdit = (e: React.FormEvent) => {
@@ -79,22 +98,26 @@ export const LayeredMemoryManager: React.FC = () => {
 
     addMemoryItem({
       layer: newMemory.layer as MemoryLayerType,
+      nature: newMemory.nature as MemoryNatureType || 'declared',
       title: newMemory.title!,
       content: newMemory.content!,
       origin: newMemory.origin || 'Inserção Manual',
       confidence: newMemory.confidence || 'high',
       confidenceScore: newMemory.confidenceScore || 0.9,
+      ttlDays: newMemory.ttlDays,
       tags: newMemory.tags || []
     });
 
     setIsAddingNew(false);
     setNewMemory({
       layer: 'confirmed_facts',
+      nature: 'declared',
       title: '',
       content: '',
       origin: 'Inserção Manual do Usuário',
       confidence: 'high',
       confidenceScore: 0.95,
+      ttlDays: 30,
       tags: []
     });
     refreshStore();
@@ -111,6 +134,15 @@ export const LayeredMemoryManager: React.FC = () => {
     }
   };
 
+  const getNatureIcon = (nature?: MemoryNatureType) => {
+    switch (nature) {
+      case 'declared': return <UserCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />;
+      case 'inferred': return <Bot className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />;
+      case 'retrieved': return <FileSearch className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />;
+      default: return <UserCheck className="w-3.5 h-3.5 text-emerald-600" />;
+    }
+  };
+
   // Extract all memories into flat array for filtering
   const allMemories: MemoryLayerItem[] = Object.keys(memoryStore).flatMap((key) => {
     return memoryStore[key as MemoryLayerType] || [];
@@ -118,26 +150,27 @@ export const LayeredMemoryManager: React.FC = () => {
 
   const filteredMemories = allMemories.filter((mem) => {
     const matchesLayer = selectedLayer === 'all' || mem.layer === selectedLayer;
+    const matchesNature = selectedNature === 'all' || (mem.nature || 'declared') === selectedNature;
     const matchesQuery = mem.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          mem.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          mem.origin.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesLayer && matchesQuery;
+    return matchesLayer && matchesNature && matchesQuery;
   });
 
   return (
     <div className="flex flex-col h-full bg-[#fbfaf8] dark:bg-[#121212] overflow-hidden">
       {/* Top Header */}
-      <div className="p-4 sm:p-6 border-b border-[#eae6e1] dark:border-[#242424] bg-white dark:bg-[#161616] shrink-0">
+      <div className="p-4 sm:p-6 border-b border-[#eae6e1] dark:border-[#242424] bg-white dark:bg-[#161616] shrink-0 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
               <Brain className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
               <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                Memória em Camadas, Contexto & Continuidade
+                Memória em Camadas & 3 Naturezas Epistêmicas
               </h2>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Rastreamento de contexto, preferências, fatos confirmados e histórico de decisões com procedência e controle total.
+              Separação explícita entre memória <strong>Declarada</strong> (usuário), <strong>Inferida</strong> (agente com TTL) e <strong>Recuperada</strong> (arquivos).
             </p>
           </div>
 
@@ -150,8 +183,44 @@ export const LayeredMemoryManager: React.FC = () => {
           </button>
         </div>
 
+        {/* Nature Filters (3 Epistemic Natures) */}
+        <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-gray-100 dark:border-zinc-800">
+          <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Natureza:</span>
+          <button
+            type="button"
+            onClick={() => setSelectedNature('all')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+              selectedNature === 'all'
+                ? 'bg-indigo-100 text-indigo-900 dark:bg-indigo-950/60 dark:text-indigo-300'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-800'
+            }`}
+          >
+            Todas as Naturezas
+          </button>
+          {Object.entries(NATURE_METADATA).map(([natureKey, meta]) => {
+            const isSelected = selectedNature === natureKey;
+            const count = allMemories.filter(m => (m.nature || 'declared') === natureKey).length;
+            return (
+              <button
+                key={natureKey}
+                type="button"
+                onClick={() => setSelectedNature(natureKey as MemoryNatureType)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                  isSelected
+                    ? 'bg-indigo-100 text-indigo-900 dark:bg-indigo-950/60 dark:text-indigo-300'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                {getNatureIcon(natureKey as MemoryNatureType)}
+                <span>{meta.name}</span>
+                <span className="text-[10px] opacity-70">({count})</span>
+              </button>
+            );
+          })}
+        </div>
+
         {/* Layer Filters */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pt-4 pb-1">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
           <button
             type="button"
             onClick={() => setSelectedLayer('all')}
@@ -204,7 +273,7 @@ export const LayeredMemoryManager: React.FC = () => {
 
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Memória ativa no prompt do backend com grounding contínuo</span>
+            <span>Memória com retenção diferenciada e proveniência estrita</span>
           </div>
         </div>
 
@@ -225,9 +294,9 @@ export const LayeredMemoryManager: React.FC = () => {
             </div>
 
             <form onSubmit={handleAddNew} className="space-y-3 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="font-bold text-gray-700 dark:text-gray-300 block mb-1">Camada de Memória *</label>
+                  <label className="font-bold text-gray-700 dark:text-gray-300 block mb-1">Camada *</label>
                   <select
                     value={newMemory.layer}
                     onChange={(e: any) => setNewMemory({ ...newMemory, layer: e.target.value })}
@@ -236,6 +305,19 @@ export const LayeredMemoryManager: React.FC = () => {
                     {Object.entries(LAYER_METADATA).map(([key, meta]) => (
                       <option key={key} value={key}>{meta.name}</option>
                     ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-700 dark:text-gray-300 block mb-1">Natureza do Conhecimento *</label>
+                  <select
+                    value={newMemory.nature}
+                    onChange={(e: any) => setNewMemory({ ...newMemory, nature: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-[#202020] text-gray-900 dark:text-gray-100"
+                  >
+                    <option value="declared">👤 Declarada pelo Usuário (Permanente)</option>
+                    <option value="inferred">🤖 Inferida pelo Agente (TTL ativo)</option>
+                    <option value="retrieved">📄 Recuperada de Arquivo (Sincronizada)</option>
                   </select>
                 </div>
 
@@ -287,7 +369,7 @@ export const LayeredMemoryManager: React.FC = () => {
                   type="text"
                   value={newMemory.origin}
                   onChange={(e) => setNewMemory({ ...newMemory, origin: e.target.value })}
-                  placeholder="ex: Inserção manual, Conversa #3, Reunião Técnica..."
+                  placeholder="ex: Inserção manual, Conversa #3, Arquivo /src/db.ts..."
                   className="w-full px-3 py-2 border border-gray-200 dark:border-zinc-700 rounded-xl bg-transparent text-gray-900 dark:text-gray-100"
                 />
               </div>
@@ -329,6 +411,19 @@ export const LayeredMemoryManager: React.FC = () => {
                     onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 dark:border-zinc-700 rounded-xl bg-transparent text-gray-900 dark:text-gray-100"
                   />
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-700 dark:text-gray-300 block mb-1">Natureza</label>
+                  <select
+                    value={editingItem.nature || 'declared'}
+                    onChange={(e: any) => setEditingItem({ ...editingItem, nature: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-[#202020] text-gray-900 dark:text-gray-100"
+                  >
+                    <option value="declared">👤 Declarada pelo Usuário</option>
+                    <option value="inferred">🤖 Inferida pelo Agente</option>
+                    <option value="retrieved">📄 Recuperada de Arquivo</option>
+                  </select>
                 </div>
 
                 <div>
@@ -381,6 +476,7 @@ export const LayeredMemoryManager: React.FC = () => {
           ) : (
             filteredMemories.map((mem) => {
               const meta = LAYER_METADATA[mem.layer];
+              const natureMeta = NATURE_METADATA[mem.nature || 'declared'];
               const dateStr = new Date(mem.updatedAt || mem.createdAt).toLocaleDateString('pt-BR');
 
               return (
@@ -392,7 +488,7 @@ export const LayeredMemoryManager: React.FC = () => {
                       : 'border-[#eae6e1] dark:border-[#282828]'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2">
                       {getLayerIcon(mem.layer)}
                       <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
@@ -400,10 +496,22 @@ export const LayeredMemoryManager: React.FC = () => {
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {/* Nature Badge */}
+                      <span className={`px-2 py-0.5 rounded text-[9.5px] font-bold flex items-center gap-1 ${
+                        mem.nature === 'declared'
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                          : mem.nature === 'inferred'
+                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                          : 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/60 dark:text-cyan-300'
+                      }`}>
+                        {getNatureIcon(mem.nature)}
+                        {natureMeta?.name || 'Declarada'}
+                      </span>
+
                       {mem.isStale && (
                         <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 flex items-center gap-1">
-                          <AlertTriangle className="w-3 h-3" /> Fato Antigo (&gt;7d)
+                          <AlertTriangle className="w-3 h-3" /> Antigo (&gt;7d)
                         </span>
                       )}
 
@@ -427,6 +535,22 @@ export const LayeredMemoryManager: React.FC = () => {
                       {mem.content}
                     </p>
                   </div>
+
+                  {/* Promote Hypothesis to Declared Button for Inferred Items */}
+                  {mem.nature === 'inferred' && (
+                    <div className="p-2 bg-amber-50/60 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-900/50 flex items-center justify-between text-[10.5px]">
+                      <span className="text-amber-800 dark:text-amber-300">
+                        Hipótese inferida pelo agente. Validar como fato irrevogável?
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handlePromoteToDeclared(mem)}
+                        className="px-2 py-0.5 font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-md flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                      >
+                        <Check className="w-3 h-3" /> Validar Fato
+                      </button>
+                    </div>
+                  )}
 
                   {/* Metadata Footer */}
                   <div className="pt-2 border-t border-gray-100 dark:border-zinc-800 flex items-center justify-between text-[10.5px] text-gray-400 flex-wrap gap-2">
@@ -463,3 +587,4 @@ export const LayeredMemoryManager: React.FC = () => {
     </div>
   );
 };
+

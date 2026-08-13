@@ -18,19 +18,40 @@ export type MemoryLayerType =
   | 'related_files'
   | 'decision_history';
 
+export type MemoryNatureType = 
+  | 'declared'    // Declarada explicitamente pelo usuário (consentimento explícito, alta retenção)
+  | 'inferred'    // Inferida pelo modelo/agente (hipótese/dedução temporária, TTL estrito, requer validação para virar fato)
+  | 'retrieved';  // Recuperada de arquivos/documentos/índice semântico com hash e link de origem
+
+export interface MemoryDerivativeCopies {
+  semantic_index: boolean;
+  logs: boolean;
+  cache: boolean;
+  storage_keys?: string[];
+}
+
 export interface MemoryLayerItem {
   id: string;
   layer: MemoryLayerType;
+  nature: MemoryNatureType; // 'declared' | 'inferred' | 'retrieved'
   title: string;
   content: string;
-  origin: string; // e.g. "Conversa #12", "Inserção manual", "Inferido pelo Agente"
+  origin: string; // e.g. "Entrada do Usuário (Declarada)", "Hipótese Inferida pelo Agente", "Documento: /data/spec.md"
+  originUri?: string; // URI ou caminho do arquivo quando retrieved
+  sourceArtifactId?: string;
   confidence: 'high' | 'medium' | 'low'; // Alta (90-100%), Média (60-89%), Baixa (<60%)
   confidenceScore: number; // 0 to 1
+  consentRequired?: boolean;
+  ttlSeconds?: number;
+  ttlDays?: number;
+  expiresAt?: string;
+  retentionPolicy?: 'permanent' | 'session' | '30_days' | '90_days' | 'until_revoked';
+  derivativeCopies?: MemoryDerivativeCopies;
+  isStale?: boolean; // If older than threshold or flagged for verification
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
   lastUsedAt?: string;
-  isStale?: boolean; // If older than threshold or flagged for verification
-  tags?: string[];
 }
 
 export interface LayeredMemoryStore {
@@ -45,31 +66,93 @@ export interface LayeredMemoryStore {
 export interface SkillExample {
   input: string;
   expected_output: string;
+  notes?: string;
+}
+
+export interface SkillFixture {
+  name: string;
+  type: 'file' | 'json' | 'mock_response' | 'env_var';
+  path?: string;
+  content?: string;
 }
 
 export interface SkillTest {
   name: string;
   input: string;
+  fixtures?: SkillFixture[];
   assertions: string[];
+}
+
+export interface SkillRetryPolicy {
+  max_retries: number;
+  backoff: 'fixed' | 'exponential';
+  backoff_delay_ms: number;
+  retry_on_errors?: string[];
+}
+
+export interface SkillRollbackPlan {
+  enabled: boolean;
+  cleanup_artifacts?: boolean;
+  revert_files?: boolean;
+  rollback_instructions?: string;
 }
 
 export interface ComposableSkill {
   id: string;
   name: string;
+  version: string;
   description: string;
   instructions: string;
   tools_allowed: string[];
-  inputs: { name: string; type: string; description: string; required?: boolean }[];
-  outputs: { name: string; type: string; description: string }[];
+  data_access?: {
+    read_paths?: string[];
+    write_paths?: string[];
+    network_domains?: string[];
+    allow_env_secrets?: boolean;
+  };
+  inputs: { name: string; type: string; description: string; required?: boolean; default?: any }[];
+  outputs: { name: string; type: string; description: string; schema?: Record<string, any> }[];
   risk_policy: 'low' | 'medium' | 'high' | 'strict_confirmation';
+  timeout: number; // in seconds (e.g. 30, 60, 120)
+  retry_policy: SkillRetryPolicy;
   examples: SkillExample[];
+  fixtures?: SkillFixture[];
   tests: SkillTest[];
+  permissions: string[]; // Scoped grants e.g. ["workspace:read", "workspace:write", "web:search"]
+  rollback: SkillRollbackPlan;
   resources: { name: string; uri?: string; description?: string }[];
   category?: 'pesquisa' | 'dados' | 'codigo' | 'produtividade' | 'custom';
   isOfficial?: boolean;
-  version?: string;
   author?: string;
   updatedAt?: string | Date;
+}
+
+export interface CodeContract {
+  functionName: string;
+  signature: string;
+  expectedReturnType: string;
+  invariants: string[];
+  edgeCases: string[];
+  desiredBehavior: string;
+  observedBehavior?: string;
+  diffSummary?: string;
+  requiresClarification?: boolean;
+}
+
+export interface CodeExecutionResult {
+  command: string;
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  durationMs: number;
+  filesChanged: string[];
+  coveragePercentage?: number;
+  testsStatus: {
+    passed: number;
+    failed: number;
+    total: number;
+    assertionsResults: { name: string; status: 'passed' | 'failed'; error?: string }[];
+  };
 }
 
 export type ExecutionTaskState = 
