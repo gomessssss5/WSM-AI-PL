@@ -10,8 +10,24 @@ export interface WsmForm {
   questions: WsmFormQuestion[];
 }
 
+export type ArtifactValidationStatus = 
+  | 'PLANEJANDO'
+  | 'EXECUTANDO'
+  | 'ARTEFATO_CRIADO'
+  | 'VALIDANDO'
+  | 'VALIDADO'
+  | 'VALIDAÇÃO_FALHOU'
+  | 'ENTREGUE'
+  | 'EXECUÇÃO_FALHOU'
+  | 'pending'
+  | 'running'
+  | 'success'
+  | 'failed'
+  | 'unvalidated';
+
 export interface ValidationState {
-  status: 'pending' | 'running' | 'success' | 'failed' | 'unvalidated';
+  status: ArtifactValidationStatus;
+  statusLabel?: string;
   testsPassed?: number;
   testsTotal?: number;
   version?: string;
@@ -19,6 +35,21 @@ export interface ValidationState {
   filesGenerated?: string[];
   commandsReproduced?: string[];
   logs?: string;
+  metRequirements?: string[];
+  unmetRequirements?: string[];
+  diffSummary?: string;
+}
+
+export interface FileVersion {
+  versionNumber: number;
+  timestamp: Date;
+  author: string;
+  content: string;
+  changeSummary: string;
+  metRequirements?: string[];
+  unmetRequirements?: string[];
+  linesAdded?: number;
+  linesRemoved?: number;
 }
 
 export interface WsmDocument {
@@ -26,6 +57,8 @@ export interface WsmDocument {
   content: string;
   format?: 'pdf' | 'md' | string;
   validation?: ValidationState;
+  versions?: FileVersion[];
+  currentVersion?: number;
 }
 
 export interface SearchStep {
@@ -93,37 +126,55 @@ export interface Message {
   geminiModel?: string;
 }
 
+export interface ScheduledTaskRetryPolicy {
+  maxRetries: number;
+  backoffSeconds: number;
+  attemptsMade?: number;
+}
+
 export interface ScheduledTask {
   id: string;
   title: string;
   prompt: string;
   scheduleType: 'once' | 'daily' | 'weekly' | 'monthly';
   time: string;
-  timezone?: string; // IANA timezone, e.g., 'America/Sao_Paulo'
+  timezone: string; // IANA timezone, e.g., 'America/Sao_Paulo'
   date?: string;
   daysOfWeek?: number[];
   dayOfMonth?: number;
   expirationDate?: string;
   isActive: boolean;
+  isPaused?: boolean;
+  status?: 'active' | 'paused' | 'canceled';
   createdAt: Date;
   lastRunAt?: Date;
   nextRunAt: Date;
+  retryPolicy?: ScheduledTaskRetryPolicy;
+  lastExecutionDurationMs?: number;
+  lastExecutionStatus?: 'succeeded' | 'failed' | 'running';
+  lastErrorDetails?: string;
 }
 
 export interface TaskExecution {
   id: string;
-  runId?: string;
+  runId: string; // Unique idempotent execution UUID
   taskId: string;
   taskTitle: string;
   executedAt: Date;
   startedAt?: Date;
   finishedAt?: Date;
-  triggerType?: 'manual' | 'scheduled' | 'event';
+  durationMs?: number;
+  triggerType?: 'manual' | 'scheduled' | 'retry' | 'event';
   sessionId: string;
   status: 'queued' | 'planning' | 'waiting_approval' | 'running' | 'waiting_user' | 'partial' | 'succeeded' | 'failed' | 'canceled' | 'expired';
+  attempts?: number;
+  maxRetries?: number;
   outputSummary?: string;
+  generatedFiles?: string[];
   error?: string;
+  errorDetails?: string;
   steps?: ExecutionStep[];
+  logs?: string[];
 }
 
 export interface LibraryFile {

@@ -1896,6 +1896,7 @@ export default function ChatWindow({
                         onOpenDocument={(doc) => setActiveDocument({ doc, isFullscreen: false })}
                         onOpenWorkspace={() => setIsWorkspaceViewerOpen(true)}
                         attachedImages={allSessionImages}
+                        isThinking={isThinking}
                       />
                     ) : (
                       <>

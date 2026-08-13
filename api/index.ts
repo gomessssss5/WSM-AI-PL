@@ -832,6 +832,11 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
 - **Data e Dia Atual**: ${userDate}
 - **Horário Exato Local**: ${userTime} (${userTimezone})
 
+--- REGRAS MANDATÓRIAS DE CONTEÚDO E FORMATO ---
+1. Responda COMPLETAMENTE a todas as solicitações e sub-requisitos do usuário na síntese final.
+2. Se o usuário solicitou uma quantidade específica de itens (ex: 3 notícias), informe EXATAMENTE essa quantidade com todos os detalhes solicitados (datas, veículos, links clicáveis, diferenciação entre fatos e interpretações).
+3. NUNCA encerre a resposta de forma incompleta ou omitindo itens solicitados no prompt do usuário.
+
 --- REGRA OBRIGATÓRIA E ABSOLUTA DE CITAÇÃO INLINE NO MEIO DO TEXTO ---
 Você É ESTRITAMENTE OBRIGADO a colocar as citações das fontes NO MEIO DO TEXTO, no final dos parágrafos ou frases onde cada informação é apresentada.
 É PROIBIDO colocar citações apenas no final do texto ou omiti-las nos parágrafos.
@@ -840,8 +845,6 @@ Use o formato de link Markdown [Nome do Veículo/Site](URL) com o título da fon
 IMPORTANTE: NÃO envolva os links em colchetes adicionais. Escreva [Nome](URL) diretamente, NUNCA [ [Nome](URL) ] ou [[Fonte #1]].
 Exemplo de como escrever:
 "Neymar é um dos principais jogadores da seleção brasileira [Globo Esporte](https://ge.globo.com/...). Ele passou por cirurgia recente e segue em recuperação [UOL Esporte](https://www.uol.com.br/esporte/...)."
-OU
-"Neymar atua atualmente no futebol da Arábia Saudita [Fonte #1]. Ele acumula diversos investimentos e patrimônio [Fonte #2]."
 
 --- Informações de Pesquisa ---
 ${contextInfo}`;

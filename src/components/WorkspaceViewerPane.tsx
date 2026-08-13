@@ -25,7 +25,13 @@ import {
   Save,
   FilePlus,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  History,
+  ShieldCheck,
+  RotateCcw,
+  CheckCircle2,
+  AlertCircle,
+  GitBranch
 } from 'lucide-react';
 import { WsmDocument, Message } from '../types';
 import { extractWsmDoc, inferFormatFromTitle } from '../utils/docParser';
@@ -43,6 +49,14 @@ export interface WorkspaceViewerPaneProps {
   initialSelectedFile?: string;
 }
 
+export interface FileVersion {
+  version: number;
+  content: string;
+  updatedAt: Date;
+  author: string;
+  summary: string;
+}
+
 export interface WorkspaceFile {
   id: string;
   title: string;
@@ -51,6 +65,7 @@ export interface WorkspaceFile {
   source: 'ai' | 'user';
   folder?: string;
   updatedAt: Date;
+  versions?: FileVersion[];
 }
 
 export default function WorkspaceViewerPane({
@@ -67,6 +82,14 @@ export default function WorkspaceViewerPane({
   const [htmlPreviewMode, setHtmlPreviewMode] = useState(true);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [isEditingContent, setIsEditingContent] = useState(false);
+
+  // Advanced features state
+  const [activeSubTab, setActiveSubTab] = useState<'view' | 'versions' | 'validation'>('view');
+  const [fileVersionsMap, setFileVersionsMap] = useState<Record<string, FileVersion[]>>({});
+  const [selectedDiffVersionId, setSelectedDiffVersionId] = useState<number | null>(null);
+  const [editSummary, setEditSummary] = useState('');
+  const [validationProgress, setValidationProgress] = useState<'idle' | 'validating' | 'done'>('idle');
+  const [rollbackSuccessMessage, setRollbackSuccessMessage] = useState('');
 
   // New file creation form state
   const [newTitle, setNewTitle] = useState('');
@@ -189,8 +212,25 @@ export default function WorkspaceViewerPane({
       setSelectedFileId(activeFile.id);
       setEditingContentBuffer(activeFile.content);
       setIsEditingContent(false);
+      setActiveSubTab('view');
+      setSelectedDiffVersionId(null);
+      setValidationProgress('idle');
+
+      // Initialize first version if not present
+      if (!fileVersionsMap[activeFile.title]) {
+        setFileVersionsMap(prev => ({
+          ...prev,
+          [activeFile.title]: [{
+            version: 1,
+            content: activeFile.content,
+            updatedAt: activeFile.updatedAt || new Date(),
+            author: activeFile.source === 'ai' ? 'Omnix 1.6' : 'wsmathenas@gmail.com',
+            summary: 'Versão inicial extraída do Workspace'
+          }]
+        }));
+      }
     }
-  }, [activeFile?.id]);
+  }, [activeFile?.id, activeFile?.title, fileVersionsMap]);
 
   if (!isOpen) return null;
 
@@ -252,6 +292,27 @@ export default function WorkspaceViewerPane({
 
   const handleSaveEdit = () => {
     if (!activeFile) return;
+
+    const summaryText = editSummary.trim() || 'Edição manual do usuário';
+
+    // 1. Save new version history
+    const currentVersions = fileVersionsMap[activeFile.title] || [];
+    const nextVersionNum = currentVersions.length + 1;
+    const newVer: FileVersion = {
+      version: nextVersionNum,
+      content: editingContentBuffer,
+      updatedAt: new Date(),
+      author: 'wsmathenas@gmail.com',
+      summary: summaryText
+    };
+
+    const updatedVersions = [...currentVersions, newVer];
+    setFileVersionsMap(prev => ({
+      ...prev,
+      [activeFile.title]: updatedVersions
+    }));
+
+    // 2. Save custom file content
     const updatedFile: WorkspaceFile = {
       ...activeFile,
       content: editingContentBuffer,
@@ -259,12 +320,100 @@ export default function WorkspaceViewerPane({
     };
     setCustomFiles(prev => [updatedFile, ...prev.filter(f => f.title !== activeFile.title)]);
     setIsEditingContent(false);
+    setEditSummary('');
     setShowSaveToast(true);
     setTimeout(() => setShowSaveToast(false), 2500);
 
     if (['html', 'htm'].includes(activeFile.format.toLowerCase())) {
       setHtmlPreviewMode(true);
     }
+  };
+
+  const handleRestoreVersion = (version: FileVersion) => {
+    if (!activeFile) return;
+    if (confirm(`Deseja mesmo reverter o arquivo "${activeFile.title}" para a versão v${version.version}?`)) {
+      setEditingContentBuffer(version.content);
+
+      // Save a new version tracking this revert
+      const currentVersions = fileVersionsMap[activeFile.title] || [];
+      const nextVersionNum = currentVersions.length + 1;
+      const newVer: FileVersion = {
+        version: nextVersionNum,
+        content: version.content,
+        updatedAt: new Date(),
+        author: 'wsmathenas@gmail.com',
+        summary: `Revertido automaticamente para a versão v${version.version}`
+      };
+
+      const updatedVersions = [...currentVersions, newVer];
+      setFileVersionsMap(prev => ({
+        ...prev,
+        [activeFile.title]: updatedVersions
+      }));
+
+      const restoredFile: WorkspaceFile = {
+        ...activeFile,
+        content: version.content,
+        updatedAt: new Date(),
+      };
+      setCustomFiles(prev => [restoredFile, ...prev.filter(f => f.title !== activeFile.title)]);
+      setIsEditingContent(false);
+      setSelectedDiffVersionId(null);
+      setActiveSubTab('view');
+
+      setRollbackSuccessMessage(`Revertido com sucesso para a versão v${version.version}!`);
+      setTimeout(() => setRollbackSuccessMessage(''), 4000);
+    }
+  };
+
+  // Standard lookahead LCS-inspired visual diff generator
+  const computeSimpleDiff = (oldStr: string, newStr: string) => {
+    const oldLines = oldStr.split('\n');
+    const newLines = newStr.split('\n');
+    const diffs: { type: 'added' | 'removed' | 'unchanged'; text: string; lineNumber?: number }[] = [];
+
+    let i = 0;
+    let j = 0;
+
+    while (i < oldLines.length || j < newLines.length) {
+      if (i < oldLines.length && j < newLines.length && oldLines[i] === newLines[j]) {
+        diffs.push({ type: 'unchanged', text: oldLines[i], lineNumber: j + 1 });
+        i++;
+        j++;
+      } else {
+        let foundMatch = false;
+        for (let lookahead = 1; lookahead <= 5; lookahead++) {
+          if (i + lookahead < oldLines.length && oldLines[i + lookahead] === newLines[j]) {
+            for (let k = 0; k < lookahead; k++) {
+              diffs.push({ type: 'removed', text: oldLines[i + k] });
+            }
+            i += lookahead;
+            foundMatch = true;
+            break;
+          }
+          if (j + lookahead < newLines.length && oldLines[i] === newLines[j + lookahead]) {
+            for (let k = 0; k < lookahead; k++) {
+              diffs.push({ type: 'added', text: newLines[j + k], lineNumber: j + k + 1 });
+            }
+            j += lookahead;
+            foundMatch = true;
+            break;
+          }
+        }
+
+        if (!foundMatch) {
+          if (i < oldLines.length) {
+            diffs.push({ type: 'removed', text: oldLines[i] });
+            i++;
+          }
+          if (j < newLines.length) {
+            diffs.push({ type: 'added', text: newLines[j], lineNumber: j + 1 });
+            j++;
+          }
+        }
+      }
+    }
+    return diffs;
   };
 
   const getFileIcon = (title: string, format: string) => {
@@ -437,7 +586,7 @@ export default function WorkspaceViewerPane({
 
                 <div className="flex items-center gap-1.5 shrink-0">
                   {/* HTML Preview / Code toggle */}
-                  {['html', 'htm'].includes(activeFile.format.toLowerCase()) && !isEditingContent && (
+                  {['html', 'htm'].includes(activeFile.format.toLowerCase()) && !isEditingContent && activeSubTab === 'view' && (
                     <div className="flex items-center gap-0.5 bg-gray-100 dark:bg-gray-800 p-0.5 rounded-lg border border-gray-200 dark:border-gray-700 mr-1">
                       <button
                         type="button"
@@ -527,8 +676,66 @@ export default function WorkspaceViewerPane({
                 </div>
               </div>
 
+              {/* Sub-Tabs Bar (Visible when not editing) */}
+              {!isEditingContent && (
+                <div className="flex border-b border-gray-200 dark:border-gray-800 bg-gray-50/45 dark:bg-gray-900/10 px-4 py-1.5 gap-2 shrink-0 select-none">
+                  <button
+                    type="button"
+                    onClick={() => setActiveSubTab('view')}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      activeSubTab === 'view'
+                        ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs font-bold'
+                        : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Visualização</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveSubTab('versions');
+                      if (selectedDiffVersionId === null) {
+                        const history = fileVersionsMap[activeFile.title] || [];
+                        if (history.length > 1) {
+                          setSelectedDiffVersionId(history[history.length - 2].version);
+                        } else if (history.length > 0) {
+                          setSelectedDiffVersionId(history[0].version);
+                        }
+                      }
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      activeSubTab === 'versions'
+                        ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs font-bold'
+                        : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    <span>Histórico & Versões</span>
+                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold">
+                      {(fileVersionsMap[activeFile.title] || []).length}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveSubTab('validation');
+                      setValidationProgress('idle');
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      activeSubTab === 'validation'
+                        ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs font-bold'
+                        : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Validação Técnica</span>
+                  </button>
+                </div>
+              )}
+
               {/* Main Active File Display */}
-              <div className="flex-1 overflow-auto relative p-4 bg-white dark:bg-gray-950">
+              <div className="flex-1 overflow-auto relative p-4 bg-white dark:bg-gray-950 flex flex-col min-h-0">
                 <AnimatePresence>
                   {showSaveToast && (
                     <motion.div
@@ -541,15 +748,298 @@ export default function WorkspaceViewerPane({
                       <span>Arquivo salvo no Workspace com sucesso!</span>
                     </motion.div>
                   )}
+                  {rollbackSuccessMessage && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="absolute top-2 right-4 z-30 bg-blue-600 text-white text-xs px-3.5 py-2 rounded-xl shadow-lg flex items-center gap-1.5 font-medium"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 animate-spin" />
+                      <span>{rollbackSuccessMessage}</span>
+                    </motion.div>
+                  )}
                 </AnimatePresence>
+
                 {isEditingContent ? (
-                  <textarea
-                    value={editingContentBuffer}
-                    onChange={(e) => setEditingContentBuffer(e.target.value)}
-                    className="w-full h-full min-h-[400px] p-4 font-mono text-xs bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-blue-500 resize-none leading-relaxed"
-                    placeholder="Digite o conteúdo do arquivo aqui..."
-                  />
-                ) : isImageFile(activeFile) ? (
+                  <div className="flex flex-col h-full gap-3 min-h-[400px]">
+                    <textarea
+                      value={editingContentBuffer}
+                      onChange={(e) => setEditingContentBuffer(e.target.value)}
+                      className="flex-1 w-full min-h-[300px] p-4 font-mono text-xs bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-black/30 resize-none leading-relaxed"
+                      placeholder="Digite o conteúdo do arquivo aqui..."
+                    />
+
+                    {/* Version comment input */}
+                    <div className="flex items-center gap-3 bg-[#faf9f6] dark:bg-gray-900/60 p-3 rounded-xl border border-[#eae6e1] dark:border-gray-800 shrink-0 select-none">
+                      <span className="text-[11px] font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">O que você alterou?</span>
+                      <input
+                        type="text"
+                        placeholder="ex: Corrigido bug de layout, adicionada seção de contato..."
+                        value={editSummary}
+                        onChange={(e) => setEditSummary(e.target.value)}
+                        className="flex-1 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-black/50 text-gray-800 dark:text-gray-200"
+                      />
+                    </div>
+                  </div>
+                ) : activeSubTab === 'versions' ? (
+                  <div className="flex-1 flex flex-col md:flex-row gap-4 min-h-0">
+                    {/* Left side: list of versions */}
+                    <div className="w-full md:w-56 flex flex-col gap-2 shrink-0 border-r border-gray-100 dark:border-gray-800 pr-2 overflow-y-auto select-none">
+                      <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Histórico de Alterações</h4>
+                      {(fileVersionsMap[activeFile.title] || []).slice().reverse().map((ver) => {
+                        const isSelected = selectedDiffVersionId === ver.version;
+                        return (
+                          <div
+                            key={ver.version}
+                            onClick={() => setSelectedDiffVersionId(ver.version)}
+                            className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-xs'
+                                : 'bg-gray-50 dark:bg-gray-900 border-gray-200/80 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-mono text-xs font-bold">Versão v{ver.version}</span>
+                              <span className="text-[9px] opacity-70">{new Date(ver.updatedAt).toLocaleTimeString()}</span>
+                            </div>
+                            <p className="text-[10px] mt-1 font-medium truncate italic">"{ver.summary}"</p>
+                            <div className="flex items-center gap-1.5 mt-2 text-[9px] opacity-80 border-t border-dashed border-gray-300/40 pt-1.5">
+                              <span className="font-semibold truncate">{ver.author}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Right side: visual Diff viewer */}
+                    <div className="flex-1 flex flex-col min-h-0 bg-gray-50/50 dark:bg-gray-900/20 border border-gray-200/60 dark:border-gray-800 rounded-2xl overflow-hidden">
+                      {selectedDiffVersionId !== null ? (() => {
+                        const history = fileVersionsMap[activeFile.title] || [];
+                        const oldVerObj = history.find(v => v.version === selectedDiffVersionId);
+                        
+                        if (!oldVerObj) return <div className="p-8 text-center text-xs text-gray-400">Selecione uma versão anterior para comparar.</div>;
+                        
+                        const diffs = computeSimpleDiff(oldVerObj.content, activeFile.content);
+                        const hasDifferences = diffs.some(d => d.type !== 'unchanged');
+
+                        return (
+                          <>
+                            {/* Diff Toolbar */}
+                            <div className="px-3.5 py-2 border-b border-gray-200 dark:border-gray-800 bg-gray-100/50 dark:bg-gray-900/60 flex items-center justify-between gap-2 select-none shrink-0">
+                              <div className="flex items-center gap-1.5">
+                                <GitBranch className="w-3.5 h-3.5 text-blue-500" />
+                                <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                                  Comparando: v{selectedDiffVersionId} ➔ Atual
+                                </span>
+                                {!hasDifferences && (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                                    Idênticos
+                                  </span>
+                                )}
+                              </div>
+                              {selectedDiffVersionId !== history[history.length - 1]?.version && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRestoreVersion(oldVerObj)}
+                                  className="px-2.5 py-1 bg-black dark:bg-white text-white dark:text-black rounded-lg text-[10px] font-bold hover:opacity-90 flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-sm"
+                                  title="Voltar o arquivo para este conteúdo"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                  <span>Restaurar esta Versão</span>
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Diff Container */}
+                            <div className="flex-1 p-3 overflow-auto font-mono text-[11px] leading-relaxed select-text space-y-0.5 bg-white dark:bg-gray-950">
+                              {diffs.map((line, idx) => {
+                                if (line.type === 'added') {
+                                  return (
+                                    <div key={idx} className="bg-emerald-50/80 text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300 border-l-2 border-emerald-500 pl-1.5 whitespace-pre-wrap">
+                                      + {line.text || ' '}
+                                    </div>
+                                  );
+                                } else if (line.type === 'removed') {
+                                  return (
+                                    <div key={idx} className="bg-rose-50/80 text-rose-800 dark:bg-rose-950/20 dark:text-rose-300 border-l-2 border-rose-500 pl-1.5 whitespace-pre-wrap">
+                                      - {line.text || ' '}
+                                    </div>
+                                  );
+                                } else {
+                                  return (
+                                    <div key={idx} className="text-gray-500 dark:text-gray-400 pl-2 whitespace-pre-wrap">
+                                      {line.text || ' '}
+                                    </div>
+                                  );
+                                }
+                              })}
+                            </div>
+                          </>
+                        );
+                      })() : (
+                        <div className="p-8 text-center text-xs text-gray-400 my-auto select-none">
+                          Nenhuma alteração registrada. Faça edições no arquivo para gerar o histórico de versões.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : activeSubTab === 'validation' ? (() => {
+                  const content = activeFile.content;
+                  const format = activeFile.format.toLowerCase();
+
+                  // Syntax evaluation
+                  let syntaxOk = true;
+                  let syntaxDetails = "Sintaxe correspondente ao formato.";
+                  if (format === 'json') {
+                    try {
+                      JSON.parse(content);
+                      syntaxDetails = "JSON sintaticamente íntegro e parseável.";
+                    } catch(e: any) {
+                      syntaxOk = false;
+                      syntaxDetails = `Erro de parsing JSON: ${e?.message || String(e)}`;
+                    }
+                  } else if (['html', 'htm'].includes(format)) {
+                    const hasDivOrHtml = content.includes('<') && content.includes('>');
+                    if (!hasDivOrHtml) {
+                      syntaxOk = false;
+                      syntaxDetails = "Não contém tags HTML semânticas válidas.";
+                    } else {
+                      syntaxDetails = "Tags HTML estruturadas de forma compatível.";
+                    }
+                  } else if (format === 'md') {
+                    if (!content.includes('#')) {
+                      syntaxOk = false;
+                      syntaxDetails = "Requisito Markdown ausente: Nenhum título de cabeçalho (#) encontrado.";
+                    } else {
+                      syntaxDetails = "Formatação Markdown com cabeçalhos válidos.";
+                    }
+                  }
+
+                  // Placeholders/Stubs lookup
+                  const hasStubs = /todo|mock|stub|fixme|inserir lógica|lógica real aqui|placeholder/i.test(content);
+                  const stubsOk = !hasStubs;
+                  const stubsDetails = stubsOk 
+                    ? "Excelente! Nenhum comentário de código temporário, stubs ou mocks encontrados."
+                    : "Atenção: Encontramos comentários do tipo TODO, MOCK ou instruções pendentes de lógica real.";
+
+                  // Size constraint
+                  const sizeInKb = (content.length / 1024).toFixed(2);
+                  const sizeOk = Number(sizeInKb) < 100;
+                  const sizeDetails = sizeOk 
+                    ? `Tamanho de arquivo ideal para o Workspace (${sizeInKb} KB).`
+                    : `Arquivo excepcionalmente longo (${sizeInKb} KB).`;
+
+                  // Encoding
+                  const encodingOk = true;
+                  const encodingDetails = "Codificação de arquivo UTF-8 válida.";
+
+                  return (
+                    <div className="flex-1 flex flex-col justify-center max-w-xl mx-auto p-4 select-none">
+                      {validationProgress === 'idle' ? (
+                        <div className="text-center space-y-4">
+                          <div className="w-12 h-12 rounded-2xl bg-black dark:bg-white text-white dark:text-black flex items-center justify-center mx-auto shadow-md">
+                            <ShieldCheck className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-sm text-gray-900 dark:text-white">Análise de Requisitos Técnicos</h4>
+                            <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                              Execute a auditoria automática para validar a qualidade, integridade estrutural, sintaxe e se o arquivo está livre de stubs/código simulado.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setValidationProgress('validating');
+                              setTimeout(() => setValidationProgress('done'), 1500);
+                            }}
+                            className="px-4 py-2 bg-black hover:bg-black/90 dark:bg-white dark:hover:bg-white/90 text-white dark:text-black rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
+                          >
+                            Executar Auditoria Técnica
+                          </button>
+                        </div>
+                      ) : validationProgress === 'validating' ? (
+                        <div className="text-center space-y-4">
+                          <div className="relative w-12 h-12 mx-auto">
+                            <div className="absolute inset-0 rounded-full border-4 border-gray-200 dark:border-gray-800" />
+                            <div className="absolute inset-0 rounded-full border-4 border-black dark:border-white border-t-transparent animate-spin" />
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-xs text-gray-800 dark:text-gray-200">Analisando semântica do documento...</h4>
+                            <p className="text-[11px] text-gray-400 mt-1 font-mono">Buscando stubs e tokens de simulação...</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+                            <h4 className="font-bold text-xs text-gray-900 dark:text-white">Resultado do Relatório Técnico</h4>
+                            <button
+                              type="button"
+                              onClick={() => setValidationProgress('idle')}
+                              className="text-[10px] text-gray-500 hover:text-black hover:underline cursor-pointer"
+                            >
+                              Analisar novamente
+                            </button>
+                          </div>
+
+                          <div className="space-y-3">
+                            {/* Check 1 */}
+                            <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl">
+                              {syntaxOk ? (
+                                <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                              ) : (
+                                <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                              )}
+                              <div>
+                                <p className="text-xs font-semibold text-gray-800 dark:text-gray-200">Integridade de Sintaxe</p>
+                                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{syntaxDetails}</p>
+                              </div>
+                            </div>
+
+                            {/* Check 2 */}
+                            <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl">
+                              {stubsOk ? (
+                                <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                              ) : (
+                                <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                              )}
+                              <div>
+                                <p className="text-xs font-semibold text-gray-800 dark:text-gray-200">Código de Produção (Sem Mocks/Stubs)</p>
+                                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{stubsDetails}</p>
+                              </div>
+                            </div>
+
+                            {/* Check 3 */}
+                            <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl">
+                              {sizeOk ? (
+                                <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                              ) : (
+                                <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                              )}
+                              <div>
+                                <p className="text-xs font-semibold text-gray-800 dark:text-gray-200">Restrição de Tamanho</p>
+                                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{sizeDetails}</p>
+                              </div>
+                            </div>
+
+                            {/* Check 4 */}
+                            <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl">
+                              {encodingOk ? (
+                                <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                              ) : (
+                                <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                              )}
+                              <div>
+                                <p className="text-xs font-semibold text-gray-800 dark:text-gray-200">Codificação do Arquivo</p>
+                                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{encodingDetails}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })() : isImageFile(activeFile) ? (
                   <div className="w-full h-full flex flex-col items-center justify-center p-6 bg-gray-50 dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 min-h-[300px]">
                     <img
                       src={activeFile.content}

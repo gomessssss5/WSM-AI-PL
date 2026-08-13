@@ -187,69 +187,91 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
   let aiFinalSynthesis = "";
   let executionStatus: 'success' | 'error' = 'success';
   let executionError = "";
+  let attempts = 0;
 
-  try {
-    const res = await fetch("http://127.0.0.1:3000/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: taskData.prompt,
-        isSearchEnabled: true,
-        isScheduledExecution: true,
-        model: 'Omnix 1.6',
-        skills: skills,
-        userContext: `Execução automática de tarefa agendada em segundo plano.`,
-        history: []
-      })
-    });
+  const maxRetries = taskData.retryPolicy?.maxRetries || 3;
+  const backoffSeconds = taskData.retryPolicy?.backoffSeconds || 10;
 
-    if (res.ok) {
-      const contentType = res.headers.get("content-type") || "";
-      if (!contentType.includes("text/event-stream")) {
-        const data = await res.json();
-        aiText = data.text || data.error || "Execução concluída com sucesso.";
-        aiFinalSynthesis = data.finalSynthesis || data.text || "";
-      } else if (res.body) {
-        const reader = (res.body as any).getReader();
-        const decoder = new TextDecoder("utf-8");
-        let buffer = "";
+  const startedAt = new Date();
+  const shouldForceFailure = taskData.prompt?.toLowerCase().includes("simular falha") || taskData.prompt?.toLowerCase().includes("force_failure");
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+  while (attempts < maxRetries) {
+    attempts++;
+    console.log(`[ScheduledTasks] Executing task ${taskId} (Attempt ${attempts}/${maxRetries})...`);
+    try {
+      if (shouldForceFailure && attempts < maxRetries) {
+        throw new Error(`[Simulação de Falha] Erro forçado na tentativa ${attempts} de ${maxRetries} para testar a política de retentativas.`);
+      }
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
+      const res = await fetch("http://127.0.0.1:3000/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: taskData.prompt,
+          isSearchEnabled: true,
+          isScheduledExecution: true,
+          model: 'Omnix 1.6',
+          skills: skills,
+          userContext: `Execução automática de tarefa agendada em segundo plano. Tentativa ${attempts}/${maxRetries}.`,
+          history: []
+        })
+      });
 
-          for (const line of lines) {
-            const cleanedLine = line.trim();
-            if (!cleanedLine.startsWith("data: ")) continue;
-            try {
-              const data = JSON.parse(cleanedLine.substring(6));
-              if (data.type === "chunk" && data.text) {
-                aiText += data.text;
-              } else if (data.type === "final") {
-                if (data.text) aiText = data.text;
-                if (data.finalSynthesis) aiFinalSynthesis = data.finalSynthesis;
-              } else if (data.text) {
-                aiText += data.text;
-              } else if (data.finalSynthesis) {
-                aiFinalSynthesis = data.finalSynthesis;
-              }
-            } catch (e) {}
+      if (res.ok) {
+        const contentType = res.headers.get("content-type") || "";
+        if (!contentType.includes("text/event-stream")) {
+          const data = await res.json();
+          aiText = data.text || data.error || "Execução concluída com sucesso.";
+          aiFinalSynthesis = data.finalSynthesis || data.text || "";
+        } else if (res.body) {
+          const reader = (res.body as any).getReader();
+          const decoder = new TextDecoder("utf-8");
+          let buffer = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              const cleanedLine = line.trim();
+              if (!cleanedLine.startsWith("data: ")) continue;
+              try {
+                const data = JSON.parse(cleanedLine.substring(6));
+                if (data.type === "chunk" && data.text) {
+                  aiText += data.text;
+                } else if (data.type === "final") {
+                  if (data.text) aiText = data.text;
+                  if (data.finalSynthesis) aiFinalSynthesis = data.finalSynthesis;
+                } else if (data.text) {
+                  aiText += data.text;
+                } else if (data.finalSynthesis) {
+                  aiFinalSynthesis = data.finalSynthesis;
+                }
+              } catch (e) {}
+            }
           }
         }
+        executionStatus = 'success';
+        executionError = "";
+        break; // exit loop on success
+      } else {
+        throw new Error(`Erro HTTP ${res.status}: ${res.statusText}`);
       }
-    } else {
+    } catch (e: any) {
       executionStatus = 'error';
-      executionError = `Erro HTTP ${res.status}: ${res.statusText}`;
-      aiText = `⚠️ Erro ao executar tarefa: ${res.statusText}`;
+      executionError = e?.message || String(e);
+      aiText = `⚠️ Falha de execução: ${executionError}`;
+      console.log(`[ScheduledTasks] Attempt ${attempts} failed: ${executionError}`);
+
+      if (attempts < maxRetries) {
+        console.log(`[ScheduledTasks] Backing off for ${backoffSeconds}s before retry...`);
+        await new Promise(resolve => setTimeout(resolve, backoffSeconds * 1000));
+      }
     }
-  } catch (e: any) {
-    executionStatus = 'error';
-    executionError = e?.message || String(e);
-    aiText = `⚠️ Falha de execução: ${executionError}`;
   }
 
   const finalOutput = aiFinalSynthesis || aiText || "Tarefa processada em segundo plano.";
@@ -276,25 +298,46 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
   // Record task execution log with complete agentic provenance
   const finishedAt = new Date();
   const runId = `run-${executionId.slice(0, 8)}`;
+  const durationMs = finishedAt.getTime() - startedAt.getTime();
+
+  // Extract generated files from AI response
+  const generatedFiles: string[] = [];
+  const fileRegex = /criou o arquivo `([^`]+)`|arquivo `([^`]+)` gravado|salvo em `([^`]+)`|gravou `([^`]+)`/gi;
+  let fileMatch;
+  while ((fileMatch = fileRegex.exec(finalOutput)) !== null) {
+    const filename = fileMatch[1] || fileMatch[2] || fileMatch[3] || fileMatch[4];
+    if (filename && !generatedFiles.includes(filename)) {
+      generatedFiles.push(filename);
+    }
+  }
+
   try {
     await setDoc(doc(db, 'users', userId, 'taskExecutions', executionId), {
       id: executionId,
       runId: runId,
       taskId: taskId,
       taskTitle: taskData.title,
-      executedAt: Timestamp.fromDate(now),
-      startedAt: Timestamp.fromDate(now),
+      executedAt: Timestamp.fromDate(startedAt),
+      startedAt: Timestamp.fromDate(startedAt),
       finishedAt: Timestamp.fromDate(finishedAt),
+      durationMs: durationMs,
       triggerType: taskData.triggerType || 'manual',
       sessionId: newSessionId,
-      status: executionStatus,
+      status: executionStatus === 'success' ? 'succeeded' : 'failed',
+      attempts: attempts,
+      maxRetries: maxRetries,
       outputSummary: finalOutput.slice(0, 400),
-      ...(executionError ? { error: executionError } : {})
+      generatedFiles: generatedFiles,
+      ...(executionError ? { error: executionError, errorDetails: executionError } : {})
     });
 
     await updateDoc(doc(db, 'users', userId, 'scheduledTasks', taskId), {
       lastStatus: executionStatus,
-      lastOutput: finalOutput.slice(0, 200)
+      lastRunAt: Timestamp.fromDate(startedAt),
+      lastOutput: finalOutput.slice(0, 200),
+      lastExecutionDurationMs: durationMs,
+      lastExecutionStatus: executionStatus === 'success' ? 'succeeded' : 'failed',
+      ...(executionError ? { lastErrorDetails: executionError } : {})
     });
   } catch (e) {
     console.warn('[ScheduledTasks] Warning recording task execution log:', e);
@@ -303,7 +346,7 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
   const createdSessionObj = {
     id: newSessionId,
     title: `[Execução Agendada] ${taskData.title}`,
-    createdAt: now,
+    createdAt: startedAt,
     updatedAt: finishedAt,
     messages: initialMessages,
     isUnread: true,
@@ -316,14 +359,18 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
     runId: runId,
     taskId: taskId,
     taskTitle: taskData.title,
-    executedAt: now,
-    startedAt: now,
+    executedAt: startedAt,
+    startedAt: startedAt,
     finishedAt: finishedAt,
+    durationMs: durationMs,
     triggerType: taskData.triggerType || 'manual',
     sessionId: newSessionId,
-    status: executionStatus,
+    status: executionStatus === 'success' ? 'succeeded' : 'failed',
+    attempts: attempts,
+    maxRetries: maxRetries,
     outputSummary: finalOutput.slice(0, 400),
-    ...(executionError ? { error: executionError } : {})
+    generatedFiles: generatedFiles,
+    ...(executionError ? { error: executionError, errorDetails: executionError } : {})
   };
 
   return {

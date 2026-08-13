@@ -60,6 +60,10 @@ export default function ScheduledTasksDashboard({
   const [expirationDate, setExpirationDate] = useState('');
   const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
 
+  const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const [maxRetries, setMaxRetries] = useState(3);
+  const [backoffSeconds, setBackoffSeconds] = useState(10);
+
   const handleExecuteNow = async (task: ScheduledTask) => {
     if (runningTaskId) return;
     setRunningTaskId(task.id);
@@ -208,6 +212,9 @@ export default function ScheduledTasksDashboard({
     setSelectedDayOfMonth(task.dayOfMonth || new Date().getDate());
     setHasExpiration(!!task.expirationDate);
     setExpirationDate(task.expirationDate || '');
+    setTimezone(task.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone);
+    setMaxRetries(task.retryPolicy?.maxRetries || 3);
+    setBackoffSeconds(task.retryPolicy?.backoffSeconds || 10);
     setIsModalOpen(true);
   };
 
@@ -222,22 +229,24 @@ export default function ScheduledTasksDashboard({
       scheduleType === 'monthly' ? selectedDayOfMonth : undefined
     );
 
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
     const newTask: ScheduledTask = {
       id: editingTask ? editingTask.id : crypto.randomUUID(),
       title,
       prompt,
       scheduleType,
       time,
-      timezone: editingTask?.timezone || timeZone,
+      timezone: timezone,
       date: scheduleType === 'once' ? selectedDate : undefined,
       daysOfWeek: scheduleType === 'weekly' && selectedDaysOfWeek.length > 0 ? selectedDaysOfWeek : undefined,
       dayOfMonth: scheduleType === 'monthly' ? selectedDayOfMonth : undefined,
       isActive: editingTask ? editingTask.isActive : true,
       createdAt: editingTask ? (editingTask.createdAt instanceof Date ? editingTask.createdAt : new Date(editingTask.createdAt)) : new Date(),
       nextRunAt: nextRun,
-      expirationDate: hasExpiration ? expirationDate : undefined
+      expirationDate: hasExpiration ? expirationDate : undefined,
+      retryPolicy: {
+        maxRetries,
+        backoffSeconds
+      }
     };
 
     onSaveTask(newTask);
@@ -267,6 +276,9 @@ export default function ScheduledTasksDashboard({
     setHasExpiration(false);
     setExpirationDate('');
     setIsTypeDropdownOpen(false);
+    setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    setMaxRetries(3);
+    setBackoffSeconds(10);
   };
 
   const formatShortTime = (d: Date | string | number) => {
@@ -545,114 +557,188 @@ export default function ScheduledTasksDashboard({
           {activeTab === 'tasks' && (
             <div className="flex flex-col gap-4 max-w-4xl">
               {tasks.length === 0 ? (
-                <div className="text-center py-20 text-gray-500">
-                  Nenhuma tarefa agendada.
+                <div className="text-center py-20 text-gray-500 bg-white border border-[#eae6e1] rounded-2xl">
+                  Nenhuma tarefa agendada cadastrada no momento.
                 </div>
               ) : (
-                tasks.map(task => (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    key={task.id} 
-                    className="bg-white border border-[#eae6e1] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-4"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <Clock className="w-5 h-5 text-gray-400" />
-                        <h3 className="font-semibold text-gray-900 text-base">{task.title}</h3>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <button 
-                          type="button"
-                          onClick={() => handleExecuteNow(task)} 
-                          disabled={runningTaskId === task.id}
-                          className="flex items-center gap-1.5 bg-[#18181b] hover:bg-black text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-50"
-                          title="Executar tarefa imediatamente"
-                        >
-                          {runningTaskId === task.id ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              <span>Executando...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Play className="w-3.5 h-3.5 fill-current" />
-                              <span>Executar Agora</span>
-                            </>
-                          )}
-                        </button>
-                         <label className="relative inline-flex items-center cursor-pointer">
-                            <input 
-                              type="checkbox" 
-                              className="sr-only peer" 
-                              checked={task.isActive}
-                              onChange={(e) => onToggleTask(task.id, e.target.checked)}
-                            />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black"></div>
-                        </label>
-                        <button onClick={() => handleEditClick(task)} className="text-gray-400 hover:text-black transition-colors" title="Editar">
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => onDeleteTask(task.id)} className="text-gray-400 hover:text-red-500 transition-colors" title="Excluir">
-                          <X className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <p className="text-gray-600 text-sm leading-relaxed">{task.prompt}</p>
-                    
-                    <div className="flex items-center justify-between text-xs text-gray-500 mt-2 border-t border-[#eae6e1] pt-3">
-                      <div className="flex items-center gap-4">
-                        <span className="flex items-center gap-1.5">
-                          <RefreshCw className="w-3.5 h-3.5" /> 
-                          {(() => {
-                            const scheduleMap: Record<string, string> = {
-                              once: 'Uma vez',
-                              daily: 'Diariamente',
-                              weekly: 'Semanalmente',
-                              monthly: 'Mensalmente'
-                            };
-                            let label = scheduleMap[task.scheduleType] || task.scheduleType;
-                            if (task.scheduleType === 'once' && task.date) {
-                              const [y, m, d] = task.date.split('-');
-                              label += ` (${d}/${m}/${y})`;
-                            } else if (task.scheduleType === 'weekly' && task.daysOfWeek && task.daysOfWeek.length > 0) {
-                              const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-                              label += ` (${task.daysOfWeek.map(d => dayNames[d]).join(', ')})`;
-                            } else if (task.scheduleType === 'monthly' && task.dayOfMonth) {
-                              label += ` (todo dia ${task.dayOfMonth})`;
-                            }
-                            const timeZone = task.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-                            
-                            // Calculate equivalent UTC time
-                            let utcTimeStr = '';
-                            if (task.time) {
-                              try {
-                                const [h, m] = task.time.split(':').map(Number);
-                                const dateInTZ = new Date(new Date().toLocaleString('en-US', { timeZone }));
-                                const localNow = new Date();
-                                const tzOffsetMinutes = Math.round((localNow.getTime() - dateInTZ.getTime()) / 60000);
-                                
-                                const d = new Date();
-                                d.setHours(h, m, 0, 0);
-                                const utcDate = new Date(d.getTime() + tzOffsetMinutes * 60000);
-                                
-                                const utcHours = utcDate.getUTCHours().toString().padStart(2, '0');
-                                const utcMinutes = utcDate.getUTCMinutes().toString().padStart(2, '0');
-                                utcTimeStr = ` / ${utcHours}:${utcMinutes} UTC`;
-                              } catch(e) {}
-                            }
+                tasks.map(task => {
+                  const lastExec = executions.filter(e => e.taskId === task.id)[0];
+                  const durationStr = lastExec?.durationMs 
+                    ? `${(lastExec.durationMs / 1000).toFixed(1)}s` 
+                    : undefined;
 
-                            return `${label} às ${task.time} (${timeZone}${utcTimeStr})`;
-                          })()}
-                        </span>
-                        {task.nextRunAt && (
-                          <span className="flex items-center gap-1.5">Próxima execução: {formatShortDate(task.nextRunAt)}</span>
-                        )}
+                  return (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      key={task.id} 
+                      className="bg-white border border-[#eae6e1] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-4"
+                    >
+                      <div className="flex items-start justify-between flex-wrap gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-3.5 h-3.5 rounded-full ${task.isActive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold text-gray-900 text-base">{task.title}</h3>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${
+                                task.isActive 
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                              }`}>
+                                {task.isActive ? 'Ativo' : 'Pausado'}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-gray-400 font-mono mt-0.5">ID: {task.id.slice(0, 8)}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button 
+                            type="button"
+                            onClick={() => handleExecuteNow(task)} 
+                            disabled={runningTaskId === task.id}
+                            className="flex items-center gap-1.5 bg-[#18181b] hover:bg-black text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+                            title="Executar tarefa imediatamente"
+                          >
+                            {runningTaskId === task.id ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>Executando...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Play className="w-3 h-3 fill-current" />
+                                <span>Executar Agora</span>
+                              </>
+                            )}
+                          </button>
+
+                          {task.isActive ? (
+                            <button
+                              type="button"
+                              onClick={() => onToggleTask(task.id, false)}
+                              className="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-amber-200 transition-all cursor-pointer"
+                              title="Pausar agendamento"
+                            >
+                              <span>Pausar</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => onToggleTask(task.id, true)}
+                              className="flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-emerald-200 transition-all cursor-pointer"
+                              title="Retomar agendamento"
+                            >
+                              <span>Ativar</span>
+                            </button>
+                          )}
+
+                          <button 
+                            onClick={() => handleEditClick(task)} 
+                            className="text-gray-400 hover:text-black transition-colors p-1 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200" 
+                            title="Editar"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => onDeleteTask(task.id)} 
+                            className="text-gray-400 hover:text-red-500 transition-colors p-1 bg-gray-50 hover:bg-red-50 rounded-lg border border-gray-200" 
+                            title="Excluir"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </motion.div>
-                ))
+                      
+                      <div className="bg-[#fcfaf7] border border-[#f2ece4] rounded-xl p-3.5 text-xs text-gray-700 italic">
+                        "{task.prompt}"
+                      </div>
+
+                      {/* Observability Details Grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-[#faf9f6] border border-[#eae6e1] rounded-xl p-3.5 text-xs text-gray-600">
+                        <div>
+                          <p className="font-bold text-[10px] uppercase text-gray-400 tracking-wider">Fuso Horário</p>
+                          <p className="font-medium text-gray-800 mt-0.5 truncate">{task.timezone || 'Fuso Local'}</p>
+                        </div>
+                        <div>
+                          <p className="font-bold text-[10px] uppercase text-gray-400 tracking-wider">Retentativas (Retry)</p>
+                          <p className="font-medium text-gray-800 mt-0.5">
+                            {task.retryPolicy ? `${task.retryPolicy.maxRetries}x (${task.retryPolicy.backoffSeconds}s)` : '3x (10s backoff)'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="font-bold text-[10px] uppercase text-gray-400 tracking-wider">Último Resultado</p>
+                          <span className={`inline-flex items-center gap-1 font-semibold mt-0.5 ${
+                            task.lastExecutionStatus === 'succeeded' ? 'text-emerald-600' :
+                            task.lastExecutionStatus === 'failed' ? 'text-red-600' : 'text-gray-500'
+                          }`}>
+                            {task.lastExecutionStatus === 'succeeded' ? `Sucesso ${durationStr ? `(${durationStr})` : ''}` :
+                             task.lastExecutionStatus === 'failed' ? 'Falhou / Erro' : 'Nunca executado'}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-bold text-[10px] uppercase text-gray-400 tracking-wider">Última Execução</p>
+                          <p className="font-medium text-gray-800 mt-0.5">
+                            {task.lastRunAt ? `${formatShortDate(task.lastRunAt)} às ${formatShortTime(task.lastRunAt)}` : 'Sem registros'}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-wrap items-center justify-between text-[11px] text-gray-500 mt-1 border-t border-gray-100 pt-3">
+                        <div className="flex items-center gap-4 flex-wrap">
+                          <span className="flex items-center gap-1.5 font-medium">
+                            <RefreshCw className="w-3.5 h-3.5 text-gray-400 shrink-0" /> 
+                            {(() => {
+                              const scheduleMap: Record<string, string> = {
+                                once: 'Uma vez',
+                                daily: 'Diariamente',
+                                weekly: 'Semanalmente',
+                                monthly: 'Mensalmente'
+                              };
+                              let label = scheduleMap[task.scheduleType] || task.scheduleType;
+                              if (task.scheduleType === 'once' && task.date) {
+                                const [y, m, d] = task.date.split('-');
+                                label += ` (${d}/${m}/${y})`;
+                              } else if (task.scheduleType === 'weekly' && task.daysOfWeek && task.daysOfWeek.length > 0) {
+                                const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                                label += ` (${task.daysOfWeek.map(d => dayNames[d]).join(', ')})`;
+                              } else if (task.scheduleType === 'monthly' && task.dayOfMonth) {
+                                label += ` (todo dia ${task.dayOfMonth})`;
+                              }
+                              const timeZone = task.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+                              
+                              let utcTimeStr = '';
+                              if (task.time) {
+                                try {
+                                  const [h, m] = task.time.split(':').map(Number);
+                                  const dateInTZ = new Date(new Date().toLocaleString('en-US', { timeZone }));
+                                  const localNow = new Date();
+                                  const tzOffsetMinutes = Math.round((localNow.getTime() - dateInTZ.getTime()) / 60000);
+                                  
+                                  const d = new Date();
+                                  d.setHours(h, m, 0, 0);
+                                  const utcDate = new Date(d.getTime() + tzOffsetMinutes * 60000);
+                                  
+                                  const utcHours = utcDate.getUTCHours().toString().padStart(2, '0');
+                                  const utcMinutes = utcDate.getUTCMinutes().toString().padStart(2, '0');
+                                  utcTimeStr = ` / ${utcHours}:${utcMinutes} UTC`;
+                                } catch(e) {}
+                              }
+
+                              return `${label} às ${task.time} (${timeZone}${utcTimeStr})`;
+                            })()}
+                          </span>
+                          {task.nextRunAt && (
+                            <span className="flex items-center gap-1.5 font-semibold text-gray-700">
+                              <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                              Próxima execução: {formatShortDate(task.nextRunAt)} às {task.time}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })
               )}
             </div>
           )}
@@ -932,6 +1018,51 @@ export default function ScheduledTasksDashboard({
                       className="mt-2 w-full bg-[#f4f3f1] border border-[#eae6e1] rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
                     />
                   )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-gray-700 block">Fuso Horário (Timezone)</label>
+                      <select
+                        value={timezone}
+                        onChange={(e) => setTimezone(e.target.value)}
+                        className="w-full bg-[#f4f3f1] border border-[#eae6e1] rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all cursor-pointer"
+                      >
+                        <option value={Intl.DateTimeFormat().resolvedOptions().timeZone}>
+                          Fuso Local ({Intl.DateTimeFormat().resolvedOptions().timeZone})
+                        </option>
+                        <option value="America/Sao_Paulo">Brasília/São Paulo (BRT)</option>
+                        <option value="America/New_York">Nova Iorque (EST/EDT)</option>
+                        <option value="Europe/London">Londres (GMT/BST)</option>
+                        <option value="UTC">UTC / GMT</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-gray-700 block">Retentativas (Retry Policy)</label>
+                      <div className="flex gap-2">
+                        <select
+                          value={maxRetries}
+                          onChange={(e) => setMaxRetries(Number(e.target.value))}
+                          className="flex-1 bg-[#f4f3f1] border border-[#eae6e1] rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all cursor-pointer"
+                        >
+                          <option value={1}>Sem retentativa</option>
+                          <option value={2}>1 retentativa</option>
+                          <option value={3}>2 retentativas</option>
+                          <option value={4}>3 retentativas</option>
+                        </select>
+                        <select
+                          value={backoffSeconds}
+                          onChange={(e) => setBackoffSeconds(Number(e.target.value))}
+                          className="flex-1 bg-[#f4f3f1] border border-[#eae6e1] rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all cursor-pointer"
+                        >
+                          <option value={10}>10s backoff</option>
+                          <option value={30}>30s backoff</option>
+                          <option value={60}>1 min backoff</option>
+                          <option value={300}>5 min backoff</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-2">

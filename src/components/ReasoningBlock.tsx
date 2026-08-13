@@ -138,6 +138,22 @@ export function ReasoningBlock({
     }
   }, [isReasoningFinished, raciocinio.length, displayedText, isHistorical, isSequenceDone]);
 
+  // Defensive safety timeout to prevent any possible visual hanging in the UI
+  useEffect(() => {
+    if (isHistorical || isSequenceDone) return;
+
+    const safetyTimer = setTimeout(() => {
+      if (!isSequenceDone) {
+        console.warn(`[ReasoningBlock] Safety timeout triggered for message ${id}. Forcing sequence completion to prevent UI hanging.`);
+        setIsExpanded(false);
+        setIsSequenceDone(true);
+        onSequenceCompleteRef.current?.();
+      }
+    }, 12000); // 12-second max window for reasoning typewriter stream
+
+    return () => clearTimeout(safetyTimer);
+  }, [isHistorical, isSequenceDone, id]);
+
   const toggleStepExpand = (stepId: string) => {
     setExpandedStepIds((prev) => ({ ...prev, [stepId]: !prev[stepId] }));
   };

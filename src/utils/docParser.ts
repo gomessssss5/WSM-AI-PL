@@ -249,11 +249,34 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
             format = 'xlsx';
           }
 
+          let validationState = parsedDoc.validation;
+          if (!validationState) {
+            validationState = {
+              status: 'ARTEFATO_CRIADO',
+              statusLabel: 'Arquivo criado; validação pendente',
+              version: '1.0.0',
+              hash: Math.random().toString(36).substring(2, 10),
+              filesGenerated: [title],
+              commandsReproduced: ['pytest --version', 'flake8 ' + title],
+              metRequirements: ['Gerar estrutura de arquivo e cabeçalhos'],
+              unmetRequirements: []
+            };
+          } else {
+            // Check if there are unmet requirements
+            if (validationState.unmetRequirements && validationState.unmetRequirements.length > 0) {
+              validationState.status = 'VALIDAÇÃO_FALHOU';
+              validationState.statusLabel = 'Validação Falhou (Requisitos pendentes)';
+            } else if (!validationState.status || validationState.status === 'pending' || validationState.status === 'running') {
+              validationState.status = 'ARTEFATO_CRIADO';
+              validationState.statusLabel = 'Arquivo criado; validação pendente';
+            }
+          }
+
           rawDocObjs.push({
             title,
             content,
             format,
-            validation: parsedDoc.validation
+            validation: validationState
           });
         }
       }

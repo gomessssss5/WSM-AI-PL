@@ -145,38 +145,6 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
             <span className="text-[12px] text-gray-500 dark:text-gray-400 font-normal mt-0.5">
               {format === 'xlsx' ? 'Planilha' : isCode ? 'Código' : format === 'txt' ? 'Texto' : (format === 'md' || format === 'markdown') ? 'Markdown' : 'Documento'} · {format.toUpperCase()}
             </span>
-
-            {/* Validation Pipeline Badge Line */}
-            <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-[11px]">
-              {isValidated ? (
-                <span className="inline-flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-md font-bold">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  Validado · Testes: {val.testsPassed ?? 0}/{val.testsTotal ?? 0} · Lint: Aprovado
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 px-2 py-0.5 rounded-md font-bold">
-                  <AlertCircle className="w-3 h-3 text-amber-600" />
-                  Não validado
-                </span>
-              )}
-
-              {val?.hash && (
-                <span className="text-[10px] text-gray-400 font-mono">Hash: {val.hash.substring(0, 8)}</span>
-              )}
-
-              {(val?.filesGenerated || val?.commandsReproduced || val?.logs) && (
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setExpanded(!expanded);
-                  }}
-                  className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500 transition-colors flex items-center gap-0.5 text-[10px] font-semibold"
-                >
-                  <span>Detalhes Sandbox</span>
-                  {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                </button>
-              )}
-            </div>
           </div>
         </div>
 
@@ -196,55 +164,6 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
           <span>Baixar</span>
         </button>
       </div>
-
-      {/* Expanded Sandbox Telemetry Panel */}
-      <AnimatePresence>
-        {expanded && val && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-800 text-xs text-gray-700 dark:text-gray-300 overflow-hidden bg-white dark:bg-gray-850 p-2.5 rounded-xl space-y-2 font-mono"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="grid grid-cols-2 gap-2 text-[11px] border-b border-gray-100 pb-2">
-              <div><strong>Arquivos:</strong> {filesCount}</div>
-              <div><strong>Linting:</strong> {isValidated ? 'Aprovado sem warnings' : 'Não executado'}</div>
-              <div><strong>Dependências:</strong> Nenhuma externa</div>
-              <div><strong>Validação:</strong> {isValidated ? 'Sandbox Isolado' : 'Sem Execução'}</div>
-            </div>
-
-            {val.filesGenerated && val.filesGenerated.length > 0 && (
-              <div>
-                <strong className="block mb-1 text-[10px] uppercase tracking-wider text-gray-500">Arquivos Gerados ({val.filesGenerated.length})</strong>
-                <ul className="list-disc pl-4 space-y-0.5 text-[11px]">
-                  {val.filesGenerated.map((f, i) => (
-                    <li key={i}>{f}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {val.commandsReproduced && val.commandsReproduced.length > 0 && (
-              <div>
-                <strong className="block mb-1 text-[10px] uppercase tracking-wider text-gray-500">Comandos de Validação Reproduzidos</strong>
-                <div className="bg-gray-50 dark:bg-gray-900 p-2 rounded-md text-[10px] whitespace-pre-wrap border border-gray-200 dark:border-gray-800">
-                  {val.commandsReproduced.join('\n')}
-                </div>
-              </div>
-            )}
-
-            {val.logs && (
-              <div>
-                <strong className="block mb-1 text-[10px] uppercase tracking-wider text-gray-500">Logs de Sandbox / Pytest</strong>
-                <div className="bg-gray-50 dark:bg-gray-900 p-2 rounded-md text-[10px] whitespace-pre-wrap max-h-28 overflow-y-auto border border-gray-200 dark:border-gray-800">
-                  {val.logs}
-                </div>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
     </motion.div>
   );
 }

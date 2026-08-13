@@ -26,6 +26,7 @@ interface SearchMessageViewProps {
   onOpenDocument?: (doc: WsmDocument) => void;
   onOpenWorkspace?: () => void;
   attachedImages?: string[];
+  isThinking?: boolean;
 }
 
 export default function SearchMessageView({
@@ -38,7 +39,8 @@ export default function SearchMessageView({
   onOpenScheduledTasks,
   onOpenDocument,
   onOpenWorkspace,
-  attachedImages
+  attachedImages,
+  isThinking = false
 }: SearchMessageViewProps) {
   const steps = message.searchSteps || [];
   const totalSteps = steps.length;
@@ -99,8 +101,14 @@ export default function SearchMessageView({
     setCompletedSteps({});
     setShowFinal(false);
     activeStepStartTimeRef.current = Date.now();
-    setIsReasoningDone(!raciocinio || !message.isSimulatingSearch);
+    setIsReasoningDone(!raciocinio || !message.isSimulatingSearch || !isThinking);
   }
+
+  useEffect(() => {
+    if (!isThinking && !isReasoningDone) {
+      setIsReasoningDone(true);
+    }
+  }, [isThinking, isReasoningDone]);
 
   useEffect(() => {
     if (!message.isSimulatingSearch) {
@@ -127,9 +135,16 @@ export default function SearchMessageView({
     const currentStep = steps[currentStepIndex];
     if (!currentStep) {
       // All search steps have been processed sequentially
-      // Now wait for the final synthesis from the backend
-      if (message.finalSynthesis && !showFinal) {
-        if ((import.meta as any).env?.DEV) console.log("[SearchMessageView] All steps done, final synthesis arrived. Completing simulation.");
+      // Show synthesis content as it streams in
+      if ((message.finalSynthesis || message.text) && !showFinal) {
+        setShowFinal(true);
+        onStepChangeRef.current?.();
+      }
+
+      // Only mark simulation complete on client once the server sends final searchSources / completes
+      const isBackendStreamComplete = !message.isSimulatingSearch || (message.searchSources && message.searchSources.length > 0);
+      if (isBackendStreamComplete) {
+        if ((import.meta as any).env?.DEV) console.log("[SearchMessageView] All steps done and backend stream complete. Completing simulation.");
         setShowFinal(true);
         onStepChangeRef.current?.();
         onSimulationCompleteRef.current?.();
@@ -230,7 +245,7 @@ export default function SearchMessageView({
         <ReasoningBlock
           id={message.id}
           raciocinio={raciocinio}
-          isReasoningFinished={isRaciocinioFinished || !message.isSimulatingSearch}
+          isReasoningFinished={isRaciocinioFinished || !message.isSimulatingSearch || !isThinking}
           isHistorical={!message.isSimulatingSearch}
           onSequenceComplete={() => {
             setIsReasoningDone(true);
