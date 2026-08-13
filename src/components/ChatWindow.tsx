@@ -24,6 +24,8 @@ import { extractRaciocinio, cleanRaciocinioTags } from '../utils/raciocinioParse
 import { cleanHistoryTags } from '../utils/historyParser';
 import { SearchImageCarousel } from './SearchImageCarousel';
 import { logAuditEvent } from '../utils/auditLogger';
+import { extractStructuredEvents } from '../utils/eventParser';
+import { StructuredEventsLog } from './StructuredEventsLog';
 
 const UiverseLoader = ({ isThinking = false }: { isThinking?: boolean }) => (
   <div 
@@ -2193,6 +2195,9 @@ export default function ChatWindow({
                           );
                         })()}
                       </>
+                    )}
+                    {!isUser && (
+                      <StructuredEventsLog events={extractStructuredEvents(message)} />
                     )}
                   </div>
                   )}

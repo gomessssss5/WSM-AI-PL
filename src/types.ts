@@ -124,6 +124,18 @@ export interface Message {
   }[];
   model?: string;
   geminiModel?: string;
+  toolEvents?: ToolEvent[];
+}
+
+export interface ToolEvent {
+  runId: string;
+  event: 'artifact.created' | 'artifact.modified' | 'web.search' | 'code.executed' | 'task.updated' | string;
+  tool: 'workspace.create_file' | 'workspace.edit_file' | 'workspace.delete_file' | 'web.search_query' | 'code.execute' | string;
+  status: 'success' | 'failed' | 'pending';
+  artifactId?: string;
+  filename?: string;
+  timestamp: string;
+  details?: string;
 }
 
 export interface ScheduledTaskRetryPolicy {
