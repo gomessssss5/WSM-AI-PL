@@ -19,6 +19,8 @@ import AdminAuthModal from './components/AdminAuthModal';
 import BenchmarkPage from './components/BenchmarkPage';
 import { Skill, subscribeSkills, saveSkill, deleteSkillFromDb } from './lib/skills';
 import { OFFICIAL_SKILLS } from './lib/officialSkills';
+import { getLayeredMemories } from './utils/layeredMemory';
+import { DEFAULT_COMPOSABLE_SKILLS } from './utils/defaultSkills';
 import { subscribeScheduledTasks, subscribeTaskExecutions, saveScheduledTask, deleteScheduledTask, saveTaskExecution, calculateNextRunAt } from './lib/scheduledTasks';
 import { getCleanSessionTitle } from './utils/sessionUtils';
 
@@ -1285,7 +1287,8 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           isTranslatorMode: false,
           model: sessionToUpdate.model || selectedModel,
           reasoningLevel: reasoningLevel,
-          skills: [...OFFICIAL_SKILLS, ...skills],
+          skills: [...OFFICIAL_SKILLS, ...DEFAULT_COMPOSABLE_SKILLS, ...skills],
+          layeredMemories: getLayeredMemories(),
           userContext: getUserContext(),
           userInfo: currentUser ? {
             uid: currentUser.uid,

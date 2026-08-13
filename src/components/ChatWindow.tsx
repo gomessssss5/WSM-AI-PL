@@ -26,6 +26,8 @@ import { SearchImageCarousel } from './SearchImageCarousel';
 import { logAuditEvent } from '../utils/auditLogger';
 import { extractStructuredEvents } from '../utils/eventParser';
 import { StructuredEventsLog } from './StructuredEventsLog';
+import { ArtifactPersistenceCard } from './ArtifactPersistenceCard';
+import { ExecutionRuntimeViewer } from './ExecutionRuntimeViewer';
 
 const UiverseLoader = ({ isThinking = false }: { isThinking?: boolean }) => (
   <div 
@@ -2197,7 +2199,28 @@ export default function ChatWindow({
                       </>
                     )}
                     {!isUser && (
-                      <StructuredEventsLog events={extractStructuredEvents(message)} />
+                      <>
+                        {(() => {
+                          const { docObjs } = extractWsmDoc(message.text);
+                          if (!docObjs || docObjs.length === 0) return null;
+                          return (
+                            <div className="space-y-2 my-2">
+                              {docObjs.map((doc, docIdx) => (
+                                <ArtifactPersistenceCard
+                                  key={`art_card_${message.id}_${docIdx}`}
+                                  filename={doc.title || `documento_${docIdx + 1}.md`}
+                                  title={doc.title}
+                                  content={doc.content || ''}
+                                  format={doc.format}
+                                  conversationId={sessionId || 'session_general'}
+                                />
+                              ))}
+                            </div>
+                          );
+                        })()}
+                        <StructuredEventsLog events={extractStructuredEvents(message)} />
+                        <ExecutionRuntimeViewer sessionId={sessionId} />
+                      </>
                     )}
                   </div>
                   )}

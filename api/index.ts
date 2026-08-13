@@ -1,4 +1,5 @@
 import express from "express";
+import crypto from "crypto";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import sharp from "sharp";
@@ -285,7 +286,7 @@ async function callGeminiStreamWithFallback(options: any): Promise<any> {
 
 // API endpoint for chatbot communication and Web Search
 app.post("/api/chat", async (req: express.Request, res: express.Response) => {
-  const { text, attachments, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution, sessionId, chatMemoryDoc, workspaceFiles } = req.body;
+  const { text, attachments, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution, sessionId, chatMemoryDoc, workspaceFiles, layeredMemories } = req.body;
 
   const userEmail = userInfo?.email || userContext?.email || req.body?.userEmail;
   let clientDisconnected = false;
@@ -447,6 +448,58 @@ REGRAS OBRIGATÓRIAS DA TAG DE HISTÓRICO (<history>...</history>):
 4. Para interações simples, cumprimentos ou conversas triviais sem informações novas (ex: "oi", "tudo bem?", "obrigado", "boa noite", "ok"), NÃO gere a tag <history>.
 5. A tag <history> e seu conteúdo são ESTRITAMENTE INTERNOS DO SISTEMA. O usuário NUNCA deve ver, editar ou ter ciência dessa tag ou documento.
 `;
+
+  // Composable Skills Injection
+  let skillsInstruction = "";
+  if (Array.isArray(skills) && skills.length > 0) {
+    skillsInstruction = `
+## SKILLS COMPONÍVEIS E FLUXOS ESPECIALIZADOS INSTALADOS NO WORKSPACE
+O usuário possui as seguintes Skills modulares configuradas para execução. Quando a solicitação do usuário se alinhar ao propósito de uma Skill, execute-a com total fidelidade às suas instruções, ferramentas e esquema de saídas:
+
+${skills.map((s: any, idx: number) => `
+### Skill #${idx + 1}: ${s.name} ${s.isOfficial ? '(Oficial)' : ''}
+- **Descrição**: ${s.description || 'N/A'}
+- **Ferramentas Permitidas**: ${Array.isArray(s.tools_allowed) ? s.tools_allowed.join(', ') : 'todas'}
+- **Política de Risco**: ${s.risk_policy || 'low'}
+- **Entradas (Inputs)**: ${Array.isArray(s.inputs) ? JSON.stringify(s.inputs) : 'Nenhum'}
+- **Saídas Esperadas (Outputs)**: ${Array.isArray(s.outputs) ? JSON.stringify(s.outputs) : 'Arquivo ou texto'}
+- **Instruções Rigorosas de Execução**:
+${s.instructions || ''}
+`).join('\n---\n')}
+`;
+  }
+
+  // Layered Memory Injection with continuity rules
+  let layeredMemoryInstruction = "";
+  if (layeredMemories && typeof layeredMemories === 'object') {
+    const formatLayer = (items: any[], label: string) => {
+      if (!Array.isArray(items) || items.length === 0) return `[${label}]: Nenhum item registrado.`;
+      return `### ${label}:\n` + items.map(item => {
+        const staleNotice = item.isStale ? ' ⚠️ [ATENÇÃO: FATO ANTIGO (>7 DIAS) - CONFIRME ANTES DE ASSUMIR]' : '';
+        const dateStr = item.updatedAt ? new Date(item.updatedAt).toLocaleDateString('pt-BR') : '';
+        return `- **${item.title}** (${(item.confidence || 'high').toUpperCase()} CONFIANÇA | Origem: ${item.origin || 'N/A'} | Data: ${dateStr})${staleNotice}\n  ${item.content}`;
+      }).join('\n');
+    };
+
+    layeredMemoryInstruction = `
+## SISTEMA DE MEMÓRIA EM CAMADAS E CONTINUIDADE (FONTE DA VERDADE)
+${formatLayer(layeredMemories.conversation_context, '1. Contexto da Conversa')}
+
+${formatLayer(layeredMemories.user_preferences, '2. Preferências do Usuário')}
+
+${formatLayer(layeredMemories.confirmed_facts, '3. Fatos Confirmados')}
+
+${formatLayer(layeredMemories.projects, '4. Projetos e Escopos')}
+
+${formatLayer(layeredMemories.related_files, '5. Arquivos Relacionados')}
+
+${formatLayer(layeredMemories.decision_history, '6. Histórico de Decisões')}
+
+DIRETRIZES FUNDAMENTAIS DE CONTINUIDADE:
+1. **NÃO REPETIR PERGUNTAS JÁ RESPONDIDAS**: Se uma informação já estiver nos Fatos Confirmados, Preferências ou Histórico de Decisões, NUNCA pergunte novamente.
+2. **AVISO PRÉVIO AO USAR FATOS ANTIGOS**: Se um item estiver marcado como ⚠️ FATO ANTIGO ou tiver mais de 7 dias, cite a data e confirme sutilmente se ainda é válido.
+`;
+  }
 
   // Helper to extract and clean history from AI output
   const extractAndCleanHistory = (rawText: string) => {
@@ -974,9 +1027,9 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
       if (effectiveSearchEnabled) {
         modeAdditions += `\n\n- **MODO PESQUISAR ATIVADO**: O usuário solicitou o Modo Pesquisar. Confirme ("✓ Modo Pesquisar ativado") e execute 'web_search' no mesmo turno.`;
       }
-      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + (userLocationContextInstruction ? userLocationContextInstruction + "\n\n" : "") + chatMemoryInstruction + "\n\n" + docInstruction + "\n\n" + formInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction + modeAdditions;
+      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + (userLocationContextInstruction ? userLocationContextInstruction + "\n\n" : "") + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + docInstruction + "\n\n" + formInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction + modeAdditions;
     } else {
-      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + chatMemoryInstruction + "\n\n" + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
+      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
     }
 
     let mappedModel = "gemini-3.5-flash-lite";
@@ -2434,6 +2487,114 @@ setTimeout(() => {
 setInterval(() => {
   runAllEmailAutomations().catch(err => console.warn("[EmailAutomation] Falha na execução periódica:", err));
 }, 2 * 60 * 60 * 1000);
+
+// Persistent In-Memory Stores for Verifiable Artifacts and Execution Runtime Graph
+export const persistentArtifactsMap = new Map<string, any>();
+export const persistentExecutionTasksMap = new Map<string, any>();
+
+function inferMimeType(filename: string, format?: string): string {
+  const clean = (filename || '').toLowerCase();
+  if (clean.endsWith('.md') || clean.endsWith('.markdown') || format === 'md') return 'text/markdown';
+  if (clean.endsWith('.pdf') || format === 'pdf') return 'application/pdf';
+  if (clean.endsWith('.html') || clean.endsWith('.htm') || format === 'html') return 'text/html';
+  if (clean.endsWith('.json') || format === 'json') return 'application/json';
+  if (clean.endsWith('.js') || clean.endsWith('.ts') || clean.endsWith('.tsx') || clean.endsWith('.jsx')) return 'text/javascript';
+  if (clean.endsWith('.py')) return 'text/x-python';
+  if (clean.endsWith('.css')) return 'text/css';
+  if (clean.endsWith('.csv') || clean.endsWith('.xlsx') || format === 'excel') return 'text/csv';
+  return 'text/plain';
+}
+
+// Endpoint para gravação persistente e verificação de artefatos
+app.post("/api/artifacts/persist", async (req: express.Request, res: express.Response) => {
+  try {
+    const { filename, title, content, format, conversationId, taskId, stepId, draftContent, forceFail } = req.body;
+    
+    if (forceFail) {
+      return res.status(500).json({
+        success: false,
+        error: "Falha simulada de persistência no backend.",
+        draftContent: draftContent || content || ""
+      });
+    }
+
+    const docName = String(filename || title || 'documento.md').trim();
+    const docContent = String(content || draftContent || '');
+    const convId = String(conversationId || 'session_default');
+
+    // Versionamento por conversa e nome de arquivo
+    const existingList = Array.from(persistentArtifactsMap.values()).filter(
+      (a: any) => a.conversationId === convId && (a.filename === docName || a.title === docName)
+    );
+    const version = existingList.length + 1;
+
+    // Cálculo do hash SHA-256 e tamanho em bytes
+    const hash = crypto.createHash('sha256').update(docContent, 'utf8').digest('hex');
+    const size = Buffer.byteLength(docContent, 'utf8');
+    const mimeType = inferMimeType(docName, format);
+
+    const artifactRecord = {
+      id: `art_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      filename: docName,
+      title: title || docName,
+      hash,
+      mimeType,
+      size,
+      version,
+      conversationId: convId,
+      taskId: taskId || 'task_root',
+      stepId: stepId || 'step_1',
+      content: docContent,
+      status: 'persisted',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      persistedAt: new Date().toISOString()
+    };
+
+    persistentArtifactsMap.set(artifactRecord.id, artifactRecord);
+
+    return res.json({
+      success: true,
+      artifact: artifactRecord
+    });
+  } catch (err: any) {
+    console.error("Erro ao persistir artefato no backend:", err);
+    return res.status(500).json({
+      success: false,
+      error: err?.message || "Erro desconhecido ao gravar artefato.",
+      draftContent: req.body?.content || req.body?.draftContent || ""
+    });
+  }
+});
+
+// Endpoint para listar todos os artefatos persistidos
+app.get("/api/artifacts/list", (req: express.Request, res: express.Response) => {
+  const artifacts = Array.from(persistentArtifactsMap.values());
+  return res.json({ success: true, artifacts });
+});
+
+// Endpoint para atualizar/salvar tarefas no Grafo de Execução
+app.post("/api/runtime/task", (req: express.Request, res: express.Response) => {
+  try {
+    const { task } = req.body;
+    if (!task || !task.id) {
+      return res.status(400).json({ success: false, error: "Estrutura de tarefa inválida." });
+    }
+    persistentExecutionTasksMap.set(task.id, {
+      ...task,
+      updatedAt: new Date().toISOString()
+    });
+    return res.json({ success: true, task: persistentExecutionTasksMap.get(task.id) });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || "Erro ao salvar tarefa no runtime." });
+  }
+});
+
+// Endpoint para consultar o Grafo de Execução completo
+app.get("/api/runtime/graph", (req: express.Request, res: express.Response) => {
+  const tasks = Array.from(persistentExecutionTasksMap.values());
+  return res.json({ success: true, tasks });
+});
 
 // Background tasks executor (every 15 seconds)
 setInterval(() => {

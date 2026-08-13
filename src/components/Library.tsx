@@ -26,13 +26,18 @@ import {
   Share2,
   File,
   FolderOpen,
-  Send
+  Send,
+  Sparkles,
+  Brain,
+  Layers
 } from 'lucide-react';
 import { ChatSession, Message } from '../types';
 import { extractWsmDoc } from '../utils/docParser';
 import { generatePdfBlob } from '../utils/pdfGenerator';
 import { generateExcelBlob } from '../utils/excelGenerator';
 import DocumentViewerPane from './DocumentViewerPane';
+import { SkillsHub } from './SkillsHub';
+import { LayeredMemoryManager } from './LayeredMemoryManager';
 
 interface LibraryProps {
   sessions: ChatSession[];
@@ -54,6 +59,7 @@ export interface LibraryFile {
 }
 
 export default function Library({ sessions, onOpenMobileHistory, onSelectSession, onNewChat }: LibraryProps) {
+  const [mainSection, setMainSection] = useState<'artifacts' | 'skills' | 'memory'>('artifacts');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'tudo' | 'fontes' | 'documentos' | 'planilhas' | 'codigo'>('tudo');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -432,22 +438,71 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
 
         {/* Search, Action and Filter tools */}
         <div className="flex items-center gap-3">
-          {/* Search Box */}
-          <div className="relative hidden sm:block w-64">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input 
-              type="text" 
-              placeholder="Pesquisar..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-1.5 bg-gray-50 border border-gray-200 rounded-full text-sm focus:outline-hidden focus:ring-1 focus:ring-gray-300 focus:bg-white transition-all"
-            />
+          {/* Main Section Navigation Pills */}
+          <div className="flex items-center bg-gray-100 dark:bg-zinc-800 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setMainSection('artifacts')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                mainSection === 'artifacts'
+                  ? 'bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 shadow-2xs'
+                  : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
+              }`}
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              <span>Artefatos</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMainSection('skills')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                mainSection === 'skills'
+                  ? 'bg-white dark:bg-zinc-900 text-amber-700 dark:text-amber-300 shadow-2xs'
+                  : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Skills Abertas</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMainSection('memory')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                mainSection === 'memory'
+                  ? 'bg-white dark:bg-zinc-900 text-indigo-700 dark:text-indigo-300 shadow-2xs'
+                  : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
+              }`}
+            >
+              <Brain className="w-3.5 h-3.5 text-indigo-500" />
+              <span>Memória em Camadas</span>
+            </button>
           </div>
+
+          {/* Search Box */}
+          {mainSection === 'artifacts' && (
+            <div className="relative hidden sm:block w-56">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input 
+                type="text" 
+                placeholder="Pesquisar..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-1.5 bg-gray-50 border border-gray-200 rounded-full text-sm focus:outline-hidden focus:ring-1 focus:ring-gray-300 focus:bg-white transition-all"
+              />
+            </div>
+          )}
         </div>
       </header>
 
-      {/* Main Body Area */}
-      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+      {mainSection === 'skills' ? (
+        <SkillsHub />
+      ) : mainSection === 'memory' ? (
+        <LayeredMemoryManager />
+      ) : (
+        /* Main Body Area */
+        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
         {/* Mobile Search Input */}
         <div className="relative sm:hidden w-full shrink-0">
           <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -750,6 +805,7 @@ export default function Library({ sessions, onOpenMobileHistory, onSelectSession
           </div>
         )}
       </div>
+      )}
 
       {/* Elegant File Preview Modal */}
       {selectedFile && (

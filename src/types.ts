@@ -10,6 +10,128 @@ export interface WsmForm {
   questions: WsmFormQuestion[];
 }
 
+export type MemoryLayerType = 
+  | 'conversation_context'
+  | 'user_preferences'
+  | 'confirmed_facts'
+  | 'projects'
+  | 'related_files'
+  | 'decision_history';
+
+export interface MemoryLayerItem {
+  id: string;
+  layer: MemoryLayerType;
+  title: string;
+  content: string;
+  origin: string; // e.g. "Conversa #12", "Inserção manual", "Inferido pelo Agente"
+  confidence: 'high' | 'medium' | 'low'; // Alta (90-100%), Média (60-89%), Baixa (<60%)
+  confidenceScore: number; // 0 to 1
+  createdAt: string;
+  updatedAt: string;
+  lastUsedAt?: string;
+  isStale?: boolean; // If older than threshold or flagged for verification
+  tags?: string[];
+}
+
+export interface LayeredMemoryStore {
+  conversation_context: MemoryLayerItem[];
+  user_preferences: MemoryLayerItem[];
+  confirmed_facts: MemoryLayerItem[];
+  projects: MemoryLayerItem[];
+  related_files: MemoryLayerItem[];
+  decision_history: MemoryLayerItem[];
+}
+
+export interface SkillExample {
+  input: string;
+  expected_output: string;
+}
+
+export interface SkillTest {
+  name: string;
+  input: string;
+  assertions: string[];
+}
+
+export interface ComposableSkill {
+  id: string;
+  name: string;
+  description: string;
+  instructions: string;
+  tools_allowed: string[];
+  inputs: { name: string; type: string; description: string; required?: boolean }[];
+  outputs: { name: string; type: string; description: string }[];
+  risk_policy: 'low' | 'medium' | 'high' | 'strict_confirmation';
+  examples: SkillExample[];
+  tests: SkillTest[];
+  resources: { name: string; uri?: string; description?: string }[];
+  category?: 'pesquisa' | 'dados' | 'codigo' | 'produtividade' | 'custom';
+  isOfficial?: boolean;
+  version?: string;
+  author?: string;
+  updatedAt?: string | Date;
+}
+
+export interface ExecutionTaskState = 
+  | 'planned' 
+  | 'awaiting_confirmation' 
+  | 'running' 
+  | 'blocked' 
+  | 'succeeded' 
+  | 'failed' 
+  | 'cancelled';
+
+export interface ExecutionStepRecord {
+  id: string;
+  stepNumber: number;
+  tool: string;
+  arguments: Record<string, any>;
+  startTime: string;
+  endTime?: string;
+  output?: any;
+  error?: string;
+  estimatedCost: number;
+  permissionsUsed: string[];
+  artifactsProduced: string[];
+  status: 'planned' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+}
+
+export interface ExecutionTask {
+  id: string;
+  runId: string;
+  sessionId: string;
+  title: string;
+  description: string;
+  status: ExecutionTaskState;
+  parentTaskId?: string;
+  dependencies: string[];
+  steps: ExecutionStepRecord[];
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  error?: string;
+}
+
+export interface ArtifactRecord {
+  id: string;
+  filename: string;
+  title: string;
+  hash: string;
+  mimeType: string;
+  size: number;
+  version: number;
+  conversationId: string;
+  taskId?: string;
+  stepId?: string;
+  content: string;
+  draftContent?: string;
+  status: 'draft' | 'persisting' | 'persisted' | 'failed';
+  errorDetails?: string;
+  createdAt: string;
+  updatedAt: string;
+  persistedAt?: string;
+}
+
 export type ArtifactValidationStatus = 
   | 'PLANEJANDO'
   | 'EXECUTANDO'
