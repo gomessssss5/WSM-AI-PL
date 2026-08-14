@@ -278,11 +278,50 @@ export interface SearchStep {
   isCompleted?: boolean;
 }
 
+export interface MessageContentPart {
+  type: 'text' | 'image' | 'file';
+  text?: string;
+  url?: string;
+  mimeType?: string;
+  name?: string;
+}
+
+export interface ClientMessageMetadata {
+  clientTimestamp: number;
+  charCount: number;
+  lineCount: number;
+  payloadHash: string; // SHA-256
+  isMultiline: boolean;
+  clientVersion?: string;
+}
+
+export interface UnifiedChatPayload {
+  content: MessageContentPart[];
+  text: string;
+  attachments?: any[];
+  language?: string;
+  metadata: ClientMessageMetadata;
+  sessionId: string;
+  chatMemoryDoc?: string;
+  workspaceFiles?: any[];
+  isSearchEnabled?: boolean;
+  isComputerEnabled?: boolean;
+  model?: string;
+  reasoningLevel?: string;
+  skills?: any[];
+  layeredMemories?: any;
+  userContext?: any;
+  userInfo?: any;
+  history?: any[];
+}
+
 export interface Message {
   id: string;
   sender: 'user' | 'ai';
   text: string;
   timestamp: Date;
+  payloadHash?: string;
+  metadata?: ClientMessageMetadata;
   isHidden?: boolean;
   imageUrl?: string;
   codeBlock?: {
@@ -388,10 +427,86 @@ export interface TaskExecution {
   maxRetries?: number;
   outputSummary?: string;
   generatedFiles?: string[];
+  toolsInvoked?: string[];
   error?: string;
   errorDetails?: string;
   steps?: ExecutionStep[];
   logs?: string[];
+}
+
+export interface DetailedToolCall {
+  id: string;
+  tool_name: string;
+  arguments: Record<string, any>;
+  normalized_input: string;
+  permission: 'granted' | 'denied' | 'auto_scoped';
+  risk: 'low' | 'medium' | 'high' | 'critical';
+  started_at: string;
+  finished_at?: string;
+  result_ref?: string;
+  error?: string;
+  retry_count: number;
+  approval_id?: string;
+  status: 'pending' | 'running' | 'success' | 'failed' | 'retrying';
+}
+
+export interface RunVerifiableTest {
+  id: string;
+  name: string;
+  description: string;
+  status: 'pending' | 'running' | 'passed' | 'failed';
+  errorDetails?: string;
+}
+
+export interface RunStep {
+  id: string;
+  title: string;
+  description: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'replanned';
+  isExplicitCheckbox?: boolean;
+  toolCalls?: DetailedToolCall[];
+  startedAt?: string;
+  completedAt?: string;
+}
+
+export interface PendingApproval {
+  id: string;
+  toolName: string;
+  description: string;
+  risk: 'medium' | 'high' | 'critical';
+  requestedAt: string;
+  status: 'pending' | 'approved' | 'rejected';
+}
+
+export interface OmnixRun {
+  id: string;
+  sessionId: string;
+  messageId?: string;
+  objective: string;
+  status: 'planning' | 'running' | 'waiting_approval' | 'validating' | 'succeeded' | 'failed' | 'replanning' | 'cancelled';
+  plan: {
+    id: string;
+    objective: string;
+    steps: RunStep[];
+    replanCount: number;
+    verifiableTests: RunVerifiableTest[];
+  };
+  toolCalls: DetailedToolCall[];
+  inputs: Record<string, any>;
+  outputs: Record<string, any>;
+  pendingApprovals: PendingApproval[];
+  approxCost: {
+    currency: string;
+    amount: number;
+    tokensEstimated?: number;
+  };
+  elapsedTimeMs: number;
+  progressPercentage: number;
+  artifacts: ArtifactRecord[];
+  nextSteps: string[];
+  createdAt: string;
+  updatedAt: string;
+  finishedAt?: string;
 }
 
 export interface LibraryFile {

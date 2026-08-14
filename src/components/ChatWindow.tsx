@@ -28,6 +28,9 @@ import { extractStructuredEvents } from '../utils/eventParser';
 import { StructuredEventsLog } from './StructuredEventsLog';
 import { ArtifactPersistenceCard } from './ArtifactPersistenceCard';
 import { ExecutionRuntimeViewer } from './ExecutionRuntimeViewer';
+import { RightRunSidebar } from './RightRunSidebar';
+import { buildRunFromMessage, createActiveStreamingRun } from '../utils/runCenterParser';
+import { OmnixRun } from '../types';
 
 const UiverseLoader = ({ isThinking = false }: { isThinking?: boolean }) => (
   <div 
@@ -305,6 +308,44 @@ export default function ChatWindow({
   const [activeDocument, setActiveDocument] = useState<{ doc: WsmDocument; isFullscreen: boolean } | null>(null);
   const [completedReasoningMsgIds, setCompletedReasoningMsgIds] = useState<Set<string>>(new Set());
   const [completedTypewriterMsgIds, setCompletedTypewriterMsgIds] = useState<Set<string>>(new Set());
+  const [isRunSidebarOpen, setIsRunSidebarOpen] = useState(true);
+
+  // Derive current OmnixRun for the right sidebar
+  const currentRun = useMemo<OmnixRun | null>(() => {
+    if (messages.length === 0) return null;
+
+    const lastUserMsg = [...messages].reverse().find(m => m.sender === 'user');
+    const userPrompt = lastUserMsg?.text || '';
+
+    const lastAiMsg = [...messages].reverse().find(m => m.sender === 'ai');
+
+    if (isThinking && lastAiMsg) {
+      const { raciocinio } = extractRaciocinio(lastAiMsg.text || '');
+      return createActiveStreamingRun(
+        sessionId || 'session_1',
+        userPrompt,
+        lastAiMsg.searchSteps,
+        raciocinio || undefined,
+        true,
+        lastAiMsg.text,
+        lastAiMsg.toolEvents,
+        messages.filter(m => m.id !== lastAiMsg.id)
+      );
+    }
+
+    if (lastAiMsg) {
+      return buildRunFromMessage(lastAiMsg, sessionId || 'session_1', messages);
+    }
+
+    return null;
+  }, [messages, isThinking, sessionId]);
+
+  const hasRunSteps = Boolean(
+    currentRun && 
+    currentRun.plan && 
+    currentRun.plan.steps && 
+    currentRun.plan.steps.length > 0
+  );
 
   const allSessionImages = useMemo(() => {
     return messages.flatMap(m => m.attachments?.filter(a => (a.type === 'image' && a.base64)).map(a => `data:${a.mimeType || 'image/png'};base64,${a.base64}`) || []);
@@ -553,6 +594,7 @@ export default function ChatWindow({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const isComposingRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -982,9 +1024,10 @@ export default function ChatWindow({
       }
     }
 
-    // Check if pasted text exceeds 5000 characters
+    // Allow rich multi-line text (code blocks, markdown, SQL, JSON) to paste directly into textarea
+    // Only convert to attached file if text exceeds 50,000 characters
     const pastedText = e.clipboardData?.getData('text/plain');
-    if (pastedText && pastedText.length > 5000) {
+    if (pastedText && pastedText.length > 50000) {
       e.preventDefault();
       const isCode = /[{};()</>=\[\]]/.test(pastedText) || 
                      pastedText.includes('function') || 
@@ -1140,8 +1183,8 @@ export default function ChatWindow({
     const cursorPosition = e.target.selectionStart;
     const textBeforeCursor = val.slice(0, cursorPosition);
     
-    // Check if user is typing a slash command
-    const slashMatch = textBeforeCursor.match(/(^|\s)\/([a-zA-Z0-9-]*)$/);
+    // Check if user is typing a slash command (strictly at start of prompt or start of line)
+    const slashMatch = textBeforeCursor.match(/(^|\n)\/([a-zA-Z0-9_-]*)$/);
 
     if (slashMatch) {
       setSlashMenuOpen(true);
@@ -1159,10 +1202,10 @@ export default function ChatWindow({
     const textBeforeCursor = inputValue.slice(0, cursorPosition);
     const textAfterCursor = inputValue.slice(cursorPosition);
     
-    const slashMatch = textBeforeCursor.match(/(^|\s)\/([a-zA-Z0-9-]*)$/);
+    const slashMatch = textBeforeCursor.match(/(^|\n)\/([a-zA-Z0-9_-]*)$/);
     if (slashMatch) {
       const matchIndex = slashMatch.index !== undefined ? slashMatch.index : 0;
-      const spaceBefore = slashMatch[1]; // either '' or ' '
+      const prefixBefore = slashMatch[1]; // either '' or '\n'
       
       if (item.isSkill) {
         setActiveSkills(prev => {
@@ -1171,10 +1214,10 @@ export default function ChatWindow({
           }
           return prev;
         });
-        const newText = textBeforeCursor.slice(0, matchIndex) + spaceBefore + textAfterCursor;
+        const newText = textBeforeCursor.slice(0, matchIndex) + prefixBefore + textAfterCursor;
         setInputValue(newText);
       } else {
-        const newText = textBeforeCursor.slice(0, matchIndex) + spaceBefore + item.id + ' ' + textAfterCursor;
+        const newText = textBeforeCursor.slice(0, matchIndex) + prefixBefore + item.id + ' ' + textAfterCursor;
         setInputValue(newText);
       }
       
@@ -1183,7 +1226,7 @@ export default function ChatWindow({
       setTimeout(() => {
         if (textarea) {
           textarea.focus();
-          const newPos = item.isSkill ? matchIndex + spaceBefore.length : matchIndex + spaceBefore.length + item.id.length + 1;
+          const newPos = item.isSkill ? matchIndex + prefixBefore.length : matchIndex + prefixBefore.length + item.id.length + 1;
           textarea.setSelectionRange(newPos, newPos);
         }
       }, 0);
@@ -1367,7 +1410,7 @@ export default function ChatWindow({
     }
     
     if (!currentText.trim() && !attachedText && attachments.length === 0 && activeSkills.length === 0) return;
-    if (currentText.length > 5000) return;
+    if (currentText.length > 100000) return;
     
     let textToSend = '';
     if (attachedText && currentText.trim()) {
@@ -1444,6 +1487,19 @@ export default function ChatWindow({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // 1. If user is in the middle of IME composition (accents, Japanese/Chinese input, mobile autocomplete), do NOT submit
+    if ((e.nativeEvent as any).isComposing || (e as any).isComposing || e.keyCode === 229 || isComposingRef.current) {
+      return;
+    }
+
+    // 2. Check if mobile touch device
+    const isTouchDevice = typeof window !== 'undefined' && (
+      'ontouchstart' in window || 
+      navigator.maxTouchPoints > 0 || 
+      window.innerWidth < 768
+    );
+
+    // 3. Slash menu navigation
     if (slashMenuOpen && filteredTools.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -1467,7 +1523,17 @@ export default function ChatWindow({
       }
     }
 
+    // 4. Shift+Enter should ALWAYS insert a newline naturally without submitting
+    if (e.key === 'Enter' && e.shiftKey) {
+      return;
+    }
+
+    // 5. Plain Enter on desktop sends the message; on mobile it inserts a newline
     if (e.key === 'Enter' && !e.shiftKey) {
+      if (isTouchDevice) {
+        // On mobile keyboards, allow standard newline
+        return;
+      }
       e.preventDefault();
       if (!isThinking) {
         handleSubmit(e as any);
@@ -1627,6 +1693,23 @@ export default function ChatWindow({
             <MessageCircleDashed className="w-4 h-4 text-amber-600 shrink-0" />
             <span className="hidden sm:inline">Chat temporário</span>
           </button>
+
+          {/* Right Sidebar Toggle Button for Desktop - Only when AI generates steps/tasks */}
+          {hasRunSteps && (
+            <button
+              type="button"
+              onClick={() => setIsRunSidebarOpen(!isRunSidebarOpen)}
+              className={`p-1.5 px-2.5 rounded-full border text-xs font-bold transition-all cursor-pointer hidden lg:flex items-center gap-1.5 ${
+                isRunSidebarOpen 
+                  ? 'bg-stone-200 border-stone-300 text-stone-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-stone-100 shadow-2xs' 
+                  : 'bg-[#faf9f6] hover:bg-[#f0ede8] border-[#eae6e1] text-stone-600 dark:bg-zinc-900 dark:border-zinc-800 dark:text-stone-400'
+              }`}
+              title="Alternar Painel de Etapas e Run Center Lateral"
+            >
+              <PanelRight className="w-4 h-4 text-stone-700 dark:text-stone-300" />
+              <span className="hidden xl:inline text-[11.5px]">Etapas e Run</span>
+            </button>
+          )}
 
           {messages.length === 0 ? (
             <button
@@ -2200,25 +2283,7 @@ export default function ChatWindow({
                     )}
                     {!isUser && (
                       <>
-                        {(() => {
-                          const { docObjs } = extractWsmDoc(message.text);
-                          if (!docObjs || docObjs.length === 0) return null;
-                          return (
-                            <div className="space-y-2 my-2">
-                              {docObjs.map((doc, docIdx) => (
-                                <ArtifactPersistenceCard
-                                  key={`art_card_${message.id}_${docIdx}`}
-                                  filename={doc.title || `documento_${docIdx + 1}.md`}
-                                  title={doc.title}
-                                  content={doc.content || ''}
-                                  format={doc.format}
-                                  conversationId={sessionId || 'session_general'}
-                                />
-                              ))}
-                            </div>
-                          );
-                        })()}
-                        <StructuredEventsLog events={extractStructuredEvents(message)} />
+                        {/* ArtifactPersistenceCard removido a pedido do usuário */}
                         <ExecutionRuntimeViewer sessionId={sessionId} />
                       </>
                     )}
@@ -2939,6 +3004,8 @@ export default function ChatWindow({
                 onChange={handleInputValueChange}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
+                onCompositionStart={() => { isComposingRef.current = true; }}
+                onCompositionEnd={() => { isComposingRef.current = false; }}
                 placeholder={`Pergunte ao ${selectedModel}...`}
                 className="w-full bg-transparent outline-none resize-none text-gray-800 placeholder-gray-400 text-[13.5px] leading-relaxed pb-1 min-h-[38px] max-h-[220px]"
               />
@@ -3619,6 +3686,18 @@ export default function ChatWindow({
             screenshots={currentScreenshots.length > 0 ? currentScreenshots : allScreenshots}
             isThinking={isThinking}
             onClose={() => setIsSplitScreenOpen(false)}
+          />
+        </div>
+      )}
+
+      {/* Right Column: Run Center Sidebar (Desktop Only - Only when AI generates step-by-step tasks) */}
+      {!isSplitScreenOpen && isRunSidebarOpen && hasRunSteps && (
+        <div className="hidden lg:flex h-full shrink-0">
+          <RightRunSidebar
+            run={currentRun}
+            isOpen={isRunSidebarOpen}
+            onClose={() => setIsRunSidebarOpen(false)}
+            isStreaming={isThinking}
           />
         </div>
       )}

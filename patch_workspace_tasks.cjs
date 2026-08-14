@@ -1,4 +1,6 @@
-import React, { useState, useMemo } from 'react';
+const fs = require('fs');
+
+const content = `import React, { useState, useMemo } from 'react';
 import { 
   Activity,
   ChevronDown,
@@ -35,12 +37,12 @@ const getItemIcon = (type: string, file: string) => {
 
 const getActionLabel = (type: string, file: string) => {
   switch (type) {
-    case 'create': return `Criou ${file}`;
-    case 'read': return `Leu ${file}`;
-    case 'edit': return `Editou ${file}`;
-    case 'delete': return `Excluiu ${file}`;
-    case 'list': return `Listou Workspace`;
-    default: return `Trabalhou em ${file}`;
+    case 'create': return \`Criou \${file}\`;
+    case 'read': return \`Leu \${file}\`;
+    case 'edit': return \`Editou \${file}\`;
+    case 'delete': return \`Excluiu \${file}\`;
+    case 'list': return \`Listou Workspace\`;
+    default: return \`Trabalhou em \${file}\`;
   }
 };
 
@@ -51,7 +53,7 @@ export const WorkspaceTasksBlock: React.FC<WorkspaceTasksBlockProps> = ({ text, 
     if (!text) return [];
     
     // 1. Parse workspace tools actions
-    const regex = /<wsm_workspace_action\s+status="([^"]+)"\s+type="([^"]+)"\s+file="([^"]+)"\s*\/>/g;
+    const regex = /<wsm_workspace_action\\s+status="([^"]+)"\\s+type="([^"]+)"\\s+file="([^"]+)"\\s*\\/>/g;
     const matches = [...text.matchAll(regex)];
     const workspaceActions = matches.map(m => ({
       status: m[1],
@@ -73,7 +75,7 @@ export const WorkspaceTasksBlock: React.FC<WorkspaceTasksBlockProps> = ({ text, 
     const seenFiles = new Set();
 
     for (const a of allActions) {
-      const key = `${a.type}-${a.file}`;
+      const key = \`\${a.type}-\${a.file}\`;
       if (!seenFiles.has(key)) {
         seenFiles.add(key);
         uniqueActions.push(a);
@@ -136,3 +138,7 @@ export const WorkspaceTasksBlock: React.FC<WorkspaceTasksBlockProps> = ({ text, 
     </div>
   );
 };
+`;
+
+fs.writeFileSync('src/components/WorkspaceTasksBlock.tsx', content);
+console.log("WorkspaceTasksBlock rewritten.");

@@ -1022,6 +1022,18 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
   };
 
   // Main sendMessage routine (used by both MainHome input and ChatWindow input)
+  const computeClientSha256 = async (str: string): Promise<string> => {
+    try {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(str);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch {
+      return '';
+    }
+  };
+
   const handleSendMessage = async (text: string, isSearchEnabled: boolean, overrideMessages?: Message[], attachments?: any[], isHidden?: boolean, isComputerEnabled?: boolean) => {
     if (!currentUser) return;
 
@@ -1032,11 +1044,23 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
 
     isSearchActiveRef.current = isSearchEnabled;
 
+    const payloadHash = await computeClientSha256(text || '');
+    const clientMetadata = {
+      clientTimestamp: Date.now(),
+      charCount: (text || '').length,
+      lineCount: (text || '').split('\n').length,
+      payloadHash: payloadHash,
+      isMultiline: (text || '').includes('\n'),
+      clientVersion: '1.6.0'
+    };
+
     const userMsg: Message = {
       id: `msg-${Date.now()}-user`,
       sender: 'user',
       text,
       timestamp: new Date(),
+      payloadHash,
+      metadata: clientMetadata,
       attachments: attachments,
       isHidden: isHidden,
     };
@@ -1207,7 +1231,17 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          content: [
+            {
+              type: 'text',
+              text: requestText
+            }
+          ],
           text: requestText,
+          rawText: text,
+          attachments: attachments || [],
+          language: 'pt-BR',
+          metadata: clientMetadata,
           sessionId: sessionToUpdate.id,
           chatMemoryDoc: sessionToUpdate.chatMemoryDoc || "",
           workspaceFiles: (() => {
@@ -1395,7 +1429,6 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                 const eventData = JSON.parse(cleanedLine.substring(6));
 
                 if (eventData.type === "plan") {
-                  setIsThinking(false); // Stop typing spinner as soon as we start research plan!
                   setSessions((prev) => {
                     const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
                     if (!currentSess) {

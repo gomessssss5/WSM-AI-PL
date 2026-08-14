@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+const fs = require('fs');
+
+const content = `import React, { useState } from 'react';
 import { ToolEvent } from '../types';
 import {
   FileText,
@@ -78,3 +80,7 @@ export const StructuredEventsLog: React.FC<StructuredEventsLogProps> = ({ events
     </div>
   );
 };
+`;
+
+fs.writeFileSync('src/components/StructuredEventsLog.tsx', content);
+console.log("StructuredEventsLog rewritten.");

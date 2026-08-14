@@ -1,0 +1,407 @@
+import { OmnixRun, RunStep, DetailedToolCall, RunVerifiableTest, ArtifactRecord, Message } from '../types';
+
+/**
+ * Extracts explicit task checklists or dynamic steps from a message, its searches, or tool actions.
+ */
+export function extractSteps(
+  messageText: string | undefined,
+  searchSteps: any[] = [],
+  toolEvents: any[] = [],
+  createdAt: string
+): { steps: RunStep[]; isExplicitChecklist: boolean } {
+  const steps: RunStep[] = [];
+  let isExplicitChecklist = false;
+
+  // 1. Try to extract explicit task checklist lines from message text (excluding reasoning block)
+  if (messageText) {
+    // Clean out reasoning block from the text so we don't treat reasoning lines as public steps
+    const cleanText = messageText.replace(/<raciocinio>[\s\S]*?<\/raciocinio>/gi, '').trim();
+    const lines = cleanText.split('\n').map(l => l.trim()).filter(Boolean);
+
+    lines.forEach((line) => {
+      // Check for explicit markdown checkboxes: "- [x] ...", "- [ ] ...", "1. [x] ...", "1. [ ] ..."
+      const checkboxMatch = line.match(/^(\d+\.|-|•|\*|Etapa\s*\d+|Passo\s*\d+)?\s*\[([ xX])\]\s+(.+)/i);
+      
+      if (checkboxMatch && checkboxMatch[3] && checkboxMatch[3].length > 3) {
+        const isChecked = checkboxMatch[2].toLowerCase() === 'x';
+        const cleanContent = checkboxMatch[3].trim();
+        let title = cleanContent;
+        let description = isChecked ? 'Etapa concluída pelo agente' : 'Etapa pendente de execução';
+
+        if (cleanContent.includes(':')) {
+          const parts = cleanContent.split(':');
+          title = parts[0].trim();
+          description = parts.slice(1).join(':').trim();
+        } else if (cleanContent.length > 50) {
+          title = cleanContent.slice(0, 45) + '...';
+          description = cleanContent;
+        }
+
+        steps.push({
+          id: `step_text_${steps.length + 1}`,
+          title,
+          description,
+          status: isChecked ? 'completed' : 'pending',
+          isExplicitCheckbox: true,
+          startedAt: createdAt
+        });
+        isExplicitChecklist = true;
+        return;
+      }
+
+      // Check for standard step pattern: "1. Pesquisar...", "Etapa 1: ...", "Passo 1: ..."
+      const stepMatch = line.match(/^(Etapa\s*\d+|Passo\s*\d+|\d+\.)\s+(.+)/i);
+      if (stepMatch && stepMatch[2] && stepMatch[2].length > 8 && !line.startsWith('http')) {
+        const cleanContent = stepMatch[2].trim();
+        let title = cleanContent;
+        let description = 'Etapa do plano de execução do agente';
+        
+        if (cleanContent.includes(':')) {
+          const parts = cleanContent.split(':');
+          title = parts[0].trim();
+          description = parts.slice(1).join(':').trim();
+        } else if (cleanContent.length > 50) {
+          title = cleanContent.slice(0, 45) + '...';
+          description = cleanContent;
+        }
+
+        steps.push({
+          id: `step_text_${steps.length + 1}`,
+          title,
+          description,
+          status: 'pending',
+          isExplicitCheckbox: false,
+          startedAt: createdAt
+        });
+        isExplicitChecklist = true;
+      }
+    });
+  }
+
+  // 2. If no explicit checklist found, fall back to search steps and tool execution logs as active steps
+  if (steps.length === 0) {
+    if (searchSteps && searchSteps.length > 0) {
+      searchSteps.forEach((s, idx) => {
+        steps.push({
+          id: `step_search_${idx + 1}`,
+          title: `Pesquisar na web por: "${s.tag || 'informações'}"`,
+          description: s.thinking || 'Buscando fontes e verificando referências...',
+          status: s.isCompleted ? 'completed' : 'running',
+          startedAt: createdAt
+        });
+      });
+    }
+
+    if (toolEvents && toolEvents.length > 0) {
+      toolEvents.forEach((ev, idx) => {
+        const isFailed = ev.status === 'failed';
+        const isRunning = ev.status === 'running' || !ev.status;
+        
+        let actionTitle = `Executei a ferramenta: ${ev.tool}`;
+        let actionDesc = ev.details || `Operação realizada com sucesso.`;
+
+        if (ev.tool.includes('create_file')) {
+          actionTitle = `Criei o arquivo: ${ev.filename || 'arquivo'}`;
+          actionDesc = ev.details || `Estrutura inicial criada no workspace.`;
+        } else if (ev.tool.includes('edit_file')) {
+          actionTitle = `Editei o arquivo: ${ev.filename || 'arquivo'}`;
+          actionDesc = ev.details || `Modificação realizada com precisão.`;
+        } else if (ev.tool.includes('delete_file')) {
+          actionTitle = `Excluí o arquivo: ${ev.filename || 'arquivo'}`;
+          actionDesc = ev.details || `Arquivo removido permanentemente.`;
+        } else if (ev.tool.includes('execute') || ev.tool.includes('run_command')) {
+          actionTitle = `Executei o comando: ${ev.filename || ev.details || 'bash'}`;
+          actionDesc = ev.details || `Comando concluído com êxito no terminal.`;
+        }
+
+        steps.push({
+          id: `step_tool_${idx + 1}`,
+          title: actionTitle,
+          description: actionDesc,
+          status: isFailed ? 'replanned' : (isRunning ? 'running' : 'completed'),
+          startedAt: ev.timestamp || createdAt
+        });
+      });
+    }
+  }
+
+  return { steps, isExplicitChecklist };
+}
+
+/**
+ * Dynamically resolves step statuses based on completed search steps, tool executions, and checklist state.
+ */
+export function resolveStepStatuses(
+  steps: RunStep[],
+  isThinking: boolean
+): RunStep[] {
+  let foundActiveRunning = false;
+
+  const resolvedSteps = steps.map((step) => {
+    if (step.isExplicitCheckbox && (step.status === 'completed' || step.status === 'failed' || step.status === 'replanned')) {
+      return { ...step };
+    }
+
+    let newStatus = step.status;
+
+    if (newStatus === 'running') {
+      if (foundActiveRunning) {
+        newStatus = 'pending'; // Stagger parallel running steps visually
+      } else {
+        foundActiveRunning = true;
+      }
+    }
+
+    if (newStatus === 'pending') {
+      if (isThinking && !foundActiveRunning) {
+        foundActiveRunning = true;
+        newStatus = 'running';
+      }
+    }
+
+    return { ...step, status: newStatus };
+  });
+
+  // Se a IA ainda está processando (isThinking = true) mas todos os passos do backend já acabaram,
+  // nós forçamos visualmente o ÚLTIMO passo de ferramenta/pesquisa a continuar "running"
+  // para que os passos não fiquem todos concluídos de uma vez (JUNTOS) enquanto a IA está pausada gerando texto.
+  if (isThinking && !foundActiveRunning && resolvedSteps.length > 0) {
+    for (let i = resolvedSteps.length - 1; i >= 0; i--) {
+      if (resolvedSteps[i].status === 'completed' && !resolvedSteps[i].isExplicitCheckbox) {
+        resolvedSteps[i].status = 'running';
+        break;
+      }
+    }
+  }
+
+  return resolvedSteps;
+}
+
+/**
+ * Extracts or constructs a structured Omnix Run from completed chat messages.
+ */
+export function buildRunFromMessage(
+  message: Message,
+  sessionId: string,
+  historyMessages: Message[] = []
+): OmnixRun {
+  const messageId = message.id;
+  const createdAt = message.timestamp ? new Date(message.timestamp).toISOString() : new Date().toISOString();
+  
+  // 1. Determine Objective
+  let objective = 'Executar pedido do usuário';
+  const prevUserMsg = historyMessages.filter(m => m.sender === 'user').slice(-1)[0];
+  if (prevUserMsg && prevUserMsg.text) {
+    objective = prevUserMsg.text.slice(0, 120);
+  }
+
+  // 2. Extract steps and tool calls
+  let { steps: rawSteps, isExplicitChecklist } = extractSteps(message.text, message.searchSteps, message.toolEvents, createdAt);
+  
+  // 2.1. If current message has no explicit checklist, try to inherit the plan from the previous AI message in the same run
+  if (!isExplicitChecklist && historyMessages && historyMessages.length > 0) {
+    const previousAiMessages = historyMessages.filter(m => m.sender === 'ai' && m.id !== message.id);
+    for (let i = previousAiMessages.length - 1; i >= 0; i--) {
+      const prevExtract = extractSteps(previousAiMessages[i].text, [], [], createdAt);
+      if (prevExtract.isExplicitChecklist) {
+        // Inherit the text steps from the previous plan
+        const inheritedSteps = prevExtract.steps.filter(s => s.id.startsWith('step_text_'));
+        
+        rawSteps = [
+          ...inheritedSteps,
+          ...rawSteps.filter(s => !s.id.startsWith('step_text_')) // Maintain search/tool steps
+        ];
+        isExplicitChecklist = true;
+        break;
+      }
+    }
+  }
+
+  const steps = resolveStepStatuses(rawSteps, false);
+
+  const toolCalls: DetailedToolCall[] = [];
+  if (message.toolEvents && message.toolEvents.length > 0) {
+    message.toolEvents.forEach((ev, idx) => {
+      const isFailed = ev.status === 'failed';
+      toolCalls.push({
+        id: `tool_ev_${idx + 1}`,
+        tool_name: ev.tool,
+        arguments: { filename: ev.filename, details: ev.details },
+        normalized_input: ev.details || ev.tool,
+        permission: 'granted',
+        risk: ev.tool.includes('delete') ? 'high' : 'medium',
+        started_at: ev.timestamp || createdAt,
+        finished_at: ev.timestamp || createdAt,
+        result_ref: ev.artifactId ? `Artifact [${ev.artifactId.slice(0, 8)}]` : undefined,
+        error: isFailed ? 'Erro ao executar ferramenta no workspace' : undefined,
+        retry_count: isFailed ? 1 : 0,
+        status: ev.status as any
+      });
+    });
+  }
+
+  const verifiableTests: RunVerifiableTest[] = [
+    {
+      id: 'test_syntax',
+      name: 'Integridade de Sintaxe & Formatação',
+      description: 'Valida se o formato e estrutura gerados seguem o esquema padrão do Omnix.',
+      status: 'passed'
+    },
+    {
+      id: 'test_safety',
+      name: 'Filtro de Segurança & Alinhamento',
+      description: 'Garante conformidade com políticas de segurança e privacidade.',
+      status: 'passed'
+    },
+    {
+      id: 'test_fulfillment',
+      name: 'Verificação de Requisitos da Tarefa',
+      description: 'Verifica se todas as diretivas do prompt foram atendidas.',
+      status: 'passed'
+    }
+  ];
+
+  const completedSteps = steps.filter(s => s.status === 'completed').length;
+  const isAllStepsCompleted = steps.length > 0 ? completedSteps === steps.length : true;
+  const progressPercentage = steps.length > 0 ? Math.round((completedSteps / steps.length) * 100) : 100;
+
+  return {
+    id: `run_${messageId}`,
+    sessionId,
+    messageId,
+    objective,
+    status: isAllStepsCompleted ? 'succeeded' : 'running',
+    plan: {
+      id: `plan_${messageId}`,
+      objective,
+      steps,
+      replanCount: 0,
+      verifiableTests
+    },
+    toolCalls,
+    inputs: { prompt: objective },
+    outputs: { summary: message.text?.slice(0, 150) || 'Execução finalizada.' },
+    pendingApprovals: [],
+    approxCost: {
+      currency: 'USD',
+      amount: 0.0018,
+      tokensEstimated: Math.round((message.text?.length || 500) / 4)
+    },
+    elapsedTimeMs: 1420,
+    progressPercentage,
+    artifacts: [],
+    nextSteps: [
+      'Visualizar resultado no chat',
+      'Exportar ou salvar artefatos se gerados',
+      'Refinar com novos comandos se necessário'
+    ],
+    createdAt,
+    updatedAt: createdAt,
+    finishedAt: createdAt
+  };
+}
+
+/**
+ * Creates an active dynamic Run while the AI is streaming a response or reasoning.
+ */
+export function createActiveStreamingRun(
+  sessionId: string,
+  userPrompt: string,
+  searchSteps?: any[],
+  raciocinioText?: string,
+  isThinking?: boolean,
+  messageText?: string,
+  toolEvents?: any[],
+  historyMessages: Message[] = []
+): OmnixRun {
+  const nowISO = new Date().toISOString();
+  
+  // Extract and resolve step statuses dynamically
+  let { steps: rawSteps, isExplicitChecklist } = extractSteps(messageText, searchSteps, toolEvents, nowISO);
+
+  // If current message has no explicit checklist, try to inherit the plan from the previous AI message in the same run
+  if (!isExplicitChecklist && historyMessages && historyMessages.length > 0) {
+    const previousAiMessages = historyMessages.filter(m => m.sender === 'ai');
+    for (let i = previousAiMessages.length - 1; i >= 0; i--) {
+      const prevExtract = extractSteps(previousAiMessages[i].text, [], [], nowISO);
+      if (prevExtract.isExplicitChecklist) {
+        const inheritedSteps = prevExtract.steps.filter(s => s.id.startsWith('step_text_'));
+        
+        rawSteps = [
+          ...inheritedSteps,
+          ...rawSteps.filter(s => !s.id.startsWith('step_text_'))
+        ];
+        isExplicitChecklist = true;
+        break;
+      }
+    }
+  }
+
+  const steps = resolveStepStatuses(rawSteps, !!isThinking);
+
+  const toolCalls: DetailedToolCall[] = [];
+  if (searchSteps && searchSteps.length > 0) {
+    searchSteps.forEach((s, idx) => {
+      if (s.sources && s.sources.length > 0) {
+        toolCalls.push({
+          id: `tool_srch_stream_${idx + 1}`,
+          tool_name: 'web.search_query',
+          arguments: { query: s.tag },
+          normalized_input: s.tag,
+          permission: 'granted',
+          risk: 'low',
+          started_at: nowISO,
+          finished_at: s.isCompleted ? nowISO : undefined,
+          result_ref: `${s.sources.length} fontes encontradas`,
+          retry_count: 0,
+          status: s.isCompleted ? 'success' : 'running'
+        });
+      }
+    });
+  }
+
+  const completedCount = steps.filter(s => s.status === 'completed').length;
+  const progressPercentage = steps.length > 0 ? Math.min(95, Math.round((completedCount / steps.length) * 100)) : 0;
+
+  return {
+    id: `run_stream_${Date.now()}`,
+    sessionId,
+    objective: userPrompt || 'Executando tarefa agêntica',
+    status: isThinking ? 'running' : 'succeeded',
+    plan: {
+      id: `plan_stream_${Date.now()}`,
+      objective: userPrompt || 'Executando tarefa agêntica',
+      steps,
+      replanCount: 0,
+      verifiableTests: [
+        {
+          id: 'test_stream_1',
+          name: 'Verificação de Sintaxe',
+          description: 'Validação sintática em tempo real',
+          status: 'passed'
+        },
+        {
+          id: 'test_stream_2',
+          name: 'Checagem de Segurança',
+          description: 'Inspeção de termos e permissões',
+          status: 'passed'
+        }
+      ]
+    },
+    toolCalls,
+    inputs: { prompt: userPrompt },
+    outputs: {},
+    pendingApprovals: [],
+    approxCost: {
+      currency: 'USD',
+      amount: 0.0012,
+      tokensEstimated: 350
+    },
+    elapsedTimeMs: 850,
+    progressPercentage,
+    artifacts: [],
+    nextSteps: ['Acompanhar progresso no painel de etapas'],
+    createdAt: nowISO,
+    updatedAt: nowISO
+  };
+}

@@ -739,7 +739,17 @@ export default function MarkdownRenderer({
   // Helper to safely render KaTeX to HTML string
   const renderMathToHtml = (tex: string, displayMode: boolean): string => {
     try {
-      return katex.renderToString(tex, {
+      // Fix unescaped JS control sequences in TeX strings from JSON/string serialization
+      let cleanTex = tex
+        .replace(/\x09ext/g, '\\text')
+        .replace(/\x09extbf/g, '\\textbf')
+        .replace(/\x09extit/g, '\\textit')
+        .replace(/\x08egin/g, '\\begin')
+        .replace(/\x0crac/g, '\\frac')
+        .replace(/\x0dight/g, '\\right')
+        .replace(/\x0eft/g, '\\left');
+
+      return katex.renderToString(cleanTex, {
         displayMode,
         throwOnError: false,
         trust: true,
@@ -925,7 +935,14 @@ export default function MarkdownRenderer({
     const inlineMathRegex = /(?<![A-Za-z0-9\\$])\$([^\s$]|(?:[^\s$](?:[^$]|\\\$)*?[^\s$]))\$(?![0-9])|\\\((.*?)\\\)/g;
     currentText = currentText.replace(inlineMathRegex, (match, p1, p2) => {
       let tex = (p1 !== undefined ? p1 : p2) || '';
-      tex = tex.trim();
+      tex = tex.trim()
+        .replace(/\x09ext/g, '\\text')
+        .replace(/\x09extbf/g, '\\textbf')
+        .replace(/\x09extit/g, '\\textit')
+        .replace(/\x08egin/g, '\\begin')
+        .replace(/\x0crac/g, '\\frac')
+        .replace(/\x0dight/g, '\\right')
+        .replace(/\x0eft/g, '\\left');
       if (!tex) return match;
 
       // Ignore currency expressions (e.g. "R$ 50,00 e R$ 10,00", "$10 e $20", etc.)
@@ -1271,8 +1288,18 @@ export default function MarkdownRenderer({
 
     const cleanedContent = cleanStepTags(content);
     
-    // Ensure wsm tags are on their own lines so text before/after them doesn't get swallowed
     let formattedContent = cleanedContent;
+
+    // Remove markdown horizontal rules (---) which are visually inelegant
+    formattedContent = formattedContent.replace(/\n\s*---\s*\n/g, '\n\n').replace(/^\s*---\s*\n/g, '');
+
+    // Fix malformed AI links (e.g. [Site](url], or [Site](url, extra] -> [Site](url))
+    formattedContent = formattedContent.replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)\]\,]+)[^\)]*\]/g, '[$1]($2)');
+
+    // Auto-close incomplete markdown links at the very end of the text while streaming to avoid raw URL dumping
+    formattedContent = formattedContent.replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)]*)$/, '[$1]($2)');
+
+    // Ensure wsm tags are on their own lines so text before/after them doesn't get swallowed
     const tagNames = ['wsm_chart', 'wsm_map', 'wsm_form', 'wsm_task', 'wsm_mindmap'];
     tagNames.forEach(tagName => {
       // Matches both self-closing <wsm_chart ... /> and matching <wsm_chart ...>...</wsm_chart>

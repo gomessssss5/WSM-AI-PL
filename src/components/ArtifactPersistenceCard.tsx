@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArtifactRecord } from '../types';
 import { persistArtifactToBackend, getLocalDrafts } from '../utils/executionRuntime';
+import { verifyArtifactSpecification, SpecificationValidationResult } from '../utils/artifactSpecification';
 import { 
   FileCheck2, 
   AlertTriangle, 
@@ -16,7 +17,9 @@ import {
   Hash,
   Layers,
   FileCode,
-  ShieldCheck
+  ShieldCheck,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 
 interface ArtifactPersistenceCardProps {
@@ -27,6 +30,9 @@ interface ArtifactPersistenceCardProps {
   conversationId: string;
   taskId?: string;
   stepId?: string;
+  expectedMinRows?: number;
+  expectedKeyValues?: (string | number)[];
+  requiredFormulas?: string[];
   onPersisted?: (artifact: ArtifactRecord) => void;
 }
 
@@ -38,6 +44,9 @@ export const ArtifactPersistenceCard: React.FC<ArtifactPersistenceCardProps> = (
   conversationId,
   taskId,
   stepId,
+  expectedMinRows,
+  expectedKeyValues,
+  requiredFormulas,
   onPersisted
 }) => {
   const [artifact, setArtifact] = useState<ArtifactRecord | null>(null);
@@ -46,6 +55,7 @@ export const ArtifactPersistenceCard: React.FC<ArtifactPersistenceCardProps> = (
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showDraftModal, setShowDraftModal] = useState(false);
+  const [validationResult, setValidationResult] = useState<SpecificationValidationResult | null>(null);
 
   const displayTitle = title || filename;
 
@@ -57,11 +67,26 @@ export const ArtifactPersistenceCard: React.FC<ArtifactPersistenceCardProps> = (
       setStatus('persisting');
       setErrorMsg(null);
 
+      // Extract extension
+      const dotIdx = filename.lastIndexOf('.');
+      const ext = dotIdx !== -1 ? filename.substring(dotIdx) : '.txt';
+
+      // Perform specification audit
+      const specResult = verifyArtifactSpecification(content, {
+        filename,
+        expectedExtension: ext,
+        expectedMinRows: expectedMinRows || 2,
+        expectedKeyValues: expectedKeyValues || [],
+        requiredFormulas: requiredFormulas || []
+      });
+
+      setValidationResult(specResult);
+
       const result = await persistArtifactToBackend({
         filename,
         title: displayTitle,
-        content,
-        format,
+        content: specResult.sanitizedContent,
+        format: format || ext.replace('.', ''),
         conversationId,
         taskId: taskId || 'task_root',
         stepId: stepId || 'step_1'
@@ -166,10 +191,14 @@ export const ArtifactPersistenceCard: React.FC<ArtifactPersistenceCardProps> = (
 
         {/* Status Badge */}
         <div className="flex items-center gap-2 shrink-0">
-          {status === 'persisted' && artifact && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-              <ShieldCheck className="w-3 h-3" />
-              Verificado (v{artifact.version})
+          {status === 'persisted' && validationResult && (
+            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+              validationResult.isDone
+                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                : 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+            }`}>
+              {validationResult.isDone ? <CheckCircle2 className="w-3 h-3 text-emerald-600" /> : <AlertCircle className="w-3 h-3 text-amber-600" />}
+              {validationResult.statusLabel}
             </span>
           )}
           {status === 'failed' && (
@@ -224,6 +253,50 @@ export const ArtifactPersistenceCard: React.FC<ArtifactPersistenceCardProps> = (
                 Versão {artifact.version}
               </span>
             </div>
+          </div>
+        )}
+
+        {/* Specification Quality Verification Checklist */}
+        {validationResult && (
+          <div className="bg-[#fcfbf9] dark:bg-[#181818] rounded-xl p-3 border border-[#eae6e1] dark:border-zinc-800 space-y-2 text-[11.5px]">
+            <div className="flex items-center justify-between border-b border-gray-200 dark:border-zinc-800 pb-1.5">
+              <span className="font-bold text-gray-800 dark:text-gray-200 flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                Auditoria de Qualidade e Especificação Verificável
+              </span>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                validationResult.isDone
+                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                  : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+              }`}>
+                {validationResult.metRequirements.length} / {validationResult.metRequirements.length + validationResult.unmetRequirements.length} Aprovados
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              {validationResult.metRequirements.map((req, idx) => (
+                <div key={`met-${idx}`} className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>{req}</span>
+                </div>
+              ))}
+
+              {validationResult.unmetRequirements.map((req, idx) => (
+                <div key={`unmet-${idx}`} className="flex items-center gap-1.5 text-rose-700 dark:text-rose-400 font-bold">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                  <span>{req}</span>
+                </div>
+              ))}
+            </div>
+
+            {validationResult.diagnostics.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-gray-200 dark:border-zinc-800 text-[10.5px] font-mono text-amber-700 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/20 p-2 rounded-lg">
+                <span className="font-bold block mb-0.5">Diagnóstico da Auditoria:</span>
+                {validationResult.diagnostics.map((diag, dIdx) => (
+                  <div key={`diag-${dIdx}`}>• {diag}</div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

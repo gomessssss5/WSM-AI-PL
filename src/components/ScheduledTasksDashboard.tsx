@@ -581,11 +581,13 @@ export default function ScheduledTasksDashboard({
                             <div className="flex items-center gap-2">
                               <h3 className="font-semibold text-gray-900 text-base">{task.title}</h3>
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${
-                                task.isActive 
+                                runningTaskId === task.id
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200 animate-pulse'
+                                  : task.isActive 
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
                                   : 'bg-amber-50 text-amber-700 border-amber-200'
                               }`}>
-                                {task.isActive ? 'Ativo' : 'Pausado'}
+                                {runningTaskId === task.id ? 'executando' : task.isActive ? 'ativa' : 'pausada'}
                               </span>
                             </div>
                             <p className="text-[11px] text-gray-400 font-mono mt-0.5">ID: {task.id.slice(0, 8)}</p>
@@ -598,17 +600,17 @@ export default function ScheduledTasksDashboard({
                             onClick={() => handleExecuteNow(task)} 
                             disabled={runningTaskId === task.id}
                             className="flex items-center gap-1.5 bg-[#18181b] hover:bg-black text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
-                            title="Executar tarefa imediatamente"
+                            title="Executar tarefa imediatamente em Modo Teste com auditoria"
                           >
                             {runningTaskId === task.id ? (
                               <>
                                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                <span>Executando...</span>
+                                <span>Executando Teste...</span>
                               </>
                             ) : (
                               <>
-                                <Play className="w-3 h-3 fill-current" />
-                                <span>Executar Agora</span>
+                                <Play className="w-3 h-3 fill-current text-amber-400" />
+                                <span>Modo Teste (Executar Agora)</span>
                               </>
                             )}
                           </button>
@@ -822,6 +824,30 @@ export default function ScheduledTasksDashboard({
                         >
                           Ver Conversa
                         </button>
+                      </div>
+
+                      {/* Telemetry Breakdown Grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 bg-[#fcfbf9] border border-[#eae6e1] rounded-xl p-3 text-[11px] font-mono text-gray-600">
+                        <div>
+                          <span className="text-[9.5px] uppercase font-bold text-gray-400 block">Duração (ms)</span>
+                          <span className="font-bold text-gray-800">{exec.durationMs ? `${exec.durationMs} ms` : 'Rápida (<1s)'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9.5px] uppercase font-bold text-gray-400 block">Modo Execução</span>
+                          <span className="font-semibold text-gray-800">{exec.triggerType === 'manual' ? 'Modo Teste' : 'Agendado'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9.5px] uppercase font-bold text-gray-400 block">Ferramentas</span>
+                          <span className="font-medium text-gray-800 truncate block" title={exec.toolsInvoked?.join(', ') || 'Omnix Agent Tooling'}>
+                            {exec.toolsInvoked?.length ? exec.toolsInvoked.join(', ') : 'Omnix Tooling'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[9.5px] uppercase font-bold text-gray-400 block">Artefatos</span>
+                          <span className="font-medium text-gray-800 truncate block">
+                            {exec.generatedFiles?.length ? `${exec.generatedFiles.length} arquivo(s)` : 'Sem artefatos'}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Summary output snippet */}

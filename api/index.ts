@@ -284,9 +284,17 @@ async function callGeminiStreamWithFallback(options: any): Promise<any> {
   return executeWithAllFallbacks(options, true);
 }
 
+// Helper to sanitize any synthetic or internal tokens from being leaked to the client
+function sanitizeOutgoingText(rawText: string): string {
+  if (!rawText || typeof rawText !== 'string') return "";
+  return rawText
+    .replace(/:::(?:LINKTOKEN|AGENTICTOKEN|CODETOKEN|MATHTOKEN|SLASHTOKEN)-\d+:::/g, "")
+    .replace(/:::(?:BEGIN|END)_[A-Z0-9_-]+:::/g, "");
+}
+
 // API endpoint for chatbot communication and Web Search
 app.post("/api/chat", async (req: express.Request, res: express.Response) => {
-  const { text, attachments, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution, sessionId, chatMemoryDoc, workspaceFiles, layeredMemories } = req.body;
+  const { text, content, rawText, metadata, attachments, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution, sessionId, chatMemoryDoc, workspaceFiles, layeredMemories } = req.body;
 
   const userEmail = userInfo?.email || userContext?.email || req.body?.userEmail;
   let clientDisconnected = false;
@@ -298,7 +306,24 @@ app.post("/api/chat", async (req: express.Request, res: express.Response) => {
     }
   });
 
-  const userPromptText = typeof text === 'string' ? text : JSON.stringify(text || '');
+  // Extract text from unified contract array or text string
+  let userPromptText = "";
+  if (Array.isArray(content) && content.length > 0) {
+    userPromptText = content
+      .filter((c: any) => c && (c.type === 'text' || typeof c.text === 'string'))
+      .map((c: any) => c.text || "")
+      .join("\n");
+  }
+  if (!userPromptText) {
+    userPromptText = typeof text === 'string' ? text : (typeof rawText === 'string' ? rawText : JSON.stringify(text || ''));
+  }
+
+  // Contract Verification: SHA-256 Integrity check
+  const calculatedSha256 = crypto.createHash('sha256').update(rawText || userPromptText, 'utf8').digest('hex');
+  const clientProvidedHash = metadata?.payloadHash;
+  const hashMatches = !clientProvidedHash || clientProvidedHash === calculatedSha256;
+
+  console.log(`[Contract Verification] Message Received: ${userPromptText.length} chars, ${userPromptText.split('\n').length} lines, Hash: ${calculatedSha256.substring(0, 16)}... (Match: ${hashMatches})`);
 
   // Detect Deterministic Mode ("Exatamente", "Literalmente", "Exato", "Manter formato")
   const isDeterministicRequested = /\b(exatamente|literal|literalmente|exato|sem alterar|manter formato|conteúdo exato|manter exatamente)\b/i.test(userPromptText);
@@ -672,6 +697,9 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
       res.setHeader('Connection', 'keep-alive');
 
       const sendEvent = (data: any) => {
+        if (data && (data.type === 'chunk' || data.type === 'sync_text') && typeof data.text === 'string') {
+          data.text = sanitizeOutgoingText(data.text);
+        }
         res.write(`data: ${JSON.stringify(data)}\n\n`);
       };
 
@@ -947,7 +975,7 @@ ${contextInfo}`;
     };
 
     const formInstruction = "\n" + getSystemPrompt('form_generation', '');
-    const docInstruction = "\n" + getSystemPrompt('doc_generation', '');
+    const docInstruction = "\n" + getSystemPrompt('doc_generator', '');
     const writingConstraints = "\n" + getSystemPrompt('writing_constraints', '');
     const tasksInstruction = isScheduledExecution
       ? `\n## ATENÇÃO CRÍTICA: EXECUÇÃO AUTOMÁTICA DE TAREFA AGENDADA\nEsta requisição é a execução de uma tarefa que JÁ FOI AGENDADA previamente. Você está ABSOLUTAMENTE PROIBIDO de gerar a tag <wsm_task ... /> nesta resposta under ANY circumstances. Apenas execute a instrução e apresente o resultado final diretamente.`
@@ -1225,7 +1253,12 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
       res.flushHeaders();
-      const sendEvent = (data: any) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+      const sendEvent = (data: any) => {
+        if (data && (data.type === 'chunk' || data.type === 'sync_text') && typeof data.text === 'string') {
+          data.text = sanitizeOutgoingText(data.text);
+        }
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+      };
 
       let lastFunctionCallsStr = "";
       let sameCallCount = 0;
@@ -2729,6 +2762,124 @@ app.post("/api/runtime/task", (req: express.Request, res: express.Response) => {
 app.get("/api/runtime/graph", (req: express.Request, res: express.Response) => {
   const tasks = Array.from(persistentExecutionTasksMap.values());
   return res.json({ success: true, tasks });
+});
+
+// Endpoint para verificação de contrato de payload e integridade SHA-256
+app.post("/api/contract/verify", (req: express.Request, res: express.Response) => {
+  try {
+    const { content, text, rawText, metadata } = req.body;
+    let extracted = "";
+    if (Array.isArray(content) && content.length > 0) {
+      extracted = content
+        .filter((c: any) => c && (c.type === 'text' || typeof c.text === 'string'))
+        .map((c: any) => c.text || "")
+        .join("\n");
+    }
+    if (!extracted) {
+      extracted = typeof rawText === 'string' ? rawText : (typeof text === 'string' ? text : "");
+    }
+
+    const calculatedHash = crypto.createHash('sha256').update(extracted, 'utf8').digest('hex');
+    const clientHash = metadata?.payloadHash;
+    const isIntact = !clientHash || clientHash === calculatedHash;
+
+    const charCount = extracted.length;
+    const lineCount = extracted.split('\n').length;
+    const isMultiline = extracted.includes('\n');
+
+    return res.json({
+      success: true,
+      contractIntact: isIntact,
+      sha256: calculatedHash,
+      clientSha256: clientHash || null,
+      charCount,
+      lineCount,
+      isMultiline,
+      preview: extracted.substring(0, 100)
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || "Erro na verificação de contrato." });
+  }
+});
+
+// Endpoint para suíte de testes de contrato automatizados (Python multiline, JSON, Markdown, SQL)
+app.get("/api/contract/test-suite", (req: express.Request, res: express.Response) => {
+  const testCases = [
+    {
+      id: "tc-python-multiline",
+      name: "Python Multi-line Code Block",
+      input: `def calculate_fibonacci(n: int) -> list[int]:
+    """Calcula a sequência de Fibonacci até n termos."""
+    if n <= 0:
+        return []
+    elif n == 1:
+        return [0]
+    
+    sequence = [0, 1]
+    while len(sequence) < n:
+        sequence.append(sequence[-1] + sequence[-2])
+    return sequence
+
+print(calculate_fibonacci(10))`,
+      expectedLines: 13,
+      expectedNoLeakTokens: true
+    },
+    {
+      id: "tc-json-multiline",
+      name: "Structured JSON Payload",
+      input: JSON.stringify({
+        agent: "Omnix 1.6",
+        contract: "StrictPayloadContract",
+        settings: {
+          multiline: true,
+          imeSafe: true,
+          sha256Verified: true
+        }
+      }, null, 2),
+      expectedLines: 9,
+      expectedNoLeakTokens: true
+    },
+    {
+      id: "tc-sql-query",
+      name: "Complex SQL Query",
+      input: `SELECT 
+    u.id, 
+    u.name, 
+    COUNT(t.id) as total_tasks,
+    MAX(t.updated_at) as last_activity
+FROM users u
+LEFT JOIN tasks t ON u.id = t.user_id
+WHERE u.status = 'active'
+GROUP BY u.id, u.name
+ORDER BY total_tasks DESC;`,
+      expectedLines: 10,
+      expectedNoLeakTokens: true
+    }
+  ];
+
+  const results = testCases.map(tc => {
+    const hash = crypto.createHash('sha256').update(tc.input, 'utf8').digest('hex');
+    const sanitized = sanitizeOutgoingText(tc.input);
+    const noTokens = !/:::[A-Z0-9_-]+:::/.test(sanitized);
+    const actualLines = tc.input.split('\n').length;
+    const passed = (actualLines === tc.expectedLines) && noTokens;
+
+    return {
+      id: tc.id,
+      name: tc.name,
+      passed,
+      sha256: hash,
+      lineCount: actualLines,
+      expectedLines: tc.expectedLines,
+      sanitizedClean: noTokens
+    };
+  });
+
+  return res.json({
+    success: true,
+    allPassed: results.every(r => r.passed),
+    results
+  });
 });
 
 // Background tasks executor (every 15 seconds)

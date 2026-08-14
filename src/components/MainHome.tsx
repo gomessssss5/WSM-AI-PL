@@ -126,6 +126,7 @@ export default function MainHome({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const isComposingRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -458,8 +459,8 @@ export default function MainHome({
     const cursorPosition = e.target.selectionStart;
     const textBeforeCursor = val.slice(0, cursorPosition);
     
-    // Check if user is typing a slash command
-    const slashMatch = textBeforeCursor.match(/(^|\s)\/([a-zA-Z0-9-]*)$/);
+    // Check if user is typing a slash command (strictly at start of prompt or start of line)
+    const slashMatch = textBeforeCursor.match(/(^|\n)\/([a-zA-Z0-9_-]*)$/);
 
     if (slashMatch) {
       setSlashMenuOpen(true);
@@ -477,10 +478,10 @@ export default function MainHome({
     const textBeforeCursor = inputValue.slice(0, cursorPosition);
     const textAfterCursor = inputValue.slice(cursorPosition);
     
-    const slashMatch = textBeforeCursor.match(/(^|\s)\/([a-zA-Z0-9-]*)$/);
+    const slashMatch = textBeforeCursor.match(/(^|\n)\/([a-zA-Z0-9_-]*)$/);
     if (slashMatch) {
       const matchIndex = slashMatch.index !== undefined ? slashMatch.index : 0;
-      const spaceBefore = slashMatch[1]; // either '' or ' '
+      const prefixBefore = slashMatch[1]; // either '' or '\n'
       
       if (item.isSkill) {
         setActiveSkills(prev => {
@@ -489,10 +490,10 @@ export default function MainHome({
           }
           return prev;
         });
-        const newText = textBeforeCursor.slice(0, matchIndex) + spaceBefore + textAfterCursor;
+        const newText = textBeforeCursor.slice(0, matchIndex) + prefixBefore + textAfterCursor;
         setInputValue(newText);
       } else {
-        const newText = textBeforeCursor.slice(0, matchIndex) + spaceBefore + item.id + ' ' + textAfterCursor;
+        const newText = textBeforeCursor.slice(0, matchIndex) + prefixBefore + item.id + ' ' + textAfterCursor;
         setInputValue(newText);
       }
       
@@ -501,7 +502,7 @@ export default function MainHome({
       setTimeout(() => {
         if (textarea) {
           textarea.focus();
-          const newPos = item.isSkill ? matchIndex + spaceBefore.length : matchIndex + spaceBefore.length + item.id.length + 1;
+          const newPos = item.isSkill ? matchIndex + prefixBefore.length : matchIndex + prefixBefore.length + item.id.length + 1;
           textarea.setSelectionRange(newPos, newPos);
         }
       }, 0);
@@ -623,9 +624,10 @@ export default function MainHome({
       }
     }
 
-    // Check if pasted text exceeds 5000 characters
+    // Allow rich multi-line text (code blocks, markdown, SQL, JSON) to paste directly into textarea
+    // Only convert to attached file if text exceeds 50,000 characters
     const pastedText = e.clipboardData?.getData('text/plain');
-    if (pastedText && pastedText.length > 5000) {
+    if (pastedText && pastedText.length > 50000) {
       e.preventDefault();
       const isCode = /[{};()</>=\[\]]/.test(pastedText) || 
                      pastedText.includes('function') || 
@@ -717,7 +719,7 @@ export default function MainHome({
   const handleSubmit = (e?: React.FormEvent | React.MouseEvent | React.TouchEvent) => {
     e?.preventDefault();
     if (!inputValue.trim() && attachments.length === 0 && activeSkills.length === 0) return;
-    if (inputValue.length > 5000) return;
+    if (inputValue.length > 100000) return;
     
     if (onDeleteDraft) onDeleteDraft();
 
@@ -736,6 +738,19 @@ export default function MainHome({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // 1. IME composition check
+    if ((e.nativeEvent as any).isComposing || (e as any).isComposing || e.keyCode === 229 || isComposingRef.current) {
+      return;
+    }
+
+    // 2. Touch device check
+    const isTouchDevice = typeof window !== 'undefined' && (
+      'ontouchstart' in window || 
+      navigator.maxTouchPoints > 0 || 
+      window.innerWidth < 768
+    );
+
+    // 3. Slash menu navigation
     if (slashMenuOpen && filteredTools.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -759,7 +774,16 @@ export default function MainHome({
       }
     }
 
+    // 4. Shift+Enter should ALWAYS insert a newline
+    if (e.key === 'Enter' && e.shiftKey) {
+      return;
+    }
+
+    // 5. Plain Enter on desktop sends the message; on mobile it inserts newline
     if (e.key === 'Enter' && !e.shiftKey) {
+      if (isTouchDevice) {
+        return;
+      }
       e.preventDefault();
       handleSubmit(e);
     }
@@ -1227,6 +1251,8 @@ export default function MainHome({
                 onChange={handleInputValueChange}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
+                onCompositionStart={() => { isComposingRef.current = true; }}
+                onCompositionEnd={() => { isComposingRef.current = false; }}
                 placeholder={`Pergunte ao ${selectedModel}...`}
                 className="w-full bg-transparent outline-none resize-none text-gray-800 placeholder-gray-400 text-[13.5px] leading-relaxed pb-1 min-h-[38px] max-h-[220px]"
               />

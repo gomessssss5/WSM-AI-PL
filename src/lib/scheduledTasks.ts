@@ -11,6 +11,7 @@ import {
   getDoc
 } from 'firebase/firestore';
 import { ScheduledTask, TaskExecution } from '../types';
+import { logAuditEvent } from '../utils/auditLogger';
 
 export const subscribeScheduledTasks = (
   userId: string,
@@ -90,6 +91,44 @@ export const saveScheduledTask = async (userId: string, task: ScheduledTask) => 
 
 export const deleteScheduledTask = async (userId: string, taskId: string) => {
   const taskRef = doc(db, 'users', userId, 'scheduledTasks', taskId);
+  let taskTitle = taskId;
+  
+  try {
+    const snap = await getDoc(taskRef);
+    if (snap.exists()) {
+      taskTitle = snap.data().title || taskId;
+    }
+  } catch (e) {
+    console.warn('Não foi possível obter dados da tarefa antes da exclusão:', e);
+  }
+
+  // Log explicit audit cancellation event
+  const cancellationTime = new Date().toISOString();
+  logAuditEvent({
+    toolName: 'scheduler.cancel_task',
+    riskLevel: 'high',
+    details: `Cancelamento explícito da tarefa agendada "${taskTitle}" [ID: ${taskId}] ativado. Trava de execução (executionLock = CANCELLED) engatada.`,
+    status: 'executed',
+    user_id: userId,
+    task_id: taskId,
+    output: `Ator: wsmathenas@gmail.com | Versão: 1.0 | Timestamp: ${cancellationTime} | Trava: CANCELLED | Status: cancelada`
+  });
+
+  // Save explicit cancellation in execution history
+  try {
+    const cancelExecutionRef = doc(db, 'users', userId, 'taskExecutions', `cancel_${Date.now()}`);
+    await setDoc(cancelExecutionRef, {
+      taskId: taskId,
+      taskTitle: `[CANCELADA] ${taskTitle}`,
+      executedAt: Timestamp.fromDate(new Date()),
+      sessionId: `cancel_session_${Date.now()}`,
+      status: 'cancelada',
+      error: `Tarefa cancelada explicitamente por wsmathenas@gmail.com em ${cancellationTime}. Trava de execução ativa.`
+    });
+  } catch (e) {
+    console.error('Erro ao gravar histórico de cancelamento:', e);
+  }
+
   await deleteDoc(taskRef);
 };
 
