@@ -1,4 +1,5 @@
 import { WsmDocument } from '../types';
+import { terminalSandbox } from '../lib/terminalSandbox';
 
 export function inferFormatFromTitle(title: string, defaultFormat = 'pdf'): string {
   if (!title) return defaultFormat;
@@ -13,7 +14,8 @@ export function inferFormatFromTitle(title: string, defaultFormat = 'pdf'): stri
     if (['json'].includes(ext)) return 'json';
     if (['css'].includes(ext)) return 'css';
     if (['sql'].includes(ext)) return 'sql';
-    if (['csv', 'xlsx', 'xls', 'sheet', 'planilha'].includes(ext)) return 'xlsx';
+    if (['csv'].includes(ext)) return 'csv';
+    if (['xlsx', 'xls', 'sheet', 'planilha'].includes(ext)) return 'xlsx';
     if (['md', 'markdown'].includes(ext)) return 'md';
     if (['txt'].includes(ext)) return 'txt';
     if (['pdf'].includes(ext)) return 'pdf';
@@ -245,8 +247,10 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
           let format = rawFormat;
           if (rawFormat === 'markdown') {
             format = 'md';
-          } else if (rawFormat === 'excel' || rawFormat === 'csv' || rawFormat === 'sheet' || rawFormat === 'planilha') {
+          } else if (rawFormat === 'excel' || rawFormat === 'sheet' || rawFormat === 'planilha') {
             format = 'xlsx';
+          } else if (rawFormat === 'csv') {
+            format = 'csv';
           }
 
           let validationState = parsedDoc.validation;
@@ -298,7 +302,8 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
              }
              let format = rawFormat;
              if (rawFormat === 'markdown') format = 'md';
-             else if (rawFormat === 'excel' || rawFormat === 'csv' || rawFormat === 'sheet' || rawFormat === 'planilha') format = 'xlsx';
+             else if (rawFormat === 'excel' || rawFormat === 'sheet' || rawFormat === 'planilha') format = 'xlsx';
+             else if (rawFormat === 'csv') format = 'csv';
 
              rawDocObjs.push({ title, content, format, validation: parsedDoc.validation });
            } else if (incompleteContent.startsWith('<!DOCTYPE') || incompleteContent.startsWith('<html') || incompleteContent.includes('<head>')) {
@@ -369,6 +374,51 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
     }
   }
 
+  // 2.7. Intercept <wsm_terminal_file action="write" path="..." /> tags and check terminalSandbox
+  const termFileRegex = /<wsm_terminal_file\s+[^>]*?path="([^"]+)"[^>]*?\/>/gi;
+  let termFileMatch;
+  while ((termFileMatch = termFileRegex.exec(currentText)) !== null) {
+    const rawPath = termFileMatch[1].replace('/workspace/', '').replace(/^\//, '');
+    if (rawPath) {
+      const sandboxContent = terminalSandbox.readFile(rawPath) || terminalSandbox.readFile('/workspace/' + rawPath);
+      if (sandboxContent) {
+        const ext = rawPath.split('.').pop()?.toLowerCase() || 'txt';
+        rawDocObjs.push({
+          title: rawPath,
+          content: sandboxContent,
+          format: ext === 'python' ? 'py' : (ext === 'javascript' ? 'js' : ext)
+        });
+      }
+    }
+  }
+
+  // 2.8. Fallback: extract markdown code blocks (```python ... ```) if rawDocObjs is empty
+  if (rawDocObjs.length === 0) {
+    const codeBlockRegex = /```(python|py|javascript|js|typescript|ts|html|css|json|sql)\s*\n([\s\S]*?)```/gi;
+    let codeMatch;
+    while ((codeMatch = codeBlockRegex.exec(currentText)) !== null) {
+      const lang = codeMatch[1].toLowerCase();
+      const code = codeMatch[2].trim();
+      if (code.length > 10) {
+        let filename = '';
+        const firstLine = code.split('\n')[0].trim();
+        const fnameMatch = firstLine.match(/^(?:#|\/\/|\/\*)\s*([a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+)/);
+        if (fnameMatch) {
+          filename = fnameMatch[1];
+        } else {
+          const formatExt = (lang === 'python' || lang === 'py') ? 'py' : ((lang === 'javascript' || lang === 'js') ? 'js' : ((lang === 'typescript' || lang === 'ts') ? 'ts' : lang));
+          filename = (lang === 'python' || lang === 'py') ? 'fibonacci.py' : `script.${formatExt}`;
+        }
+        const ext = filename.split('.').pop()?.toLowerCase() || 'py';
+        rawDocObjs.push({
+          title: filename,
+          content: code,
+          format: ext
+        });
+      }
+    }
+  }
+
   // 3. Deduplicate docObjs by title / content signature
   const docObjs: WsmDocument[] = [];
   const seenKeys = new Set<string>();
@@ -379,7 +429,8 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
     if (doc.format) {
       let ext = doc.format.toLowerCase();
       if (ext === 'markdown') ext = 'md';
-      else if (ext === 'excel' || ext === 'csv' || ext === 'sheet' || ext === 'planilha') ext = 'xlsx';
+      else if (ext === 'excel' || ext === 'sheet' || ext === 'planilha') ext = 'xlsx';
+      else if (ext === 'csv') ext = 'csv';
       else if (ext === 'python') ext = 'py';
       else if (ext === 'javascript') ext = 'js';
       else if (ext === 'typescript') ext = 'ts';

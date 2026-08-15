@@ -40,6 +40,7 @@ import InteractiveSpreadsheetViewer from './InteractiveSpreadsheetViewer';
 import { motion, AnimatePresence } from 'motion/react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { terminalSandbox } from '../lib/terminalSandbox';
 
 export interface WorkspaceViewerPaneProps {
   messages: Message[];
@@ -164,18 +165,61 @@ export default function WorkspaceViewerPane({
     return Array.from(filesMap.values());
   }, [messages]);
 
-  // Combine AI parsed files + custom files - deleted files
+  const [sandboxFiles, setSandboxFiles] = useState<WorkspaceFile[]>([]);
+
+  // Synchronize files from Terminal Sandbox filesystem
+  useEffect(() => {
+    const updateFromSandbox = () => {
+      try {
+        const entries = terminalSandbox.listFiles('/workspace');
+        const files: WorkspaceFile[] = [];
+        entries.forEach(entry => {
+          const fullPath = entry.path;
+          const content = terminalSandbox.readFile(fullPath) || '';
+          const name = entry.name || fullPath.replace('/workspace/', '').replace(/^\//, '');
+          if (name && !name.startsWith('.') && !entry.isDir) {
+            files.push({
+              id: `sandbox-${name}`,
+              title: name,
+              content,
+              format: inferFormatFromTitle(name, content),
+              source: 'ai',
+              updatedAt: new Date(entry.updatedAt || Date.now()),
+            });
+          }
+        });
+        setSandboxFiles(files);
+      } catch (e) {
+        console.error("Error reading sandbox files for workspace:", e);
+      }
+    };
+
+    updateFromSandbox();
+    const unsubscribe = terminalSandbox.subscribe(() => {
+      updateFromSandbox();
+    });
+    return unsubscribe;
+  }, []);
+
+  // Combine AI parsed files + sandbox files + custom files - deleted files
   const allWorkspaceFiles = useMemo(() => {
     const combinedMap = new Map<string, WorkspaceFile>();
 
-    // Add parsed AI files if not deleted
+    // 1. Add parsed AI files if not deleted
     parsedAiFiles.forEach(file => {
       if (!deletedFileTitles.has(file.title)) {
         combinedMap.set(file.title, file);
       }
     });
 
-    // Add custom files (overwrites or adds new)
+    // 2. Add sandbox files (from terminal executions/scripts)
+    sandboxFiles.forEach(file => {
+      if (!deletedFileTitles.has(file.title)) {
+        combinedMap.set(file.title, file);
+      }
+    });
+
+    // 3. Add custom files (overwrites or adds new)
     customFiles.forEach(file => {
       if (!deletedFileTitles.has(file.title)) {
         combinedMap.set(file.title, file);
@@ -183,7 +227,7 @@ export default function WorkspaceViewerPane({
     });
 
     return Array.from(combinedMap.values());
-  }, [parsedAiFiles, customFiles, deletedFileTitles]);
+  }, [parsedAiFiles, sandboxFiles, customFiles, deletedFileTitles]);
 
   // Filtered files by search
   const filteredFiles = useMemo(() => {
@@ -274,6 +318,7 @@ export default function WorkspaceViewerPane({
     };
 
     setCustomFiles(prev => [newFile, ...prev]);
+    terminalSandbox.writeFile(`/workspace/${title}`, newContent);
     setSelectedFileId(newFile.id);
     setIsCreatingNew(false);
     setNewTitle('');
@@ -284,6 +329,7 @@ export default function WorkspaceViewerPane({
     e.stopPropagation();
     if (confirm(`Tem certeza que deseja excluir "${file.title}" do Workspace?`)) {
       setDeletedFileTitles(prev => new Set(prev).add(file.title));
+      terminalSandbox.deleteFile(`/workspace/${file.title}`);
       if (activeFile?.id === file.id) {
         setSelectedFileId(null);
       }
@@ -312,12 +358,13 @@ export default function WorkspaceViewerPane({
       [activeFile.title]: updatedVersions
     }));
 
-    // 2. Save custom file content
+    // 2. Save custom file content and sync with terminal sandbox
     const updatedFile: WorkspaceFile = {
       ...activeFile,
       content: editingContentBuffer,
       updatedAt: new Date(),
     };
+    terminalSandbox.writeFile(`/workspace/${activeFile.title}`, editingContentBuffer);
     setCustomFiles(prev => [updatedFile, ...prev.filter(f => f.title !== activeFile.title)]);
     setIsEditingContent(false);
     setEditSummary('');

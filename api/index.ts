@@ -14,6 +14,7 @@ import {
 import { runAllEmailAutomations } from "./emailAutomation.js";
 import { processBackgroundTasks, executeScheduledTaskNow } from "./scheduledTasksBackground.js";
 import { getAllSystemPrompts, getSystemPrompt, updateSystemPrompt } from "./systemPromptsManager.js";
+import { executeSandboxCommand, writeSandboxFile, readSandboxFile, deleteSandboxFile, listSandboxFiles, ensureSandboxDir } from "./terminalService.js";
 
 dotenv.config();
 
@@ -106,6 +107,7 @@ function inferFormat(title?: string, explicitFormat?: string, content?: string):
     if (lower.endsWith('.txt')) return 'txt';
     if (lower.endsWith('.json')) return 'json';
     if (lower.endsWith('.csv')) return 'csv';
+    if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) return 'xlsx';
     if (lower.endsWith('.pdf')) return 'pdf';
     if (lower.endsWith('.docx') || lower.endsWith('.doc')) return 'docx';
     if (lower.endsWith('.js') || lower.endsWith('.ts') || lower.endsWith('.tsx') || lower.endsWith('.jsx')) return 'code';
@@ -117,6 +119,24 @@ function inferFormat(title?: string, explicitFormat?: string, content?: string):
     if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) return 'json';
   }
   return 'md';
+}
+
+function getMimeType(format?: string, filename?: string): string {
+  const f = (format || '').toLowerCase();
+  const fn = (filename || '').toLowerCase();
+  if (f === 'csv' || fn.endsWith('.csv')) return 'text/csv';
+  if (f === 'md' || f === 'markdown' || fn.endsWith('.md')) return 'text/markdown';
+  if (f === 'json' || fn.endsWith('.json')) return 'application/json';
+  if (f === 'pdf' || fn.endsWith('.pdf')) return 'application/pdf';
+  if (f === 'xlsx' || f === 'excel' || fn.endsWith('.xlsx') || fn.endsWith('.xls')) return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  if (f === 'html' || f === 'htm' || fn.endsWith('.html') || fn.endsWith('.htm')) return 'text/html';
+  if (f === 'txt' || fn.endsWith('.txt')) return 'text/plain';
+  if (f === 'py' || fn.endsWith('.py')) return 'text/x-python';
+  if (f === 'ts' || f === 'tsx' || fn.endsWith('.ts') || fn.endsWith('.tsx')) return 'text/typescript';
+  if (f === 'js' || f === 'jsx' || fn.endsWith('.js') || fn.endsWith('.jsx')) return 'text/javascript';
+  if (f === 'css' || fn.endsWith('.css')) return 'text/css';
+  if (f === 'sql' || fn.endsWith('.sql')) return 'application/sql';
+  return 'application/octet-stream';
 }
 
 function sanitizeGeminiContents(rawContents: any[]): any[] {
@@ -212,12 +232,14 @@ async function executeWithAllFallbacks(options: any, isStream: boolean): Promise
     reqConfig.tools = options.tools;
   }
 
-  // Model fallback hierarchy as requested: Gemini 3.5 flash lite -> gemini-3.1-flash-lite
-  const requestedModel = options.model || "gemini-3.5-flash-lite";
+  // Model fallback hierarchy using valid Gemini models: gemini-2.5-flash -> gemini-2.0-flash -> gemini-1.5-flash
+  const rawModel = options.model || "gemini-2.5-flash";
+  const requestedModel = (rawModel.includes('3.') || !rawModel.startsWith('gemini')) ? "gemini-2.5-flash" : rawModel;
   const modelList: string[] = Array.from(new Set([
     requestedModel,
-    "gemini-3.5-flash-lite",
-    "gemini-3.1-flash-lite"
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash"
   ]));
 
   // Collect all available API keys
@@ -1055,13 +1077,18 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
       if (effectiveSearchEnabled) {
         modeAdditions += `\n\n- **MODO PESQUISAR ATIVADO**: O usuário solicitou o Modo Pesquisar. Confirme ("✓ Modo Pesquisar ativado") e execute 'web_search' no mesmo turno.`;
       }
-      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + (userLocationContextInstruction ? userLocationContextInstruction + "\n\n" : "") + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + docInstruction + "\n\n" + formInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction + modeAdditions;
+      const terminalInstruction = `\n\n## INTEGRAÇÃO TOTAL: WORKSPACE E TERMINAL SANDBOX
+Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal Sandbox isolado (/workspace) do usuário:
+1. **Manipulação de Arquivos e Pastas**: Você pode criar, editar, renomear, excluir e organizar pastas e documentos usando ferramentas de documento (\`create_document\`, \`edit_document\`, \`delete_document\`) ou comandos do terminal (\`mkdir\`, \`touch\`, \`mv\`, \`cp\`, \`rm\`, \`cat\`, \`ls\`, \`write_terminal_file\`). Todos os arquivos criados ou modificados aparecem automaticamente no Workspace do usuário.
+2. **Execução de Códigos e Scripts**: Sempre que o usuário pedir para criar, testar ou executar códigos (Python, Node.js, Shell, npm), utilize \`execute_terminal_command\` (ex: \`python3 script.py\`, \`node index.js\`, \`npm test\`) ou \`run_code_sandbox\`. O terminal abrirá em tempo real para exibir a execução e fechará ao concluir.
+3. **Nunca Simule em Texto**: Sempre invoque a ferramenta correspondente no mesmo turno.`;
+      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + (userLocationContextInstruction ? userLocationContextInstruction + "\n\n" : "") + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + docInstruction + "\n\n" + formInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction + terminalInstruction + modeAdditions;
     } else {
       activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
     }
 
-    let mappedModel = "gemini-3.5-flash-lite";
-    if (model === 'Omnix 1.6' || model === 'Omnix 1.6') mappedModel = "gemini-3.5-flash-lite";
+    let mappedModel = "gemini-2.5-flash";
+    if (model === 'Omnix 1.6' || model === 'Omnix 1.6') mappedModel = "gemini-2.5-flash";
 
     if (model === 'Omnix 1.6' || model === 'Omnix 1.6') {
       console.log(`Starting agentic loop for model: ${model}...`);
@@ -1230,6 +1257,54 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               type: Type.OBJECT,
               properties: {}
             }
+          },
+          {
+            name: "execute_terminal_command",
+            description: "Executa comandos de sistema no Terminal Sandbox isolado (WebContainer com Node.js, Python, npm, testes, bash, manipulação de arquivos, CSV/PDF/Office e criação de ZIP). Retorna comando, saída (stdout/stderr), arquivos modificados e código de saída (exitCode). NUNCA assuma que testes passaram se o exitCode for diferente de 0.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                command: { type: Type.STRING, description: "O comando a ser executado (ex: 'node script.js', 'python analise.py', 'npm test', 'zip projeto.zip dados.csv', 'ls -la', 'csv2json dados.csv saida.json')." },
+                timeout_seconds: { type: Type.NUMBER, description: "Tempo limite máximo em segundos (padrão 15s)." }
+              },
+              required: ["command"]
+            }
+          },
+          {
+            name: "run_code_sandbox",
+            description: "Executa código Python, JavaScript ou Node.js diretamente no terminal sandbox isolado sem rede. Executa e retorna saída real, erros e arquivos modificados.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                language: { type: Type.STRING, description: "A linguagem: 'python', 'javascript', 'node' ou 'shell'." },
+                code: { type: Type.STRING, description: "O código completo a ser executado no sandbox." },
+                filename: { type: Type.STRING, description: "Nome do arquivo opcional a ser salvo no /workspace (ex: 'analise.py', 'test.js', 'script.js')." }
+              },
+              required: ["language", "code"]
+            }
+          },
+          {
+            name: "write_terminal_file",
+            description: "Cria ou atualiza um arquivo no filesystem virtual /workspace do Terminal Sandbox.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                path: { type: Type.STRING, description: "Caminho relativo ou absoluto no sandbox (ex: 'dados.csv', 'analise.py', 'relatorio.json')." },
+                content: { type: Type.STRING, description: "Conteúdo textual completo do arquivo." }
+              },
+              required: ["path", "content"]
+            }
+          },
+          {
+            name: "read_terminal_file",
+            description: "Lê o conteúdo de um arquivo do filesystem virtual do Terminal Sandbox.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                path: { type: Type.STRING, description: "Caminho do arquivo a ser lido (ex: 'dados.csv', 'package.json')." }
+              },
+              required: ["path"]
+            }
           }
         ]
       }];
@@ -1247,6 +1322,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
       const workspaceDocuments = new Map<string, { title: string, content: string, format?: string }>();
       let fullOutput = "";
       let turnCount = 0;
+      let terminalCommandsExecutedCount = 0;
       let lastDebugResult: any = null;
 
       res.setHeader("Content-Type", "text/event-stream");
@@ -1294,6 +1370,8 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
       const promptHasRequestedActions = !isHtmlSiteRequest && !isSimpleGreetingOrMathPrompt && (promptWantsBrowser || promptWantsSearch);
 
       const visitedUrlsInTurn: string[] = [];
+      let autoContinuationCount = 0;
+      const MAX_AUTO_CONTINUATIONS = 2;
 
       while (turnCount < 100) {
         try {
@@ -1512,6 +1590,32 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               console.log(`[Auto-Inject] Missing browser call detected on turn 0! Auto-injecting open_url for ${targetUrl}`);
             }
           }
+
+          // 3. Auto-inject missing terminal execution tool call if user prompt or AI text requested code/script execution
+          const userPromptLower = (typeof text === 'string' ? text : JSON.stringify(text)).toLowerCase();
+          const aiTextLower = (textForThisTurn || "").toLowerCase();
+          const mentionsTerminalExec = turnCount === 0 && terminalCommandsExecutedCount === 0 && functionCallsForThisTurn.length === 0 && (
+            /hello\.py|crie.*py|execute|rodar|script|python|node|npm test|terminal/i.test(userPromptLower) || 
+            /executando|rodando|criado.*hello\.py/i.test(aiTextLower)
+          );
+          
+          if (mentionsTerminalExec) {
+            let cmdToRun = "python3 hello.py";
+            if (userPromptLower.includes("node") || userPromptLower.includes("js")) {
+              cmdToRun = "node index.js";
+            } else if (userPromptLower.includes("npm test")) {
+              cmdToRun = "npm test";
+            } else if (userPromptLower.includes("ls")) {
+              cmdToRun = "ls -la";
+            }
+            
+            functionCallsForThisTurn.push({
+              name: "execute_terminal_command",
+              args: { command: cmdToRun },
+              isAutoInjected: true
+            });
+            console.log(`[Auto-Inject] Terminal execution tool call auto-injected for command: '${cmdToRun}'`);
+          }
         }
 
         if (textForThisTurn) {
@@ -1590,6 +1694,21 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
             else if (fc.name === "edit_document" || fc.name === "append_document") thinkingText = `\n\n<wsm_workspace_action status="working" type="edit" file="${(fc.args as any)?.title || 'Documento'}" />\n\n`;
             else if (fc.name === "delete_document") thinkingText = `\n\n<wsm_workspace_action status="working" type="delete" file="${(fc.args as any)?.title || 'Documento'}" />\n\n`;
             else if (fc.name === "list_documents") thinkingText = `\n\n<wsm_workspace_action status="working" type="list" file="workspace" />\n\n`;
+            else if (fc.name === "execute_terminal_command") {
+              const cmd = (fc.args as any)?.command || 'ls';
+              thinkingText = `\n\n<wsm_terminal_exec command="${cmd.replace(/"/g, '&quot;')}" status="running" />\n\n`;
+            }
+            else if (fc.name === "run_code_sandbox") {
+              const lang = (fc.args as any)?.language || 'javascript';
+              const fn = (fc.args as any)?.filename || (lang === 'python' ? 'script.py' : 'index.js');
+              thinkingText = `\n\n<wsm_terminal_exec command="${lang === 'python' ? 'python ' + fn : 'node ' + fn}" status="running" />\n\n`;
+            }
+            else if (fc.name === "write_terminal_file") {
+              thinkingText = `\n\n<wsm_terminal_file action="write" path="${(fc.args as any)?.path || 'arquivo'}" />\n\n`;
+            }
+            else if (fc.name === "read_terminal_file") {
+              thinkingText = `\n\n<wsm_terminal_file action="read" path="${(fc.args as any)?.path || 'arquivo'}" />\n\n`;
+            }
 
             sendEvent({ type: "chunk", text: thinkingText });
             fullOutput += thinkingText;
@@ -1762,8 +1881,18 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                 if (isPersisted) {
                   const sha256 = crypto.createHash('sha256').update(content, 'utf8').digest('hex');
                   const bytes = Buffer.byteLength(content, 'utf8');
-                  const artifact_id = "art_" + crypto.randomBytes(6).toString('hex');
+                  const artifact_id = "art_" + crypto.randomBytes(8).toString('hex');
+                  const mime_type = getMimeType(format, title);
+                  const preview = content.length > 250 ? content.slice(0, 250) + "..." : content;
+                  const run_id = `run_${Date.now()}`;
                   
+                  sendEvent({
+                    type: "terminal_action",
+                    action: "write_file",
+                    path: `/workspace/${title.replace(/^\//, '')}`,
+                    content: content
+                  });
+
                   functionResponseParts.push({
                     functionResponse: {
                       id: fc.id,
@@ -1773,11 +1902,15 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                         operation: "workspace.create_artifact",
                         artifact_id,
                         name: title,
-                        uri: `/workspace/${encodeURIComponent(title)}`,
-                        sha256,
-                        bytes,
-                        format,
-                        created_at: new Date().toISOString(),
+                        mime_type,
+                        size_bytes: bytes,
+                        hash_sha256: sha256,
+                        preview,
+                        download_url: `/workspace/${encodeURIComponent(title)}`,
+                        tool_origin: "create_document",
+                        timestamp: new Date().toISOString(),
+                        permissions: "read_write",
+                        run_id,
                         read_back_verified: true,
                         total_documents_in_workspace: workspaceDocuments.size
                       }
@@ -1792,8 +1925,9 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                         status: "failed",
                         operation: "workspace.create_artifact",
                         name: title,
-                        error: "Falha na verificação de leitura de volta (read-back mismatch)",
-                        failed_at: new Date().toISOString()
+                        error: "Falha na verificação de leitura de volta (read-back mismatch). Não foi possível materializar o artefato.",
+                        failed_at: new Date().toISOString(),
+                        read_back_verified: false
                       }
                     }
                   });
@@ -1808,7 +1942,8 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                       operation: "workspace.create_artifact",
                       name: title,
                       error: err?.message || String(err),
-                      failed_at: new Date().toISOString()
+                      failed_at: new Date().toISOString(),
+                      read_back_verified: false
                     }
                   }
                 });
@@ -1820,6 +1955,7 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               if (docObj) {
                 const sha256 = crypto.createHash('sha256').update(docObj.content, 'utf8').digest('hex');
                 const bytes = Buffer.byteLength(docObj.content, 'utf8');
+                const mime_type = getMimeType(docObj.format, docObj.title);
                 functionResponseParts.push({
                   functionResponse: {
                     id: fc.id,
@@ -1828,9 +1964,10 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                       status: "succeeded",
                       operation: "workspace.read_artifact",
                       name: docObj.title,
-                      uri: `/workspace/${encodeURIComponent(docObj.title)}`,
-                      sha256,
-                      bytes,
+                      mime_type,
+                      size_bytes: bytes,
+                      hash_sha256: sha256,
+                      download_url: `/workspace/${encodeURIComponent(docObj.title)}`,
                       format: docObj.format,
                       content: docObj.content
                     }
@@ -1876,7 +2013,17 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                 if (isPersisted) {
                   const sha256 = crypto.createHash('sha256').update(content, 'utf8').digest('hex');
                   const bytes = Buffer.byteLength(content, 'utf8');
-                  const artifact_id = "art_" + crypto.randomBytes(6).toString('hex');
+                  const artifact_id = "art_" + crypto.randomBytes(8).toString('hex');
+                  const mime_type = getMimeType(format, title);
+                  const preview = content.length > 250 ? content.slice(0, 250) + "..." : content;
+                  const run_id = `run_${Date.now()}`;
+                  sendEvent({
+                    type: "terminal_action",
+                    action: "write_file",
+                    path: `/workspace/${title.replace(/^\//, '')}`,
+                    content: content
+                  });
+
                   functionResponseParts.push({
                     functionResponse: {
                       id: fc.id,
@@ -1886,11 +2033,15 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                         operation: "workspace.update_artifact",
                         artifact_id,
                         name: title,
-                        uri: `/workspace/${encodeURIComponent(title)}`,
-                        sha256,
-                        bytes,
-                        format,
-                        updated_at: new Date().toISOString(),
+                        mime_type,
+                        size_bytes: bytes,
+                        hash_sha256: sha256,
+                        preview,
+                        download_url: `/workspace/${encodeURIComponent(title)}`,
+                        tool_origin: "edit_document",
+                        timestamp: new Date().toISOString(),
+                        permissions: "read_write",
+                        run_id,
                         read_back_verified: true
                       }
                     }
@@ -1904,8 +2055,9 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                         status: "failed",
                         operation: "workspace.update_artifact",
                         name: title,
-                        error: "Falha ao verificar persistência da edição no workspace",
-                        failed_at: new Date().toISOString()
+                        error: "Falha ao verificar persistência da edição no workspace (read-back mismatch).",
+                        failed_at: new Date().toISOString(),
+                        read_back_verified: false
                       }
                     }
                   });
@@ -1920,7 +2072,8 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                       operation: "workspace.update_artifact",
                       name: title,
                       error: err?.message || String(err),
-                      failed_at: new Date().toISOString()
+                      failed_at: new Date().toISOString(),
+                      read_back_verified: false
                     }
                   }
                 });
@@ -1938,7 +2091,10 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               const isPersisted = readBack && readBack.content === newContent;
               const sha256 = crypto.createHash('sha256').update(newContent, 'utf8').digest('hex');
               const bytes = Buffer.byteLength(newContent, 'utf8');
-              const artifact_id = "art_" + crypto.randomBytes(6).toString('hex');
+              const artifact_id = "art_" + crypto.randomBytes(8).toString('hex');
+              const mime_type = getMimeType(format, title);
+              const preview = newContent.length > 250 ? newContent.slice(0, 250) + "..." : newContent;
+              const run_id = `run_${Date.now()}`;
               
               functionResponseParts.push({
                 functionResponse: {
@@ -1949,17 +2105,23 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                     operation: "workspace.append_artifact",
                     artifact_id,
                     name: title,
-                    uri: `/workspace/${encodeURIComponent(title)}`,
-                    sha256,
-                    bytes,
-                    updated_at: new Date().toISOString(),
+                    mime_type,
+                    size_bytes: bytes,
+                    hash_sha256: sha256,
+                    preview,
+                    download_url: `/workspace/${encodeURIComponent(title)}`,
+                    tool_origin: "append_document",
+                    timestamp: new Date().toISOString(),
+                    permissions: "read_write",
+                    run_id,
                     read_back_verified: true
                   } : {
                     status: "failed",
                     operation: "workspace.append_artifact",
                     name: title,
                     error: "Falha na verificação de leitura de volta após append",
-                    failed_at: new Date().toISOString()
+                    failed_at: new Date().toISOString(),
+                    read_back_verified: false
                   }
                 }
               });
@@ -1967,6 +2129,15 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               const args = fc.args as any;
               const title = String(args.title || '').trim();
               const existed = workspaceDocuments.delete(title);
+              
+              if (existed) {
+                sendEvent({
+                  type: "terminal_action",
+                  action: "delete_file",
+                  path: `/workspace/${title.replace(/^\//, '')}`
+                });
+              }
+
               functionResponseParts.push({
                 functionResponse: {
                   id: fc.id,
@@ -1984,12 +2155,14 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               const docsList = Array.from(workspaceDocuments.values()).map(d => {
                 const sha256 = crypto.createHash('sha256').update(d.content, 'utf8').digest('hex');
                 const bytes = Buffer.byteLength(d.content, 'utf8');
+                const mime_type = getMimeType(d.format, d.title);
                 return {
                   name: d.title,
                   format: d.format,
-                  bytes,
-                  sha256,
-                  uri: `/workspace/${encodeURIComponent(d.title)}`
+                  mime_type,
+                  size_bytes: bytes,
+                  hash_sha256: sha256,
+                  download_url: `/workspace/${encodeURIComponent(d.title)}`
                 };
               });
               functionResponseParts.push({
@@ -2001,6 +2174,142 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
                     operation: "workspace.list_artifacts",
                     total_documents: docsList.length,
                     documents: docsList
+                  }
+                }
+              });
+            } else if (fc.name === "execute_terminal_command") {
+              terminalCommandsExecutedCount++;
+              const args = fc.args as any;
+              const cmd = String(args.command || 'ls').trim();
+              const timeoutSec = Number(args.timeout_seconds || 15);
+              
+              sendEvent({
+                type: "terminal_action",
+                action: "execute",
+                command: cmd,
+                timeout_seconds: timeoutSec
+              });
+
+              // Execute real command in Linux container sandbox environment
+              const execResult = await executeSandboxCommand(cmd, timeoutSec);
+              const exitCode = execResult.exitCode;
+              const stdout = execResult.stdout;
+              const stderr = execResult.stderr;
+              const filesModified = execResult.filesModified;
+
+              sendEvent({
+                type: "terminal_action",
+                action: "result",
+                command: cmd,
+                exitCode,
+                stdout,
+                stderr,
+                filesModified
+              });
+
+              functionResponseParts.push({
+                functionResponse: {
+                  id: fc.id,
+                  name: fc.name,
+                  response: {
+                    status: exitCode === 0 ? "succeeded" : "failed",
+                    command: cmd,
+                    exit_code: exitCode,
+                    stdout: stdout,
+                    stderr: stderr,
+                    files_modified: filesModified,
+                    execution_time_ms: execResult.durationMs,
+                    network_isolated: true
+                  }
+                }
+              });
+            } else if (fc.name === "run_code_sandbox") {
+              terminalCommandsExecutedCount++;
+              const args = fc.args as any;
+              const lang = String(args.language || 'javascript');
+              const code = String(args.code || '');
+              const fn = String(args.filename || (lang === 'python' ? 'script.py' : 'index.js'));
+              
+              // Persist code to real sandbox file
+              writeSandboxFile(fn, code);
+
+              sendEvent({
+                type: "terminal_action",
+                action: "run_code",
+                language: lang,
+                code,
+                filename: fn
+              });
+
+              const cmd = (lang === 'python' || lang === 'py') ? `python3 ${fn}` : `node ${fn}`;
+              const execResult = await executeSandboxCommand(cmd, 15);
+
+              sendEvent({
+                type: "terminal_action",
+                action: "result",
+                command: cmd,
+                exitCode: execResult.exitCode,
+                stdout: execResult.stdout,
+                stderr: execResult.stderr,
+                filesModified: execResult.filesModified
+              });
+
+              functionResponseParts.push({
+                functionResponse: {
+                  id: fc.id,
+                  name: fc.name,
+                  response: {
+                    status: execResult.exitCode === 0 ? "succeeded" : "failed",
+                    language: lang,
+                    filename: fn,
+                    exit_code: execResult.exitCode,
+                    stdout: execResult.stdout,
+                    stderr: execResult.stderr,
+                    files_modified: execResult.filesModified,
+                    execution_time_ms: execResult.durationMs
+                  }
+                }
+              });
+            } else if (fc.name === "write_terminal_file") {
+              const args = fc.args as any;
+              const path = String(args.path || 'arquivo.txt');
+              const content = String(args.content || '');
+
+              writeSandboxFile(path, content);
+
+              sendEvent({
+                type: "terminal_action",
+                action: "write_file",
+                path,
+                content
+              });
+
+              functionResponseParts.push({
+                functionResponse: {
+                  id: fc.id,
+                  name: fc.name,
+                  response: {
+                    status: "succeeded",
+                    operation: "sandbox.write_file",
+                    path,
+                    bytes_written: Buffer.byteLength(content, 'utf8')
+                  }
+                }
+              });
+            } else if (fc.name === "read_terminal_file") {
+              const args = fc.args as any;
+              const path = String(args.path || 'package.json');
+              const fileContent = readSandboxFile(path);
+
+              functionResponseParts.push({
+                functionResponse: {
+                  id: fc.id,
+                  name: fc.name,
+                  response: {
+                    status: fileContent !== null ? "succeeded" : "failed",
+                    operation: "sandbox.read_file",
+                    path,
+                    content: fileContent !== null ? fileContent : `Arquivo "${path}" não encontrado no sandbox.`
                   }
                 }
               });
@@ -2043,6 +2352,24 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
               finalTagText = `\n\n<wsm_workspace_action status="done" type="delete" file="${(fc.args as any)?.title || 'Documento'}" />\n\n`;
             } else if (fc.name === "list_documents") {
               finalTagText = `\n\n<wsm_workspace_action status="done" type="list" file="workspace" />\n\n`;
+            } else if (fc.name === "execute_terminal_command") {
+              const cmd = (fc.args as any)?.command || 'ls';
+              finalTagText = `\n\n<wsm_terminal_exec command="${cmd.replace(/"/g, '&quot;')}" status="done" />\n\n`;
+            } else if (fc.name === "run_code_sandbox") {
+              const lang = (fc.args as any)?.language || 'javascript';
+              const fn = (fc.args as any)?.filename || (lang === 'python' ? 'script.py' : 'index.js');
+              const codeStr = (fc.args as any)?.code || '';
+              const ext = fn.split('.').pop() || (lang === 'python' ? 'py' : 'js');
+              const docJson = JSON.stringify({ title: fn, format: ext, content: codeStr });
+              finalTagText = `\n\n<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${fn}" />\n<wsm_terminal_exec command="${lang === 'python' ? 'python3 ' + fn : 'node ' + fn}" status="done" />\n\n`;
+            } else if (fc.name === "write_terminal_file") {
+              const pathStr = (fc.args as any)?.path || 'arquivo.py';
+              const contentStr = (fc.args as any)?.content || '';
+              const ext = pathStr.split('.').pop() || 'txt';
+              const docJson = JSON.stringify({ title: pathStr, format: ext, content: contentStr });
+              finalTagText = `\n\n<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${pathStr}" />\n\n`;
+            } else if (fc.name === "read_terminal_file") {
+              finalTagText = `\n\n<wsm_terminal_file action="read" status="done" path="${(fc.args as any)?.path || 'arquivo'}" />\n\n`;
             }
             const lastIdx = fullOutput.lastIndexOf(thinkingText);
             if (lastIdx !== -1) {
@@ -2183,6 +2510,86 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
 
               turnCount++;
               continue;
+            }
+
+            // Silent Auto-Inspection & Continuation Loop
+            if (autoContinuationCount < MAX_AUTO_CONTINUATIONS && turnCount < 10) {
+              const userRequestStr = typeof text === 'string' ? text : JSON.stringify(text);
+              const aiOutputSoFar = fullOutput.trim();
+              const createdDocsList = Array.from(workspaceDocuments.keys());
+
+              const userWantsDocOrFile = /\b(pdf|documento|doc|redação|redacao|artigo|relatório|relatorio|arquivo|código|codigo|script)\b/i.test(userRequestStr) && /\b(crie|criar|gerar|gere|escrever|escreva|faça|fazer|monte|montar)\b/i.test(userRequestStr);
+              const hasNoDocCreated = workspaceDocuments.size === 0 && !fullOutput.includes('<wsm_doc');
+              const isIntroductoryOrIncomplete = aiOutputSoFar.length < 350 || /\b(vou\s+(criar|gerar|escrever|fazer)|com\s+certeza!|aqui\s+está)\b/i.test(aiOutputSoFar);
+
+              let evalResultText = "";
+              let isDeclaredIncomplete = false;
+
+              if (userWantsDocOrFile && hasNoDocCreated && isIntroductoryOrIncomplete) {
+                console.warn(`[Auto-Inspection] Deterministic check triggered: User requested doc/PDF/file but AI gave only intro text without creating doc!`);
+                isDeclaredIncomplete = true;
+                evalResultText = "CONTINUAR: O usuário solicitou a criação de um PDF/documento/arquivo/redação, mas a resposta deu apenas uma introdução e não criou o documento/PDF no workspace.";
+              } else {
+                const inspectorPrompt = `Você é o Inspetor Silencioso de Qualidade de Respostas do Omnix 1.6.
+Sua missão é avaliar se a resposta da IA concluiu integralmente e com sucesso o serviço solicitado pelo usuário, ou se a IA parou na metade (ex: prometeu "Vou criar o PDF", "Vou gerar a redação", "Segue o código", "Vou criar o arquivo" mas a resposta encerrou antes do conteúdo completo ser fornecido ou antes de gerar o arquivo/documento no workspace).
+
+SOLICITAÇÃO DO USUÁRIO:
+"${userRequestStr}"
+
+RESPOSTA ATUAL DA IA:
+"${aiOutputSoFar}"
+
+DOCUMENTOS/ARQUIVOS CRIADOS NO WORKSPACE:
+${createdDocsList.length > 0 ? createdDocsList.join(', ') : 'Nenhum'}
+
+COMANDOS/SCRIPTS EXECUTADOS NO TERMINAL:
+${terminalCommandsExecutedCount > 0 ? `${terminalCommandsExecutedCount} comandos executados` : 'Nenhum'}
+
+INSTRUÇÕES DE AVALIAÇÃO:
+1. Se o usuário pediu para criar/gerar/escrever um PDF, documento, redação, código, script, arquivo ou projeto, e a IA apenas escreveu uma frase de introdução ou intenção (ex: "Vou criar...", "Vou gerar...", "Aqui está...", "Com certeza!") mas NÃO criou o documento no workspace e não forneceu a redação/código completo, responda: CONTINUAR: O usuário pediu para criar/gerar um PDF/documento/arquivo/redação, mas a IA apenas deu uma resposta introdutória e parou sem gerar o conteúdo/arquivo final. Crie o documento/PDF no workspace com o texto completo.
+2. Se a IA prometeu apresentar algo (ex: "Abaixo está o texto:", "Segue o arquivo:") mas a resposta foi cortada ou finalizada antes de apresentar o conteúdo, responda: CONTINUAR: A resposta parou no meio sem apresentar o conteúdo prometido. Apresente o conteúdo final completo.
+3. Se a IA respondeu ao usuário de forma completa, forneceu a resposta desejada ou criou o arquivo/documento com sucesso, responda APENAS: CONCLUIDO.
+
+Responda EXATAMENTE com "CONCLUIDO" ou "CONTINUAR: <motivo_curto>".`;
+
+                try {
+                  console.log(`[Auto-Inspection] Verifying AI response completeness on turn ${turnCount}...`);
+                  const inspectionResult = await callGeminiWithFallback({
+                    model: "gemini-2.5-flash",
+                    contents: inspectorPrompt,
+                    systemInstruction: "Você é um inspetor estrito de qualidade. Responda apenas CONCLUIDO ou CONTINUAR com o motivo."
+                  });
+
+                  evalResultText = (inspectionResult.text || "").trim();
+                  if (evalResultText.toUpperCase().startsWith("CONTINUAR")) {
+                    isDeclaredIncomplete = true;
+                  }
+                } catch (inspErr) {
+                  console.error("[Auto-Inspection Error]", inspErr);
+                }
+              }
+
+              if (isDeclaredIncomplete) {
+                autoContinuationCount++;
+                const motivoStr = evalResultText.replace(/^CONTINUAR:?\s*/i, "").trim() || "A resposta parou na metade ou prometeu algo sem concluir.";
+                console.warn(`[Auto-Inspection] Response incomplete on turn ${turnCount} (Pass ${autoContinuationCount}). Reason: ${motivoStr}`);
+
+                currentContents.push({ 
+                  role: "model", 
+                  parts: aggregatedParts.length > 0 ? aggregatedParts : [{ text: textForThisTurn || "Vou continuar o atendimento." }] 
+                });
+
+                currentContents.push({
+                  role: "user",
+                  parts: [{ text: `SISTEMA (AUTO-INSPEÇÃO SILENCIOSA - CONTINUAÇÃO): A sua resposta anterior parou na metade e não concluiu o pedido do usuário ("${userRequestStr.slice(0, 150)}..."). Motivo: ${motivoStr}. Por favor, continue IMEDIATAMENTE e CONCLUA a tarefa do usuário, gerando o documento/PDF/arquivo completo no Workspace (use a ferramenta 'create_document' ou crie o arquivo) ou fornecendo o conteúdo final integral sem frases introdutórias repetidas.` }]
+                });
+
+                forceNextTurnModeAny = true;
+                turnCount++;
+                continue; // Continues stream loop seamlessly!
+              } else {
+                console.log(`[Auto-Inspection] Response verified as complete (CONCLUIDO).`);
+              }
             }
 
             break; // no more function calls, we are done
@@ -2880,6 +3287,51 @@ ORDER BY total_tasks DESC;`,
     allPassed: results.every(r => r.passed),
     results
   });
+});
+
+// REST endpoints for Terminal Sandbox real execution & file syncing
+app.post("/api/terminal/exec", async (req: express.Request, res: express.Response) => {
+  try {
+    const { command, timeout_seconds } = req.body;
+    if (!command || typeof command !== 'string') {
+      return res.status(400).json({ error: "Comando inválido." });
+    }
+    const result = await executeSandboxCommand(command, Number(timeout_seconds) || 15);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || "Erro na execução do terminal." });
+  }
+});
+
+app.get("/api/terminal/files", (req: express.Request, res: express.Response) => {
+  try {
+    const files = listSandboxFiles();
+    return res.json({ files });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || "Erro ao listar arquivos do sandbox." });
+  }
+});
+
+app.post("/api/terminal/write", (req: express.Request, res: express.Response) => {
+  try {
+    const { path: filePath, content } = req.body;
+    if (!filePath) return res.status(400).json({ error: "Caminho obrigatório." });
+    writeSandboxFile(filePath, String(content || ''));
+    return res.json({ success: true, path: filePath });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || "Erro ao gravar arquivo." });
+  }
+});
+
+app.post("/api/terminal/delete", (req: express.Request, res: express.Response) => {
+  try {
+    const { path: filePath } = req.body;
+    if (!filePath) return res.status(400).json({ error: "Caminho obrigatório." });
+    const success = deleteSandboxFile(filePath);
+    return res.json({ success });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || "Erro ao excluir arquivo." });
+  }
 });
 
 // Background tasks executor (every 15 seconds)

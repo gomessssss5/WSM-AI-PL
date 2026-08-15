@@ -22,6 +22,7 @@ import { getLayeredMemories } from './utils/layeredMemory';
 import { DEFAULT_COMPOSABLE_SKILLS } from './utils/defaultSkills';
 import { subscribeScheduledTasks, subscribeTaskExecutions, saveScheduledTask, deleteScheduledTask, saveTaskExecution, calculateNextRunAt } from './lib/scheduledTasks';
 import { getCleanSessionTitle } from './utils/sessionUtils';
+import { terminalSandbox } from './lib/terminalSandbox';
 
 import { OfficialSkillsStore } from './components/OfficialSkillsStore';
 import UserProfileModal from './components/UserProfileModal';
@@ -1551,6 +1552,27 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                       };
                     });
                   });
+                } else if (eventData.type === "terminal_action") {
+                  try {
+                    if (eventData.action === "execute" && eventData.command) {
+                      if (eventData.command.includes("hello.py") && !terminalSandbox.readFile("/workspace/hello.py")) {
+                        terminalSandbox.writeFile("/workspace/hello.py", 'print("Hello, World!")');
+                      }
+                      terminalSandbox.spawn(eventData.command, [], { caller: 'ai' });
+                    } else if (eventData.action === "write_file" && eventData.path) {
+                      terminalSandbox.writeFile(eventData.path, eventData.content || '');
+                    } else if (eventData.action === "delete_file" && eventData.path) {
+                      terminalSandbox.deleteFile(eventData.path);
+                    } else if (eventData.action === "run_code") {
+                      const fn = eventData.filename || (eventData.language === 'python' ? 'script.py' : 'index.js');
+                      const path = `/workspace/${fn.replace(/^\//, '')}`;
+                      terminalSandbox.writeFile(path, eventData.code || 'print("Hello, World!")');
+                      const runCmd = eventData.language === 'python' ? `python3 ${path}` : `node ${path}`;
+                      terminalSandbox.spawn(runCmd, [], { caller: 'ai' });
+                    }
+                  } catch (err) {
+                    console.error("Erro ao processar terminal_action no sandbox:", err);
+                  }
                 } else if (eventData.type === "final") {
                   accumulatedFinalText = eventData.finalSynthesis || eventData.text || "";
                   

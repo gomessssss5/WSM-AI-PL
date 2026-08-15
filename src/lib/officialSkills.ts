@@ -13,10 +13,12 @@ export const OFFICIAL_SKILLS: Skill[] = [
     input_schema: '{"prompt": "string", "theme": "string?", "sections": "string[]?"}',
     output_schema: '{"html": "string (Standalone Document)", "assets": "CDN URLs"}',
     estimated_time: '< 10s',
+    estimated_cost: '0.002 créditos',
     compatibility: 'Navegadores Modernos (HTML5, Tailwind 3/4)',
     limits: 'Máx. 50KB HTML em arquivo único',
     approval_policy: 'Aprovação Automática',
     acceptance_tests: ['Checklist 9 itens HTML/CDN passados', 'Layout responsivo em 320px e 1920px'],
+    expected_artifacts: ['index.html (Standalone)', 'assets/cdn'],
     content: `# Web Moderno 2026 — v2 (Skill de Geração de Sites HTML/CSS)
 
 Você é um engenheiro front-end sênior especializado em interfaces de altíssima fidelidade visual. Cada entrega deve parecer um produto de uma agência premium, não um template genérico gerado por IA.
@@ -160,10 +162,12 @@ Antes de responder com o código final, verifique:
     input_schema: '{"prompt": "string", "language": "string", "isolated_sandbox": "boolean"}',
     output_schema: '{"files": "Record<string, string>", "test_suite": "string", "hash": "sha256"}',
     estimated_time: '< 15s',
+    estimated_cost: '0.005 créditos',
     compatibility: 'Python 3.10+, TS 5.0+, Node 18+, Go 1.20+',
     limits: 'Isolamento em Container / Processo Seguro',
     approval_policy: 'Requer Validação Sandbox',
     acceptance_tests: ['Zero Placeholders', 'Suíte de Testes com Pass/Fail', 'Análise Estática Linter'],
+    expected_artifacts: ['src/main.ts', 'src/types.ts', 'tests/unit.test.ts'],
     content: `# Codegen Elite — Skill de Geração de Código (v1)
 
 Você atua como um Desenvolvedor Principal 10x. Seu código é impecável, arquitetonicamente sólido, tipado e feito para ir direto para produção sem refatoração. Você não faz esboços, você faz engenharia.
@@ -234,10 +238,12 @@ Se tudo estiver verde, entregue o código.`
     input_schema: '{"prompt": "string", "register": "informal | formal | academic", "audience": "string?"}',
     output_schema: '{"text": "string"}',
     estimated_time: '< 5s',
+    estimated_cost: '0.001 créditos',
     compatibility: 'Geral (PT-BR)',
     limits: 'Sem jargões robóticos / Clichês banidos',
     approval_policy: 'Aprovação Automática',
     acceptance_tests: ['Checklist 9 itens de humanização passados', 'Zero uso de clichês banidos'],
+    expected_artifacts: ['documento_humanizado.md'],
     content: `# Escrita Humanizada — Skill (v1)
 
 Você escreve como uma pessoa competente escrevendo pra outra pessoa — não como um relatório corporativo, nem como um texto que "parece gerado por IA". **Isso vale pra qualquer texto que você gerar, sem exceção**: resposta de chat, e-mail, post, redação, resposta de pergunta de livro didático, trabalho escolar, resumo de pesquisa, texto técnico, o que for. Não é uma skill "de redação" — é a forma padrão de escrever, sempre.
@@ -335,10 +341,12 @@ Se qualquer item falhar, reescreva antes de entregar.`
     input_schema: '{"prompt": "string", "genre": "string?", "angle": "string?"}',
     output_schema: '{"creative_content": "string"}',
     estimated_time: '< 8s',
+    estimated_cost: '0.002 créditos',
     compatibility: 'Geral',
     limits: 'Proibido clichês de metáforas batidas',
     approval_policy: 'Aprovação Automática',
     acceptance_tests: ['Avaliação de Metáforas Inéditas', 'Abertura Não-Previsível'],
+    expected_artifacts: ['narrativa_criativa.md'],
     content: `# Escrita Criativa & Ideação — Skill (v1)
 
 Esta skill entra em ação sempre que a tarefa pede ideia, imaginação, originalidade ou uma abordagem que não é a óbvia: histórias, poemas, redações criativas, brainstorm, títulos, metáforas, roteiros, nomes, conceitos, virada de perspectiva num tema comum.

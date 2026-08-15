@@ -1,7 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Paperclip, Globe, Monitor, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain, Languages, ChevronDown, ChevronRight, Sparkles, Calculator, Clock, Video, Volume2, FileText, AlertCircle, X, Check, Menu, FileCode2, Files, BookOpen, MessageCircleDashed, Plus, Camera, Bug, Search, Map } from 'lucide-react';
-import { Skill } from '../lib/skills';
+import { Skill, buildDeclarativeSkillManifest } from '../lib/skills';
+import { OFFICIAL_SKILLS } from '../lib/officialSkills';
+import { DeclarativeSkillComposer } from './DeclarativeSkillComposer';
 import { Draft } from '../types';
 
 const RANDOM_HEADLINES = [
@@ -91,6 +93,7 @@ export default function MainHome({
   const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
   const [isSkillsSubMenuOpen, setIsSkillsSubMenuOpen] = useState(false);
   const [activeSkills, setActiveSkills] = useState<Skill[]>([]);
+  const [skillMode, setSkillMode] = useState<'uma_skill' | 'pipeline'>('uma_skill');
 
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
 
@@ -421,9 +424,19 @@ export default function MainHome({
     { id: '/relogio', name: 'relogio', description: 'Relógio e Data Atual', icon: Clock, color: 'text-orange-500' }
   ];
 
+  const allSkillsList = useMemo(() => {
+    const combined = [...OFFICIAL_SKILLS];
+    skills.forEach(s => {
+      if (!combined.find(os => os.id === s.id)) {
+        combined.push(s);
+      }
+    });
+    return combined;
+  }, [skills]);
+
   const slashItems = [
     ...marteTools,
-    ...skills.map(skill => ({
+    ...allSkillsList.map(skill => ({
       id: `/${skill.id}`,
       name: skill.name,
       description: skill.description,
@@ -485,6 +498,7 @@ export default function MainHome({
       
       if (item.isSkill) {
         setActiveSkills(prev => {
+          if (skillMode === 'uma_skill') return [item.skillObj];
           if (!prev.find(s => s.id === item.skillObj.id)) {
             return [...prev, item.skillObj];
           }
@@ -725,8 +739,8 @@ export default function MainHome({
 
     let textToSend = inputValue;
     if (activeSkills.length > 0) {
-      const skillsText = activeSkills.map(s => '/' + s.name).join(', ');
-      textToSend = `[Utilize as seguintes skills: ${skillsText}]\n\n${inputValue}`;
+      const manifest = buildDeclarativeSkillManifest(activeSkills, skillMode);
+      textToSend = `${manifest}\n\n[SOLICITAÇÃO DO USUÁRIO]:\n${inputValue}`;
     }
 
     onSendMessage(textToSend, isSearchEnabled, undefined, attachments, false, isComputerEnabled);
@@ -1180,21 +1194,15 @@ export default function MainHome({
             </div>
           )}
 
-          {/* Active Skills Chips */}
-          {activeSkills.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              {activeSkills.map(skill => (
-                <div 
-                  key={skill.id}
-                  className="flex items-center gap-1 bg-black/10 dark:bg-white/10 text-black dark:text-white px-2 py-0.5 rounded flex-shrink-0 cursor-pointer hover:bg-black/20 dark:bg-white/20 transition-colors"
-                  onClick={() => setActiveSkills(prev => prev.filter(s => s.id !== skill.id))}
-                >
-                  <span className="font-bold text-[13px]">/{skill.name}</span>
-                  <X className="w-3 h-3" />
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Declarative Skill / Pipeline Composer */}
+          <DeclarativeSkillComposer
+            activeSkills={activeSkills}
+            setActiveSkills={setActiveSkills}
+            skillMode={skillMode}
+            setSkillMode={setSkillMode}
+            availableSkills={allSkillsList}
+            onOpenCatalog={onOpenStore}
+          />
 
           {/* Voice recording UI mode OR standard input area */}
           {isListening ? (
@@ -1308,23 +1316,32 @@ export default function MainHome({
                             <span className="text-[12px] font-medium">Voltar</span>
                           </button>
                           <div className="max-h-48 overflow-y-auto">
-                            {skills.length === 0 ? (
+                            {allSkillsList.length === 0 ? (
                               <div className="px-3 py-4 text-center">
                                 <p className="text-[12px] text-gray-500">Nenhuma Skill instalada</p>
                               </div>
                             ) : (
-                              skills.map(skill => (
+                              allSkillsList.map(skill => (
                                 <button
                                   key={skill.id}
                                   onClick={() => {
-                                    setActiveSkills(prev => { if(!prev.find(s=>s.id===skill.id)) return [...prev, skill]; return prev; });
+                                    setActiveSkills(prev => {
+                                      if (skillMode === 'uma_skill') return [skill];
+                                      if (!prev.find(s => s.id === skill.id)) return [...prev, skill];
+                                      return prev;
+                                    });
                                     setIsAttachMenuOpen(false);
                                     setIsSkillsSubMenuOpen(false);
                                   }}
-                                  className="w-full text-left px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 transition-colors cursor-pointer"
+                                  className="w-full text-left px-3 py-2 rounded-lg flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
                                 >
-                                  <FileCode2 className="w-3.5 h-3.5 text-gray-900" />
-                                  <span className="text-[13px] font-medium text-gray-700">{skill.name}</span>
+                                  <div className="flex items-center gap-2">
+                                    <FileCode2 className="w-3.5 h-3.5 text-gray-900 dark:text-gray-100" />
+                                    <span className="text-[13px] font-medium text-gray-700 dark:text-gray-200 font-mono">/{skill.name}</span>
+                                  </div>
+                                  {skill.version && (
+                                    <span className="text-[10px] text-gray-400 font-mono">v{skill.version}</span>
+                                  )}
                                 </button>
                               ))
                             )}

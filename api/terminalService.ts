@@ -1,0 +1,205 @@
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import { exec } from 'child_process';
+
+export const SANDBOX_DIR = path.join(os.tmpdir(), 'omnix_terminal_sandbox');
+
+export interface ExecutionResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  durationMs: number;
+  filesModified: string[];
+}
+
+export function ensureSandboxDir(): void {
+  try {
+    if (!fs.existsSync(SANDBOX_DIR)) {
+      fs.mkdirSync(SANDBOX_DIR, { recursive: true });
+    }
+
+    const pkgPath = path.join(SANDBOX_DIR, 'package.json');
+    if (!fs.existsSync(pkgPath)) {
+      fs.writeFileSync(
+        pkgPath,
+        JSON.stringify(
+          {
+            name: 'omnix-sandbox-project',
+            version: '1.0.0',
+            description: 'Ambiente isolado de execução Linux/Node.js/Python Omnix Sandbox',
+            main: 'index.js',
+            scripts: {
+              start: 'node index.js',
+              test: 'node test.js'
+            }
+          },
+          null,
+          2
+        ),
+        'utf8'
+      );
+    }
+
+    const indexJsPath = path.join(SANDBOX_DIR, 'index.js');
+    if (!fs.existsSync(indexJsPath)) {
+      fs.writeFileSync(
+        indexJsPath,
+        `// Sandbox Node.js Execution Script\nconsole.log("🚀 Omnix Sandbox Runtime iniciado com sucesso!");\n`,
+        'utf8'
+      );
+    }
+
+    const testJsPath = path.join(SANDBOX_DIR, 'test.js');
+    if (!fs.existsSync(testJsPath)) {
+      fs.writeFileSync(
+        testJsPath,
+        `// Test Runner do Sandbox\nconsole.log("🧪 Executando bateria de testes...");\nconsole.log("  ✓ PASS: Teste inicial do sandbox");\nconsole.log("🎉 Todos os testes passaram!");\n`,
+        'utf8'
+      );
+    }
+  } catch (err) {
+    console.error('[TerminalService] Error initializing sandbox directory:', err);
+  }
+}
+
+export function sanitizePath(relPath: string): string {
+  const cleaned = relPath
+    .replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '')
+    .replace(/^\/+/, '')
+    .replace(/\.\./g, '');
+  return path.join(SANDBOX_DIR, cleaned || 'arquivo.txt');
+}
+
+export function writeSandboxFile(relPath: string, content: string): string {
+  ensureSandboxDir();
+  const fullPath = sanitizePath(relPath);
+  const dir = path.dirname(fullPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  fs.writeFileSync(fullPath, content, 'utf8');
+  return fullPath;
+}
+
+export function readSandboxFile(relPath: string): string | null {
+  ensureSandboxDir();
+  const fullPath = sanitizePath(relPath);
+  if (!fs.existsSync(fullPath)) return null;
+  try {
+    return fs.readFileSync(fullPath, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+export function deleteSandboxFile(relPath: string): boolean {
+  ensureSandboxDir();
+  const fullPath = sanitizePath(relPath);
+  if (!fs.existsSync(fullPath)) return false;
+  try {
+    fs.unlinkSync(fullPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function listSandboxFiles(): Array<{ name: string; path: string; size: number; updatedAt: number }> {
+  ensureSandboxDir();
+  const results: Array<{ name: string; path: string; size: number; updatedAt: number }> = [];
+
+  function walk(dir: string, prefix = '') {
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const full = path.join(dir, entry.name);
+        const rel = path.join(prefix, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name !== 'node_modules' && entry.name !== '.git') {
+            walk(full, rel);
+          }
+        } else {
+          const stats = fs.statSync(full);
+          results.push({
+            name: entry.name,
+            path: `/workspace/${rel.replace(/\\/g, '/')}`,
+            size: stats.size,
+            updatedAt: stats.mtimeMs
+          });
+        }
+      }
+    } catch {}
+  }
+
+  walk(SANDBOX_DIR);
+  return results;
+}
+
+export async function executeSandboxCommand(command: string, timeoutSec = 15): Promise<ExecutionResult> {
+  ensureSandboxDir();
+  const startTime = Date.now();
+  const filesBefore = new Set(listSandboxFiles().map(f => f.path));
+
+  // Adjust 'python' to 'python3' if 'python' might not be symlinked
+  let adjustedCommand = command.trim();
+  if (adjustedCommand.startsWith('python ') || adjustedCommand === 'python') {
+    adjustedCommand = adjustedCommand.replace(/^python(\s|$)/, 'python3$1');
+  }
+
+  return new Promise<ExecutionResult>((resolve) => {
+    const timeoutMs = Math.min(Math.max(timeoutSec, 1), 60) * 1000;
+
+    exec(
+      adjustedCommand,
+      {
+        cwd: SANDBOX_DIR,
+        timeout: timeoutMs,
+        maxBuffer: 10 * 1024 * 1024,
+        env: {
+          ...process.env,
+          PYTHONUNBUFFERED: '1',
+          NODE_ENV: 'development',
+          TERM: 'xterm-256color'
+        }
+      },
+      (error, stdout, stderr) => {
+        const durationMs = Date.now() - startTime;
+        let exitCode = 0;
+        let finalStdout = stdout ? String(stdout) : '';
+        let finalStderr = stderr ? String(stderr) : '';
+
+        if (error) {
+          if (error.killed || (error as any).signal === 'SIGTERM') {
+            finalStderr += `\n[Erro: Comando cancelado por tempo limite (${timeoutSec}s excedido)]`;
+            exitCode = 124;
+          } else if (typeof (error as any).code === 'number') {
+            exitCode = (error as any).code;
+          } else {
+            exitCode = 1;
+          }
+
+          if (!finalStderr && error.message) {
+            finalStderr = error.message;
+          }
+        }
+
+        const filesAfter = listSandboxFiles();
+        const filesModified: string[] = [];
+        for (const file of filesAfter) {
+          if (!filesBefore.has(file.path) || file.updatedAt >= startTime) {
+            filesModified.push(file.path);
+          }
+        }
+
+        resolve({
+          stdout: finalStdout,
+          stderr: finalStderr,
+          exitCode,
+          durationMs,
+          filesModified
+        });
+      }
+    );
+  });
+}

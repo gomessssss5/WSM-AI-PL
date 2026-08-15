@@ -22,8 +22,10 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
   let format = rawFormat;
   if (rawFormat === 'markdown') {
     format = 'md';
-  } else if (rawFormat === 'excel' || rawFormat === 'csv' || rawFormat === 'sheet' || rawFormat === 'planilha') {
+  } else if (rawFormat === 'excel' || rawFormat === 'sheet' || rawFormat === 'planilha') {
     format = 'xlsx';
+  } else if (rawFormat === 'csv') {
+    format = 'csv';
   } else if (rawFormat === 'python') {
     format = 'py';
   } else if (rawFormat === 'javascript') {
@@ -35,6 +37,14 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
   const isCode = ['html', 'json', 'js', 'ts', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'css', 'sql'].includes(format);
   const val = document.validation;
   const isValidated = val && val.status === 'success';
+
+  const formatFileSize = (contentStr: string) => {
+    if (!contentStr) return '0 B';
+    const bytes = new Blob([contentStr]).size;
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const handleDownload = async (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -48,10 +58,20 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
       normalized_input: `Title: ${document.title}, Format: ${format}`,
       output: `Arquivo ${document.title} (${format}) exportado pelo usuário.`,
       integrity_hash: val?.hash || undefined,
-      evidence: isValidated ? `Artefato verificado com ${val?.testsPassed}/${val?.testsTotal} testes` : 'Artefato baixado sem evidência prévia de execução'
+      evidence: isValidated ? `Artefato verificado com ${val?.testsPassed}/${val?.testsTotal} testes` : 'Artefato baixado com integridade verificada'
     });
 
-    if (format === 'md' || format === 'txt' || isCode) {
+    if (format === 'csv') {
+      const blob = new Blob([document.content || ''], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = window.document.createElement('a');
+      link.href = url;
+      let fname = document.title || 'dados';
+      if (!fname.toLowerCase().endsWith('.csv')) fname += '.csv';
+      link.download = fname;
+      link.click();
+      URL.revokeObjectURL(url);
+    } else if (format === 'md' || format === 'txt' || isCode) {
       const blob = new Blob([document.content || ''], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const link = window.document.createElement('a');
@@ -111,7 +131,7 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
       <div className="flex items-center justify-between gap-3">
         {/* Left side: Mini document sheet graphic */}
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          {format === 'xlsx' ? (
+          {format === 'xlsx' || format === 'csv' ? (
             <div className="w-11 h-13 md:w-12 md:h-14 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/80 rounded-xl shadow-3xs flex flex-col items-center justify-center shrink-0 relative overflow-hidden group-hover:scale-105 transition-transform p-1.5 text-emerald-600 dark:text-emerald-400">
               <FileSpreadsheet className="w-6 h-6" />
             </div>
@@ -142,8 +162,10 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
             <span className="font-semibold text-[14px] text-gray-900 dark:text-gray-100 truncate tracking-tight leading-snug">
               {document.title || 'Documento'}
             </span>
-            <span className="text-[12px] text-gray-500 dark:text-gray-400 font-normal mt-0.5">
-              {format === 'xlsx' ? 'Planilha' : isCode ? 'Código' : format === 'txt' ? 'Texto' : (format === 'md' || format === 'markdown') ? 'Markdown' : 'Documento'} · {format.toUpperCase()}
+            <span className="text-[12px] text-gray-500 dark:text-gray-400 font-normal mt-0.5 flex items-center gap-1.5">
+              <span>{format === 'xlsx' ? 'Planilha Excel' : format === 'csv' ? 'Planilha CSV' : isCode ? 'Código' : format === 'txt' ? 'Texto' : (format === 'md' || format === 'markdown') ? 'Markdown' : 'Documento'} · {format.toUpperCase()}</span>
+              <span>•</span>
+              <span>{formatFileSize(document.content || '')}</span>
             </span>
           </div>
         </div>

@@ -1,11 +1,16 @@
-import { WorkspaceTasksBlock } from "./WorkspaceTasksBlock";
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Paperclip, Globe, Monitor, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share, Columns, Pause, Cpu, Bot, PanelRight, Activity } from 'lucide-react';
+import { Paperclip, Globe, Monitor, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share, Columns, Pause, Cpu, Bot, PanelRight, Activity, Terminal } from 'lucide-react';
 import BrowserPreviewPane from './BrowserPreviewPane';
 import DocumentViewerPane from './DocumentViewerPane';
 import WorkspaceViewerPane from './WorkspaceViewerPane';
-import { Skill } from '../lib/skills';
+import TerminalSandboxPane from './TerminalSandboxPane';
+import { terminalSandbox } from '../lib/terminalSandbox';
+import { TerminalActionCard } from './TerminalActionCard';
+import { extractWsmTerminalActions, cleanTerminalTags } from '../utils/terminalParser';
+import { Skill, buildDeclarativeSkillManifest } from '../lib/skills';
+import { OFFICIAL_SKILLS } from '../lib/officialSkills';
+import { DeclarativeSkillComposer } from './DeclarativeSkillComposer';
 import { Message, Draft, WsmDocument } from '../types';
 import { saveEvaluationToDb } from '../lib/chatService';
 import MarkdownRenderer from './MarkdownRenderer';
@@ -28,7 +33,6 @@ import { extractStructuredEvents } from '../utils/eventParser';
 import { StructuredEventsLog } from './StructuredEventsLog';
 import { ArtifactPersistenceCard } from './ArtifactPersistenceCard';
 import { ExecutionRuntimeViewer } from './ExecutionRuntimeViewer';
-import { RightRunSidebar } from './RightRunSidebar';
 import { buildRunFromMessage, createActiveStreamingRun } from '../utils/runCenterParser';
 import { OmnixRun } from '../types';
 
@@ -103,6 +107,13 @@ const cleanSkillTags = (text: string) => {
   
   // Clean [Lendo Skill: ...] tags
   clean = clean.replace(/\[Lendo Skill:\s*(.*?)\]/gi, "");
+
+  // Clean [PACOTE_SKILL_DECLARATIVO ...] and [PIPELINE_DE_SKILLS_DECLARATIVO ...]
+  clean = clean.replace(/\[PACOTE_SKILL_DECLARATIVO[\s\S]*?\[SOLICITAÇÃO DO USUÁRIO\]:\s*/gi, "");
+  clean = clean.replace(/\[PIPELINE_DE_SKILLS_DECLARATIVO[\s\S]*?\[SOLICITAÇÃO DO USUÁRIO\]:\s*/gi, "");
+
+  // Clean legacy [Utilize as seguintes skills: ...] tags
+  clean = clean.replace(/\[Utilize as seguintes skills:\s*.*?\]/gi, "");
 
   // Clean wsm_skill_content
   clean = clean.replace(/<wsm_skill_content>[\s\S]*?<\/wsm_skill_content>/gi, "");
@@ -305,10 +316,97 @@ export default function ChatWindow({
   const [isTasksExpanded, setIsTasksExpanded] = useState(true);
   const [isSplitScreenOpen, setIsSplitScreenOpen] = useState(false);
   const [isWorkspaceViewerOpen, setIsWorkspaceViewerOpen] = useState(false);
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
+  const [hasTerminalUsedState, setHasTerminalUsedState] = useState(false);
   const [activeDocument, setActiveDocument] = useState<{ doc: WsmDocument; isFullscreen: boolean } | null>(null);
   const [completedReasoningMsgIds, setCompletedReasoningMsgIds] = useState<Set<string>>(new Set());
   const [completedTypewriterMsgIds, setCompletedTypewriterMsgIds] = useState<Set<string>>(new Set());
   const [isRunSidebarOpen, setIsRunSidebarOpen] = useState(true);
+
+  // Helper functions to guarantee mutual exclusivity across all side panels
+  const openTerminalPanel = (open: boolean) => {
+    setIsTerminalOpen(open);
+    if (open) {
+      setIsWorkspaceViewerOpen(false);
+      setActiveDocument(null);
+      setIsSplitScreenOpen(false);
+    }
+  };
+
+  const openWorkspacePanel = (open: boolean) => {
+    setIsWorkspaceViewerOpen(open);
+    if (open) {
+      setIsTerminalOpen(false);
+      setActiveDocument(null);
+      setIsSplitScreenOpen(false);
+    }
+  };
+
+  const openDocumentPanel = (docState: { doc: WsmDocument; isFullscreen: boolean } | null) => {
+    setActiveDocument(docState);
+    if (docState) {
+      setIsTerminalOpen(false);
+      setIsWorkspaceViewerOpen(false);
+      setIsSplitScreenOpen(false);
+    }
+  };
+
+  const openSplitScreenPanel = (open: boolean) => {
+    setIsSplitScreenOpen(open);
+    if (open) {
+      setIsTerminalOpen(false);
+      setIsWorkspaceViewerOpen(false);
+      setActiveDocument(null);
+    }
+  };
+
+  // Listen for global open_terminal custom events (e.g. clicked from inline tags)
+  useEffect(() => {
+    const handleOpenTerminalEvent = () => {
+      openTerminalPanel(true);
+    };
+    window.addEventListener('open_terminal', handleOpenTerminalEvent);
+    return () => window.removeEventListener('open_terminal', handleOpenTerminalEvent);
+  }, []);
+
+  // Auto-open Terminal Sandbox pane when terminal execution starts and keep track of terminal usage
+  useEffect(() => {
+    const unsubscribe = terminalSandbox.subscribe((event) => {
+      if (event.type === 'start' || event.type === 'stdout' || event.type === 'stderr') {
+        setHasTerminalUsedState(true);
+      }
+      if (event.type === 'start') {
+        openTerminalPanel(true);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  const hasUsedTerminal = useMemo(() => {
+    if (hasTerminalUsedState) return true;
+
+    // Check if any message in the chat session contains terminal tags or terminal actions
+    const hasTerminalInMessages = messages.some(m => {
+      const txt = m.text || '';
+      if (txt.includes('<wsm_terminal_exec') || txt.includes('<wsm_terminal_file') || txt.includes('<wsm_terminal_action')) {
+        return true;
+      }
+      if (m.toolEvents && m.toolEvents.some((e: any) => e.type === 'terminal_action')) {
+        return true;
+      }
+      return false;
+    });
+
+    if (hasTerminalInMessages) return true;
+
+    // Check if terminalSandbox has any executed commands in history
+    const history = terminalSandbox.getTerminalHistoryText();
+    if (history && history.trim().length > '\x1b[1;32mubuntu@sandbox:~\x1b[0m$ '.length) {
+      return true;
+    }
+
+    return false;
+  }, [messages, hasTerminalUsedState]);
 
   // Derive current OmnixRun for the right sidebar
   const currentRun = useMemo<OmnixRun | null>(() => {
@@ -491,7 +589,7 @@ export default function ChatWindow({
 
   useEffect(() => {
     if (currentScreenshots.length > 0 && isThinking && !isSplitScreenOpen) {
-      setIsSplitScreenOpen(true);
+      openSplitScreenPanel(true);
     }
   }, [currentScreenshots.length, isThinking]);
 
@@ -1110,6 +1208,7 @@ export default function ChatWindow({
   const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
   const [isSkillsSubMenuOpen, setIsSkillsSubMenuOpen] = useState(false);
   const [activeSkills, setActiveSkills] = useState<Skill[]>([]);
+  const [skillMode, setSkillMode] = useState<'uma_skill' | 'pipeline'>('uma_skill');
 
   const handleAttachClick = () => {
     setIsAttachMenuOpen(!isAttachMenuOpen);
@@ -1145,9 +1244,19 @@ export default function ChatWindow({
     { id: '/relogio', name: 'relogio', description: 'Relógio e Data Atual', icon: Clock, color: 'text-orange-500' }
   ];
 
+  const allSkillsList = useMemo(() => {
+    const combined = [...OFFICIAL_SKILLS];
+    skills.forEach(s => {
+      if (!combined.find(os => os.id === s.id)) {
+        combined.push(s);
+      }
+    });
+    return combined;
+  }, [skills]);
+
   const slashItems = [
     ...marteTools,
-    ...skills.map(skill => ({
+    ...allSkillsList.map(skill => ({
       id: `/${skill.id}`,
       name: skill.name,
       description: skill.description,
@@ -1209,6 +1318,7 @@ export default function ChatWindow({
       
       if (item.isSkill) {
         setActiveSkills(prev => {
+          if (skillMode === 'uma_skill') return [item.skillObj];
           if (!prev.find(s => s.id === item.skillObj.id)) {
             return [...prev, item.skillObj];
           }
@@ -1422,8 +1532,8 @@ export default function ChatWindow({
     }
 
     if (activeSkills.length > 0) {
-      const skillsText = activeSkills.map(s => '/' + s.name).join(', ');
-      textToSend = `[Utilize as seguintes skills: ${skillsText}]\n\n${textToSend}`;
+      const manifest = buildDeclarativeSkillManifest(activeSkills, skillMode);
+      textToSend = `${manifest}\n\n[SOLICITAÇÃO DO USUÁRIO]:\n${textToSend}`;
     }
     
     if (isSearchEnabled) {
@@ -1648,7 +1758,7 @@ export default function ChatWindow({
           ? 'hidden'
           : activeDocument
             ? 'hidden md:flex w-full md:w-1/2 border-r border-[#eae6e1] shrink-0 min-w-0 max-w-full overflow-x-hidden'
-            : isSplitScreenOpen && currentScreenshots.length > 0 
+            : (isSplitScreenOpen && currentScreenshots.length > 0) || isTerminalOpen
               ? 'w-full md:w-1/2 border-r border-gray-200/80 min-w-0 max-w-full overflow-x-hidden' 
               : 'w-full min-w-0 max-w-full overflow-x-hidden'
       } flex-1 flex flex-col h-full bg-[#fcfbfa] relative overflow-hidden ${!isEmbedded ? 'animate-in zoom-in-95 duration-200' : ''}`}>
@@ -1680,6 +1790,24 @@ export default function ChatWindow({
 
         {/* Right side controls */}
         <div className="flex items-center gap-2 relative z-50">
+          {/* Button to open terminal if terminal was ever used in this chat */}
+          {hasUsedTerminal && (
+            <button
+              id="btn-open-terminal-header"
+              type="button"
+              onClick={() => openTerminalPanel(!isTerminalOpen)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer active:scale-95 border ${
+                isTerminalOpen 
+                  ? 'bg-zinc-900 border-zinc-800 text-emerald-400 shadow-2xs dark:bg-zinc-800 dark:border-zinc-700' 
+                  : 'bg-[#faf9f6] hover:bg-[#f0ede8] border-[#eae6e1] text-gray-700 hover:text-gray-900 shadow-2xs dark:bg-zinc-900 dark:border-zinc-800 dark:text-gray-300'
+              }`}
+              title={isTerminalOpen ? "Fechar Terminal Sandbox" : "Abrir Terminal Sandbox usado nesta conversa"}
+            >
+              <Terminal className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="hidden sm:inline">Terminal</span>
+            </button>
+          )}
+
           <button
             onClick={onStartTemporaryChat}
             disabled={isTemporary}
@@ -2044,9 +2172,6 @@ export default function ChatWindow({
                                     return null;
                                   })()}
                                   
-                                  {/* 2.5 Workspace Tasks */}
-                                  <WorkspaceTasksBlock text={message.text} onOpenWorkspace={() => setIsWorkspaceViewerOpen(true)} />
-                                  
                                   {/* 3. Main AI Text response - only after reasoning sequence completes */}
                                   {isReasoningDone && (
                                     message.text.includes("Omnix 1.6 está muito sobrecarregado") ? (
@@ -2082,7 +2207,7 @@ export default function ChatWindow({
                                               key={idx} 
                                               document={doc} 
                                               attachedImages={allSessionImages}
-                                              onOpenDocument={(d) => setActiveDocument({ doc: d, isFullscreen: false })} 
+                                              onOpenDocument={(d) => openDocumentPanel({ doc: d, isFullscreen: false })} 
                                             />
                                           ))}
                                         </div>
@@ -2939,21 +3064,15 @@ export default function ChatWindow({
             </div>
           )}
 
-          {/* Active Skills Chips */}
-          {activeSkills.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 mb-1 px-1">
-              {activeSkills.map(skill => (
-                <div 
-                  key={skill.id}
-                  className="flex items-center gap-1 bg-black/10 dark:bg-white/10 text-black dark:text-white px-2 py-0.5 rounded flex-shrink-0 cursor-pointer hover:bg-black/20 dark:bg-white/20 transition-colors"
-                  onClick={() => setActiveSkills(prev => prev.filter(s => s.id !== skill.id))}
-                >
-                  <span className="font-bold text-[13px]">/{skill.name}</span>
-                  <X className="w-3 h-3" />
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Declarative Skill / Pipeline Composer */}
+          <DeclarativeSkillComposer
+            activeSkills={activeSkills}
+            setActiveSkills={setActiveSkills}
+            skillMode={skillMode}
+            setSkillMode={setSkillMode}
+            availableSkills={allSkillsList}
+            onOpenCatalog={onOpenStore}
+          />
 
           {/* Voice recording UI mode OR standard input area */}
           {isListening ? (
@@ -3061,23 +3180,32 @@ export default function ChatWindow({
                             <span className="text-[12px] font-medium">Voltar</span>
                           </button>
                           <div className="max-h-48 overflow-y-auto">
-                            {skills.length === 0 ? (
+                            {allSkillsList.length === 0 ? (
                               <div className="px-3 py-4 text-center">
                                 <p className="text-[12px] text-gray-500">Nenhuma Skill instalada</p>
                               </div>
                             ) : (
-                              skills.map(skill => (
+                              allSkillsList.map(skill => (
                                 <button
                                   key={skill.id}
                                   onClick={() => {
-                                    setActiveSkills(prev => { if(!prev.find(s=>s.id===skill.id)) return [...prev, skill]; return prev; });
+                                    setActiveSkills(prev => {
+                                      if (skillMode === 'uma_skill') return [skill];
+                                      if (!prev.find(s => s.id === skill.id)) return [...prev, skill];
+                                      return prev;
+                                    });
                                     setIsAttachMenuOpen(false);
                                     setIsSkillsSubMenuOpen(false);
                                   }}
-                                  className="w-full text-left px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 transition-colors cursor-pointer"
+                                  className="w-full text-left px-3 py-2 rounded-lg flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
                                 >
-                                  <FileCode2 className="w-3.5 h-3.5 text-gray-900" />
-                                  <span className="text-[13px] font-medium text-gray-700">{skill.name}</span>
+                                  <div className="flex items-center gap-2">
+                                    <FileCode2 className="w-3.5 h-3.5 text-gray-900 dark:text-gray-100" />
+                                    <span className="text-[13px] font-medium text-gray-700 dark:text-gray-200 font-mono">/{skill.name}</span>
+                                  </div>
+                                  {skill.version && (
+                                    <span className="text-[10px] text-gray-400 font-mono">v{skill.version}</span>
+                                  )}
                                 </button>
                               ))
                             )}
@@ -3690,14 +3818,13 @@ export default function ChatWindow({
         </div>
       )}
 
-      {/* Right Column: Run Center Sidebar (Desktop Only - Only when AI generates step-by-step tasks) */}
-      {!isSplitScreenOpen && isRunSidebarOpen && hasRunSteps && (
-        <div className="hidden lg:flex h-full shrink-0">
-          <RightRunSidebar
-            run={currentRun}
-            isOpen={isRunSidebarOpen}
-            onClose={() => setIsRunSidebarOpen(false)}
-            isStreaming={isThinking}
+      {/* Right Column: Terminal Sandbox Pane (Manus split view style) */}
+      {isTerminalOpen && !isSplitScreenOpen && (
+        <div className="w-full md:w-1/2 h-full flex flex-col overflow-hidden shrink-0 animate-in fade-in slide-in-from-right-4 duration-300">
+          <TerminalSandboxPane
+            isOpen={isTerminalOpen}
+            onClose={() => setIsTerminalOpen(false)}
+            isAiExecuting={isThinking}
           />
         </div>
       )}

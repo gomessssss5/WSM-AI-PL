@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin, TvMinimalPlay, Image as ImageIcon, Loader2, Download, ZoomIn, MousePointer2, Keyboard, ScanEye, ArrowDownUp, FileText, FilePlus, FolderOpen, Edit3, Trash2, BookOpen, ChevronDown, ChevronRight, Sparkles, Cpu } from 'lucide-react';
+import { Copy, Check, Globe, Calculator, Clock, FileCode2, CheckCircle2, X, AlertTriangle, FileCode, MapPin, TvMinimalPlay, Image as ImageIcon, Loader2, Download, ZoomIn, MousePointer2, Keyboard, ScanEye, ArrowDownUp, FileText, FilePlus, FolderOpen, Edit3, Trash2, BookOpen, ChevronDown, ChevronRight, Sparkles, Cpu, Terminal } from 'lucide-react';
 import WsmMapComponent from './WsmMapComponent';
 import WsmChartComponent from './WsmChartComponent';
 import WsmMindmapComponent from './WsmMindmapComponent';
@@ -861,7 +861,7 @@ export default function MarkdownRenderer({
 
     // 1. Extract agentic tags: [pesquisou na web], [calculando], [verificando relógio], and active/completed states
     // Note negative lookahead (?!\s*\() to prevent matching markdown link text [Text](url)
-    const agenticRegex = /\[(pesquisou na web|pesquisando[\s\S]*?|acessando site[\s\S]*?|acessando[\s\S]*?|abrindo site[\s\S]*?|lendo página[\s\S]*?|lendo conteúdo[\s\S]*?|preparando resumo[\s\S]*?|preparando[\s\S]*?|elaborando resposta[\s\S]*?|elaborando[\s\S]*?|analisando[\s\S]*?|processando[\s\S]*?|sintetizando[\s\S]*?|extraindo[\s\S]*?|buscando[\s\S]*?|calculando[\s\S]*?|verificando[\s\S]*?|clicando[\s\S]*?|digitando[\s\S]*?|rolando[\s\S]*?|aguardando[\s\S]*?|aguardou[\s\S]*?|criando skill[\s\S]*?|editando skill[\s\S]*?|excluindo skill[\s\S]*?|criou skill[\s\S]*?|editou skill[\s\S]*?|excluiu skill[\s\S]*?|criando documento[\s\S]*?|criou documento[\s\S]*?|lendo documento[\s\S]*?|leu documento[\s\S]*?|editando documento[\s\S]*?|editou documento[\s\S]*?|excluindo documento[\s\S]*?|excluiu documento[\s\S]*?|listando documentos[\s\S]*?|listou documentos[\s\S]*?|código 100% verificado[\s\S]*?|corrigindo erro[\s\S]*?|sandbox de depuração[\s\S]*?|nova tarefa[\s\S]*?|passo concluído[\s\S]*?|documento não encontrado[\s\S]*?)\](?!\s*\()/gi;
+    const agenticRegex = /\[(pesquisou na web|pesquisando[\s\S]*?|acessando site[\s\S]*?|acessando[\s\S]*?|abrindo site[\s\S]*?|lendo página[\s\S]*?|lendo conteúdo[\s\S]*?|preparando resumo[\s\S]*?|preparando[\s\S]*?|elaborando resposta[\s\S]*?|elaborando[\s\S]*?|analisando[\s\S]*?|processando[\s\S]*?|sintetizando[\s\S]*?|extraindo[\s\S]*?|buscando[\s\S]*?|calculando[\s\S]*?|calculou[\s\S]*?|verificando[\s\S]*?|verificou[\s\S]*?|clicando[\s\S]*?|digitando[\s\S]*?|rolando[\s\S]*?|aguardando[\s\S]*?|aguardou[\s\S]*?|criando arquivo[\s\S]*?|criou o arquivo[\s\S]*?|criou arquivo[\s\S]*?|salvando arquivo[\s\S]*?|salvou arquivo[\s\S]*?|lendo arquivo[\s\S]*?|leu arquivo[\s\S]*?|editando arquivo[\s\S]*?|editou arquivo[\s\S]*?|excluindo arquivo[\s\S]*?|excluiu arquivo[\s\S]*?|executando[\s\S]*?|executou[\s\S]*?|rodando[\s\S]*?|rodou[\s\S]*?|testando[\s\S]*?|testou[\s\S]*?|compilando[\s\S]*?|compilou[\s\S]*?|iniciando[\s\S]*?|iniciou[\s\S]*?|gerando[\s\S]*?|gerou[\s\S]*?|validando[\s\S]*?|validou[\s\S]*?|instalando[\s\S]*?|instalou[\s\S]*?|criando skill[\s\S]*?|editando skill[\s\S]*?|excluindo skill[\s\S]*?|criou skill[\s\S]*?|editou skill[\s\S]*?|excluiu skill[\s\S]*?|criando documento[\s\S]*?|criou documento[\s\S]*?|lendo documento[\s\S]*?|leu documento[\s\S]*?|editando documento[\s\S]*?|editou documento[\s\S]*?|excluindo documento[\s\S]*?|excluiu documento[\s\S]*?|listando documentos[\s\S]*?|listou documentos[\s\S]*?|código 100% verificado[\s\S]*?|corrigindo erro[\s\S]*?|sandbox de depuração[\s\S]*?|nova tarefa[\s\S]*?|passo concluído[\s\S]*?|documento não encontrado[\s\S]*?)\](?!\s*\()/gi;
     const seenAgenticTypes = new Set<string>();
     currentText = currentText.replace(agenticRegex, (match, tagContent) => {
       let finalTagContent = tagContent;
@@ -879,6 +879,8 @@ export default function MarkdownRenderer({
       if (lower.includes('calculando') || lower.includes('calculou')) type = 'calc';
       else if (lower.includes('relógio') || lower.includes('verificando')) type = 'clock';
       else if (lower.includes('erros no código') || lower.includes('100% verificado') || lower.includes('depuração') || lower.includes('corrigindo erro')) type = 'debug';
+      else if (lower.includes('executand') || lower.includes('executou') || lower.includes('rodand') || lower.includes('rodou') || lower.includes('testand') || lower.includes('testou') || lower.includes('compiland') || lower.includes('compilou')) type = 'terminal_exec';
+      else if ((lower.includes('arquivo') && (lower.includes('criand') || lower.includes('criou') || lower.includes('salvand') || lower.includes('salvou') || lower.includes('lend') || lower.includes('leu') || lower.includes('editand') || lower.includes('editou') || lower.includes('exclu'))) || lower.includes('salvando arquivo') || lower.includes('criando arquivo')) type = 'terminal_file';
       else if (lower.includes('criando skill') || lower.includes('criou skill')) type = 'skill_create';
       else if (lower.includes('editando skill') || lower.includes('editou skill')) type = 'skill_edit';
       else if (lower.includes('excluindo skill') || lower.includes('excluiu skill')) type = 'skill_delete';
@@ -902,6 +904,8 @@ export default function MarkdownRenderer({
           return ''; // Collapse all 2nd..Nth duplicate tool chips into a single chip
         }
         seenAgenticTypes.add(type);
+      } else if (type === 'terminal_exec' || type === 'terminal_file') {
+        // Keep sequential execution and file tags inline in the conversation stream
       } else {
         if (seenAgenticTypes.has(finalTagContent.toLowerCase()) || seenAgenticTypes.has(type)) {
           return ''; // Completely remove duplicate tag from text
@@ -911,6 +915,22 @@ export default function MarkdownRenderer({
       }
       agenticTokens.push({ id, type, text: finalTagContent });
       
+      return id;
+    });
+
+    // 1.1 Extract XML terminal tags: <wsm_terminal_exec .../> or <wsm_terminal_file .../>
+    const xmlTerminalRegex = /<wsm_terminal_(?:exec|file)\s+[^>]*?(?:\/>|>[\s\S]*?<\/wsm_terminal_(?:exec|file)>)/gi;
+    currentText = currentText.replace(xmlTerminalRegex, (match) => {
+      const id = `:::AGENTICTOKEN-${agenticTokens.length}:::`;
+      if (match.includes('wsm_terminal_exec')) {
+        const cmdMatch = match.match(/command="([^"]*)"/i) || match.match(/cmd="([^"]*)"/i);
+        const cmd = cmdMatch ? cmdMatch[1] : 'script';
+        agenticTokens.push({ id, type: 'terminal_exec', text: `Executou no terminal: ${cmd}` });
+      } else {
+        const pathMatch = match.match(/path="([^"]*)"/i) || match.match(/filename="([^"]*)"/i);
+        const p = pathMatch ? pathMatch[1] : 'arquivo';
+        agenticTokens.push({ id, type: 'terminal_file', text: `Criou arquivo ${p}` });
+      }
       return id;
     });
 
@@ -1103,6 +1123,16 @@ export default function MarkdownRenderer({
                   let rawText = token.text.replace(/\[|\]/g, '');
                   displayType = rawText;
                   isActive = isTyping && token.text.includes('...');
+                } else if (token.type === 'terminal_exec') {
+                  Icon = Terminal;
+                  let rawText = token.text.replace(/\[|\]/g, '');
+                  displayType = rawText;
+                  isActive = isTyping && (token.text.includes('...') || token.text.toLowerCase().startsWith('executando') || token.text.toLowerCase().startsWith('rodando'));
+                } else if (token.type === 'terminal_file') {
+                  Icon = FileCode;
+                  let rawText = token.text.replace(/\[|\]/g, '');
+                  displayType = rawText;
+                  isActive = isTyping && (token.text.includes('...') || token.text.toLowerCase().startsWith('criando') || token.text.toLowerCase().startsWith('salvando'));
                 } else if (token.type === 'doc_create') {
                   Icon = FilePlus;
                   let rawText = token.text.replace(/\[|\]/g, '');
@@ -1144,6 +1174,35 @@ export default function MarkdownRenderer({
                       searchSources={searchSources}
                       searchSteps={searchSteps}
                     />
+                  );
+                }
+
+                if (token.type === 'terminal_exec' || token.type === 'terminal_file') {
+                  if (isActive) {
+                    return (
+                      <div
+                        key={`agentic-${pIdx}-${keyIndex++}`}
+                        onClick={() => window.dispatchEvent(new CustomEvent('open_terminal'))}
+                        className="inline-flex items-center gap-1.5 text-[14px] font-medium select-none my-1 searching cursor-pointer hover:opacity-90 transition-opacity"
+                        title="Clique para abrir o Terminal Sandbox"
+                      >
+                        <Icon className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0" />
+                        <span className="shimmer-text">{displayType}</span>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <span
+                      key={`agentic-${pIdx}-${keyIndex++}`}
+                      onClick={() => window.dispatchEvent(new CustomEvent('open_terminal'))}
+                      className="inline-flex items-center gap-1.5 text-[14px] font-medium text-[#6b7076] dark:text-gray-400 select-none my-1 cursor-pointer hover:text-gray-900 dark:hover:text-gray-100 transition-colors group"
+                      title="Clique para abrir o Terminal Sandbox"
+                    >
+                      <Icon className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0 group-hover:text-emerald-500 transition-colors" />
+                      <span>{displayType}</span>
+                      <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                    </span>
                   );
                 }
 

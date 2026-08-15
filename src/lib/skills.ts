@@ -23,10 +23,12 @@ export interface Skill {
   input_schema?: string;
   output_schema?: string;
   estimated_time?: string;
+  estimated_cost?: string;
   compatibility?: string;
   limits?: string;
   approval_policy?: string;
   acceptance_tests?: string[];
+  expected_artifacts?: string[];
 }
 
 enum OperationType {
@@ -122,3 +124,52 @@ export const deleteSkillFromDb = async (userId: string, skillId: string): Promis
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 };
+
+export function buildDeclarativeSkillManifest(skills: Skill[], mode: 'uma_skill' | 'pipeline'): string {
+  if (!skills || skills.length === 0) return '';
+  
+  if (mode === 'uma_skill' || skills.length === 1) {
+    const s = skills[0];
+    return `[PACOTE_SKILL_DECLARATIVO: modo="uma_skill", id="${s.id}"]
+- Nome: ${s.name} (v${s.version || '1.6.0'})
+- Descrição: ${s.description}
+- Escopo: ${s.scope || 'Módulo Agêntico'}
+- Ferramentas Permitidas: ${s.allowed_tools?.join(', ') || 'Nenhuma'}
+- Schema de Entrada: ${s.input_schema || '{}'}
+- Schema de Saída: ${s.output_schema || '{}'}
+- Permissões: ${s.permissions?.join(', ') || 'Nenhuma'}
+- Custo Estimado: ${s.estimated_cost || 'Grátis'}
+- Tempo Estimado: ${s.estimated_time || '< 10s'}
+- Política de Aprovação: ${s.approval_policy || 'Aprovação Automática'}
+- Testes de Aceitação: ${s.acceptance_tests?.join(' | ') || 'Validação padrão'}
+- Artefatos Esperados: ${s.expected_artifacts?.join(', ') || 'Nenhum'}
+
+--- DIRETRIZES DA SKILL ---
+${s.content}`;
+  } else {
+    const stepsManifest = skills.map((s, idx) => `
+--- PASSO ${idx + 1} DE ${skills.length}: SKILL "${s.name}" (v${s.version || '1.6.0'}) ---
+- Precedência de Execução: Passo ${idx + 1} ${idx === 0 ? '(Execução Primária / Geradora)' : `(Execução Secundária - Consome saída do Passo ${idx}: ${skills[idx - 1].name})`}
+- Ferramentas Permitidas: ${s.allowed_tools?.join(', ') || 'Nenhuma'}
+- Schema de Entrada: ${s.input_schema || '{}'}
+- Schema de Saída: ${s.output_schema || '{}'}
+- Permissões: ${s.permissions?.join(', ') || 'Nenhuma'}
+- Política de Aprovação: ${s.approval_policy || 'Aprovação Automática'}
+- Testes de Aceitação: ${s.acceptance_tests?.join(' | ') || 'Validação padrão'}
+- Artefatos Esperados: ${s.expected_artifacts?.join(', ') || 'Nenhum'}
+
+--- DIRETRIZES DO PASSO ${idx + 1} ---
+${s.content}
+`).join('\n');
+
+    return `[PIPELINE_DE_SKILLS_DECLARATIVO: modo="pipeline", total_passos=${skills.length}]
+${stepsManifest}
+
+[PIPELINE_DATA_FLOW & PRECEDÊNCIA]:
+As skills acima formam uma esteira de execução sequencial (Pipeline).
+1. O Passo 1 é executado primeiro, produzindo seus artefatos e saídas tipadas.
+2. Cada passo subsequente N consome os resultados do passo N-1 como contexto de entrada.
+3. Todos os artefatos finais declarados nos passos devem ser validados contra os testes de aceitação antes da entrega final.`;
+  }
+}
+
