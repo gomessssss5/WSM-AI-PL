@@ -1361,7 +1361,7 @@ export default function ChatWindow({
         const isReasoningDone = !raciocinio || isHistorical || completedReasoningMsgIds.has(lastMsg.id);
         const isTypewriterDone = isHistorical || completedTypewriterMsgIds.has(lastMsg.id);
 
-        if (!isReasoningDone || !isTypewriterDone) return;
+        if (!isReasoningDone || !isTypewriterDone || (isThinking && lastMsg.id === messages[messages.length - 1]?.id)) return;
 
         const textToParse = lastMsg.finalSynthesis || lastMsg.text || "";
         const { taskObjs } = extractWsmTasks(textToParse);
@@ -1738,7 +1738,7 @@ export default function ChatWindow({
       const isReasoningDone = !raciocinio || isHistorical || completedReasoningMsgIds.has(m.id);
       const isTypewriterDone = isHistorical || completedTypewriterMsgIds.has(m.id);
 
-      if (!isReasoningDone || !isTypewriterDone) {
+      if (!isReasoningDone || !isTypewriterDone || (isThinking && m.id === messages[messages.length - 1]?.id)) {
         break; // Wait until reasoning AND typewriter are finished
       }
 
@@ -2125,7 +2125,7 @@ export default function ChatWindow({
                           return (
                             <>
                               {/* Tavily Search Images Carousel - only after typewriter completes */}
-                              {isReasoningDone && isTypewriterDone && message.searchImages && message.searchImages.length > 0 && (
+                              {isReasoningDone && isTypewriterDone && (!isThinking || message.id !== messages[messages.length - 1]?.id) && message.searchImages && message.searchImages.length > 0 && (
                                 <SearchImageCarousel images={message.searchImages} onImageClick={setLightboxImage} />
                               )}
 
@@ -2197,7 +2197,7 @@ export default function ChatWindow({
                                   )}
                                   
                                   {/* 4. Document cards - only after reasoning AND typewriter complete */}
-                                  {isReasoningDone && isTypewriterDone && (() => {
+                                  {isReasoningDone && isTypewriterDone && (!isThinking || message.id !== messages[messages.length - 1]?.id) && (() => {
                                     const { docObjs } = extractWsmDoc(extractWsmForm(cleanRaciocinioTags(message.text)).cleanText);
                                     if (docObjs && docObjs.length > 0) {
                                       return (
@@ -2217,7 +2217,7 @@ export default function ChatWindow({
                                   })()}
 
                                   {/* 4b. Scheduled Task Cards - rendered when AI schedules a task */}
-                                  {isReasoningDone && isTypewriterDone && (() => {
+                                  {isReasoningDone && isTypewriterDone && (!isThinking || message.id !== messages[messages.length - 1]?.id) && (() => {
                                     const { taskObjs } = extractWsmTasks(message.text || message.finalSynthesis || "");
                                     if (taskObjs && taskObjs.length > 0) {
                                       return (
@@ -2241,7 +2241,7 @@ export default function ChatWindow({
                               )}
 
                               {/* 6. Rich format cards - only after reasoning AND typewriter complete */}
-                              {isReasoningDone && isTypewriterDone && (
+                              {isReasoningDone && isTypewriterDone && (!isThinking || message.id !== messages[messages.length - 1]?.id) && (
                                 <>
                                   {/* Table Render */}
                                   {message.tableData && (

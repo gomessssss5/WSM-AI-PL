@@ -197,26 +197,47 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
   let currentText = text;
   const rawDocObjs: WsmDocument[] = [];
 
+
+  // Helper to extract attributes from a tag
+  const extractAttributes = (attrStr) => {
+    const attrs = {};
+    if (!attrStr) return attrs;
+    const attrRegex = /([a-z0-9_\-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
+    let match;
+    while ((match = attrRegex.exec(attrStr)) !== null) {
+      attrs[match[1].toLowerCase()] = match[2] || match[3] || match[4];
+    }
+    return attrs;
+  };
+
   // 1. Extract <wsm_doc>...</wsm_doc> tags first
-  const regex = /<(wsm_doc)(?:\s+[^>]*)?>([\s\S]*?)<\/\1>/i;
+  const regex = /<(wsm_doc)(?:\s+([^>]*))?>([\s\S]*?)<\/\1>/i;
   
   while (true) {
     const match = regex.exec(currentText);
     if (match) {
-      const [fullMatch, tagName, innerContent] = match;
+      const fullMatch = match[0];
+      const tagName = match[1];
+      const attrStr = match[2];
+      const innerContent = match[3];
       const startIndex = match.index;
       const endIndex = startIndex + fullMatch.length;
+      
+      const tagAttrs = extractAttributes(attrStr);
+      let tagFormat = tagAttrs['format'] || '';
+      let tagTitle = tagAttrs['title'] || '';
       
       const jsonStr = innerContent.trim();
       currentText = currentText.substring(0, startIndex) + currentText.substring(endIndex);
 
       // Check if innerContent is raw HTML / XML without JSON wrapping
-      if (!jsonStr.startsWith('{') && (jsonStr.startsWith('<!DOCTYPE') || jsonStr.startsWith('<html') || (jsonStr.includes('<head>') && jsonStr.includes('</body>')))) {
-        let docTitle = 'index.html';
+      if (!jsonStr.startsWith('{') && (tagFormat.toLowerCase() === 'html' || jsonStr.startsWith('<!DOCTYPE') || jsonStr.startsWith('<html') || (jsonStr.includes('<head>') && jsonStr.includes('</body>')))) {
+        let docTitle = tagTitle || 'index.html';
         const titleTagMatch = jsonStr.match(/<title>([^<]+)<\/title>/i);
-        if (titleTagMatch && titleTagMatch[1].trim()) {
+        if (titleTagMatch && titleTagMatch[1].trim() && !tagTitle) {
           docTitle = titleTagMatch[1].trim() + '.html';
         }
+        if (!docTitle.toLowerCase().endsWith('.html')) docTitle += '.html';
         rawDocObjs.push({
           title: docTitle,
           content: jsonStr,
@@ -225,10 +246,11 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
       } else {
         const parsedDoc = parseJsonDocSafely(jsonStr);
         if (parsedDoc) {
-          const title = (parsedDoc.title || 'Documento').trim();
+          const title = (tagTitle || parsedDoc.title || 'Documento').trim();
           let content = sanitizeDocumentContent(parsedDoc.content || '');
           
-          let rawFormat = (parsedDoc.format || '').toString().toLowerCase();
+          let rawFormat = (tagFormat || parsedDoc.format || '').toString().toLowerCase();
+
 
           if (!rawFormat || rawFormat === 'pdf' || rawFormat === 'documento') {
             const inferred = inferFormatFromTitle(title, '');
@@ -286,16 +308,20 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
       }
     } else {
       // Partial form (streaming doc tag) - try to extract what we have before stripping
-      const openRegex = /<(wsm_doc)(?:\s+[^>]*)?>/i;
+      const openRegex = /<(wsm_doc)(?:\s+([^>]*))?>/i;
       const openMatch = openRegex.exec(currentText);
       if (openMatch) {
+        const tagAttrs = extractAttributes(openMatch[2]);
+        let tagFormat = tagAttrs['format'] || '';
+        let tagTitle = tagAttrs['title'] || '';
+
         const incompleteContent = currentText.substring(openMatch.index + openMatch[0].length).trim();
         if (incompleteContent) {
            const parsedDoc = parseJsonDocSafely(incompleteContent);
            if (parsedDoc && (parsedDoc.title || parsedDoc.content)) {
-             const title = (parsedDoc.title || 'Documento').trim();
+             const title = (tagTitle || parsedDoc.title || 'Documento').trim();
              const content = sanitizeDocumentContent(parsedDoc.content || '');
-             let rawFormat = (parsedDoc.format || '').toString().toLowerCase();
+             let rawFormat = (tagFormat || parsedDoc.format || '').toString().toLowerCase();
              if (!rawFormat || rawFormat === 'pdf' || rawFormat === 'documento') {
                const inferred = inferFormatFromTitle(title, '');
                rawFormat = inferred || 'pdf';
@@ -304,12 +330,12 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
              if (rawFormat === 'markdown') format = 'md';
              else if (rawFormat === 'excel' || rawFormat === 'sheet' || rawFormat === 'planilha') format = 'xlsx';
              else if (rawFormat === 'csv') format = 'csv';
-
              rawDocObjs.push({ title, content, format, validation: parsedDoc.validation });
-           } else if (incompleteContent.startsWith('<!DOCTYPE') || incompleteContent.startsWith('<html') || incompleteContent.includes('<head>')) {
-              let docTitle = 'index.html';
+           } else if (tagFormat.toLowerCase() === 'html' || incompleteContent.startsWith('<!DOCTYPE') || incompleteContent.startsWith('<html') || incompleteContent.includes('<head>')) {
+              let docTitle = tagTitle || 'index.html';
               const titleTagMatch = incompleteContent.match(/<title>([^<]+)<\/title>/i);
-              if (titleTagMatch && titleTagMatch[1].trim()) docTitle = titleTagMatch[1].trim() + '.html';
+              if (titleTagMatch && titleTagMatch[1].trim() && !tagTitle) docTitle = titleTagMatch[1].trim() + '.html';
+              if (!docTitle.toLowerCase().endsWith('.html')) docTitle += '.html';
               rawDocObjs.push({ title: docTitle, content: incompleteContent, format: 'html' });
            }
         }
@@ -319,60 +345,59 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
     }
   }
 
-  // 2. Intercept raw HTML document blocks or standalone html\n<!DOCTYPE html ... blocks
-  const rawHtmlBlockRegex = /(?:```(?:html)?\s*)?(?:html\s*\n+)?(<!DOCTYPE html[\s\S]*?(?:<\/html>|```|$)|<html[\s\S]*?(?:<\/html>|```|$))/gi;
-  let htmlMatch;
-  while ((htmlMatch = rawHtmlBlockRegex.exec(currentText)) !== null) {
-    const fullMatchedString = htmlMatch[0];
-    const htmlCode = htmlMatch[1].replace(/```$/g, '').trim();
-
-    if (htmlCode.length > 30) {
-      let docTitle = 'Site HTML';
-      const titleTagMatch = htmlCode.match(/<title>([^<]+)<\/title>/i);
-      if (titleTagMatch && titleTagMatch[1].trim()) {
-        docTitle = titleTagMatch[1].trim() + '.html';
+  // 2. Intercept raw HTML document blocks or standalone html (FALLBACK ONLY)
+  if (rawDocObjs.length === 0) {
+    const rawHtmlBlockRegex = /(?:\b|\n)(?:```(?:html)?\s*)?(?:html\s*\n+)?(<!DOCTYPE html[\s\S]*?(?:<\/html>|```|$)|<html[\s\S]*?(?:<\/html>|```|$))/gi;
+    let htmlMatch;
+    while ((htmlMatch = rawHtmlBlockRegex.exec(currentText)) !== null) {
+      const fullMatchedString = htmlMatch[0];
+      const htmlCode = htmlMatch[1].replace(/```$/g, '').trim();
+      if (htmlCode.length > 30) {
+        let docTitle = 'Site HTML';
+        const titleTagMatch = htmlCode.match(/<title>([^<]+)<\/title>/i);
+        if (titleTagMatch && titleTagMatch[1].trim()) {
+          docTitle = titleTagMatch[1].trim() + '.html';
+        }
+        if (!docTitle.toLowerCase().endsWith('.html')) docTitle += '.html';
+        rawDocObjs.push({
+          title: docTitle,
+          content: htmlCode,
+          format: 'html'
+        });
+        currentText = currentText.replace(fullMatchedString, '');
+        rawHtmlBlockRegex.lastIndex = 0;
       }
-
-      rawDocObjs.push({
-        title: docTitle,
-        content: htmlCode,
-        format: 'html'
-      });
-
-      currentText = currentText.replace(fullMatchedString, '');
-      rawHtmlBlockRegex.lastIndex = 0;
     }
   }
 
   // 2.5. Intercept raw JSON Excel sheets blocks e.g. ```json {"sheets": ...} ``` or standalone {"sheets": ...}
-  const rawSheetsBlockRegex = /(?:```(?:json|xlsx|excel)?\s*)?(\{[\s\S]*?"sheets"\s*:\s*\[[\s\S]*?\})(?:\s*```|$)/gi;
-  let sheetsMatch;
-  while ((sheetsMatch = rawSheetsBlockRegex.exec(currentText)) !== null) {
-    const fullMatchedString = sheetsMatch[0];
-    const sheetsJson = sheetsMatch[1].trim();
-
-    if (sheetsJson.length > 20) {
-      let docTitle = 'Planilha.xlsx';
-      try {
-        const parsed = JSON.parse(sheetsJson);
-        if (parsed.title) docTitle = String(parsed.title);
-        else if (parsed.sheets && parsed.sheets[0] && parsed.sheets[0].name) {
-          docTitle = `${parsed.sheets[0].name}.xlsx`;
-        }
-      } catch (e) {}
-
-      if (!docTitle.endsWith('.xlsx')) docTitle += '.xlsx';
-
-      rawDocObjs.push({
-        title: docTitle,
-        content: sheetsJson,
-        format: 'xlsx'
-      });
-
-      currentText = currentText.replace(fullMatchedString, '');
-      rawSheetsBlockRegex.lastIndex = 0;
+  if (rawDocObjs.length === 0) {
+    const rawSheetsBlockRegex = /(?:```(?:json|xlsx|excel)?\s*)?(\{[\s\S]*?"sheets"\s*:\s*\[[\s\S]*?\})(?:\s*```|$)/gi;
+    let sheetsMatch;
+    while ((sheetsMatch = rawSheetsBlockRegex.exec(currentText)) !== null) {
+      const fullMatchedString = sheetsMatch[0];
+      const sheetsJson = sheetsMatch[1].trim();
+      if (sheetsJson.length > 20) {
+        let docTitle = 'Planilha.xlsx';
+        try {
+          const parsed = JSON.parse(sheetsJson);
+          if (parsed.title) docTitle = String(parsed.title);
+          else if (parsed.sheets && parsed.sheets[0] && parsed.sheets[0].name) {
+            docTitle = `${parsed.sheets[0].name}.xlsx`;
+          }
+        } catch (e) {}
+        if (!docTitle.endsWith('.xlsx')) docTitle += '.xlsx';
+        rawDocObjs.push({
+          title: docTitle,
+          content: sheetsJson,
+          format: 'xlsx'
+        });
+        currentText = currentText.replace(fullMatchedString, '');
+        rawSheetsBlockRegex.lastIndex = 0;
+      }
     }
   }
+
 
   // 2.7. Intercept <wsm_terminal_file action="write" path="..." /> tags and check terminalSandbox
   const termFileRegex = /<wsm_terminal_file\s+[^>]*?path="([^"]+)"[^>]*?\/>/gi;

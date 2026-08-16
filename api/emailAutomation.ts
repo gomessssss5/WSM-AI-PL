@@ -188,8 +188,12 @@ export async function runAllEmailAutomations(): Promise<{ processedUsers: number
         await userRef.update(updatesToSave).catch((err: any) => console.warn(`[EmailAutomation] Error updating user ${userId}:`, err));
       }
     }
-  } catch (err) {
-    console.error("[EmailAutomation] Erro ao executar automações de e-mail:", err);
+  } catch (err: any) {
+    if (err?.code === 7 || (err?.message && (err.message.includes('PERMISSION_DENIED') || err.message.includes('Missing or insufficient permissions')))) {
+      console.warn("[EmailAutomation] Firestore Admin SDK sem permissões de acesso ao banco (PERMISSION_DENIED). As automações de e-mail foram ignoradas com segurança. Para habilitá-las, configure as credenciais da Service Account do Firebase.");
+    } else {
+      console.error("[EmailAutomation] Erro ao executar automações de e-mail:", err?.message || err);
+    }
   }
 
   return { processedUsers, emailsSent };

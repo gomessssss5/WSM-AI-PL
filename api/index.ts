@@ -15,6 +15,7 @@ import { runAllEmailAutomations } from "./emailAutomation.js";
 import { processBackgroundTasks, executeScheduledTaskNow } from "./scheduledTasksBackground.js";
 import { getAllSystemPrompts, getSystemPrompt, updateSystemPrompt } from "./systemPromptsManager.js";
 import { executeSandboxCommand, writeSandboxFile, readSandboxFile, deleteSandboxFile, listSandboxFiles, ensureSandboxDir } from "./terminalService.js";
+import { verifyFirebaseIdToken, DecodedAuthToken } from "./authVerifier.js";
 
 dotenv.config();
 
@@ -37,20 +38,21 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Firebase Admin SDK Initialization
-import { initializeApp, getApps } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import firebaseConfig from '../firebase-applet-config.json' with { type: 'json' };
-
-if (!getApps().length) {
-  try {
-    initializeApp({
-      projectId: firebaseConfig.projectId
-    });
-  } catch (err) {
-    console.warn('[FirebaseAdmin] Admin SDK initialization notice:', err);
-  }
-}
+// Health Check route
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    service: "Omnix AI Backend",
+    timestamp: new Date().toISOString(),
+    env: {
+      hasIaApiKey: Boolean(process.env.IA_API_KEY || process.env.GEMINI_API_KEY),
+      hasIaApiKey2: Boolean(process.env.IA_API_KEY_2 || process.env.GEMINI_API_KEY_2),
+      hasIaApiKey3: Boolean(process.env.IA_API_KEY_3 || process.env.GEMINI_API_KEY_3),
+      hasTavily: Boolean(process.env.TAVILY_API_KEY),
+      hasResend: Boolean(process.env.RESEND_API_KEY)
+    }
+  });
+});
 
 export interface AuthenticatedRequest extends express.Request {
   user?: {
@@ -108,12 +110,12 @@ export async function verifyAuthTokenMiddleware(
   }
 
   try {
-    const decodedToken = await getAuth().verifyIdToken(token);
+    const decodedToken: DecodedAuthToken = await verifyFirebaseIdToken(token);
     req.user = {
       uid: decodedToken.uid,
       email: decodedToken.email,
       admin: decodedToken.admin === true || decodedToken.email === 'wsmathenas@gmail.com',
-      emailVerified: decodedToken.email_verified
+      emailVerified: decodedToken.emailVerified
     };
     return next();
   } catch (error: any) {
@@ -148,9 +150,9 @@ export function verifyAdminRoleMiddleware(
 // Initialize Gemini Client Lazily to prevent startup crashes if key is missing
 let aiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI {
-  const key = process.env.IA_API_KEY;
+  const key = process.env.IA_API_KEY || process.env.GEMINI_API_KEY;
   if (!key) {
-    throw new Error("IA_API_KEY environment variable is required.");
+    throw new Error("IA_API_KEY or GEMINI_API_KEY environment variable is required.");
   }
   if (!aiClient) {
     aiClient = new GoogleGenAI({
@@ -167,7 +169,7 @@ function getGeminiClient(): GoogleGenAI {
 
 let fallbackAiClient: GoogleGenAI | null = null;
 function getFallbackGeminiClient(): GoogleGenAI {
-  const key = process.env.IA_API_KEY_2;
+  const key = process.env.IA_API_KEY_2 || process.env.GEMINI_API_KEY_2;
   if (!key) {
     throw new Error("IA_API_KEY_2 environment variable is not configured.");
   }
@@ -186,7 +188,7 @@ function getFallbackGeminiClient(): GoogleGenAI {
 
 let fallback2AiClient: GoogleGenAI | null = null;
 function getFallback2GeminiClient(): GoogleGenAI {
-  const key = process.env.IA_API_KEY_3;
+  const key = process.env.IA_API_KEY_3 || process.env.GEMINI_API_KEY_3;
   if (!key) {
     throw new Error("IA_API_KEY_3 environment variable is not configured.");
   }
@@ -340,23 +342,29 @@ async function executeWithAllFallbacks(options: any, isStream: boolean): Promise
     reqConfig.tools = options.tools;
   }
 
-  // Model fallback hierarchy using valid Gemini models
-  const rawModel = options.model || "gemini-2.5-flash";
-  const requestedModel = (rawModel.includes('3.') || !rawModel.startsWith('gemini')) ? "gemini-2.5-flash" : rawModel;
-  const modelList: string[] = Array.from(new Set([
-    requestedModel,
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-8b"
-  ]));
+  // Model fallback hierarchy strictly using 3.1 and 3.5 flash-lite models
+  const modelList: string[] = [
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash-lite"
+  ];
 
-  // Collect all available API keys (prioritize system GEMINI_API_KEY first)
+  // Collect all unique available API keys
+  const rawKeys: { name: string; key: string }[] = [];
+  if (process.env.GEMINI_API_KEY) rawKeys.push({ name: "GEMINI_API_KEY", key: process.env.GEMINI_API_KEY.trim() });
+  if (process.env.IA_API_KEY) rawKeys.push({ name: "IA_API_KEY", key: process.env.IA_API_KEY.trim() });
+  if (process.env.IA_API_KEY_2) rawKeys.push({ name: "IA_API_KEY_2", key: process.env.IA_API_KEY_2.trim() });
+  if (process.env.IA_API_KEY_3) rawKeys.push({ name: "IA_API_KEY_3", key: process.env.IA_API_KEY_3.trim() });
+
+  const seenKeyValues = new Set<string>();
   const keys: { name: string; key: string }[] = [];
-  if (process.env.GEMINI_API_KEY) keys.push({ name: "GEMINI_API_KEY", key: process.env.GEMINI_API_KEY });
-  if (process.env.IA_API_KEY) keys.push({ name: "IA_API_KEY", key: process.env.IA_API_KEY });
-  if (process.env.IA_API_KEY_2) keys.push({ name: "IA_API_KEY_2", key: process.env.IA_API_KEY_2 });
-  if (process.env.IA_API_KEY_3) keys.push({ name: "IA_API_KEY_3", key: process.env.IA_API_KEY_3 });
+  for (const k of rawKeys) {
+    if (k.key && !seenKeyValues.has(k.key)) {
+      seenKeyValues.add(k.key);
+      keys.push(k);
+    }
+  }
 
   if (keys.length === 0) {
     throw new Error("Nenhuma chave de API da IA (IA_API_KEY) foi configurada nas variáveis de ambiente.");
@@ -368,7 +376,7 @@ async function executeWithAllFallbacks(options: any, isStream: boolean): Promise
   for (const modelToTry of modelList) {
     for (const keyItem of keys) {
       if (!firstAttempt) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
       firstAttempt = false;
 
@@ -399,7 +407,8 @@ async function executeWithAllFallbacks(options: any, isStream: boolean): Promise
         }
       } catch (err: any) {
         lastError = err;
-        console.warn(`[Fallback] Model '${modelToTry}' with key '${keyItem.name}' failed:`, err?.message || String(err));
+        const errMsg = err?.message || String(err);
+        console.warn(`[Fallback] Model '${modelToTry}' with key '${keyItem.name}' failed:`, errMsg);
       }
     }
   }
@@ -715,9 +724,10 @@ DIRETRIZES FUNDAMENTAIS DE CONTINUIDADE:
   }
 
   try {
-    if (!process.env.IA_API_KEY) {
+    const hasAnyAiKey = Boolean(process.env.IA_API_KEY || process.env.GEMINI_API_KEY || process.env.IA_API_KEY_2 || process.env.GEMINI_API_KEY_2 || process.env.IA_API_KEY_3 || process.env.GEMINI_API_KEY_3);
+    if (!hasAnyAiKey) {
       return res.json({
-        text: "⚠️ **Chave de API (IA_API_KEY) não configurada.**\n\nPor favor, configure sua chave `IA_API_KEY` em **Settings > Secrets** no AI Studio (ou nas variáveis de ambiente da sua hospedagem, como a Vercel) para que os modelos do Omnix AI possam processar suas mensagens.",
+        text: "⚠️ **Chave de API de Inteligência Artificial não configurada.**\n\nPor favor, configure sua chave `IA_API_KEY` (ou `GEMINI_API_KEY`) nas variáveis de ambiente para que os modelos do Omnix AI possam processar suas mensagens.",
         searchImages: [],
         searchSources: []
       });
@@ -1261,6 +1271,14 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
             }
           },
           {
+            name: "get_full_conversation_history",
+            description: "Recupera o histórico COMPLETO da conversa atual em texto. Use APENAS quando precisar entender contexto ou referências passadas que não estão mais na memória ativa (ex: 'faça a etapa 2 da nossa conversa', 'como combinamos antes').",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {}
+            }
+          },
+          {
             name: "open_url",
             description: "Abre uma URL no navegador real em background e retorna o texto exato e literal da página no campo 'text'. Você deve obrigatoriamente ler e citar esse texto exatamente sem alterar ou inventar palavras de memória.",
             parameters: {
@@ -1654,7 +1672,7 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
                 fnArgs.url = u;
               }
             }
-            if (['open_url', 'click', 'type_text', 'scroll_page', 'web_search', 'create_document', 'edit_document', 'read_document', 'append_document', 'delete_document', 'list_documents'].includes(fnName)) {
+            if (['open_url', 'click', 'type_text', 'scroll_page', 'web_search', 'get_full_conversation_history', 'create_document', 'edit_document', 'read_document', 'append_document', 'delete_document', 'list_documents'].includes(fnName)) {
               if (fnName === 'open_url' && !fnArgs.url) {
                 const urlM = textForThisTurn.match(/(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|org|net|io|br|gov|edu|ai|app)[^\s]*)/i);
                 if (urlM) {
@@ -1809,6 +1827,7 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
               thinkingText = expr ? `\n\n[Calculando: "${expr}"...]\n\n` : `\n\n[Calculando...]\n\n`;
             }
             else if (fc.name === "relogio") thinkingText = "\n\n[Verificando relógio...]\n\n";
+            else if (fc.name === "get_full_conversation_history") thinkingText = "\n\n[Recuperando histórico completo da conversa...]\n\n";
             else if (fc.name === "gerar_imagem") thinkingText = `\n\n<wsm_image prompt="${(fc.args as any)?.prompt || 'Imagem'}" imgUrl="" />\n\n`;
             else if (fc.name === "open_url") thinkingText = `\n\n[Acessando site: ${(fc.args as any).url}...]\n\n`;
             else if (fc.name === "click") {
@@ -1964,6 +1983,24 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
               await new Promise(r => setTimeout(r, 1000));
               functionResponseParts.push({
                 functionResponse: { id: fc.id, name: fc.name, response: { result: timeData } }
+              });
+            } else if (fc.name === "get_full_conversation_history") {
+              // Extrair histórico completo recebido do frontend (antes do slice do Gemini)
+              const rawHistory = history || [];
+              let historyText = rawHistory.map((m: any) => {
+                const role = m.role === 'user' ? 'Usuário' : 'IA';
+                const text = m.parts?.[0]?.text || '';
+                return `[${role}]:\n${text}\n`;
+              }).join('\n---\n\n');
+              
+              if (!historyText.trim()) {
+                historyText = "Nenhum histórico disponível.";
+              }
+
+              // Artificial delay for UI realism
+              await new Promise(r => setTimeout(r, 800));
+              functionResponseParts.push({
+                functionResponse: { id: fc.id, name: fc.name, response: { conversation_history: historyText } }
               });
             } else if (fc.name === "open_url" || fc.name === "click" || fc.name === "type_text" || fc.name === "scroll_page" || fc.name === "extract_visible_text" || fc.name === "wait_seconds") {
               let result: any = {};
@@ -2492,6 +2529,8 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
               finalTagText = fullOutput.includes("[calculando]") ? "" : "\n\n[calculando]\n\n";
             } else if (fc.name === "relogio") {
               finalTagText = fullOutput.includes("[verificando relógio]") ? "" : "\n\n[verificando relógio]\n\n";
+            } else if (fc.name === "get_full_conversation_history") {
+              finalTagText = fullOutput.includes("[verificando histórico]") ? "" : "\n\n[verificando histórico]\n\n";
             } else if (fc.name === "gerar_imagem") {
               if (resultImgUrl) {
                 const escapedPrompt = (promptStr || 'Imagem').replace(/"/g, '&quot;');
@@ -2939,7 +2978,7 @@ Responda EXATAMENTE com "CONCLUIDO" ou "CONTINUAR: <motivo_curto>".`;
 });
 
 // Endpoint secreto para testar se as chaves IA_API_KEY, IA_API_KEY_2 e IA_API_KEY_3 estão funcionando
-app.post("/api/test-keys", verifyAuthTokenMiddleware, verifyAdminRoleMiddleware, async (req: express.Request, res: express.Response) => {
+async function testKeysHandler(req: express.Request, res: express.Response) {
   const results = {
     key1: { success: false, message: "" },
     key2: { success: false, message: "" },
@@ -2948,10 +2987,10 @@ app.post("/api/test-keys", verifyAuthTokenMiddleware, verifyAdminRoleMiddleware,
 
   const modelName = "gemini-2.5-flash";
 
-  // Teste da chave 1 (IA_API_KEY)
-  const key1 = process.env.IA_API_KEY;
+  // Teste da chave 1 (IA_API_KEY ou GEMINI_API_KEY)
+  const key1 = process.env.IA_API_KEY || process.env.GEMINI_API_KEY;
   if (!key1) {
-    results.key1.message = "IA_API_KEY não está configurada.";
+    results.key1.message = "IA_API_KEY / GEMINI_API_KEY não está configurada.";
   } else {
     try {
       const client = new GoogleGenAI({ apiKey: key1 });
@@ -2970,8 +3009,8 @@ app.post("/api/test-keys", verifyAuthTokenMiddleware, verifyAdminRoleMiddleware,
     }
   }
 
-  // Teste da chave 2 (IA_API_KEY_2)
-  const key2 = process.env.IA_API_KEY_2;
+  // Teste da chave 2 (IA_API_KEY_2 ou GEMINI_API_KEY_2)
+  const key2 = process.env.IA_API_KEY_2 || process.env.GEMINI_API_KEY_2;
   if (!key2) {
     results.key2.message = "IA_API_KEY_2 não está configurada.";
   } else {
@@ -2992,8 +3031,8 @@ app.post("/api/test-keys", verifyAuthTokenMiddleware, verifyAdminRoleMiddleware,
     }
   }
 
-  // Teste da chave 3 (IA_API_KEY_3)
-  const key3 = process.env.IA_API_KEY_3;
+  // Teste da chave 3 (IA_API_KEY_3 ou GEMINI_API_KEY_3)
+  const key3 = process.env.IA_API_KEY_3 || process.env.GEMINI_API_KEY_3;
   if (!key3) {
     results.key3.message = "IA_API_KEY_3 não está configurada.";
   } else {
@@ -3015,7 +3054,10 @@ app.post("/api/test-keys", verifyAuthTokenMiddleware, verifyAdminRoleMiddleware,
   }
 
   return res.json(results);
-});
+}
+
+app.post("/api/test-keys", verifyAuthTokenMiddleware, verifyAdminRoleMiddleware, testKeysHandler);
+app.get("/api/test-keys", verifyAuthTokenMiddleware, verifyAdminRoleMiddleware, testKeysHandler);
 
 // Endpoint para tradução usando Inteligência Artificial com fallback
 app.post("/api/translate", verifyAuthTokenMiddleware, async (req: express.Request, res: express.Response) => {
@@ -3125,6 +3167,15 @@ app.post("/api/scheduled-tasks/execute-now", verifyAuthTokenMiddleware, async (r
     console.error("Erro ao executar tarefa agendada manualmente:", err);
     return res.status(500).json({ success: false, error: err?.message || "Erro ao executar tarefa agendada." });
   }
+});
+
+app.get("/api/scheduled-tasks/execute-now", (req: express.Request, res: express.Response) => {
+  return res.json({
+    status: "ok",
+    endpoint: "/api/scheduled-tasks/execute-now",
+    method: "POST required",
+    description: "Executa uma tarefa agendada imediatamente com verificação de autenticação."
+  });
 });
 
 // Endpoint para envio de e-mail de boas-vindas
@@ -3490,6 +3541,24 @@ ORDER BY total_tasks DESC;`,
 });
 
 // REST endpoints for Terminal Sandbox real execution & file syncing
+app.get("/api/terminal", (req: express.Request, res: express.Response) => {
+  return res.json({
+    status: "ok",
+    service: "Terminal Sandbox Service",
+    ready: true,
+    endpoints: ["/api/terminal/exec", "/api/terminal/files", "/api/terminal/write", "/api/terminal/delete"]
+  });
+});
+
+app.get("/api/terminal/exec", (req: express.Request, res: express.Response) => {
+  return res.json({
+    status: "ok",
+    endpoint: "/api/terminal/exec",
+    method: "POST required",
+    description: "Executa comandos no terminal do sandbox com timeout configurável."
+  });
+});
+
 app.post("/api/terminal/exec", verifyAuthTokenMiddleware, async (req: express.Request, res: express.Response) => {
   try {
     const { command, timeout_seconds } = req.body;
@@ -3512,6 +3581,15 @@ app.get("/api/terminal/files", verifyAuthTokenMiddleware, (req: express.Request,
   }
 });
 
+app.get("/api/terminal/write", (req: express.Request, res: express.Response) => {
+  return res.json({
+    status: "ok",
+    endpoint: "/api/terminal/write",
+    method: "POST required",
+    description: "Grava arquivos no sandbox local."
+  });
+});
+
 app.post("/api/terminal/write", verifyAuthTokenMiddleware, (req: express.Request, res: express.Response) => {
   try {
     const { path: filePath, content } = req.body;
@@ -3521,6 +3599,15 @@ app.post("/api/terminal/write", verifyAuthTokenMiddleware, (req: express.Request
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || "Erro ao gravar arquivo." });
   }
+});
+
+app.get("/api/terminal/delete", (req: express.Request, res: express.Response) => {
+  return res.json({
+    status: "ok",
+    endpoint: "/api/terminal/delete",
+    method: "POST required",
+    description: "Exclui arquivos do sandbox local."
+  });
 });
 
 app.post("/api/terminal/delete", verifyAuthTokenMiddleware, (req: express.Request, res: express.Response) => {

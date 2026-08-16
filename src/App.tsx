@@ -111,7 +111,11 @@ export default function App() {
 
     const unsubscribeSkills = subscribeSkills(currentUser.uid, async (loadedSkills) => {
       setSkills(loadedSkills);
-
+      // Delete the "user" skill from database if it exists
+      const userSkill = loadedSkills.find(s => s.name && s.name.toLowerCase() === 'user');
+      if (userSkill && userSkill.id) {
+        deleteSkillFromDb(currentUser.uid, userSkill.id).catch(console.error);
+      }
     });
 
     return () => unsubscribeSkills();

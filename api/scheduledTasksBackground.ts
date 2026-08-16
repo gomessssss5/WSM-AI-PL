@@ -188,7 +188,8 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
         throw new Error(`[Simulação de Falha] Erro forçado na tentativa ${attempts} de ${maxRetries} para testar a política de retentativas.`);
       }
 
-      const res = await fetch("http://127.0.0.1:3000/api/chat", {
+      const baseUrl = process.env.BASE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://127.0.0.1:3000');
+      const res = await fetch(`${baseUrl}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
