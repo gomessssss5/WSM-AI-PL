@@ -1,4 +1,5 @@
 import JSZip from 'jszip';
+import { getAuthHeader } from './firebase';
 
 export interface SandboxProcess {
   pid: number;
@@ -551,6 +552,7 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
     // Try executing directly on the backend Linux container first for 100% fidelity
     try {
       const fullCmdLine = args.length > 0 ? `${cmd} ${args.join(' ')}` : cmd;
+      const authHeaders = await getAuthHeader();
       
       // Sync local files to server sandbox
       const syncPromises: Promise<any>[] = [];
@@ -558,7 +560,7 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
         syncPromises.push(
           fetch('/api/terminal/write', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
             body: JSON.stringify({ path: p, content })
           }).catch(() => {})
         );
@@ -567,7 +569,7 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
 
       const res = await fetch('/api/terminal/exec', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ command: fullCmdLine, timeout_seconds: this.cpuTimeoutSec })
       });
 

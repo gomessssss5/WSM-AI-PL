@@ -4,6 +4,7 @@ import { ScheduledTask, TaskExecution, ChatSession } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { calculateNextRunAt } from '../lib/scheduledTasks';
 import { logAuditEvent } from '../utils/auditLogger';
+import { getAuthHeader } from '../lib/firebase';
 
 interface ScheduledTasksDashboardProps {
   tasks: ScheduledTask[];
@@ -68,9 +69,10 @@ export default function ScheduledTasksDashboard({
     if (runningTaskId) return;
     setRunningTaskId(task.id);
     try {
+      const authHeaders = await getAuthHeader();
       const res = await fetch('/api/scheduled-tasks/execute-now', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({
           userId: currentUserId || 'guest',
           taskId: task.id,

@@ -133,10 +133,37 @@ export async function sendGenericEmail(params: SendGenericEmailParams): Promise<
 </html>
 `;
 
-  const gmailUser = process.env.SMTP_USER || "wsmathenas@gmail.com";
-  const gmailPass = process.env.SMTP_PASS || "wtls sidi kyhc zexe";
+  const gmailUser = process.env.SMTP_USER || "";
+  const gmailPass = process.env.SMTP_PASS || "";
   const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
   const resendApiKey = process.env.RESEND_API_KEY;
+
+  if (!gmailPass || !gmailUser) {
+    if (resendApiKey) {
+      try {
+        const resend = new Resend(resendApiKey);
+        const fromEmail = process.env.RESEND_FROM_EMAIL || 'Omnix 1.6 <onboarding@resend.dev>';
+        
+        const { error } = await resend.emails.send({
+          from: fromEmail,
+          to: [toEmail],
+          subject: subject,
+          html: htmlTemplate,
+        });
+
+        if (!error) {
+          return { success: true, message: "E-mail enviado via Resend!" };
+        }
+      } catch (rErr) {
+        console.error("[EmailService] Resend service error:", rErr);
+      }
+    }
+
+    return {
+      success: false,
+      message: "Servidor SMTP não possui credenciais configuradas. Defina as variáveis de ambiente SMTP_USER e SMTP_PASS."
+    };
+  }
 
   try {
     const transporter = nodemailer.createTransport({

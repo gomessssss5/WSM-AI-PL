@@ -1,4 +1,5 @@
 import { ArtifactRecord, ExecutionTask, ExecutionTaskState, ExecutionStepRecord } from '../types';
+import { getAuthHeader } from '../lib/firebase';
 
 const DRAFTS_KEY = 'wsm_artifact_drafts_v1';
 const GRAPH_TASKS_KEY = 'wsm_execution_graph_v1';
@@ -20,9 +21,10 @@ export async function persistArtifactToBackend(params: {
   forceFail?: boolean;
 }): Promise<{ success: boolean; artifact?: ArtifactRecord; error?: string; draftContent?: string }> {
   try {
+    const authHeaders = await getAuthHeader();
     const res = await fetch('/api/artifacts/persist', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
       body: JSON.stringify(params),
     });
 
@@ -110,9 +112,10 @@ export async function syncTaskToRuntimeGraph(task: ExecutionTask): Promise<boole
   // Save locally first
   saveTaskLocally(task);
   try {
+    const authHeaders = await getAuthHeader();
     const res = await fetch('/api/runtime/task', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
       body: JSON.stringify({ task }),
     });
     return res.ok;

@@ -6,9 +6,9 @@ import MainHome from './components/MainHome';
 import ChatWindow from './components/ChatWindow';
 import ImagesGallery from './components/ImagesGallery';
 import Login from './components/Login';
-import { auth, onAuthStateChanged, signOut, User, getRedirectResult } from './lib/firebase';
+import { auth, onAuthStateChanged, signOut, User, getRedirectResult, googleProvider, signInWithPopup } from './lib/firebase';
 import { subscribeSessions, saveSession, deleteSessionFromDb, subscribeDrafts, saveDraft, deleteDraft, subscribeUserProfile, dismissNewsCardForUser, dismissWelcomeCardForUser } from './lib/chatService';
-import { ChatSession, Message, Draft, ScheduledTask, TaskExecution, ExecutionLedgerEntry, ExecutionState, ExecutionStep, ValidationCriterion } from './types';
+import { ChatSession, Message, Draft, ScheduledTask, TaskExecution, ExecutionLedgerEntry, ExecutionState, ExecutionStep, ValidationCriterion, ExecutionAuthDetails } from './types';
 import ExecutionLedgerModal from './components/ExecutionLedgerModal';
 import { Sparkles, Trash2 } from 'lucide-react';
 import ScheduledTasksDashboard from './components/ScheduledTasksDashboard';
@@ -27,6 +27,7 @@ import { terminalSandbox } from './lib/terminalSandbox';
 import { OfficialSkillsStore } from './components/OfficialSkillsStore';
 import UserProfileModal from './components/UserProfileModal';
 import AgenticSecurityModal from './components/AgenticSecurityModal';
+import ReauthModal from './components/ReauthModal';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -46,6 +47,11 @@ export default function App() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
+  const [isReauthModalOpen, setIsReauthModalOpen] = useState(false);
+  const [reauthDetails, setReauthDetails] = useState<ExecutionAuthDetails | null>(null);
+  const [isRenewingToken, setIsRenewingToken] = useState(false);
+  const [reauthError, setReauthError] = useState<string | null>(null);
+  const pendingExecutionRef = useRef<any>(null);
   const [executionLedgerEntries, setExecutionLedgerEntries] = useState<ExecutionLedgerEntry[]>(() => {
     try {
       const saved = localStorage.getItem('wsm_execution_ledger');
@@ -306,12 +312,16 @@ export default function App() {
     isComputer: boolean = false,
     sourcesCount: number = 0,
     attachments: any[] = [],
-    errorMessage?: string
+    errorMessage?: string,
+    authDetails?: ExecutionAuthDetails
   ) => {
     const startTime = new Date(Date.now() - 3000);
     const endTime = new Date();
     const runId = `RUN-${Date.now().toString().slice(-6)}`;
     
+    const isAuthError = state === 'auth_required';
+    const isFailed = state === 'failed' || isAuthError;
+
     const steps: ExecutionStep[] = [
       {
         id: `step-1-${Date.now()}`,
@@ -323,18 +333,18 @@ export default function App() {
       },
       {
         id: `step-2-${Date.now()}`,
-        name: isComputer ? '2. Execução de Ferramentas Web (Playwright)' : '2. Processamento do Modelo de Linguagem',
+        name: isAuthError ? '2. Validação de Credenciais & Token de Acesso (HTTP 401/419)' : (isComputer ? '2. Execução de Ferramentas Web (Playwright)' : '2. Processamento do Modelo de Linguagem'),
         tool: isComputer ? 'browser' : 'code',
-        status: state === 'failed' ? 'failed' : 'completed',
-        details: sourcesCount > 0 ? `${sourcesCount} fontes consultadas e sintetizadas` : 'Síntese gerada pelo executor',
+        status: isFailed ? 'failed' : 'completed',
+        details: isAuthError ? (authDetails?.cause || 'Token de acesso rejeitado ou expirado (401/419)') : (sourcesCount > 0 ? `${sourcesCount} fontes consultadas e sintetizadas` : 'Síntese gerada pelo executor'),
         timestamp: endTime
       },
       {
         id: `step-3-${Date.now()}`,
         name: '3. Validação de Saída & Registro no Ledger',
         tool: 'code',
-        status: state === 'failed' ? 'failed' : 'completed',
-        details: state === 'failed' ? (errorMessage || 'Falha na validação de critérios') : 'Saída validada e gravada com evidências',
+        status: isFailed ? 'failed' : 'completed',
+        details: isFailed ? (errorMessage || authDetails?.cause || 'Falha na validação de critérios') : 'Saída validada e gravada com evidências',
         timestamp: endTime
       }
     ];
@@ -342,13 +352,13 @@ export default function App() {
     const validations: ValidationCriterion[] = [
       {
         id: `val-1-${Date.now()}`,
-        description: 'Atendimento estrito aos critérios do prompt da conversa',
-        status: state === 'failed' ? 'failed' : 'passed'
+        description: isAuthError ? 'Validação do token de autenticação e credencial da sessão' : 'Atendimento estrito aos critérios do prompt da conversa',
+        status: isFailed ? 'failed' : 'passed'
       },
       {
         id: `val-2-${Date.now()}`,
         description: 'Integridade da resposta e ausência de contradições',
-        status: 'passed'
+        status: isAuthError ? 'pending' : 'passed'
       }
     ];
 
@@ -362,7 +372,9 @@ export default function App() {
       `[${startTime.toISOString()}] Execução agêntica iniciada no ecossistema Omnix OS`,
       `[${startTime.toISOString()}] conversa_id: "${sessionId}" | titulo: "${sessionTitle}"`,
       `[${startTime.toISOString()}] prompt_usuario: "${(userPrompt || 'Execução de Chat').slice(0, 100)}${(userPrompt || '').length > 100 ? '...' : ''}"`,
-      isComputer ? `[${endTime.toISOString()}] Ferramenta Browser/Playwright executada com sucesso` : `[${endTime.toISOString()}] Modelo executado e resposta final gerada`,
+      isAuthError 
+        ? `[${endTime.toISOString()}] [AUTH 401/419 INTERCEPTED] Causa: ${authDetails?.cause || errorMessage || 'Token expirado'} | Etapa: ${authDetails?.stage || 'Autenticação'} | Recomendado: ${authDetails?.recommendedAction || 'Reautenticar'}`
+        : (isComputer ? `[${endTime.toISOString()}] Ferramenta Browser/Playwright executada com sucesso` : `[${endTime.toISOString()}] Modelo executado e resposta final gerada`),
       `[${endTime.toISOString()}] Estado final: ${state.toUpperCase()} | run_id: ${runId}`
     ];
 
@@ -373,7 +385,7 @@ export default function App() {
       intentGoal: userPrompt || 'Execução de Chat/Automação',
       constraints: ['Política de Execução Agêntica Omnix OS v2.5', 'Atribuição explícita de fonte de dados'],
       state,
-      riskLevel: isComputer ? 'medium' : 'low',
+      riskLevel: isAuthError ? 'high' : (isComputer ? 'medium' : 'low'),
       requiresApproval: false,
       isApproved: true,
       steps,
@@ -384,7 +396,8 @@ export default function App() {
       finishedAt: endTime,
       durationMs: 3000,
       tokensUsed: Math.floor(((userPrompt || '').length + 600) / 4),
-      errorMessage
+      errorMessage: errorMessage || authDetails?.cause,
+      authDetails
     };
 
     setExecutionLedgerEntries((prev) => {
@@ -395,6 +408,254 @@ export default function App() {
       return updated;
     });
   }, []);
+
+  const resumePendingExecution = useCallback(async (pending: any, newToken: string) => {
+    if (!pending) return;
+
+    setIsThinking(true);
+    isExplicitCancelRef.current = false;
+    abortControllerRef.current = new AbortController();
+
+    const timeoutId = setTimeout(() => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        setIsThinking(false);
+      }
+    }, 90000);
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (newToken) {
+      headers["Authorization"] = `Bearer ${newToken}`;
+    }
+
+    fetch("/api/chat", {
+      method: "POST",
+      signal: abortControllerRef.current.signal,
+      headers,
+      body: JSON.stringify({
+        content: [{ type: 'text', text: pending.requestText }],
+        text: pending.requestText,
+        rawText: pending.text,
+        attachments: pending.attachments || [],
+        language: 'pt-BR',
+        metadata: { clientTimestamp: Date.now(), clientVersion: '1.6.0' },
+        sessionId: pending.sessionToUpdate.id,
+        chatMemoryDoc: pending.sessionToUpdate.chatMemoryDoc || "",
+        isSearchEnabled: pending.isSearchEnabled,
+        isComputerEnabled: pending.isComputerEnabled,
+        model: pending.sessionToUpdate.model || selectedModel,
+        reasoningLevel,
+        skills: [...OFFICIAL_SKILLS, ...DEFAULT_COMPOSABLE_SKILLS, ...skills],
+        layeredMemories: getLayeredMemories(),
+        userContext: getUserContext(),
+        userInfo: currentUser ? {
+          uid: currentUser.uid,
+          email: currentUser.email,
+          displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Usuário Omnix'
+        } : undefined,
+        history: pending.sessionToUpdate.messages?.map((m: Message) => ({
+          role: m.sender === 'user' ? 'user' : 'model',
+          parts: [{ text: m.text || m.finalSynthesis || "" }]
+        })) || []
+      })
+    })
+    .then(async (res) => {
+      clearTimeout(timeoutId);
+
+      if (res.status === 401 || res.status === 419) {
+        setIsThinking(false);
+        let errData: any = {};
+        try { errData = await res.json(); } catch (e) {}
+
+        const details: ExecutionAuthDetails = {
+          cause: errData?.cause || "Falha ao validar as novas credenciais de acesso (HTTP 401/419).",
+          stage: "2. Validação de Credencial e Comunicação com API Omnix OS",
+          recommendedAction: "Por favor, efetue a reautenticação para renovar suas credenciais."
+        };
+
+        setSessions((prev) => prev.map((s) => {
+          if (s.id !== pending.sessionToUpdate.id) return s;
+          return {
+            ...s,
+            messages: s.messages.map((m) => {
+              if (m.id === pending.initialAiMsgId) {
+                return {
+                  ...m,
+                  text: "🔒 **Execução Interrompida: Reautenticação Necessária (HTTP 401/419)**\n\nNão foi possível validar o novo token de acesso. A execução agêntica foi terminada e gravada com o status **auth_required** no Run Center.",
+                  finalSynthesis: "Execução terminada com estado auth_required.",
+                  isSimulatingSearch: false
+                };
+              }
+              return m;
+            })
+          };
+        }));
+
+        recordLedgerRun(
+          pending.sessionToUpdate.id,
+          pending.sessionToUpdate.title,
+          pending.text,
+          'auth_required',
+          !!pending.isComputerEnabled,
+          0,
+          pending.attachments || [],
+          details.cause,
+          details
+        );
+        return;
+      }
+
+      if (!res.ok) throw new Error("Erro no servidor após reautenticação");
+
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("text/event-stream")) {
+        const data = await res.json();
+        setSessions((prev) => prev.map((s) => {
+          if (s.id !== pending.sessionToUpdate.id) return s;
+          return {
+            ...s,
+            messages: s.messages.map((m) => m.id === pending.initialAiMsgId ? {
+              ...m,
+              text: data.text || "",
+              finalSynthesis: data.text || "",
+              isSimulatingSearch: false
+            } : m)
+          };
+        }));
+        setIsThinking(false);
+        recordLedgerRun(pending.sessionToUpdate.id, pending.sessionToUpdate.title, pending.text, 'succeeded', !!pending.isComputerEnabled, 0, pending.attachments);
+        return;
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("Readable stream não suportado");
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+      let accumulatedFinalText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'chunk' && data.text) {
+                accumulatedFinalText += data.text;
+                setSessions((prev) => prev.map((s) => {
+                  if (s.id !== pending.sessionToUpdate.id) return s;
+                  return {
+                    ...s,
+                    messages: s.messages.map((m) => m.id === pending.initialAiMsgId ? {
+                      ...m,
+                      text: accumulatedFinalText,
+                      finalSynthesis: accumulatedFinalText,
+                      isSimulatingSearch: false
+                    } : m)
+                  };
+                }));
+              }
+            } catch (e) {}
+          }
+        }
+      }
+
+      setIsThinking(false);
+      recordLedgerRun(pending.sessionToUpdate.id, pending.sessionToUpdate.title, pending.text, 'succeeded', !!pending.isComputerEnabled, 0, pending.attachments);
+    })
+    .catch((err) => {
+      clearTimeout(timeoutId);
+      setIsThinking(false);
+      recordLedgerRun(pending.sessionToUpdate.id, pending.sessionToUpdate.title, pending.text, 'failed', !!pending.isComputerEnabled, 0, pending.attachments, err.message);
+    });
+  }, [skills, selectedModel, reasoningLevel, currentUser, recordLedgerRun]);
+
+  const handleRenewToken = useCallback(async (): Promise<boolean> => {
+    setIsRenewingToken(true);
+    setReauthError(null);
+    try {
+      let token: string | undefined;
+      if (auth.currentUser) {
+        token = await auth.currentUser.getIdToken(true);
+      }
+      if (!token) {
+        const result = await signInWithPopup(auth, googleProvider);
+        token = await result.user.getIdToken(true);
+      }
+
+      if (token) {
+        setIsReauthModalOpen(false);
+        setIsRenewingToken(false);
+        const pending = pendingExecutionRef.current;
+        if (pending) {
+          pendingExecutionRef.current = null;
+          await resumePendingExecution(pending, token);
+        }
+        return true;
+      } else {
+        throw new Error("Não foi possível obter uma credencial válida.");
+      }
+    } catch (err: any) {
+      console.error("Falha ao renovar token:", err);
+      setReauthError("Erro ao renovar o token. Por favor, tente reautenticar com sua conta.");
+      setIsRenewingToken(false);
+      return false;
+    }
+  }, [resumePendingExecution]);
+
+  const handleCancelReauth = useCallback(() => {
+    setIsReauthModalOpen(false);
+    setIsRenewingToken(false);
+    setReauthError(null);
+
+    if (pendingExecutionRef.current) {
+      const pending = pendingExecutionRef.current;
+      pendingExecutionRef.current = null;
+
+      const details: ExecutionAuthDetails = reauthDetails || {
+        cause: 'Token de acesso/sessão expirado e renovação de credenciais cancelada pelo usuário (HTTP 401/419)',
+        stage: '2. Validação de Credencial e Comunicação com API Omnix OS',
+        recommendedAction: 'Efetuar login/reautenticação para prosseguir com a execução agêntica'
+      };
+
+      setSessions((prev) => prev.map((s) => {
+        if (s.id !== pending.sessionToUpdate.id) return s;
+        return {
+          ...s,
+          messages: s.messages.map((m) => {
+            if (m.id === pending.initialAiMsgId) {
+              return {
+                ...m,
+                text: "🔒 **Execução Interrompida: Reautenticação Necessária (HTTP 401/419)**\n\nSua sessão de acesso expirou durante a execução agêntica. A renovação de credenciais não foi concluída. O estado desta execução foi gravado como **auth_required** no Run Center.",
+                finalSynthesis: "Execução terminada com estado auth_required.",
+                isSimulatingSearch: false,
+                searchIntro: undefined
+              };
+            }
+            return m;
+          })
+        };
+      }));
+
+      recordLedgerRun(
+        pending.sessionToUpdate.id,
+        pending.sessionToUpdate.title,
+        pending.text,
+        'auth_required',
+        !!pending.isComputerEnabled,
+        0,
+        pending.attachments || [],
+        details.cause,
+        details
+      );
+    }
+  }, [reauthDetails, recordLedgerRun]);
 
   // Listen to Auth State Changes
   useEffect(() => {
@@ -1225,12 +1486,18 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         }
       }, 90000); // Bug #05: 90 seconds timeout
 
+      const idToken = currentUser ? await currentUser.getIdToken().catch(() => '') : '';
+      const requestHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (idToken) {
+        requestHeaders["Authorization"] = `Bearer ${idToken}`;
+      }
+
       fetch("/api/chat", {
         method: "POST",
         signal: abortControllerRef.current.signal,
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: requestHeaders,
         body: JSON.stringify({
           content: [
             {
@@ -1370,6 +1637,38 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
       })
         .then(async (res) => {
           clearTimeout(timeoutId);
+
+          if (res.status === 401 || res.status === 419) {
+            let errData: any = {};
+            try { errData = await res.json(); } catch (e) {}
+
+            const details: ExecutionAuthDetails = {
+              cause: errData?.cause || (res.status === 419 ? "Sua sessão de acesso expirou (HTTP 419). O token de autenticação de acesso foi recusado." : "Credenciais de acesso inválidas ou token de autenticação expirado (HTTP 401)."),
+              stage: errData?.stage || "2. Validação de Credencial e Comunicação com API Omnix OS",
+              recommendedAction: errData?.recommendedAction || "Efetue a reautenticação para renovar o token de acesso e prosseguir com a execução agêntica."
+            };
+
+            // Freeze execution state immediately
+            setIsThinking(false);
+
+            // Save pending execution in ref to preserve prompt, context and attachments
+            pendingExecutionRef.current = {
+              sessionToUpdate,
+              text,
+              requestText,
+              attachments,
+              initialAiMsgId: initialAiMsg.id,
+              isComputerEnabled,
+              isSearchEnabled
+            };
+
+            // Open Reauth Modal
+            setReauthDetails(details);
+            setIsReauthModalOpen(true);
+
+            return; // Freeze execution flow
+          }
+
           if (!res.ok) throw new Error("Erro na conexão com o servidor de IA");
 
           const contentType = res.headers.get("content-type") || "";
@@ -2048,6 +2347,20 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         <AgenticSecurityModal
           isOpen={isSecurityModalOpen}
           onClose={() => setIsSecurityModalOpen(false)}
+        />
+      )}
+
+      {isReauthModalOpen && (
+        <ReauthModal
+          isOpen={isReauthModalOpen}
+          onClose={handleCancelReauth}
+          onRenewToken={handleRenewToken}
+          onCancel={handleCancelReauth}
+          cause={reauthDetails?.cause}
+          stage={reauthDetails?.stage}
+          recommendedAction={reauthDetails?.recommendedAction}
+          isRenewing={isRenewingToken}
+          errorMessage={reauthError}
         />
       )}
 

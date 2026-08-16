@@ -2763,7 +2763,7 @@ export default function ChatWindow({
           {slashMenuOpen && filteredTools.length > 0 && (
             <>
               {/* MOBILE SLASH MENU */}
-              <div className="md:hidden absolute bottom-[calc(100%+8px)] left-0 w-64 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1 flex flex-col max-h-72 overflow-y-auto animate-in fade-in slide-in-from-bottom-2 duration-200 scrollbar-thin">
+              <div className="md:hidden absolute left-0 w-64 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1 flex flex-col max-h-72 overflow-y-auto duration-200 scrollbar-thin bottom-[calc(100%+8px)] animate-in fade-in slide-in-from-bottom-2">
                 {(() => {
                   const toolsSection = filteredTools.filter(t => !('isSkill' in t));
                   const skillsSection = filteredTools.filter(t => 'isSkill' in t);
@@ -2866,7 +2866,7 @@ export default function ChatWindow({
               </div>
 
               {/* DESKTOP SLASH MENU */}
-              <div className="hidden md:flex absolute bottom-[calc(100%+8px)] left-0 w-64 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1 flex-col overflow-visible animate-in fade-in slide-in-from-bottom-2 duration-200">
+              <div className="hidden md:flex absolute left-0 w-64 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1 flex-col overflow-visible duration-200 bottom-[calc(100%+8px)] animate-in fade-in slide-in-from-bottom-2">
                 {(() => {
                   const toolsSection = filteredTools.filter(t => !('isSkill' in t));
                   const skillsSection = filteredTools.filter(t => 'isSkill' in t);
@@ -2929,7 +2929,7 @@ export default function ChatWindow({
 
                             {/* Submenu de Habilidades no hover */}
                             {isSkillsHovered && (
-                              <div className="absolute left-[100%] bottom-0 pl-2 z-50 animate-in fade-in slide-in-from-left-2 duration-150">
+                              <div className="absolute left-[100%] pl-2 z-50 animate-in fade-in slide-in-from-left-2 duration-150 bottom-0">
                                 <div className="w-64 bg-white border border-gray-150 rounded-xl shadow-lg p-1 flex flex-col max-h-72 overflow-y-auto scrollbar-thin select-none">
                                   <div className="text-[10px] font-bold text-gray-400 tracking-wider px-3 py-1.5 uppercase select-none">
                                     Skills Componíveis

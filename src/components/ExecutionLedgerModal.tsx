@@ -45,6 +45,7 @@ const STATE_CONFIG: Record<ExecutionState, { label: string; bg: string; text: st
   partially_succeeded: { label: 'Parcialmente Concluído', bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-300', desc: 'Entrega parcial com aviso de etapa interrompida' },
   failed: { label: 'Falhou', bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-300', desc: 'Sem resultado aceitável; falha de execução' },
   cancelled: { label: 'Cancelado', bg: 'bg-zinc-100', text: 'text-zinc-700', border: 'border-zinc-300', desc: 'Interrompido por política ou pelo usuário' },
+  auth_required: { label: 'Reautenticação Necessária (401/419)', bg: 'bg-amber-100', text: 'text-amber-900', border: 'border-amber-400', desc: 'Execução congelada: Token de acesso expirado ou credencial rejeitada.' },
 };
 
 export default function ExecutionLedgerModal({
@@ -161,6 +162,7 @@ export default function ExecutionLedgerModal({
                 <option value="partially_succeeded">Parcialmente Concluído (partially_succeeded)</option>
                 <option value="failed">Falha (failed)</option>
                 <option value="cancelled">Cancelado (cancelled)</option>
+                <option value="auth_required">Reautenticação Necessária (auth_required)</option>
               </select>
             </div>
 
@@ -265,8 +267,47 @@ export default function ExecutionLedgerModal({
                       <Play className="w-4 h-4" /> Retentar Tarefa
                     </button>
                   )}
+
+                  {activeEntry.state === 'auth_required' && (
+                    <button
+                      onClick={() => onRetryRun && onRetryRun(activeEntry.runId)}
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <ShieldAlert className="w-4 h-4" /> Reautenticar e Retomar
+                    </button>
+                  )}
                 </div>
               </div>
+
+              {/* Prominent Auth Error / Run Center Failure Breakdown */}
+              {(activeEntry.state === 'auth_required' || activeEntry.authDetails || activeEntry.errorMessage) && (
+                <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-900">
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    <span>Detalhes de Interrupção & Diagnóstico do Executor</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                    <div className="p-3 bg-white rounded-lg border border-amber-200">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 block">Causa</span>
+                      <p className="font-medium text-gray-800 mt-0.5">
+                        {activeEntry.authDetails?.cause || activeEntry.errorMessage || 'Falha de autenticação ou credencial expirada (HTTP 401/419).'}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-white rounded-lg border border-amber-200">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 block">Etapa do Diagnóstico</span>
+                      <p className="font-medium text-gray-800 mt-0.5">
+                        {activeEntry.authDetails?.stage || '2. Validação de Credencial e Comunicação de API'}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-white rounded-lg border border-amber-200">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 block">Ação Recomendada</span>
+                      <p className="font-medium text-amber-900 font-semibold mt-0.5">
+                        {activeEntry.authDetails?.recommendedAction || 'Renove seu token de acesso efetuando reautenticação para prosseguir.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* State Machine Criteria Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

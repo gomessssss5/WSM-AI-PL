@@ -1,15 +1,5 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { 
-  getFirestore, 
-  collection, 
-  collectionGroup,
-  getDocs, 
-  doc, 
-  getDoc,
-  updateDoc, 
-  setDoc,
-  Timestamp 
-} from 'firebase/firestore';
+import { initializeApp, getApps } from 'firebase-admin/app';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -22,21 +12,16 @@ function getDb() {
     const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
     if (fs.existsSync(configPath)) {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      const app = getApps().length > 0 ? getApp() : initializeApp({
-        apiKey: config.apiKey,
-        authDomain: config.authDomain,
-        projectId: config.projectId,
-        storageBucket: config.storageBucket,
-        messagingSenderId: config.messagingSenderId,
-        appId: config.appId,
+      const app = getApps().length > 0 ? getApps()[0] : initializeApp({
+        projectId: config.projectId
       });
       dbInstance = config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)'
         ? getFirestore(app, config.firestoreDatabaseId)
         : getFirestore(app);
-      console.log('[ScheduledTasks] Conectado ao Firestore em segundo plano.');
+      console.log('[ScheduledTasks] Conectado ao Firestore Admin SDK em segundo plano.');
     }
   } catch (err) {
-    console.warn('[ScheduledTasks] Erro ao conectar ao Firestore:', err);
+    console.warn('[ScheduledTasks] Erro ao conectar ao Firestore Admin SDK:', err);
   }
   return dbInstance;
 }
@@ -141,7 +126,7 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
 
   // Update task state in Firestore
   try {
-    await updateDoc(doc(db, 'users', userId, 'scheduledTasks', taskId), {
+    await db.collection('users').doc(userId).collection('scheduledTasks').doc(taskId).update({
       lastRunAt: Timestamp.fromDate(now),
       lastStatus: 'running',
       ...(newNextRunAt ? { nextRunAt: Timestamp.fromDate(newNextRunAt) } : {}),
@@ -162,7 +147,7 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
   ];
 
   try {
-    await setDoc(doc(db, 'users', userId, 'sessions', newSessionId), {
+    await db.collection('users').doc(userId).collection('sessions').doc(newSessionId).set({
       id: newSessionId,
       title: `[Execução Agendada] ${taskData.title}`,
       createdAt: Timestamp.fromDate(now),
@@ -177,7 +162,7 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
 
   let skills: any[] = [];
   try {
-    const skillsSnapshot = await getDocs(collection(db, 'users', userId, 'skills'));
+    const skillsSnapshot = await db.collection('users').doc(userId).collection('skills').get();
     skills = skillsSnapshot.docs.map((d: any) => ({ id: d.id, ...d.data() }));
   } catch (e) {
     // Ignore skills error
@@ -287,7 +272,7 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
       isSearchMessage: true
     } as any);
 
-    await updateDoc(doc(db, 'users', userId, 'sessions', newSessionId), {
+    await db.collection('users').doc(userId).collection('sessions').doc(newSessionId).update({
       messages: initialMessages,
       updatedAt: Timestamp.fromDate(new Date())
     });
@@ -312,7 +297,7 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
   }
 
   try {
-    await setDoc(doc(db, 'users', userId, 'taskExecutions', executionId), {
+    await db.collection('users').doc(userId).collection('taskExecutions').doc(executionId).set({
       id: executionId,
       runId: runId,
       taskId: taskId,
@@ -331,7 +316,7 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
       ...(executionError ? { error: executionError, errorDetails: executionError } : {})
     });
 
-    await updateDoc(doc(db, 'users', userId, 'scheduledTasks', taskId), {
+    await db.collection('users').doc(userId).collection('scheduledTasks').doc(taskId).update({
       lastStatus: executionStatus,
       lastRunAt: Timestamp.fromDate(startedAt),
       lastOutput: finalOutput.slice(0, 200),
@@ -393,8 +378,8 @@ export async function processBackgroundTasks() {
 
     // Strategy 1: Attempt collectionGroup search for scheduledTasks
     try {
-      const groupSnapshot = await getDocs(collectionGroup(db, 'scheduledTasks'));
-      groupSnapshot.forEach((taskDoc) => {
+      const groupSnapshot = await db.collectionGroup('scheduledTasks').get();
+      groupSnapshot.forEach((taskDoc: any) => {
         const taskData = taskDoc.data();
         if (!taskData.isActive) return;
 
@@ -406,7 +391,6 @@ export async function processBackgroundTasks() {
         });
       });
     } catch (groupErr: any) {
-      // Fallback silently or log simple note if collectionGroup is not available
       if (process.env.NODE_ENV !== 'production') {
         console.debug('[ScheduledTasks] collectionGroup fallback to user iteration:', groupErr?.message || groupErr);
       }
@@ -416,16 +400,16 @@ export async function processBackgroundTasks() {
     if (tasksToProcess.length === 0) {
       const userIds = ['guest'];
       try {
-        const usersSnapshot = await getDocs(collection(db, 'users'));
-        usersSnapshot.docs.forEach(d => {
+        const usersSnapshot = await db.collection('users').get();
+        usersSnapshot.docs.forEach((d: any) => {
           if (!userIds.includes(d.id)) userIds.push(d.id);
         });
       } catch (e) {}
 
       for (const uid of userIds) {
         try {
-          const tasksSnapshot = await getDocs(collection(db, 'users', uid, 'scheduledTasks'));
-          tasksSnapshot.docs.forEach((taskDoc) => {
+          const tasksSnapshot = await db.collection('users').doc(uid).collection('scheduledTasks').get();
+          tasksSnapshot.docs.forEach((taskDoc: any) => {
             const taskData = taskDoc.data();
             if (taskData.isActive) {
               tasksToProcess.push({

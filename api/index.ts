@@ -37,6 +37,114 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// Firebase Admin SDK Initialization
+import { initializeApp, getApps } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import firebaseConfig from '../firebase-applet-config.json' with { type: 'json' };
+
+if (!getApps().length) {
+  try {
+    initializeApp({
+      projectId: firebaseConfig.projectId
+    });
+  } catch (err) {
+    console.warn('[FirebaseAdmin] Admin SDK initialization notice:', err);
+  }
+}
+
+export interface AuthenticatedRequest extends express.Request {
+  user?: {
+    uid: string;
+    email?: string;
+    admin?: boolean;
+    emailVerified?: boolean;
+  };
+}
+
+export async function verifyAuthTokenMiddleware(
+  req: AuthenticatedRequest,
+  res: express.Response,
+  next: express.NextFunction
+) {
+  if (req.method === 'OPTIONS') return next();
+
+  // Test & Re-Auth Simulation Header Interception
+  const simAuthHeader = (req.headers['x-simulate-auth-error'] || '').toString();
+  if (simAuthHeader === '401' || simAuthHeader === '419') {
+    const statusCode = simAuthHeader === '419' ? 419 : 401;
+    return res.status(statusCode).json({
+      error: statusCode === 419 ? 'Authentication Timeout / Session Expired' : 'Unauthorized',
+      code: 'AUTH_REQUIRED',
+      status: statusCode,
+      message: statusCode === 419 ? 'Sua sessão expirou (HTTP 419).' : 'Credenciais de acesso inválidas ou token expirado (HTTP 401).'
+    });
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      error: 'Não autorizado',
+      code: 'AUTH_REQUIRED',
+      message: 'Cabeçalho Authorization com formato Bearer token é obrigatório.'
+    });
+  }
+
+  const token = authHeader.split('Bearer ')[1]?.trim();
+  if (!token) {
+    return res.status(401).json({
+      error: 'Não autorizado',
+      code: 'INVALID_TOKEN',
+      message: 'Token de autenticação ausente ou inválido.'
+    });
+  }
+
+  if (token === 'invalid-token' || token === 'expired-token') {
+    return res.status(401).json({
+      error: 'Unauthorized',
+      code: 'AUTH_REQUIRED',
+      status: 401,
+      message: 'Credenciais de acesso inválidas ou token expirado (HTTP 401).'
+    });
+  }
+
+  try {
+    const decodedToken = await getAuth().verifyIdToken(token);
+    req.user = {
+      uid: decodedToken.uid,
+      email: decodedToken.email,
+      admin: decodedToken.admin === true || decodedToken.email === 'wsmathenas@gmail.com',
+      emailVerified: decodedToken.email_verified
+    };
+    return next();
+  } catch (error: any) {
+    console.error('[AuthMiddleware] Token verification failed:', error.message);
+    return res.status(401).json({
+      error: 'Sessão inválida ou token expirado',
+      code: 'AUTH_EXPIRED',
+      cause: error.message,
+      message: 'Falha na verificação de identidade do token. Por favor, reautentique-se.'
+    });
+  }
+}
+
+export function verifyAdminRoleMiddleware(
+  req: AuthenticatedRequest,
+  res: express.Response,
+  next: express.NextFunction
+) {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Não autorizado', code: 'AUTH_REQUIRED' });
+  }
+  if (!req.user.admin) {
+    return res.status(403).json({
+      error: 'Acesso negado',
+      code: 'FORBIDDEN',
+      message: 'Ação restrita a administradores do sistema.'
+    });
+  }
+  return next();
+}
+
 // Initialize Gemini Client Lazily to prevent startup crashes if key is missing
 let aiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI {
@@ -232,22 +340,23 @@ async function executeWithAllFallbacks(options: any, isStream: boolean): Promise
     reqConfig.tools = options.tools;
   }
 
-  // Model fallback hierarchy using valid Gemini models: gemini-2.5-flash -> gemini-2.0-flash -> gemini-1.5-flash
+  // Model fallback hierarchy using valid Gemini models
   const rawModel = options.model || "gemini-2.5-flash";
   const requestedModel = (rawModel.includes('3.') || !rawModel.startsWith('gemini')) ? "gemini-2.5-flash" : rawModel;
   const modelList: string[] = Array.from(new Set([
     requestedModel,
     "gemini-2.5-flash",
     "gemini-2.0-flash",
-    "gemini-1.5-flash"
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b"
   ]));
 
-  // Collect all available API keys
+  // Collect all available API keys (prioritize system GEMINI_API_KEY first)
   const keys: { name: string; key: string }[] = [];
+  if (process.env.GEMINI_API_KEY) keys.push({ name: "GEMINI_API_KEY", key: process.env.GEMINI_API_KEY });
   if (process.env.IA_API_KEY) keys.push({ name: "IA_API_KEY", key: process.env.IA_API_KEY });
   if (process.env.IA_API_KEY_2) keys.push({ name: "IA_API_KEY_2", key: process.env.IA_API_KEY_2 });
   if (process.env.IA_API_KEY_3) keys.push({ name: "IA_API_KEY_3", key: process.env.IA_API_KEY_3 });
-  if (process.env.GEMINI_API_KEY) keys.push({ name: "GEMINI_API_KEY", key: process.env.GEMINI_API_KEY });
 
   if (keys.length === 0) {
     throw new Error("Nenhuma chave de API da IA (IA_API_KEY) foi configurada nas variáveis de ambiente.");
@@ -306,16 +415,18 @@ async function callGeminiStreamWithFallback(options: any): Promise<any> {
   return executeWithAllFallbacks(options, true);
 }
 
-// Helper to sanitize any synthetic or internal tokens from being leaked to the client
+// Helper to sanitize any synthetic, internal tokens, or unrequested plain text fake tool status tags from being leaked to the client
 function sanitizeOutgoingText(rawText: string): string {
   if (!rawText || typeof rawText !== 'string') return "";
   return rawText
     .replace(/:::(?:LINKTOKEN|AGENTICTOKEN|CODETOKEN|MATHTOKEN|SLASHTOKEN)-\d+:::/g, "")
-    .replace(/:::(?:BEGIN|END)_[A-Z0-9_-]+:::/g, "");
+    .replace(/:::(?:BEGIN|END)_[A-Z0-9_-]+:::/g, "")
+    .replace(/<wsm_terminal_exec[\s\S]*?(?:\/>|>[\s\S]*?<\/wsm_terminal_exec>)/gi, "")
+    .replace(/<wsm_web_search[\s\S]*?(?:\/>|>[\s\S]*?<\/wsm_web_search>)/gi, "");
 }
 
 // API endpoint for chatbot communication and Web Search
-app.post("/api/chat", async (req: express.Request, res: express.Response) => {
+app.post("/api/chat", verifyAuthTokenMiddleware, async (req: express.Request, res: express.Response) => {
   const { text, content, rawText, metadata, attachments, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution, sessionId, chatMemoryDoc, workspaceFiles, layeredMemories } = req.body;
 
   const userEmail = userInfo?.email || userContext?.email || req.body?.userEmail;
@@ -338,6 +449,28 @@ app.post("/api/chat", async (req: express.Request, res: express.Response) => {
   }
   if (!userPromptText) {
     userPromptText = typeof text === 'string' ? text : (typeof rawText === 'string' ? rawText : JSON.stringify(text || ''));
+  }
+
+  // 401/419 Interception & Simulation Check
+  const authHeader = req.headers.authorization || "";
+  const simAuthHeader = (req.headers['x-simulate-auth-error'] || "").toString();
+  
+  const isExplicitInvalidToken = authHeader === 'Bearer invalid-token' || authHeader === 'Bearer expired-token';
+  const isSimulated401 = simAuthHeader === '401' || isExplicitInvalidToken || /\b(simul(ar|e)\s+(erro\s+)?401|simulate_401|auth_error_401|token_expired_401)\b/i.test(userPromptText);
+  const isSimulated419 = simAuthHeader === '419' || /\b(simul(ar|e)\s+(erro\s+)?419|simulate_419|auth_error_419|session_expired_419)\b/i.test(userPromptText);
+
+  if (isSimulated401 || isSimulated419) {
+    const statusCode = isSimulated419 ? 419 : 401;
+    console.warn(`[Auth Check] Retornando HTTP ${statusCode} (Unauthorized/Session Expired) para simulação/verificação de segurança.`);
+    return res.status(statusCode).json({
+      error: statusCode === 419 ? "Authentication Timeout / Session Expired" : "Unauthorized",
+      code: "AUTH_REQUIRED",
+      status: statusCode,
+      message: statusCode === 419 ? "Sua sessão expirou (HTTP 419)." : "Credenciais de acesso inválidas ou token expirado (HTTP 401).",
+      cause: "Falha na validação do token de acesso do usuário. As credenciais expiraram ou foram rejeitadas pelo servidor.",
+      stage: "2. Validação de Credencial e Comunicação com API Omnix OS",
+      recommendedAction: "Renove seu token de acesso efetuando a reautenticação no cliente."
+    });
   }
 
   // Contract Verification: SHA-256 Integrity check
@@ -1732,38 +1865,74 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
                   });
                   if (tvRes.ok) {
                     const data = await tvRes.json();
-                    const cleanResults = (data.results || []).slice(0, 8).map((r: any) => ({
-                      title: r.title || r.url,
-                      url: r.url,
-                      snippet: (r.content || "").slice(0, 450)
-                    }));
-                    resultData = {
-                      answer: data.answer || undefined,
-                      results: cleanResults
-                    };
-                    if (data.results) {
-                      data.results.forEach((r: any) => marteSources.push({ title: r.title || r.url, url: r.url, snippet: (r.content || "").slice(0, 450) }));
-                    }
-                    if (data.images) {
-                      marteImages.push(...data.images.map((i:any) => typeof i === "string" ? i : i.url));
+                    if (data.results && data.results.length > 0) {
+                      const cleanResults = data.results.slice(0, 8).map((r: any) => {
+                        const snippet = (r.content || "").slice(0, 450);
+                        const url = r.url || "";
+                        const title = r.title || url;
+                        const access_timestamp = new Date().toISOString();
+                        const content_hash = crypto.createHash('sha256').update(snippet + url, 'utf8').digest('hex').substring(0, 16);
+                        return {
+                          title,
+                          url,
+                          snippet,
+                          access_timestamp,
+                          content_hash
+                        };
+                      });
+                      resultData = {
+                        status: "succeeded",
+                        answer: data.answer || undefined,
+                        results: cleanResults
+                      };
+                      cleanResults.forEach((r: any) => marteSources.push(r));
+                      if (data.images) {
+                        marteImages.push(...data.images.map((i:any) => typeof i === "string" ? i : i.url));
+                      }
+                    } else {
+                      console.log("[Pro Search] Tavily search returned 0 results. Falling back to searchWebFallback...");
+                      const fallbackRes = await searchWebFallback(args.query || args.search_query || text);
+                      if (fallbackRes && fallbackRes.length > 0) {
+                        resultData = { status: "succeeded", results: fallbackRes };
+                        fallbackRes.forEach(r => marteSources.push(r));
+                      } else {
+                        resultData = {
+                          status: "failed",
+                          error: "Não foi possível verificar dados atualizados na web no momento. Nenhum resultado encontrado.",
+                          results: [],
+                          instruction: "AVISO: A busca na web não retornou resultados. Responda obrigatoriamente que 'Não foi possível verificar informações atualizadas na web no momento' e NUNCA invente cotações, dados ou links de memória."
+                        };
+                      }
                     }
                   } else {
                     console.log("[Pro Search] Tavily search failed or forbidden. Falling back to searchWebFallback...");
                     const fallbackRes = await searchWebFallback(args.query || args.search_query || text);
-                    resultData = { results: fallbackRes };
-                    fallbackRes.forEach(r => marteSources.push(r));
+                    if (fallbackRes && fallbackRes.length > 0) {
+                      resultData = { status: "succeeded", results: fallbackRes };
+                      fallbackRes.forEach(r => marteSources.push(r));
+                    } else {
+                      resultData = { status: "failed", error: "Não foi possível verificar dados na web no momento.", results: [] };
+                    }
                   }
                 } else {
                   console.log("[Pro Search] TAVILY_API_KEY not configured. Falling back to searchWebFallback...");
                   const fallbackRes = await searchWebFallback(args.query || args.search_query || text);
-                  resultData = { results: fallbackRes };
-                  fallbackRes.forEach(r => marteSources.push(r));
+                  if (fallbackRes && fallbackRes.length > 0) {
+                    resultData = { status: "succeeded", results: fallbackRes };
+                    fallbackRes.forEach(r => marteSources.push(r));
+                  } else {
+                    resultData = { status: "failed", error: "Não foi possível verificar dados na web no momento.", results: [] };
+                  }
                 }
               } catch (e) {
                 console.log("[Pro Search] Error in search. Falling back to searchWebFallback...", e);
                 const fallbackRes = await searchWebFallback(args.query || args.search_query || text);
-                resultData = { results: fallbackRes };
-                fallbackRes.forEach(r => marteSources.push(r));
+                if (fallbackRes && fallbackRes.length > 0) {
+                  resultData = { status: "succeeded", results: fallbackRes };
+                  fallbackRes.forEach(r => marteSources.push(r));
+                } else {
+                  resultData = { status: "failed", error: "Não foi possível verificar dados na web no momento.", results: [] };
+                }
               }
               const callId = fc.id || `call_${fc.name}_${Math.random().toString(36).substring(2, 8)}`;
               functionResponseParts.push({
@@ -2770,7 +2939,7 @@ Responda EXATAMENTE com "CONCLUIDO" ou "CONTINUAR: <motivo_curto>".`;
 });
 
 // Endpoint secreto para testar se as chaves IA_API_KEY, IA_API_KEY_2 e IA_API_KEY_3 estão funcionando
-app.post("/api/test-keys", async (req: express.Request, res: express.Response) => {
+app.post("/api/test-keys", verifyAuthTokenMiddleware, verifyAdminRoleMiddleware, async (req: express.Request, res: express.Response) => {
   const results = {
     key1: { success: false, message: "" },
     key2: { success: false, message: "" },
@@ -2849,7 +3018,7 @@ app.post("/api/test-keys", async (req: express.Request, res: express.Response) =
 });
 
 // Endpoint para tradução usando Inteligência Artificial com fallback
-app.post("/api/translate", async (req: express.Request, res: express.Response) => {
+app.post("/api/translate", verifyAuthTokenMiddleware, async (req: express.Request, res: express.Response) => {
   const { text, sourceLanguage, targetLanguage, tone } = req.body;
 
   if (!text || !targetLanguage) {
@@ -2887,8 +3056,38 @@ Resposta (apenas o texto traduzido):`;
   }
 });
 
+const emailRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function emailRateLimiterMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const key = (req as AuthenticatedRequest).user?.uid || req.ip || 'anonymous';
+  const now = Date.now();
+  const windowMs = 10 * 60 * 1000; // 10 minutes
+  const maxEmails = 5; // max 5 email requests per 10 minutes
+
+  const record = emailRateLimitMap.get(key) || { count: 0, resetAt: now + windowMs };
+
+  if (now > record.resetAt) {
+    record.count = 1;
+    record.resetAt = now + windowMs;
+  } else {
+    record.count++;
+  }
+
+  emailRateLimitMap.set(key, record);
+
+  if (record.count > maxEmails) {
+    return res.status(429).json({
+      success: false,
+      code: 'RATE_LIMIT_EXCEEDED',
+      message: 'Limite de disparos de e-mail excedido. Aguarde 10 minutos antes de tentar novamente.'
+    });
+  }
+
+  return next();
+}
+
 // Endpoint para envio de relatório de tarefa agendada por e-mail
-app.post("/api/send-scheduled-email", async (req: express.Request, res: express.Response) => {
+app.post("/api/send-scheduled-email", verifyAuthTokenMiddleware, emailRateLimiterMiddleware, async (req: express.Request, res: express.Response) => {
   const { toEmail, taskTitle, taskPrompt, aiResponse } = req.body;
 
   if (!toEmail || !taskTitle || !aiResponse) {
@@ -2912,14 +3111,15 @@ app.post("/api/send-scheduled-email", async (req: express.Request, res: express.
 });
 
 // Endpoint para execução imediata (Run Now) de tarefa agendada
-app.post("/api/scheduled-tasks/execute-now", async (req: express.Request, res: express.Response) => {
+app.post("/api/scheduled-tasks/execute-now", verifyAuthTokenMiddleware, async (req: express.Request, res: express.Response) => {
   const { userId, taskId, taskData } = req.body;
   if (!taskId || !taskData) {
     return res.status(400).json({ success: false, error: "Parâmetros 'taskId' e 'taskData' são obrigatórios." });
   }
 
   try {
-    const result = await executeScheduledTaskNow(userId || 'guest', taskId, taskData);
+    const verifiedUid = (req as AuthenticatedRequest).user?.uid || userId || 'guest';
+    const result = await executeScheduledTaskNow(verifiedUid, taskId, taskData);
     return res.json(result);
   } catch (err: any) {
     console.error("Erro ao executar tarefa agendada manualmente:", err);
@@ -2928,7 +3128,7 @@ app.post("/api/scheduled-tasks/execute-now", async (req: express.Request, res: e
 });
 
 // Endpoint para envio de e-mail de boas-vindas
-app.post("/api/send-welcome-email", async (req: express.Request, res: express.Response) => {
+app.post("/api/send-welcome-email", verifyAuthTokenMiddleware, emailRateLimiterMiddleware, async (req: express.Request, res: express.Response) => {
   const { toEmail, displayName } = req.body;
 
   if (!toEmail) {
@@ -2945,7 +3145,7 @@ app.post("/api/send-welcome-email", async (req: express.Request, res: express.Re
 });
 
 // Endpoint para envio de e-mail de resposta interrompida ou pendente
-app.post("/api/notify-interrupted-response", async (req: express.Request, res: express.Response) => {
+app.post("/api/notify-interrupted-response", verifyAuthTokenMiddleware, emailRateLimiterMiddleware, async (req: express.Request, res: express.Response) => {
   const { toEmail, userPrompt, aiResponseSnippet } = req.body;
 
   if (!toEmail || !aiResponseSnippet) {
@@ -2962,7 +3162,7 @@ app.post("/api/notify-interrupted-response", async (req: express.Request, res: e
 });
 
 // Endpoints de gerenciamento de System Prompts do site (Painel ADM)
-app.get("/api/admin/prompts", (req: express.Request, res: express.Response) => {
+app.get("/api/admin/prompts", verifyAuthTokenMiddleware, verifyAdminRoleMiddleware, (req: express.Request, res: express.Response) => {
   try {
     const prompts = getAllSystemPrompts();
     return res.json({ success: true, prompts });
@@ -2972,7 +3172,7 @@ app.get("/api/admin/prompts", (req: express.Request, res: express.Response) => {
   }
 });
 
-app.put("/api/admin/prompts", (req: express.Request, res: express.Response) => {
+app.put("/api/admin/prompts", verifyAuthTokenMiddleware, verifyAdminRoleMiddleware, (req: express.Request, res: express.Response) => {
   const { id, content } = req.body;
   if (!id || typeof content !== "string") {
     return res.status(400).json({ success: false, message: "Parâmetros 'id' e 'content' são obrigatórios." });
@@ -2991,7 +3191,7 @@ app.put("/api/admin/prompts", (req: express.Request, res: express.Response) => {
 });
 
 // Endpoint para disparo administrativo de e-mails em massa/personalizados
-app.post("/api/admin/send-email", async (req: express.Request, res: express.Response) => {
+app.post("/api/admin/send-email", verifyAuthTokenMiddleware, verifyAdminRoleMiddleware, async (req: express.Request, res: express.Response) => {
   const { recipients, subject, title, badgeText, subtitleText, bodyMarkdown } = req.body;
 
   if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
@@ -3043,8 +3243,8 @@ app.post("/api/admin/send-email", async (req: express.Request, res: express.Resp
   }
 });
 
-// Endpoint para disparar manualmente o ciclo de automação de e-mails
-app.post("/api/trigger-email-automations", async (req: express.Request, res: express.Response) => {
+// Endpoint para disparar manualmente o ciclo de automação de e-mails (Apenas Administradores)
+app.post("/api/trigger-email-automations", verifyAuthTokenMiddleware, verifyAdminRoleMiddleware, async (req: express.Request, res: express.Response) => {
   try {
     const stats = await runAllEmailAutomations();
     return res.json({ success: true, ...stats });
@@ -3290,7 +3490,7 @@ ORDER BY total_tasks DESC;`,
 });
 
 // REST endpoints for Terminal Sandbox real execution & file syncing
-app.post("/api/terminal/exec", async (req: express.Request, res: express.Response) => {
+app.post("/api/terminal/exec", verifyAuthTokenMiddleware, async (req: express.Request, res: express.Response) => {
   try {
     const { command, timeout_seconds } = req.body;
     if (!command || typeof command !== 'string') {
@@ -3303,7 +3503,7 @@ app.post("/api/terminal/exec", async (req: express.Request, res: express.Respons
   }
 });
 
-app.get("/api/terminal/files", (req: express.Request, res: express.Response) => {
+app.get("/api/terminal/files", verifyAuthTokenMiddleware, (req: express.Request, res: express.Response) => {
   try {
     const files = listSandboxFiles();
     return res.json({ files });
@@ -3312,7 +3512,7 @@ app.get("/api/terminal/files", (req: express.Request, res: express.Response) => 
   }
 });
 
-app.post("/api/terminal/write", (req: express.Request, res: express.Response) => {
+app.post("/api/terminal/write", verifyAuthTokenMiddleware, (req: express.Request, res: express.Response) => {
   try {
     const { path: filePath, content } = req.body;
     if (!filePath) return res.status(400).json({ error: "Caminho obrigatório." });
@@ -3323,7 +3523,7 @@ app.post("/api/terminal/write", (req: express.Request, res: express.Response) =>
   }
 });
 
-app.post("/api/terminal/delete", (req: express.Request, res: express.Response) => {
+app.post("/api/terminal/delete", verifyAuthTokenMiddleware, (req: express.Request, res: express.Response) => {
   try {
     const { path: filePath } = req.body;
     if (!filePath) return res.status(400).json({ error: "Caminho obrigatório." });

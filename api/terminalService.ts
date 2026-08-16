@@ -64,11 +64,30 @@ export function ensureSandboxDir(): void {
 }
 
 export function sanitizePath(relPath: string): string {
-  const cleaned = relPath
+  ensureSandboxDir();
+  const normalized = path.normalize(relPath || '')
     .replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '')
-    .replace(/^\/+/, '')
-    .replace(/\.\./g, '');
-  return path.join(SANDBOX_DIR, cleaned || 'arquivo.txt');
+    .replace(/^\/+/, '');
+  
+  const resolvedPath = path.resolve(SANDBOX_DIR, normalized || 'arquivo.txt');
+  
+  const realSandbox = fs.existsSync(SANDBOX_DIR) ? fs.realpathSync(SANDBOX_DIR) : SANDBOX_DIR;
+  if (!resolvedPath.startsWith(realSandbox) && !resolvedPath.startsWith(SANDBOX_DIR)) {
+    throw new Error(`Acesso de caminho negado: O caminho '${relPath}' viola a fronteira do diretório sandbox.`);
+  }
+
+  if (fs.existsSync(resolvedPath)) {
+    try {
+      const realPath = fs.realpathSync(resolvedPath);
+      if (!realPath.startsWith(realSandbox)) {
+        throw new Error(`Acesso negado: O link simbólico para '${relPath}' aponta fora do diretório do sandbox.`);
+      }
+    } catch (err: any) {
+      if (err.message?.includes('Acesso negado')) throw err;
+    }
+  }
+
+  return resolvedPath;
 }
 
 export function writeSandboxFile(relPath: string, content: string): string {
@@ -84,9 +103,9 @@ export function writeSandboxFile(relPath: string, content: string): string {
 
 export function readSandboxFile(relPath: string): string | null {
   ensureSandboxDir();
-  const fullPath = sanitizePath(relPath);
-  if (!fs.existsSync(fullPath)) return null;
   try {
+    const fullPath = sanitizePath(relPath);
+    if (!fs.existsSync(fullPath)) return null;
     return fs.readFileSync(fullPath, 'utf8');
   } catch {
     return null;
@@ -95,9 +114,9 @@ export function readSandboxFile(relPath: string): string | null {
 
 export function deleteSandboxFile(relPath: string): boolean {
   ensureSandboxDir();
-  const fullPath = sanitizePath(relPath);
-  if (!fs.existsSync(fullPath)) return false;
   try {
+    const fullPath = sanitizePath(relPath);
+    if (!fs.existsSync(fullPath)) return false;
     fs.unlinkSync(fullPath);
     return true;
   } catch {
@@ -141,11 +160,45 @@ export async function executeSandboxCommand(command: string, timeoutSec = 15): P
   const startTime = Date.now();
   const filesBefore = new Set(listSandboxFiles().map(f => f.path));
 
-  // Adjust 'python' to 'python3' if 'python' might not be symlinked
   let adjustedCommand = command.trim();
+
+  // Basic command safety check against destructive system commands
+  const lowerCmd = adjustedCommand.toLowerCase();
+  const prohibitedPatterns = [
+    /rm\s+-rf\s+\//,
+    /shutdown/,
+    /reboot/,
+    /init\s+0/,
+    /mkfs/,
+    /dd\s+if=/
+  ];
+
+  for (const pattern of prohibitedPatterns) {
+    if (pattern.test(lowerCmd)) {
+      return {
+        stdout: '',
+        stderr: 'Erro de segurança: Execução do comando bloqueada por política de segurança da plataforma.',
+        exitCode: 126,
+        durationMs: Date.now() - startTime,
+        filesModified: []
+      };
+    }
+  }
+
   if (adjustedCommand.startsWith('python ') || adjustedCommand === 'python') {
     adjustedCommand = adjustedCommand.replace(/^python(\s|$)/, 'python3$1');
   }
+
+  // Minimal clean environment stripped of process.env secrets
+  const safeEnv: Record<string, string> = {
+    PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
+    HOME: SANDBOX_DIR,
+    TMPDIR: SANDBOX_DIR,
+    PYTHONUNBUFFERED: '1',
+    NODE_ENV: 'development',
+    TERM: 'xterm-256color',
+    LANG: 'C.UTF-8'
+  };
 
   return new Promise<ExecutionResult>((resolve) => {
     const timeoutMs = Math.min(Math.max(timeoutSec, 1), 60) * 1000;
@@ -156,12 +209,7 @@ export async function executeSandboxCommand(command: string, timeoutSec = 15): P
         cwd: SANDBOX_DIR,
         timeout: timeoutMs,
         maxBuffer: 10 * 1024 * 1024,
-        env: {
-          ...process.env,
-          PYTHONUNBUFFERED: '1',
-          NODE_ENV: 'development',
-          TERM: 'xterm-256color'
-        }
+        env: safeEnv
       },
       (error, stdout, stderr) => {
         const durationMs = Date.now() - startTime;

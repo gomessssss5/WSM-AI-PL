@@ -1,6 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Default-deny catch-all rule
     match /{document=**} {
       allow read, write: if false;
     }
@@ -13,10 +14,11 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // Role check via Firebase custom token claim OR trusted admins collection lookup
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.uid == '1VDx7iiiSQP0vWZLQgPDQxm10og1' || 
-        ('email' in request.auth.token && request.auth.token.email == 'wsmathenas@gmail.com')
+        request.auth.token.get('admin', false) == true ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
     }
 
@@ -28,64 +30,127 @@ service cloud.firestore {
       return request.resource.data;
     }
 
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUser(data) {
+      return data.email is string && data.email.size() <= 320
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 200))
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 2000));
+    }
+
     function isValidChatSession(data) {
       return data.title is string 
         && data.title.size() <= 500
-        && data.category is string
-        && data.category.size() <= 100
+        && (!('category' in data) || (data.category is string && data.category.size() <= 100))
         && data.messages is list
         && data.messages.size() <= 1000;
     }
 
+    function isValidDraft(data) {
+      return data.title is string && data.title.size() <= 500
+        && (!('content' in data) || (data.content is string && data.content.size() <= 100000));
+    }
+
+    function isValidSkill(data) {
+      return data.name is string && data.name.size() <= 200;
+    }
+
+    function isValidScheduledTask(data) {
+      return data.title is string && data.title.size() <= 500
+        && data.prompt is string && data.prompt.size() <= 10000
+        && data.scheduleType is string && data.scheduleType.size() <= 100
+        && data.time is string && data.time.size() <= 50
+        && data.isActive is bool;
+    }
+
+    function isValidTaskExecution(data) {
+      return data.taskId is string && data.taskId.size() <= 128
+        && data.taskTitle is string && data.taskTitle.size() <= 500
+        && data.status is string && data.status.size() <= 50;
+    }
+
+    function isValidWriterDoc(data) {
+      return data.userId is string && data.userId == request.auth.uid
+        && data.title is string && data.title.size() <= 500;
+    }
+
+    // Writer Documents Collection
     match /writer_documents/{docId} {
       allow list: if isSignedIn();
-      allow get, write: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || request.resource.data.userId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidId(docId) && isValidWriterDoc(incoming());
+      allow update: if isSignedIn() && isValidId(docId) && (existing().userId == request.auth.uid || isAdmin()) && isValidWriterDoc(incoming());
+      allow delete: if isSignedIn() && isValidId(docId) && (existing().userId == request.auth.uid || isAdmin());
     }
 
+    // Evaluations Collection
     match /evaluations/{evalId} {
-      allow create, update: if isSignedIn();
-      allow read, delete: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(evalId) && incoming().userId == request.auth.uid;
+      allow read, delete: if isSignedIn() && isValidId(evalId) && (resource == null || resource.data.userId == request.auth.uid || isAdmin());
     }
 
+    // Admins Collection
+    match /admins/{adminId} {
+      allow read: if isSignedIn() && request.auth.uid == adminId;
+      allow write: if isAdmin();
+    }
+
+    // User Profile Document & Subcollections
     match /users/{userId} {
-      allow list: if true;
-      allow get, write: if true;
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create, update: if isOwner(userId) && isValidId(userId) && isValidUser(incoming());
+      allow delete: if isOwner(userId) || isAdmin();
 
       match /sessions/{sessionId} {
-        allow read, write: if true;
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId) && isValidId(sessionId) && isValidChatSession(incoming());
+        allow delete: if isOwner(userId) || isAdmin();
       }
-      
+
       match /drafts/{draftId} {
-        allow get: if (isSignedIn() && isValidId(draftId)) || request.auth == null;
-        allow list: if isSignedIn() || request.auth == null;
-        allow write: if (isOwner(userId) && isValidId(draftId)) || request.auth == null;
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId) && isValidId(draftId) && isValidDraft(incoming());
+        allow delete: if isOwner(userId) || isAdmin();
       }
 
       match /skills/{skillId} {
-        allow read, write: if true;
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId) && isValidId(skillId) && isValidSkill(incoming());
+        allow delete: if isOwner(userId) || isAdmin();
       }
 
       match /scheduledTasks/{taskId} {
-        allow read, write: if true;
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId) && isValidId(taskId) && isValidScheduledTask(incoming());
+        allow delete: if isOwner(userId) || isAdmin();
       }
 
       match /taskExecutions/{executionId} {
-        allow read, write: if true;
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId) && isValidId(executionId) && isValidTaskExecution(incoming());
+        allow delete: if isOwner(userId) || isAdmin();
       }
     }
 
-    // Support collection group queries for analytics & dashboards
+    // Collection Group Queries - enforces resource-level user ownership check
     match /{path=**}/sessions/{sessionId} {
-      allow list, read, write: if true;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
     match /{path=**}/drafts/{draftId} {
-      allow list, read, write: if true;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
     match /{path=**}/scheduledTasks/{taskId} {
-      allow list, read, write: if true;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
     match /{path=**}/taskExecutions/{executionId} {
-      allow list, read, write: if true;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
   }
 }

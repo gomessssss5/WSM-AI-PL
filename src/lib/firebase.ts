@@ -75,6 +75,21 @@ googleProvider.setCustomParameters({
   prompt: 'select_account'
 });
 
+export async function getAuthHeader(): Promise<Record<string, string>> {
+  try {
+    const user = auth.currentUser;
+    if (user) {
+      const token = await user.getIdToken();
+      if (token) {
+        return { 'Authorization': `Bearer ${token}` };
+      }
+    }
+  } catch (err) {
+    console.warn('[FirebaseAuth] Failed to fetch ID token for API request:', err);
+  }
+  return {};
+}
+
 export { 
   signInWithPopup, 
   signInWithRedirect,

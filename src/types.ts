@@ -534,7 +534,14 @@ export type ExecutionState =
   | 'succeeded' 
   | 'partially_succeeded' 
   | 'failed' 
-  | 'cancelled';
+  | 'cancelled'
+  | 'auth_required';
+
+export interface ExecutionAuthDetails {
+  cause: string;
+  stage: string;
+  recommendedAction: string;
+}
 
 export interface ExecutionStep {
   id: string;
@@ -571,6 +578,7 @@ export interface ExecutionLedgerEntry {
   durationMs?: number;
   tokensUsed?: number;
   errorMessage?: string;
+  authDetails?: ExecutionAuthDetails;
 }
 
 export interface ChatSession {

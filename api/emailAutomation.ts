@@ -1,12 +1,5 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { 
-  getFirestore, 
-  collection, 
-  getDocs, 
-  doc, 
-  updateDoc, 
-  Timestamp 
-} from 'firebase/firestore';
+import { initializeApp, getApps } from 'firebase-admin/app';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import fs from 'fs';
 import path from 'path';
 import { 
@@ -25,21 +18,16 @@ function getDb() {
     const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
     if (fs.existsSync(configPath)) {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      const app = getApps().length > 0 ? getApp() : initializeApp({
-        apiKey: config.apiKey,
-        authDomain: config.authDomain,
-        projectId: config.projectId,
-        storageBucket: config.storageBucket,
-        messagingSenderId: config.messagingSenderId,
-        appId: config.appId,
+      const app = getApps().length > 0 ? getApps()[0] : initializeApp({
+        projectId: config.projectId
       });
       dbInstance = config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)'
         ? getFirestore(app, config.firestoreDatabaseId)
         : getFirestore(app);
-      console.log('[EmailAutomation] Conectado ao Firestore para automações de e-mail.');
+      console.log('[EmailAutomation] Conectado ao Firestore Admin SDK para automações de e-mail.');
     }
   } catch (err) {
-    console.warn('[EmailAutomation] Erro ao conectar ao Firestore:', err);
+    console.warn('[EmailAutomation] Erro ao conectar ao Firestore Admin SDK:', err);
   }
   return dbInstance;
 }
@@ -47,7 +35,7 @@ function getDb() {
 export async function runAllEmailAutomations(): Promise<{ processedUsers: number; emailsSent: number }> {
   const db = getDb();
   if (!db) {
-    console.warn("[EmailAutomation] Firestore não configurado. Pulando ciclo de automação.");
+    console.warn("[EmailAutomation] Firestore Admin SDK não configurado. Pulando ciclo de automação.");
     return { processedUsers: 0, emailsSent: 0 };
   }
 
@@ -55,7 +43,7 @@ export async function runAllEmailAutomations(): Promise<{ processedUsers: number
   let emailsSent = 0;
 
   try {
-    const usersSnapshot = await getDocs(collection(db, 'users'));
+    const usersSnapshot = await db.collection('users').get();
     const now = new Date();
     const currentDayOfMonth = parseInt(new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: 'numeric' }).format(now));
     const todayCampaignKey = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
@@ -71,7 +59,7 @@ export async function runAllEmailAutomations(): Promise<{ processedUsers: number
       }
 
       processedUsers++;
-      const userRef = doc(db, 'users', userId);
+      const userRef = db.collection('users').doc(userId);
       const updatesToSave: Record<string, any> = {};
 
       // 1. Welcome Email Check
@@ -197,7 +185,7 @@ export async function runAllEmailAutomations(): Promise<{ processedUsers: number
 
       // Save user updates if any
       if (Object.keys(updatesToSave).length > 0) {
-        await updateDoc(userRef, updatesToSave).catch(err => console.warn(`[EmailAutomation] Error updating user ${userId}:`, err));
+        await userRef.update(updatesToSave).catch((err: any) => console.warn(`[EmailAutomation] Error updating user ${userId}:`, err));
       }
     }
   } catch (err) {
