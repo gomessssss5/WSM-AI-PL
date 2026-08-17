@@ -162,11 +162,28 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
             <span className="font-semibold text-[14px] text-gray-900 dark:text-gray-100 truncate tracking-tight leading-snug">
               {document.title || 'Documento'}
             </span>
-            <span className="text-[12px] text-gray-500 dark:text-gray-400 font-normal mt-0.5 flex items-center gap-1.5">
+            <span className="text-[12px] text-gray-500 dark:text-gray-400 font-normal mt-0.5 flex items-center gap-1.5 flex-wrap">
               <span>{format === 'xlsx' ? 'Planilha Excel' : format === 'csv' ? 'Planilha CSV' : isCode ? 'Código' : format === 'txt' ? 'Texto' : (format === 'md' || format === 'markdown') ? 'Markdown' : 'Documento'} · {format.toUpperCase()}</span>
               <span>•</span>
               <span>{formatFileSize(document.content || '')}</span>
             </span>
+
+            {/* Validation & Read-back SHA-256 Badge */}
+            {val && (
+              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-medium">
+                {val.unmetRequirements && val.unmetRequirements.length > 0 ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-200/80 dark:border-amber-800/80">
+                    <AlertCircle className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                    <span>Incompleto ({val.unmetRequirements.length} pendente)</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/80">
+                    <ShieldCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                    <span>Leitura & SHA-256 OK</span>
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

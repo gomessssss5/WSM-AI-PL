@@ -14,6 +14,7 @@ import { SearchImageCarousel } from './SearchImageCarousel';
 import DocumentCard from './DocumentCard';
 import ScheduledTaskCard from './ScheduledTaskCard';
 import { extractWsmTasks } from '../utils/taskParser';
+import { cleanAndDeduplicateSources } from '../utils/sourceCleaner';
 
 interface SearchMessageViewProps {
   message: Message;
@@ -472,18 +473,19 @@ export default function SearchMessageView({
       {(showFinal || !message.isSimulatingSearch) && message.searchSources && message.searchSources.length > 0 && onOpenSources && !isThinking && (
         <div className="mt-3 pt-3 border-t border-gray-150/50 flex items-center justify-start animate-fade-in">
           {(() => {
-            const uniqueSources: { hostname: string; title: string; url: string; snippet?: string }[] = [];
-            message.searchSources.forEach(src => {
+            const activeQuery = message.userQuery || (message.searchSteps && message.searchSteps[0]?.tag) || message.searchIntro || title;
+            const cleanedSources = cleanAndDeduplicateSources(message.searchSources, activeQuery, 15);
+            const uniqueSources = cleanedSources.map(src => {
               let hostname = '';
               try {
-                hostname = new URL(src.url).hostname.replace('www.', '');
+                hostname = new URL(src.url).hostname.replace(/^www\./, '');
               } catch {
                 hostname = src.title;
               }
-              if (!uniqueSources.some(s => s.url === src.url)) {
-                uniqueSources.push({ hostname, title: src.title, url: src.url, snippet: src.snippet });
-              }
+              return { hostname, title: src.title, url: src.url, snippet: src.snippet };
             });
+
+            if (uniqueSources.length === 0) return null;
 
             const count = uniqueSources.length;
             const previewSources = uniqueSources.slice(0, 3);
@@ -492,7 +494,6 @@ export default function SearchMessageView({
               <button
                 type="button"
                 onClick={() => {
-                  const activeQuery = message.userQuery || (message.searchSteps && message.searchSteps[0]?.tag) || message.searchIntro || title;
                   onOpenSources(uniqueSources, activeQuery, count, message.id);
                 }}
                 className="flex items-center gap-2 px-2.5 py-1.5 bg-white hover:bg-[#f0ede8] border border-[#eae6e1] rounded-full text-xs font-semibold transition-all shadow-3xs cursor-pointer select-none active:scale-95 text-gray-700"

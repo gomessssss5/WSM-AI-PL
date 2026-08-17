@@ -1877,6 +1877,27 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                   } catch (err) {
                     console.error("Erro ao processar terminal_action no sandbox:", err);
                   }
+                } else if (eventData.type === "tool_event" && eventData.toolEvent) {
+                  setSessions((prev) => {
+                    const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
+                    if (!currentSess) return prev;
+                    return prev.map((s) => {
+                      if (s.id !== sessionToUpdate.id) return s;
+                      return {
+                        ...s,
+                        messages: s.messages.map((m) => {
+                          if (m.id === initialAiMsg.id) {
+                            const existingEvents = m.toolEvents || [];
+                            return {
+                              ...m,
+                              toolEvents: [...existingEvents, eventData.toolEvent]
+                            };
+                          }
+                          return m;
+                        })
+                      };
+                    });
+                  });
                 } else if (eventData.type === "final") {
                   accumulatedFinalText = eventData.finalSynthesis || eventData.text || "";
                   
@@ -1902,6 +1923,8 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                       messages: currentSess.messages.map((m) => {
                         if (m.id === initialAiMsg.id) {
                           matched = true;
+                          const hasSources = Boolean(eventData.searchSources && eventData.searchSources.length > 0);
+                          const isSearchMsg = eventData.isSearchMessage !== undefined ? eventData.isSearchMessage : hasSources;
                           return {
                             ...m,
                             text: textToSave,
@@ -1910,7 +1933,9 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                             geminiModel: eventData.geminiModel || m.geminiModel || 'gemini-3.5-flash-lite',
                             searchImages: eventData.searchImages,
                             searchSources: eventData.searchSources,
-                            isSimulatingSearch: m.isSearchMessage ? true : false,
+                            isSearchMessage: isSearchMsg,
+                            isSimulatingSearch: isSearchMsg,
+                            toolEvents: eventData.toolEvents || m.toolEvents || [],
                           };
                         }
                         return m;

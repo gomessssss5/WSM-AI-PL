@@ -11,6 +11,7 @@ export interface ExecutionResult {
   exitCode: number;
   durationMs: number;
   filesModified: string[];
+  fileContents?: Record<string, string>;
 }
 
 export function ensureSandboxDir(): void {
@@ -162,6 +163,13 @@ export async function executeSandboxCommand(command: string, timeoutSec = 15): P
 
   let adjustedCommand = command.trim();
 
+  // Rewrite /workspace paths to SANDBOX_DIR so commands like
+  // mkdir /workspace/dir, cat /workspace/file.txt, printf ... > /workspace/file.txt
+  // execute against the sandbox directory instead of root /workspace on Cloud Run.
+  adjustedCommand = adjustedCommand
+    .replace(/\/workspace\//g, `${SANDBOX_DIR}/`)
+    .replace(/\b\/workspace\b/g, SANDBOX_DIR);
+
   // Basic command safety check against destructive system commands
   const lowerCmd = adjustedCommand.toLowerCase();
   const prohibitedPatterns = [
@@ -234,10 +242,24 @@ export async function executeSandboxCommand(command: string, timeoutSec = 15): P
 
         const filesAfter = listSandboxFiles();
         const filesModified: string[] = [];
+        const fileContents: Record<string, string> = {};
+
         for (const file of filesAfter) {
           if (!filesBefore.has(file.path) || file.updatedAt >= startTime) {
             filesModified.push(file.path);
+            const content = readSandboxFile(file.path);
+            if (content !== null) {
+              fileContents[file.path] = content;
+            }
           }
+        }
+
+        // Sanitize outputs replacing internal temp SANDBOX_DIR with /workspace
+        if (SANDBOX_DIR) {
+          const escapedDir = SANDBOX_DIR.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const dirRegex = new RegExp(escapedDir, 'g');
+          finalStdout = finalStdout.replace(dirRegex, '/workspace');
+          finalStderr = finalStderr.replace(dirRegex, '/workspace');
         }
 
         resolve({
@@ -245,7 +267,8 @@ export async function executeSandboxCommand(command: string, timeoutSec = 15): P
           stderr: finalStderr,
           exitCode,
           durationMs,
-          filesModified
+          filesModified,
+          fileContents
         });
       }
     );

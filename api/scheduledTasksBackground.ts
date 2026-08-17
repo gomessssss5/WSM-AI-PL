@@ -261,6 +261,7 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
   }
 
   const finalOutput = aiFinalSynthesis || aiText || "Tarefa processada em segundo plano.";
+  const searchSources: any[] = [];
 
   // Update session with AI message
   try {
@@ -270,7 +271,8 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
       text: finalOutput,
       finalSynthesis: aiFinalSynthesis,
       timestamp: Timestamp.fromDate(new Date()),
-      isSearchMessage: true
+      isSearchMessage: searchSources.length > 0,
+      searchSources: searchSources
     } as any);
 
     await db.collection('users').doc(userId).collection('sessions').doc(newSessionId).update({

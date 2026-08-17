@@ -220,22 +220,56 @@ export function buildRunFromMessage(
   const steps = resolveStepStatuses(rawSteps, false);
 
   const toolCalls: DetailedToolCall[] = [];
+
+  // 1. Process explicit toolEvents attached to the message
   if (message.toolEvents && message.toolEvents.length > 0) {
-    message.toolEvents.forEach((ev, idx) => {
+    message.toolEvents.forEach((evRaw, idx) => {
+      const ev = evRaw as any;
       const isFailed = ev.status === 'failed';
+      const isSearch = (ev.tool && ev.tool.includes('search')) || ev.event === 'web.search';
+
       toolCalls.push({
-        id: `tool_ev_${idx + 1}`,
-        tool_name: ev.tool,
-        arguments: { filename: ev.filename, details: ev.details },
-        normalized_input: ev.details || ev.tool,
+        id: ev.tool_call_id || `tool_ev_${idx + 1}`,
+        tool_name: ev.tool || 'web_search_query',
+        arguments: {
+          filename: ev.filename,
+          details: ev.details,
+          query: ev.query,
+          url: ev.url
+        },
+        normalized_input: ev.query || ev.details || ev.filename || ev.tool,
         permission: 'granted',
-        risk: ev.tool.includes('delete') ? 'high' : 'medium',
+        risk: (ev.tool && ev.tool.includes('delete')) ? 'high' : 'low',
         started_at: ev.timestamp || createdAt,
         finished_at: ev.timestamp || createdAt,
-        result_ref: ev.artifactId ? `Artifact [${ev.artifactId.slice(0, 8)}]` : undefined,
-        error: isFailed ? 'Erro ao executar ferramenta no workspace' : undefined,
+        result_ref: ev.sourcesCount !== undefined
+          ? `${ev.sourcesCount} fontes obtidas (HTTP ${ev.httpStatus || 200})`
+          : (ev.artifactId ? `Artifact [${ev.artifactId.slice(0, 8)}]` : (isSearch ? 'Busca concluída' : undefined)),
+        error: isFailed ? 'Erro ou 0 resultados na execução da ferramenta' : undefined,
         retry_count: isFailed ? 1 : 0,
-        status: ev.status as any
+        status: isFailed ? 'failed' : 'success'
+      });
+    });
+  }
+
+  // 2. Fallback: if message has searchSteps/searchSources, extract toolCalls for each search query
+  if (toolCalls.length === 0 && message.isSearchMessage && message.searchSteps && message.searchSteps.length > 0) {
+    message.searchSteps.forEach((step, idx) => {
+      const sourcesCount = step.sources?.length || 0;
+      const isCompleted = step.isCompleted !== undefined ? step.isCompleted : sourcesCount > 0;
+      toolCalls.push({
+        id: `tool_srch_${idx + 1}`,
+        tool_name: 'web_search_query',
+        arguments: { query: step.tag, thinking: step.thinking },
+        normalized_input: step.tag || step.thinking,
+        permission: 'granted',
+        risk: 'low',
+        started_at: createdAt,
+        finished_at: createdAt,
+        result_ref: `${sourcesCount} fontes obtidas (HTTP 200)`,
+        error: !isCompleted && sourcesCount === 0 ? 'Sem resultados' : undefined,
+        retry_count: 0,
+        status: isCompleted && sourcesCount > 0 ? 'success' : (isCompleted ? 'failed' : 'pending')
       });
     });
   }
@@ -369,22 +403,49 @@ export function createActiveStreamingRun(
   const steps = resolveStepStatuses(rawSteps, !!isThinking);
 
   const toolCalls: DetailedToolCall[] = [];
+
+  if (toolEvents && toolEvents.length > 0) {
+    toolEvents.forEach((ev, idx) => {
+      const isFailed = ev.status === 'failed';
+      const isSearch = (ev.tool && ev.tool.includes('search')) || ev.event === 'web.search';
+      toolCalls.push({
+        id: ev.tool_call_id || `tool_stream_${idx + 1}`,
+        tool_name: ev.tool || 'web_search_query',
+        arguments: { filename: ev.filename, details: ev.details, query: ev.query, url: ev.url },
+        normalized_input: ev.query || ev.details || ev.filename || ev.tool,
+        permission: 'granted',
+        risk: (ev.tool && ev.tool.includes('delete')) ? 'high' : 'low',
+        started_at: ev.timestamp || nowISO,
+        finished_at: ev.timestamp || nowISO,
+        result_ref: ev.sourcesCount !== undefined
+          ? `${ev.sourcesCount} fontes obtidas (HTTP ${ev.httpStatus || 200})`
+          : (ev.artifactId ? `Artifact [${ev.artifactId.slice(0, 8)}]` : (isSearch ? 'Busca concluída' : undefined)),
+        error: isFailed ? 'Erro na execução da ferramenta' : undefined,
+        retry_count: isFailed ? 1 : 0,
+        status: isFailed ? 'failed' : 'success'
+      });
+    });
+  }
+
   if (searchSteps && searchSteps.length > 0) {
     searchSteps.forEach((s, idx) => {
       if (s.sources && s.sources.length > 0) {
-        toolCalls.push({
-          id: `tool_srch_stream_${idx + 1}`,
-          tool_name: 'web.search_query',
-          arguments: { query: s.tag },
-          normalized_input: s.tag,
-          permission: 'granted',
-          risk: 'low',
-          started_at: nowISO,
-          finished_at: s.isCompleted ? nowISO : undefined,
-          result_ref: `${s.sources.length} fontes encontradas`,
-          retry_count: 0,
-          status: s.isCompleted ? 'success' : 'running'
-        });
+        const alreadyAdded = toolCalls.some(tc => tc.arguments?.query === s.tag);
+        if (!alreadyAdded) {
+          toolCalls.push({
+            id: `tool_srch_stream_${idx + 1}`,
+            tool_name: 'web_search_query',
+            arguments: { query: s.tag },
+            normalized_input: s.tag,
+            permission: 'granted',
+            risk: 'low',
+            started_at: nowISO,
+            finished_at: s.isCompleted ? nowISO : undefined,
+            result_ref: `${s.sources.length} fontes encontradas (HTTP 200)`,
+            retry_count: 0,
+            status: s.isCompleted ? 'success' : 'running'
+          });
+        }
       }
     });
   }

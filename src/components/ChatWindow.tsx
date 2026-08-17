@@ -27,6 +27,7 @@ import { extractWsmTask, extractWsmTasks, cleanWsmTaskTags } from '../utils/task
 import { cleanWorkspaceTags } from '../utils/workspaceParser';
 import { extractRaciocinio, cleanRaciocinioTags } from '../utils/raciocinioParser';
 import { cleanHistoryTags } from '../utils/historyParser';
+import { cleanAndDeduplicateSources } from '../utils/sourceCleaner';
 import { SearchImageCarousel } from './SearchImageCarousel';
 import { logAuditEvent } from '../utils/auditLogger';
 import { extractStructuredEvents } from '../utils/eventParser';
@@ -2111,7 +2112,7 @@ export default function ChatWindow({
                           }} className="text-xs px-2 py-1 bg-black text-white rounded hover:bg-neutral-800 transition-colors">Confirmar</button>
                         </div>
                       </div>
-                    ) : message.isSearchMessage ? (
+                    ) : Boolean(message.isSearchMessage && ((message.searchSources && message.searchSources.length > 0) || (message.searchSteps && message.searchSteps.some(s => s.sources && s.sources.length > 0)) || (message.toolEvents && message.toolEvents.some(e => e.status === 'success' && e.tool && e.tool.includes('search'))))) ? (
                       <SearchMessageView
                         message={message}
                         title={title}
@@ -3421,51 +3422,88 @@ export default function ChatWindow({
 
             {/* Sources List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3.5 scrollbar-thin scrollbar-thumb-gray-200">
-              {drawerSources.sources.map((src, idx) => {
-                const favUrl = `https://www.google.com/s2/favicons?domain=${src.hostname}&sz=32`;
-                return (
-                  <div 
-                    key={idx} 
-                    className="p-3.5 bg-white border border-[#eae6e1] hover:border-gray-300 rounded-xl transition-all hover:shadow-2xs group"
-                  >
-                    {/* Header (Favicon + Hostname) */}
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <img
-                        src={favUrl}
-                        alt=""
-                        className="w-4 h-4 rounded-full object-contain bg-white shrink-0"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%23666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>';
-                        }}
-                      />
-                      <span className="text-[11px] font-semibold text-gray-400 truncate">
-                        {src.hostname}
-                      </span>
+              {(() => {
+                const cleanList = cleanAndDeduplicateSources(drawerSources.sources, drawerQuery, 20);
+                if (cleanList.length === 0) {
+                  return (
+                    <div className="p-6 text-center text-gray-400 text-xs">
+                      Nenhuma fonte individual de notícias validada para esta consulta.
                     </div>
-
-                    {/* Title */}
-                    <a 
-                      href={src.url} 
-                      target="_blank" 
-                      rel="noreferrer"
-                      className="font-bold text-[13px] text-gray-900 group-hover:text-black dark:text-white leading-snug transition-colors line-clamp-2 block mb-1.5 hover:underline"
+                  );
+                }
+                return cleanList.map((src, idx) => {
+                  let hostname = src.hostname || '';
+                  try {
+                    hostname = new URL(src.url).hostname.replace(/^www\./, '');
+                  } catch {
+                    hostname = src.title;
+                  }
+                  const favUrl = `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
+                  return (
+                    <div 
+                      key={idx} 
+                      className="p-3.5 bg-white border border-[#eae6e1] hover:border-gray-300 rounded-xl transition-all hover:shadow-2xs group"
                     >
-                      {src.title}
-                    </a>
+                      {/* Header (Favicon + Hostname + Direct Link) */}
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <img
+                            src={favUrl}
+                            alt=""
+                            className="w-4 h-4 rounded-full object-contain bg-white shrink-0 border border-gray-100"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%23666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>';
+                            }}
+                          />
+                          <span className="text-[11px] font-semibold text-gray-500 truncate">
+                            {hostname}
+                          </span>
+                        </div>
+                        <a 
+                          href={src.url} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 shrink-0 bg-blue-50 px-2 py-0.5 rounded-md hover:bg-blue-100 transition-colors"
+                        >
+                          <span>Abrir</span>
+                          <Share className="w-2.5 h-2.5" />
+                        </a>
+                      </div>
 
-                    {/* Excerpt/Snippet */}
-                    {src.snippet ? (
-                      <p className="text-[11.5px] text-gray-500 leading-relaxed line-clamp-3">
-                        {src.snippet}
-                      </p>
-                    ) : (
-                      <p className="text-[11px] text-gray-400 italic">
-                        Nenhum trecho de texto disponível para esta fonte.
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
+                      {/* Title */}
+                      <a 
+                        href={src.url} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="font-bold text-[13px] text-gray-900 group-hover:text-black leading-snug transition-colors line-clamp-2 block mb-1.5 hover:underline"
+                      >
+                        {src.title}
+                      </a>
+
+                      {/* Direct Canonical URL display */}
+                      <div className="text-[10.5px] font-mono text-gray-400 truncate mb-2 select-all">
+                        {src.url}
+                      </div>
+
+                      {/* Excerpt / Supporting Evidence Snippet */}
+                      {src.snippet ? (
+                        <div className="p-2.5 bg-[#fbfaf8] border border-[#f0ede8] rounded-lg">
+                          <span className="text-[9.5px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                            Evidência Extraída
+                          </span>
+                          <p className="text-[11.5px] text-gray-600 leading-relaxed line-clamp-4 select-text">
+                            "{src.snippet}"
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-gray-400 italic">
+                          Artigo verificado sem trecho em cache.
+                        </p>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
         </>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Terminal, FileCode, ChevronRight, Loader2 } from 'lucide-react';
+import { Terminal, FileCode, ChevronRight, Loader2, AlertTriangle } from 'lucide-react';
 import { WsmTerminalExecAction, WsmTerminalFileAction } from '../utils/terminalParser';
 
 interface TerminalActionCardProps {
@@ -15,6 +15,7 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
 }) => {
   if (execAction) {
     const isRunning = execAction.status === 'running';
+    const isFailed = execAction.status === 'failed' || execAction.status === 'timed_out' || (typeof execAction.exitCode === 'number' && execAction.exitCode !== 0);
 
     return (
       <div className="flex items-center justify-start py-0.5 my-1">
@@ -26,6 +27,16 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
           >
             <Loader2 className="w-4 h-4 text-[#8e9099] dark:text-gray-400 animate-spin shrink-0" />
             <span className="shimmer-text">Executando no terminal...</span>
+          </button>
+        ) : isFailed ? (
+          <button
+            type="button"
+            onClick={onOpenTerminal}
+            className="inline-flex items-center gap-1.5 text-[14px] font-medium transition-colors select-none border-0 bg-transparent p-0 cursor-pointer text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+          >
+            <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
+            <span>Falha no terminal (Exit {execAction.exitCode ?? 1})</span>
+            <ChevronRight className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0" />
           </button>
         ) : (
           <button

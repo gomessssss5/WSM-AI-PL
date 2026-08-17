@@ -16,6 +16,7 @@ import { processBackgroundTasks, executeScheduledTaskNow } from "./scheduledTask
 import { getAllSystemPrompts, getSystemPrompt, updateSystemPrompt } from "./systemPromptsManager.js";
 import { executeSandboxCommand, writeSandboxFile, readSandboxFile, deleteSandboxFile, listSandboxFiles, ensureSandboxDir } from "./terminalService.js";
 import { verifyFirebaseIdToken, DecodedAuthToken } from "./authVerifier.js";
+import { cleanAndDeduplicateSources } from "../src/utils/sourceCleaner.js";
 
 dotenv.config();
 
@@ -590,32 +591,35 @@ ${deterministicInstruction}
       console.error("[Search Fallback] Google News RSS error:", e);
     }
 
-    // 2. Wikipedia Search API
-    try {
-      const wikiUrl = `https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(cleanQuery)}&utf8=&format=json&origin=*`;
-      const res = await fetch(wikiUrl);
-      if (res.ok) {
-        const data = await res.json();
-        const items = data.query?.search || [];
-        for (const item of items) {
-          if (results.length >= 10) break;
-          const cleanSnippet = (item.snippet || "")
-            .replace(/<[^>]+>/g, "")
-            .replace(/&quot;/g, '"')
-            .replace(/&amp;/g, '&')
-            .trim();
-          results.push({
-            title: `${item.title} - Wikipédia`,
-            url: `https://pt.wikipedia.org/wiki/${encodeURIComponent(item.title.replace(/ /g, "_"))}`,
-            snippet: cleanSnippet
-          });
+    // 2. Wikipedia Search API (Only for general/historical queries, NOT for specific news)
+    const isNewsQuery = /notícia|noticia|jornal|manchete|artigo|hoje|futebol|governo|eleição|economia|mundo/i.test(cleanQuery);
+    if (!isNewsQuery) {
+      try {
+        const wikiUrl = `https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(cleanQuery)}&utf8=&format=json&origin=*`;
+        const res = await fetch(wikiUrl);
+        if (res.ok) {
+          const data = await res.json();
+          const items = data.query?.search || [];
+          for (const item of items) {
+            if (results.length >= 10) break;
+            const cleanSnippet = (item.snippet || "")
+              .replace(/<[^>]+>/g, "")
+              .replace(/&quot;/g, '"')
+              .replace(/&amp;/g, '&')
+              .trim();
+            results.push({
+              title: `${item.title} - Wikipédia`,
+              url: `https://pt.wikipedia.org/wiki/${encodeURIComponent(item.title.replace(/ /g, "_"))}`,
+              snippet: cleanSnippet
+            });
+          }
         }
+      } catch (e) {
+        console.error("[Search Fallback] Wikipedia error:", e);
       }
-    } catch (e) {
-      console.error("[Search Fallback] Wikipedia error:", e);
     }
 
-    return results;
+    return cleanAndDeduplicateSources(results, query, 12);
   }
 
   const chatMemoryInstruction = `
@@ -897,6 +901,7 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
       const searchSteps: any[] = [];
       const allImages: string[] = [];
       const allSources: { title: string; url: string; snippet?: string }[] = [];
+      const accumulatedToolEvents: any[] = [];
       const executedTags = new Set<string>();
       let consecutiveZeroGainSteps = 0;
 
@@ -976,6 +981,21 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
           });
         }
 
+        const stepToolEv = {
+          runId: `run_search_${Date.now()}_${idx}`,
+          tool_call_id: `tc_search_${Date.now()}_${idx}`,
+          event: "web.search",
+          tool: "web_search_query",
+          query: step.tag,
+          url: `https://api.tavily.com/search?q=${encodeURIComponent(step.tag)}`,
+          httpStatus: stepResults.length > 0 ? 200 : 404,
+          timestamp: new Date().toISOString(),
+          sourcesCount: stepResults.length,
+          status: stepResults.length > 0 ? "success" : "failed",
+          details: `Busca web por "${step.tag}": HTTP ${stepResults.length > 0 ? 200 : 404} | ${stepResults.length} fontes obtidas`
+        };
+        accumulatedToolEvents.push(stepToolEv);
+
         const completedStepData = {
           tag: step.tag,
           thinking: step.thinking,
@@ -984,7 +1004,12 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
         };
         searchSteps.push(completedStepData);
 
-        // Stream this completed step to the client immediately
+        // Stream this tool event and completed step to the client immediately
+        sendEvent({
+          type: "tool_event",
+          toolEvent: stepToolEv
+        });
+
         sendEvent({
           type: "step_complete",
           index: idx,
@@ -1024,9 +1049,7 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
 
       // De-duplicate images and sources
       const uniqueImages = Array.from(new Set(allImages)).filter(Boolean);
-      const uniqueSourcesMap = new Map();
-      allSources.forEach((src) => uniqueSourcesMap.set(src.url, src));
-      const uniqueSources = Array.from(uniqueSourcesMap.values());
+      const uniqueSources = cleanAndDeduplicateSources(allSources, text, 15);
 
       // Filter out non-image links (social networks, general web pages that don't represent raw images)
       const validImageExtensions = /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|heic)(\?.*)?$/i;
@@ -1126,7 +1149,9 @@ ${contextInfo}`;
         console.error("Error generating streaming final synthesis:", err);
       }
 
-      if (!finalSynthesisText.trim()) {
+      if (uniqueSources.length === 0) {
+        finalSynthesisText = "Não foi possível verificar informações atualizadas na web no momento.";
+      } else if (!finalSynthesisText.trim()) {
         finalSynthesisText = "Desculpe, não consegui sintetizar uma resposta com os resultados obtidos.";
       }
 
@@ -1134,9 +1159,11 @@ ${contextInfo}`;
       sendEvent({
         type: "final",
         text: finalSynthesisText,
-        searchImages: filteredImages.slice(0, 25),
+        searchImages: uniqueSources.length > 0 ? filteredImages.slice(0, 25) : [],
         searchSources: uniqueSources,
-        finalSynthesis: finalSynthesisText
+        finalSynthesis: finalSynthesisText,
+        isSearchMessage: uniqueSources.length > 0,
+        toolEvents: accumulatedToolEvents
       });
 
       res.end();
@@ -1483,6 +1510,7 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
 
       const marteSources: any[] = [];
       const marteImages: string[] = [];
+      const accumulatedToolEvents: any[] = [];
       const workspaceDocuments = new Map<string, { title: string, content: string, format?: string }>();
       let fullOutput = "";
       let turnCount = 0;
@@ -1990,6 +2018,23 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
                 }
               }
               const callId = fc.id || `call_${fc.name}_${Math.random().toString(36).substring(2, 8)}`;
+              const isSuccess = Boolean(resultData && resultData.status === "succeeded" && resultData.results && resultData.results.length > 0);
+              const fcToolEv = {
+                runId: `run_${Date.now()}`,
+                tool_call_id: callId,
+                event: "web.search",
+                tool: "web_search",
+                query: args.query || args.search_query || (typeof text === 'string' ? text : ''),
+                url: `https://api.tavily.com/search?q=${encodeURIComponent(args.query || args.search_query || (typeof text === 'string' ? text : ''))}`,
+                httpStatus: isSuccess ? 200 : 500,
+                timestamp: new Date().toISOString(),
+                sourcesCount: resultData?.results?.length || 0,
+                status: isSuccess ? "success" : "failed",
+                details: `Pesquisa agêntica por "${args.query || (typeof text === 'string' ? text : '')}": ${resultData?.results?.length || 0} fontes obtidas`
+              };
+              accumulatedToolEvents.push(fcToolEv);
+              sendEvent({ type: "tool_event", toolEvent: fcToolEv });
+
               functionResponseParts.push({
                 functionResponse: { id: callId, name: fc.name, response: { result: resultData } }
               });
@@ -2435,6 +2480,7 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
               // Execute real command in Linux container sandbox environment
               const execResult = await executeSandboxCommand(cmd, timeoutSec);
               const exitCode = execResult.exitCode;
+              (fc as any)._exitCode = exitCode;
               const stdout = execResult.stdout;
               const stderr = execResult.stderr;
               const filesModified = execResult.filesModified;
@@ -2485,6 +2531,7 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
 
               const cmd = (lang === 'python' || lang === 'py') ? `python3 ${fn}` : `node ${fn}`;
               const execResult = await executeSandboxCommand(cmd, 15);
+              (fc as any)._exitCode = execResult.exitCode;
 
               sendEvent({
                 type: "terminal_action",
@@ -2598,14 +2645,18 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
               finalTagText = `\n\n<wsm_workspace_action status="done" type="list" file="workspace" />\n\n`;
             } else if (fc.name === "execute_terminal_command") {
               const cmd = (fc.args as any)?.command || 'ls';
-              finalTagText = `\n\n<wsm_terminal_exec command="${cmd.replace(/"/g, '&quot;')}" status="done" />\n\n`;
+              const code = typeof (fc as any)._exitCode === 'number' ? (fc as any)._exitCode : 0;
+              const termStatus = code === 0 ? "succeeded" : (code === 124 ? "timed_out" : "failed");
+              finalTagText = `\n\n<wsm_terminal_exec command="${cmd.replace(/"/g, '&quot;')}" status="${termStatus}" exitCode="${code}" />\n\n`;
             } else if (fc.name === "run_code_sandbox") {
               const lang = (fc.args as any)?.language || 'javascript';
               const fn = (fc.args as any)?.filename || (lang === 'python' ? 'script.py' : 'index.js');
               const codeStr = (fc.args as any)?.code || '';
+              const code = typeof (fc as any)._exitCode === 'number' ? (fc as any)._exitCode : 0;
+              const codeStatus = code === 0 ? "succeeded" : (code === 124 ? "timed_out" : "failed");
               const ext = fn.split('.').pop() || (lang === 'python' ? 'py' : 'js');
               const docJson = JSON.stringify({ title: fn, format: ext, content: codeStr });
-              finalTagText = `\n\n<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${fn}" />\n<wsm_terminal_exec command="${lang === 'python' ? 'python3 ' + fn : 'node ' + fn}" status="done" />\n\n`;
+              finalTagText = `\n\n<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${fn}" />\n<wsm_terminal_exec command="${lang === 'python' ? 'python3 ' + fn : 'node ' + fn}" status="${codeStatus}" exitCode="${code}" />\n\n`;
             } else if (fc.name === "write_terminal_file") {
               const pathStr = (fc.args as any)?.path || 'arquivo.py';
               const contentStr = (fc.args as any)?.content || '';
@@ -2919,7 +2970,9 @@ Responda EXATAMENTE com "CONCLUIDO" ou "CONTINUAR: <motivo_curto>".`;
         finalSynthesis: sanitizedFullOutput || fallbackEmptyResponse,
         chatMemoryDoc: updatedMemoryDoc,
         searchSources: uniqueSources,
-        searchImages: filteredImages.slice(0, 15)
+        searchImages: filteredImages.slice(0, 15),
+        isSearchMessage: uniqueSources.length > 0,
+        toolEvents: accumulatedToolEvents
       });
       res.end();
       return;

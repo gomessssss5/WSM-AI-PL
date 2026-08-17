@@ -10,10 +10,20 @@ export interface SandboxProcess {
   kill: () => void;
 }
 
+export type TerminalExecutionStatus = 
+  | 'queued' 
+  | 'running' 
+  | 'succeeded' 
+  | 'failed' 
+  | 'cancelled' 
+  | 'timed_out';
+
 export interface TerminalCommandLog {
   id: string;
   command: string;
   args: string[];
+  cwd: string;
+  status: TerminalExecutionStatus;
   exitCode: number;
   stdout: string;
   stderr: string;
@@ -497,11 +507,22 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
 
     const fullOutputText = (stdoutBuffer + (stderrBuffer ? `\n${stderrBuffer}` : '')).trim();
 
-    // Log to command history
+    let executionStatus: TerminalExecutionStatus = 'succeeded';
+    if (exitCode === 124 || isTerminated) {
+      executionStatus = 'timed_out';
+    } else if (exitCode !== 0) {
+      executionStatus = 'failed';
+    } else {
+      executionStatus = 'succeeded';
+    }
+
+    // Log to command history (immutable record)
     this.commandHistory.push({
       id: `cmd_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       command: rawCommand,
       args,
+      cwd: this.currentWorkingDir,
+      status: executionStatus,
       exitCode,
       stdout: stdoutBuffer,
       stderr: stderrBuffer,
@@ -578,8 +599,12 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
         if (data.stdout) stdout(data.stdout);
         if (data.stderr) stderr(data.stderr);
         
-        // Sync any server-created files into local memory map
-        if (Array.isArray(data.filesModified)) {
+        // Sync any server-created or modified files with actual content into local memory map
+        if (data.fileContents && typeof data.fileContents === 'object') {
+          Object.entries(data.fileContents).forEach(([filePath, content]) => {
+            this.fileSystem.set(filePath, content as string);
+          });
+        } else if (Array.isArray(data.filesModified)) {
           data.filesModified.forEach((filePath: string) => {
             if (!this.fileSystem.has(filePath)) {
               this.fileSystem.set(filePath, '');
