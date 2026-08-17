@@ -738,7 +738,18 @@ DIRETRIZES FUNDAMENTAIS DE CONTINUIDADE:
     const isHtmlSiteRequest = /\b(html|site|landing\s*page|página|pagina|website|frontend)\b/i.test(userPromptLow);
 
     // Explicit user prohibition against web search or tools
-    const userForbidsSearch = /\b(não\s+(pesquis|busq|procur|use\s+a\s+web|use\s+a\s+internet|consulte\s+a\s+web|use\s+ferramentas)|sem\s+(web|internet|pesquisa|busca|ferramentas)|proibid\w*\s+(pesquis|buscar|usar\s+web)|desligad\w*\s+a\s+busca)\b/i.test(userPromptLow);
+    const userForbidsSearch = /\b(não\s+(pesquis|busq|procur|use\s+a\s+web|use\s+a\s+internet|consulte\s+a\s+web|use\s+ferramentas)|sem\s+(web|internet|pesquisa|busca|ferramentas)|proibid\w*\s+(pesquis|buscar|usar\s+web)|desligad\w*\s+a\s+busca)\b/i.test(userPromptLow) ||
+      /\b(não\s+faça\s+(pesquis|busc|procur))|não\s+pesquise|don't\s+search|do\s+not\s+search|no\s+web\s+search|sem\s+pesquisa/i.test(userPromptLow) ||
+      userPromptLow.includes("não pesquise") ||
+      userPromptLow.includes("não buscar") ||
+      userPromptLow.includes("sem pesquisar") ||
+      userPromptLow.includes("não usar pesquisa") ||
+      userPromptLow.includes("proibido pesquisar") ||
+      userPromptLow.includes("não pesquise na web") ||
+      userPromptLow.includes("não faça pesquisa") ||
+      userPromptLow.includes("sem busca");
+
+    const web_search_allowed = !userForbidsSearch;
 
     // Document, memory, code, or local context request
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
@@ -1237,20 +1248,22 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
       console.log(`Starting agentic loop for model: ${model}...`);
       const marteTools = [{
         functionDeclarations: [
-          {
-            name: "web_search",
-            description: "Busca na internet em tempo real.",
-            parameters: {
-              type: Type.OBJECT,
-              properties: {
-                query: {
-                  type: Type.STRING,
-                  description: "Termo de busca para pesquisar."
-                }
-              },
-              required: ["query"]
+          ...(web_search_allowed ? [
+            {
+              name: "web_search",
+              description: "Busca na internet em tempo real.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  query: {
+                    type: Type.STRING,
+                    description: "Termo de busca para pesquisar."
+                  }
+                },
+                required: ["query"]
+              }
             }
-          },
+          ] : []),
           {
             name: "calculadora",
             description: "Calculadora matemática avançada.",
@@ -1866,6 +1879,29 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
             fullOutput += thinkingText;
             
             if (fc.name === "web_search") {
+              if (!web_search_allowed) {
+                console.warn(`[Executor Block] Bloqueando a execução da ferramenta web_search devido a restrição do usuário (web_search_allowed=false).`);
+                
+                // Block the search and return a clear instruction message to the model
+                const resultData = {
+                  status: "failed",
+                  error: "Pesquisa Web bloqueada por restrição explícita de privacidade/ferramentas do usuário (web_search_allowed=false). É estritamente proibido realizar pesquisas na web para esta execução.",
+                  results: [],
+                  instruction: "AVISO: A busca na web foi desativada e bloqueada pelo usuário. Você DEVE responder usando APENAS seu conhecimento local ou o contexto já fornecido nesta sessão e NUNCA tentar pesquisar novamente."
+                };
+                
+                const callId = fc.id || `call_${fc.name}_${Math.random().toString(36).substring(2, 8)}`;
+                functionResponseParts.push({
+                  functionResponse: { id: callId, name: fc.name, response: { result: resultData } }
+                });
+                
+                // Exibe no chat de forma visível que a ação foi bloqueada
+                const preventText = `\n\n⚠️ **[Busca Web Bloqueada]** Uma tentativa de pesquisa na web foi detectada, mas foi impedida e bloqueada pelo executor de segurança do sistema devido à sua instrução explícita: *"Não pesquise na Web"* (web_search_allowed=false).\n\n`;
+                sendEvent({ type: "chunk", text: preventText });
+                fullOutput += preventText;
+                continue;
+              }
+
               const args = fc.args as any;
               let resultData: any = null;
               try {

@@ -1423,6 +1423,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
       id: `msg-${Date.now()}-ai`,
       sender: "ai",
       text: "",
+      userQuery: text,
       timestamp: new Date(),
       model: currentRequestedModel,
       geminiModel: 'gemini-3.5-flash-lite',

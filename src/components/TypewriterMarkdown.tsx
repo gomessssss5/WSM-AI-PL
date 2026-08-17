@@ -6,6 +6,7 @@ import { extractWsmDoc } from '../utils/docParser';
 interface TypewriterMarkdownProps {
   content: string;
   enabled?: boolean;
+  isThinking?: boolean;
   onComplete?: () => void;
   onTick?: () => void;
   searchSources?: Array<{ title: string; url: string; snippet?: string }>;
@@ -15,6 +16,7 @@ interface TypewriterMarkdownProps {
 export default function TypewriterMarkdown({
   content,
   enabled = true,
+  isThinking = false,
   onComplete,
   onTick,
   searchSources,
@@ -269,8 +271,8 @@ export default function TypewriterMarkdown({
     return () => cancelAnimationFrame(animationFrameId);
   }, [cleanText, enabled]);
 
-  // Check if typewriter animation is currently running
-  const isTyping = enabled && displayedText.length < cleanText.length;
+  // Check if typewriter animation is currently running or model is still generating
+  const isTyping = (enabled && isThinking) || (enabled && displayedText.length < cleanText.length);
 
   return (
     <div className="relative w-full max-w-full min-w-0 overflow-x-hidden">

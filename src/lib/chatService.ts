@@ -113,6 +113,7 @@ const mapSessionToDoc = (session: ChatSession): any => {
       }),
       ...(msg.searchImages && { searchImages: msg.searchImages }),
       ...(msg.searchSources && { searchSources: msg.searchSources }),
+      ...(msg.userQuery && { userQuery: msg.userQuery }),
       ...(msg.isSearchMessage !== undefined && { isSearchMessage: msg.isSearchMessage }),
       ...(msg.searchIntro && { searchIntro: msg.searchIntro }),
       ...(msg.searchSteps && { searchSteps: msg.searchSteps }),

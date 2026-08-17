@@ -33,6 +33,7 @@ import { extractStructuredEvents } from '../utils/eventParser';
 import { StructuredEventsLog } from './StructuredEventsLog';
 import { ArtifactPersistenceCard } from './ArtifactPersistenceCard';
 import { ExecutionRuntimeViewer } from './ExecutionRuntimeViewer';
+import { RightRunSidebar } from './RightRunSidebar';
 import { buildRunFromMessage, createActiveStreamingRun } from '../utils/runCenterParser';
 import { OmnixRun } from '../types';
 
@@ -632,7 +633,24 @@ export default function ChatWindow({
     sources: { hostname: string; title: string; url: string; snippet?: string }[];
     query: string;
     count: number;
+    messageId?: string;
   } | null>(null);
+
+  const getMessageUserQuery = (msg: Message, allMessages: Message[]): string => {
+    if (msg.userQuery) return msg.userQuery;
+    const idx = allMessages.findIndex(m => m.id === msg.id);
+    if (idx > 0) {
+      for (let i = idx - 1; i >= 0; i--) {
+        if (allMessages[i].sender === 'user' && allMessages[i].text) {
+          return allMessages[i].text;
+        }
+      }
+    }
+    if (msg.searchSteps && msg.searchSteps.length > 0 && msg.searchSteps[0].tag) {
+      return msg.searchSteps[0].tag;
+    }
+    return msg.text || "Pesquisa na Web";
+  };
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   
@@ -2105,8 +2123,9 @@ export default function ChatWindow({
                         onStepChange={() => {
                           scrollToBottom('smooth');
                         }}
-                        onOpenSources={(sources, query, count) => {
-                          setDrawerSources({ sources, query, count });
+                        onOpenSources={(sources, query, count, messageId) => {
+                          const actualQuery = (query && query !== title) ? query : getMessageUserQuery(message, messages);
+                          setDrawerSources({ sources, query: actualQuery, count, messageId: messageId || message.id });
                         }}
                         onOpenDocument={(doc) => setActiveDocument({ doc, isFullscreen: false })}
                         onOpenWorkspace={() => setIsWorkspaceViewerOpen(true)}
@@ -2368,7 +2387,7 @@ export default function ChatWindow({
                                                   }
                                                 }
                                               }
-                                              setDrawerSources({ sources: uniqueSources, query: userQuery, count });
+                                              setDrawerSources({ sources: uniqueSources, query: getMessageUserQuery(message, messages), count, messageId: message.id });
                                             }}
                                             className="flex items-center gap-2 px-2.5 py-1 bg-white hover:bg-[#f0ede8] border border-[#eae6e1] rounded-full text-xs font-semibold transition-all shadow-3xs cursor-pointer select-none active:scale-95"
                                           >
@@ -3344,53 +3363,61 @@ export default function ChatWindow({
       </footer>
 
       {/* Sliding Lateral Sources Drawer */}
-      {drawerSources && (
-        <>
-          {/* Backdrop Overlay */}
-          <div 
-            className="absolute inset-0 bg-black/15 backdrop-blur-3xs z-40 transition-opacity animate-fade-in"
-            onClick={() => setDrawerSources(null)}
-          />
+      {drawerSources && (() => {
+        const drawerMessage = drawerSources.messageId 
+          ? messages.find(m => m.id === drawerSources.messageId) 
+          : null;
+        const drawerQuery = drawerMessage 
+          ? getMessageUserQuery(drawerMessage, messages) 
+          : drawerSources.query;
 
-          {/* Drawer Panel */}
-          <div 
-            className="absolute top-0 right-0 h-full w-full sm:w-[380px] bg-white border-l border-[#eae6e1] shadow-2xl z-50 flex flex-col animate-slide-in"
-            style={{
-              boxShadow: '-4px 0 24px rgba(0, 0, 0, 0.05)'
-            }}
-          >
-            {/* Header (X Close, Chevrons left, Title) */}
-            <div className="px-4 py-3.5 border-b border-[#eae6e1] flex items-center gap-3">
-              <button 
-                type="button"
-                onClick={() => setDrawerSources(null)}
-                className="p-1 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-              
-              <button 
-                type="button"
-                onClick={() => setDrawerSources(null)}
-                className="p-1 hover:bg-gray-100 rounded-lg text-gray-400 transition-colors cursor-pointer -ml-1"
-              >
-                <ChevronsLeft className="w-4 h-4" />
-              </button>
+        return (
+          <>
+            {/* Backdrop Overlay */}
+            <div 
+              className="absolute inset-0 bg-black/15 backdrop-blur-3xs z-40 transition-opacity animate-fade-in"
+              onClick={() => setDrawerSources(null)}
+            />
 
-              <span className="font-bold text-[15px] text-gray-800">
-                {drawerSources.count} {drawerSources.count === 1 ? 'fonte' : 'fontes'}
-              </span>
-            </div>
+            {/* Drawer Panel */}
+            <div 
+              className="absolute top-0 right-0 h-full w-full sm:w-[380px] bg-white border-l border-[#eae6e1] shadow-2xl z-50 flex flex-col animate-slide-in"
+              style={{
+                boxShadow: '-4px 0 24px rgba(0, 0, 0, 0.05)'
+              }}
+            >
+              {/* Header (X Close, Chevrons left, Title) */}
+              <div className="px-4 py-3.5 border-b border-[#eae6e1] flex items-center gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setDrawerSources(null)}
+                  className="p-1 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                
+                <button 
+                  type="button"
+                  onClick={() => setDrawerSources(null)}
+                  className="p-1 hover:bg-gray-100 rounded-lg text-gray-400 transition-colors cursor-pointer -ml-1"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
 
-            {/* Query Subtitle */}
-            <div className="px-5 py-3 bg-[#faf9f6] border-b border-[#eae6e1]">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                Fontes para
-              </span>
-              <p className="text-[12px] text-gray-600 font-medium line-clamp-2 italic">
-                "{drawerSources.query}"
-              </p>
-            </div>
+                <span className="font-bold text-[15px] text-gray-800">
+                  {drawerSources.count} {drawerSources.count === 1 ? 'fonte' : 'fontes'}
+                </span>
+              </div>
+
+              {/* Query Subtitle */}
+              <div className="px-5 py-3 bg-[#faf9f6] border-b border-[#eae6e1]">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                  Fontes para
+                </span>
+                <p className="text-[12px] text-gray-600 font-medium line-clamp-2 italic">
+                  "{drawerQuery}"
+                </p>
+              </div>
 
             {/* Sources List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3.5 scrollbar-thin scrollbar-thumb-gray-200">
@@ -3442,7 +3469,8 @@ export default function ChatWindow({
             </div>
           </div>
         </>
-      )}
+      );
+    })()}
 
       {/* Fullscreen Image Lightbox Modal */}
       {lightboxImage && (
@@ -3827,6 +3855,16 @@ export default function ChatWindow({
             isAiExecuting={isThinking}
           />
         </div>
+      )}
+
+      {/* Right Column: Steps and Run Center Sidebar */}
+      {isRunSidebarOpen && hasRunSteps && !isSplitScreenOpen && !isTerminalOpen && (
+        <RightRunSidebar
+          run={currentRun}
+          isOpen={isRunSidebarOpen}
+          onClose={() => setIsRunSidebarOpen(false)}
+          isStreaming={isThinking}
+        />
       )}
     </div>
   );

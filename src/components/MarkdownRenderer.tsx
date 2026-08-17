@@ -205,6 +205,7 @@ interface AgenticSearchTagProps {
   fullContent?: string;
   searchSources?: Array<{ title: string; url: string; snippet?: string }>;
   searchSteps?: Array<{ tag: string; sources: Array<{ title: string; url: string }> }>;
+  isTyping?: boolean;
 }
 
 export function AgenticSearchTag({
@@ -212,7 +213,8 @@ export function AgenticSearchTag({
   isActive,
   fullContent = '',
   searchSources,
-  searchSteps
+  searchSteps,
+  isTyping
 }: AgenticSearchTagProps) {
   const [isOpen, setIsOpen] = React.useState(false);
 
@@ -257,7 +259,7 @@ export function AgenticSearchTag({
     return result.filter((v, i, a) => a.findIndex(t => t.url === v.url) === i);
   }, [searchSources, searchSteps, fullContent]);
 
-  const cleanDisplay = isActive ? 'Pesquisando na web' : 'Pesquisou na web';
+  const cleanDisplay = isActive ? 'Pesquisando na web' : (isTyping ? 'Processando resposta...' : 'Pesquisou na web');
 
   if (isActive) {
     return (
@@ -1173,6 +1175,7 @@ export default function MarkdownRenderer({
                       fullContent={content}
                       searchSources={searchSources}
                       searchSteps={searchSteps}
+                      isTyping={isTyping}
                     />
                   );
                 }

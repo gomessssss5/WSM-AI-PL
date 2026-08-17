@@ -21,7 +21,7 @@ interface SearchMessageViewProps {
   setLightboxImage: (url: string) => void;
   onSimulationComplete?: () => void;
   onStepChange?: () => void;
-  onOpenSources?: (sources: { hostname: string; title: string; url: string; snippet?: string }[], query: string, count: number) => void;
+  onOpenSources?: (sources: { hostname: string; title: string; url: string; snippet?: string }[], query: string, count: number, messageId?: string) => void;
   onOpenScheduledTasks?: () => void;
   onOpenDocument?: (doc: WsmDocument) => void;
   onOpenWorkspace?: () => void;
@@ -126,6 +126,25 @@ export default function SearchMessageView({
 
     if (!isReasoningDone) {
       // Do NOT start search simulation steps until reasoning finishes and auto-closes
+      return;
+    }
+
+    // Critical Fix: If backend synthesis text or final answer is available/streaming,
+    // immediately mark search steps as complete and display synthesis without delay!
+    if (message.finalSynthesis || message.text) {
+      const allDone: Record<number, boolean> = {};
+      for (let i = 0; i < totalSteps; i++) {
+        allDone[i] = true;
+      }
+      setCompletedSteps(allDone);
+      setCurrentStepIndex(totalSteps);
+      if (!showFinal) {
+        setShowFinal(true);
+        onStepChangeRef.current?.();
+      }
+      if (!isThinking || !message.isSimulatingSearch) {
+        onSimulationCompleteRef.current?.();
+      }
       return;
     }
 
@@ -306,7 +325,7 @@ export default function SearchMessageView({
                   className="inline-flex items-center gap-1.5 text-[14px] font-medium transition-colors select-none border-0 bg-transparent p-0 cursor-pointer text-[#6b7076] hover:text-black dark:text-gray-400 dark:hover:text-white"
                 >
                   <Globe className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0" />
-                  <span>Pesquisou na web</span>
+                  <span>{isThinking ? 'Processando resposta...' : 'Pesquisou na web'}</span>
                   {isExpanded ? (
                     <ChevronDown className="w-3.5 h-3.5 text-[#6b7076] dark:text-gray-400 shrink-0" />
                   ) : (
@@ -378,7 +397,7 @@ export default function SearchMessageView({
                   {/* Bottom row: Concluído */}
                   <div className="flex items-center h-5 mt-1 select-none">
                     <span className="text-[13px] font-medium text-[#8e9099] dark:text-gray-400">
-                      Concluído
+                      {isThinking ? 'Processando resposta...' : 'Concluído'}
                     </span>
                   </div>
                 </div>
@@ -411,6 +430,7 @@ export default function SearchMessageView({
             searchSources={message.searchSources}
             searchSteps={message.searchSteps}
             enabled={message.isSimulatingSearch}
+            isThinking={isThinking}
             onComplete={onStepChange}
             onTick={onStepChange}
           />
@@ -449,7 +469,7 @@ export default function SearchMessageView({
       })()}
 
       {/* 6. Tavily Search Sources Pill footer */}
-      {(showFinal || !message.isSimulatingSearch) && message.searchSources && message.searchSources.length > 0 && onOpenSources && (
+      {(showFinal || !message.isSimulatingSearch) && message.searchSources && message.searchSources.length > 0 && onOpenSources && !isThinking && (
         <div className="mt-3 pt-3 border-t border-gray-150/50 flex items-center justify-start animate-fade-in">
           {(() => {
             const uniqueSources: { hostname: string; title: string; url: string; snippet?: string }[] = [];
@@ -472,7 +492,8 @@ export default function SearchMessageView({
               <button
                 type="button"
                 onClick={() => {
-                  onOpenSources(uniqueSources, title, count);
+                  const activeQuery = message.userQuery || (message.searchSteps && message.searchSteps[0]?.tag) || message.searchIntro || title;
+                  onOpenSources(uniqueSources, activeQuery, count, message.id);
                 }}
                 className="flex items-center gap-2 px-2.5 py-1.5 bg-white hover:bg-[#f0ede8] border border-[#eae6e1] rounded-full text-xs font-semibold transition-all shadow-3xs cursor-pointer select-none active:scale-95 text-gray-700"
               >
