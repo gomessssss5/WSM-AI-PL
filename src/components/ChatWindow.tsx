@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Paperclip, Globe, Monitor, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share, Columns, Pause, Cpu, Bot, PanelRight, Activity, Terminal } from 'lucide-react';
+import { Paperclip, Globe, Monitor, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share, Columns, Pause, Cpu, Bot, PanelRight, Activity, Terminal, ScrollText } from 'lucide-react';
 import BrowserPreviewPane from './BrowserPreviewPane';
 import DocumentViewerPane from './DocumentViewerPane';
 import WorkspaceViewerPane from './WorkspaceViewerPane';
@@ -8,7 +8,7 @@ import TerminalSandboxPane from './TerminalSandboxPane';
 import { terminalSandbox } from '../lib/terminalSandbox';
 import { TerminalActionCard } from './TerminalActionCard';
 import { extractWsmTerminalActions, cleanTerminalTags } from '../utils/terminalParser';
-import { Skill, buildDeclarativeSkillManifest } from '../lib/skills';
+import { Skill } from '../lib/skills';
 import { OFFICIAL_SKILLS } from '../lib/officialSkills';
 import { DeclarativeSkillComposer } from './DeclarativeSkillComposer';
 import { Message, Draft, WsmDocument } from '../types';
@@ -113,6 +113,9 @@ const cleanSkillTags = (text: string) => {
   // Clean [PACOTE_SKILL_DECLARATIVO ...] and [PIPELINE_DE_SKILLS_DECLARATIVO ...]
   clean = clean.replace(/\[PACOTE_SKILL_DECLARATIVO[\s\S]*?\[SOLICITAÇÃO DO USUÁRIO\]:\s*/gi, "");
   clean = clean.replace(/\[PIPELINE_DE_SKILLS_DECLARATIVO[\s\S]*?\[SOLICITAÇÃO DO USUÁRIO\]:\s*/gi, "");
+  clean = clean.replace(/\[PACOTE_SKILL_DECLARATIVO[\s\S]*?$/gi, "");
+  clean = clean.replace(/\[PIPELINE_DE_SKILLS_DECLARATIVO[\s\S]*?$/gi, "");
+  clean = clean.replace(/\[SOLICITAÇÃO DO USUÁRIO\]:\s*/gi, "");
 
   // Clean legacy [Utilize as seguintes skills: ...] tags
   clean = clean.replace(/\[Utilize as seguintes skills:\s*.*?\]/gi, "");
@@ -216,7 +219,16 @@ interface ChatWindowProps {
   messages: Message[];
   title?: string;
   isThinking: boolean;
-  onSendMessage: (text: string, isSearchEnabled: boolean, overrideMessages?: Message[], attachments?: any[], isHidden?: boolean, isComputerEnabled?: boolean) => void;
+  onSendMessage: (
+    text: string, 
+    isSearchEnabled: boolean, 
+    overrideMessages?: Message[], 
+    attachments?: any[], 
+    isHidden?: boolean, 
+    isComputerEnabled?: boolean,
+    activeSkills?: Skill[],
+    skillMode?: 'uma_skill' | 'pipeline'
+  ) => void;
   onBackToHome?: () => void;
   selectedModel: string;
   setSelectedModel?: (model: string) => void;
@@ -259,13 +271,40 @@ const displayUserText = (text: string) => {
   // Clean active skills or system tags if present at top
   clean = clean.replace(/^\[Utilize as seguintes skills:[\s\S]*?\]\n\n/i, '');
   clean = clean.replace(/^\[SISTEMA:[\s\S]*?\]\n\n/i, '');
+  clean = clean.replace(/\[PACOTE_SKILL_DECLARATIVO[\s\S]*?\[SOLICITAÇÃO DO USUÁRIO\]:\s*/gi, '');
+  clean = clean.replace(/\[PIPELINE_DE_SKILLS_DECLARATIVO[\s\S]*?\[SOLICITAÇÃO DO USUÁRIO\]:\s*/gi, '');
+  clean = clean.replace(/\[PACOTE_SKILL_DECLARATIVO[\s\S]*?$/gi, '');
+  clean = clean.replace(/\[PIPELINE_DE_SKILLS_DECLARATIVO[\s\S]*?$/gi, '');
+  clean = clean.replace(/\[SOLICITAÇÃO DO USUÁRIO\]:\s*/gi, '');
 
   // Convert literal \n sequences to actual newline characters for whitespace-pre-wrap
   if (clean.includes('\\n')) {
     clean = clean.replace(/\\n/g, '\n');
   }
 
-  return clean;
+  return clean.trim();
+};
+
+const renderFormattedUserText = (text: string) => {
+  const cleaned = displayUserText(text);
+  if (!cleaned) return null;
+
+  // Split by words starting with a slash, e.g. /skill-creator or /theme-factory
+  const parts = cleaned.split(/(\/[a-zA-Z0-9_-]+)/g);
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (part.startsWith('/')) {
+          return (
+            <span key={index} className="text-[#1d4ed8] dark:text-blue-400 font-bold">
+              {part}
+            </span>
+          );
+        }
+        return part;
+      })}
+    </>
+  );
 };
 
 export default function ChatWindow({
@@ -1089,11 +1128,20 @@ export default function ChatWindow({
         reader.onloadend = () => {
           const result = reader.result as string;
           const base64 = result.split(',')[1] || '';
+          
+          let hashNum = 0;
+          for (let i = 0; i < base64.length; i++) {
+            hashNum = ((hashNum << 5) - hashNum) + base64.charCodeAt(i);
+            hashNum |= 0;
+          }
+          const hexHash = Math.abs(hashNum).toString(16).padStart(8, '0');
+
           resolve({
             name: file.name,
             type: type,
             size: file.size,
-            mimeType: file.type || "application/octet-stream",
+            mimeType: file.type || (type === 'image' ? 'image/png' : type === 'document' ? 'text/plain' : 'application/octet-stream'),
+            hash: hexHash,
             url: URL.createObjectURL(file),
             base64: base64,
           });
@@ -1107,6 +1155,17 @@ export default function ChatWindow({
       .then((newAttachments) => {
         setUploadError(null);
         setAttachments(prev => [...prev, ...newAttachments]);
+
+        // Log audit event for each uploaded file
+        newAttachments.forEach((att) => {
+          logAuditEvent({
+            toolName: 'Upload de Arquivos',
+            riskLevel: 'low',
+            details: `Arquivo anexado com sucesso para a sessão de chat: "${att.name}" (${att.type}, ${Math.round(att.size / 1024)} KB)`,
+            status: 'executed',
+            permissions_used: ['read_workspace', 'upload_file']
+          });
+        });
       })
       .catch((err) => {
         console.error("Error reading files:", err);
@@ -1226,8 +1285,24 @@ export default function ChatWindow({
 
   const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
   const [isSkillsSubMenuOpen, setIsSkillsSubMenuOpen] = useState(false);
+  const [attachMenuPlacement, setAttachMenuPlacement] = useState<'top' | 'bottom'>('top');
+  const attachContainerRef = useRef<HTMLDivElement>(null);
   const [activeSkills, setActiveSkills] = useState<Skill[]>([]);
   const [skillMode, setSkillMode] = useState<'uma_skill' | 'pipeline'>('uma_skill');
+
+  useEffect(() => {
+    if (!isAttachMenuOpen) return;
+    const checkAttachPos = () => {
+      if (!attachContainerRef.current) return;
+      const rect = attachContainerRef.current.getBoundingClientRect();
+      if (rect.top < 220 && (window.innerHeight - rect.bottom) >= 200) {
+        setAttachMenuPlacement('bottom');
+      } else {
+        setAttachMenuPlacement('top');
+      }
+    };
+    checkAttachPos();
+  }, [isAttachMenuOpen, isSkillsSubMenuOpen]);
 
   const handleAttachClick = () => {
     setIsAttachMenuOpen(!isAttachMenuOpen);
@@ -1242,26 +1317,7 @@ export default function ChatWindow({
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [slashSearchTerm, setSlashSearchTerm] = useState('');
   const [slashMenuIndex, setSlashMenuIndex] = useState(0);
-  const [isSkillsHovered, setIsSkillsHovered] = useState(false);
-  const skillsTimeoutRef = useRef<any>(null);
-
-  const handleSkillsMouseEnter = () => {
-    if (skillsTimeoutRef.current) clearTimeout(skillsTimeoutRef.current);
-    setIsSkillsHovered(true);
-  };
-
-  const handleSkillsMouseLeave = () => {
-    if (skillsTimeoutRef.current) clearTimeout(skillsTimeoutRef.current);
-    skillsTimeoutRef.current = setTimeout(() => {
-      setIsSkillsHovered(false);
-    }, 400);
-  };
-
-  const marteTools = [
-    { id: '/web', name: 'web-search', description: 'Pesquisa na Web', icon: Globe, color: 'text-black' },
-    { id: '/calculadora', name: 'calculadora', description: 'Calculadora Matemática', icon: Calculator, color: 'text-emerald-500' },
-    { id: '/relogio', name: 'relogio', description: 'Relógio e Data Atual', icon: Clock, color: 'text-orange-500' }
-  ];
+  const slashMenuContainerRef = useRef<HTMLDivElement>(null);
 
   const allSkillsList = useMemo(() => {
     const combined = [...OFFICIAL_SKILLS];
@@ -1273,20 +1329,48 @@ export default function ChatWindow({
     return combined;
   }, [skills]);
 
-  const slashItems = [
-    ...marteTools,
-    ...allSkillsList.map(skill => ({
-      id: `/${skill.id}`,
-      name: skill.name,
-      description: skill.description,
-      icon: FileCode2,
-      color: 'text-gray-900',
-      isSkill: true,
-      skillObj: skill
-    }))
-  ];
+  interface SlashMenuItem {
+    id: string;
+    name: string;
+    displayName?: string;
+    description: string;
+    icon: any;
+    isAction?: string;
+    isSkill?: boolean;
+    skillObj?: any;
+  }
 
-  const filteredTools = slashItems.filter(item => item.id.toLowerCase().includes(slashSearchTerm.toLowerCase()));
+  const slashItems: SlashMenuItem[] = useMemo(() => {
+    return [
+      {
+        id: 'add-files',
+        name: 'add-files',
+        description: 'Abrir seletor de arquivos',
+        icon: Paperclip,
+        isAction: 'add-files'
+      },
+      ...allSkillsList.map(skill => ({
+        id: skill.id,
+        name: skill.id,
+        displayName: skill.name,
+        description: skill.description,
+        icon: ScrollText,
+        isSkill: true,
+        skillObj: skill
+      }))
+    ];
+  }, [allSkillsList]);
+
+  const filteredTools: SlashMenuItem[] = useMemo(() => {
+    const term = slashSearchTerm.toLowerCase().trim();
+    if (!term) return slashItems;
+    return slashItems.filter(item => 
+      item.id.toLowerCase().includes(term) ||
+      (item.name && item.name.toLowerCase().includes(term)) ||
+      (item.displayName && item.displayName.toLowerCase().includes(term)) ||
+      (item.description && item.description.toLowerCase().includes(term))
+    );
+  }, [slashItems, slashSearchTerm]);
 
   useEffect(() => {
     const textarea = document.getElementById('chat-input-textarea-floating') as HTMLTextAreaElement;
@@ -1335,6 +1419,21 @@ export default function ChatWindow({
       const matchIndex = slashMatch.index !== undefined ? slashMatch.index : 0;
       const prefixBefore = slashMatch[1]; // either '' or '\n'
       
+      if (item.isAction === 'add-files') {
+        const newText = textBeforeCursor.slice(0, matchIndex) + prefixBefore + textAfterCursor;
+        setInputValue(newText);
+        setSlashMenuOpen(false);
+        fileInputRef.current?.click();
+        setTimeout(() => {
+          if (textarea) {
+            textarea.focus();
+            const newPos = matchIndex + prefixBefore.length;
+            textarea.setSelectionRange(newPos, newPos);
+          }
+        }, 0);
+        return;
+      }
+
       if (item.isSkill) {
         setActiveSkills(prev => {
           if (skillMode === 'uma_skill') return [item.skillObj];
@@ -1355,7 +1454,7 @@ export default function ChatWindow({
       setTimeout(() => {
         if (textarea) {
           textarea.focus();
-          const newPos = item.isSkill ? matchIndex + prefixBefore.length : matchIndex + prefixBefore.length + item.id.length + 1;
+          const newPos = matchIndex + prefixBefore.length;
           textarea.setSelectionRange(newPos, newPos);
         }
       }, 0);
@@ -1550,33 +1649,6 @@ export default function ChatWindow({
       textToSend = currentText;
     }
 
-    if (activeSkills.length > 0) {
-      const manifest = buildDeclarativeSkillManifest(activeSkills, skillMode);
-      textToSend = `${manifest}\n\n[SOLICITAÇÃO DO USUÁRIO]:\n${textToSend}`;
-    }
-    
-    if (isSearchEnabled) {
-      logAuditEvent({
-        toolName: 'Pesquisa Web Integrada',
-        riskLevel: 'low',
-        details: `Consulta enviada aos motores de busca: "${currentText.substring(0, 100)}"`,
-        status: 'executed',
-        normalized_input: currentText,
-        output: 'Resultados de busca recuperados do índice web.'
-      });
-    }
-
-    if (activeSkills.length > 0) {
-      logAuditEvent({
-        toolName: 'Execução de Skill Agêntica',
-        riskLevel: 'medium',
-        details: `Skills ativadas: ${activeSkills.map(s => '/' + s.name).join(', ')}`,
-        status: 'executed',
-        normalized_input: currentText,
-        permissions_used: activeSkills.flatMap(s => s.permissions || ['read_workspace'])
-      });
-    }
-
     if (isComputerEnabled) {
       logAuditEvent({
         toolName: 'Sandbox & Navegação Autônoma',
@@ -1590,7 +1662,10 @@ export default function ChatWindow({
 
     if (onDeleteDraft) onDeleteDraft();
     isUserScrollingRef.current = false;
-    onSendMessage(textToSend, isSearchEnabled, undefined, attachments, false, isComputerEnabled);
+    const skillsToPass = activeSkills.length > 0 ? [...activeSkills] : undefined;
+    const modeToPass = activeSkills.length > 0 ? skillMode : undefined;
+
+    onSendMessage(textToSend, isSearchEnabled, undefined, attachments, false, isComputerEnabled, skillsToPass, modeToPass);
     
     // Synchronously clear the DOM value to prevent race conditions during rapid consecutive sends
     if (textarea) {
@@ -2160,8 +2235,23 @@ export default function ChatWindow({
                                   <span>Você cancelou essa resposta</span>
                                 </div>
                               ) : isUser ? (
-                                <div className="prose max-w-none text-[14px] text-gray-800 whitespace-pre-wrap break-words overflow-x-hidden max-w-full">
-                                  {displayUserText(message.text)}
+                                <div className="space-y-1.5 max-w-full">
+                                  {message.activeSkills && message.activeSkills.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 mb-1.5 select-none">
+                                      {message.activeSkills.map((sk, idx) => (
+                                        <span 
+                                          key={idx} 
+                                          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11.5px] font-semibold bg-amber-100/90 text-amber-900 border border-amber-300/80 rounded-md shadow-xxs"
+                                        >
+                                          <Sparkles className="w-3 h-3 text-amber-700 shrink-0" />
+                                          <span>Skill /{sk.name} ativada</span>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  <div className="prose max-w-none text-[14px] text-gray-800 whitespace-pre-wrap break-words overflow-x-hidden max-w-full">
+                                    {renderFormattedUserText(message.text)}
+                                  </div>
                                 </div>
                               ) : (
                                 <div className="wsm-answer-state fade-in prose max-w-none text-[14.5px] text-black dark:text-gray-100 min-w-0 break-words overflow-x-hidden max-w-full w-full">
@@ -2180,12 +2270,16 @@ export default function ChatWindow({
                                   
                                   {/* 2. Skill reading banner - only after reasoning sequence completes */}
                                   {isReasoningDone && (() => {
-                                    const match = /\[Lendo Skill:\s*(.*?)\]/i.exec(message.text);
-                                    if (match) {
-                                      const rawSkillName = match[1].replace(/\]/g, '').trim();
+                                    const matches = Array.from(message.text.matchAll(/\[Lendo Skill:\s*([^\]]+)\]/gi));
+                                    if (matches.length > 0) {
+                                      const skillNames = matches.map(m => m[1].replace(/\]/g, '').trim());
                                       return (
-                                        <div className="inline-block text-[14px] font-medium select-none my-1">
-                                          <span className="shimmer-text">Lendo Skill: {rawSkillName}</span>
+                                        <div className="flex flex-col gap-1 my-1">
+                                          {skillNames.map((name, i) => (
+                                            <div key={i} className="inline-block text-[14px] font-medium select-none">
+                                              <span className="shimmer-text">Lendo Skill: {name}</span>
+                                            </div>
+                                          ))}
                                         </div>
                                       );
                                     }
@@ -2781,234 +2875,60 @@ export default function ChatWindow({
 
           {/* Slash Menu */}
           {slashMenuOpen && filteredTools.length > 0 && (
-            <>
-              {/* MOBILE SLASH MENU */}
-              <div className="md:hidden absolute left-0 w-64 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1 flex flex-col max-h-72 overflow-y-auto duration-200 scrollbar-thin bottom-[calc(100%+8px)] animate-in fade-in slide-in-from-bottom-2">
-                {(() => {
-                  const toolsSection = filteredTools.filter(t => !('isSkill' in t));
-                  const skillsSection = filteredTools.filter(t => 'isSkill' in t);
-                  return (
-                    <>
-                      {toolsSection.length > 0 && (
-                        <div className="flex flex-col">
-                          <div className="text-[10px] font-bold text-gray-400 tracking-wider px-3 py-1.5 uppercase select-none">
-                            Funcionalidades
-                          </div>
-                          {toolsSection.map((tool) => {
-                            const globalIndex = filteredTools.indexOf(tool);
-                            const isSelected = globalIndex === slashMenuIndex;
-                            const Icon = tool.icon;
-                            return (
-                              <button
-                                key={tool.id}
-                                type="button"
-                                onClick={() => handleToolSelect(tool)}
-                                className={`w-full flex flex-col gap-0.5 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer ${
-                                  isSelected ? 'bg-gray-50' : 'hover:bg-gray-50'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Icon className={`w-3.5 h-3.5 ${tool.color}`} />
-                                  <span className="text-[12px] font-semibold text-gray-800">{tool.id}</span>
-                                </div>
-                                <span 
-                                  className="text-[10px] text-gray-500 pl-5.5 line-clamp-1 truncate" 
-                                  title={tool.description}
-                                >
-                                  {tool.description && tool.description.length > 75 
-                                    ? tool.description.slice(0, 75) + '...' 
-                                    : tool.description}
-                                </span>
-                              </button>
-                            );
-                          })}
+            <div 
+              ref={slashMenuContainerRef} 
+              className="absolute bottom-[calc(100%+8px)] left-0 w-64 sm:w-72 bg-white dark:bg-neutral-900 border border-gray-150 dark:border-neutral-800 rounded-2xl shadow-xl z-50 p-1.5 flex flex-col max-h-[min(340px,calc(100vh-140px))] overflow-y-auto scrollbar-thin animate-in fade-in slide-in-from-bottom-2 duration-150"
+            >
+              {filteredTools.map((tool, idx) => {
+                const isSelected = idx === slashMenuIndex;
+                const isAddFiles = tool.isAction === 'add-files';
+
+                return (
+                  <button
+                    key={tool.id}
+                    type="button"
+                    onClick={() => handleToolSelect(tool)}
+                    className={`w-full flex items-center gap-3 text-left px-3 py-2.5 rounded-xl transition-colors cursor-pointer select-none ${
+                      isSelected ? 'bg-gray-100 dark:bg-neutral-800' : 'hover:bg-gray-50 dark:hover:bg-neutral-800/60'
+                    }`}
+                  >
+                    {isAddFiles ? (
+                      <>
+                        <Paperclip className="w-4 h-4 text-gray-500 dark:text-neutral-400 shrink-0" />
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-[13px] font-medium text-gray-800 dark:text-neutral-200">add-files</span>
+                          <span className="text-[11px] text-gray-400 dark:text-neutral-500">Abrir seletor de arquivos</span>
                         </div>
-                      )}
+                      </>
+                    ) : (
+                      <>
+                        <ScrollText className="w-4 h-4 text-gray-400 dark:text-neutral-500 shrink-0" />
+                        <span className="text-[13px] font-medium text-gray-800 dark:text-neutral-200 truncate">
+                          {tool.id}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                );
+              })}
 
-                      {toolsSection.length > 0 && skillsSection.length > 0 && (
-                        <div className="h-px bg-gray-150 my-1 mx-2 shrink-0" />
-                      )}
-
-                      {skillsSection.length > 0 && (
-                        <div className="flex flex-col">
-                          <div className="text-[10px] font-bold text-gray-400 tracking-wider px-3 py-1.5 uppercase select-none">
-                            Skills Componíveis
-                          </div>
-                          {skillsSection.map((tool) => {
-                            const globalIndex = filteredTools.indexOf(tool);
-                            const isSelected = globalIndex === slashMenuIndex;
-                            const Icon = tool.icon;
-                            return (
-                              <button
-                                key={tool.id}
-                                type="button"
-                                onClick={() => handleToolSelect(tool)}
-                                className={`w-full flex flex-col gap-0.5 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer ${
-                                  isSelected ? 'bg-gray-50' : 'hover:bg-gray-50'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Icon className={`w-3.5 h-3.5 ${tool.color}`} />
-                                  <span className="text-[12px] font-semibold text-gray-800">{tool.id}</span>
-                                </div>
-                                <span 
-                                  className="text-[10px] text-gray-500 pl-5.5 line-clamp-1 truncate" 
-                                  title={tool.description}
-                                >
-                                  {tool.description && tool.description.length > 75 
-                                    ? tool.description.slice(0, 75) + '...' 
-                                    : tool.description}
-                                </span>
-                              </button>
-                            );
-                          })}
-                          {onOpenStore && (
-                            <>
-                              <div className="h-px bg-gray-150 my-1 mx-2 shrink-0" />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSlashMenuOpen(false);
-                                  onOpenStore();
-                                }}
-                                className="w-full flex items-center justify-center gap-2 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer hover:bg-brand-50 text-brand-600 font-medium text-xs mt-1"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                                Buscar skills novas
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-
-              {/* DESKTOP SLASH MENU */}
-              <div className="hidden md:flex absolute left-0 w-64 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1 flex-col overflow-visible duration-200 bottom-[calc(100%+8px)] animate-in fade-in slide-in-from-bottom-2">
-                {(() => {
-                  const toolsSection = filteredTools.filter(t => !('isSkill' in t));
-                  const skillsSection = filteredTools.filter(t => 'isSkill' in t);
-                  return (
-                    <>
-                      {toolsSection.length > 0 && (
-                        <div className="flex flex-col">
-                          <div className="text-[10px] font-bold text-gray-400 tracking-wider px-3 py-1.5 uppercase select-none">
-                            Funcionalidades
-                          </div>
-                          {toolsSection.map((tool) => {
-                            const globalIndex = filteredTools.indexOf(tool);
-                            const isSelected = globalIndex === slashMenuIndex;
-                            const Icon = tool.icon;
-                            return (
-                              <button
-                                key={tool.id}
-                                type="button"
-                                onClick={() => handleToolSelect(tool)}
-                                className={`w-full flex flex-col gap-0.5 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer ${
-                                  isSelected ? 'bg-gray-50' : 'hover:bg-gray-50'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Icon className={`w-3.5 h-3.5 ${tool.color}`} />
-                                  <span className="text-[12px] font-semibold text-gray-800">{tool.id}</span>
-                                </div>
-                                <span 
-                                  className="text-[10px] text-gray-500 pl-5.5 line-clamp-1 truncate" 
-                                  title={tool.description}
-                                >
-                                  {tool.description && tool.description.length > 75 
-                                    ? tool.description.slice(0, 75) + '...' 
-                                    : tool.description}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {skillsSection.length > 0 && (
-                        <>
-                          <div className="h-px bg-gray-150 my-1 mx-2 shrink-0" />
-                          <div 
-                            className="relative"
-                            onMouseEnter={handleSkillsMouseEnter}
-                            onMouseLeave={handleSkillsMouseLeave}
-                          >
-                            <button
-                              type="button"
-                              className="w-full flex items-center justify-between text-left px-3 py-2 rounded-lg transition-colors cursor-pointer hover:bg-gray-50"
-                            >
-                              <div className="flex items-center gap-2">
-                                <BookOpen className="w-3.5 h-3.5 text-gray-900" />
-                                <span className="text-[12px] font-semibold text-gray-800">Habilidades</span>
-                              </div>
-                              <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                            </button>
-
-                            {/* Submenu de Habilidades no hover */}
-                            {isSkillsHovered && (
-                              <div className="absolute left-[100%] pl-2 z-50 animate-in fade-in slide-in-from-left-2 duration-150 bottom-0">
-                                <div className="w-64 bg-white border border-gray-150 rounded-xl shadow-lg p-1 flex flex-col max-h-72 overflow-y-auto scrollbar-thin select-none">
-                                  <div className="text-[10px] font-bold text-gray-400 tracking-wider px-3 py-1.5 uppercase select-none">
-                                    Skills Componíveis
-                                  </div>
-                                  {skillsSection.map((tool) => {
-                                    const Icon = tool.icon;
-                                    return (
-                                      <button
-                                        key={tool.id}
-                                        type="button"
-                                        onClick={() => {
-                                          handleToolSelect(tool);
-                                          setIsSkillsHovered(false);
-                                        }}
-                                        className="w-full flex flex-col gap-0.5 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer hover:bg-gray-50"
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          <Icon className={`w-3.5 h-3.5 ${tool.color}`} />
-                                          <span className="text-[12px] font-semibold text-gray-800">{tool.id}</span>
-                                        </div>
-                                        <span 
-                                          className="text-[10px] text-gray-500 pl-5.5 line-clamp-1 truncate" 
-                                          title={tool.description}
-                                        >
-                                          {tool.description && tool.description.length > 75 
-                                            ? tool.description.slice(0, 75) + '...' 
-                                            : tool.description}
-                                        </span>
-                                      </button>
-                                    );
-                                  })}
-                                  {onOpenStore && (
-                                    <>
-                                      <div className="h-px bg-gray-150 my-1 mx-2 shrink-0" />
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setSlashMenuOpen(false);
-                                          setIsSkillsHovered(false);
-                                          onOpenStore();
-                                        }}
-                                        className="w-full flex items-center justify-center gap-2 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer hover:bg-brand-50 text-brand-600 font-medium text-xs mt-1"
-                                      >
-                                        <Plus className="w-3.5 h-3.5" />
-                                        Buscar skills novas
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            </>
+              {onOpenStore && (
+                <>
+                  <div className="h-px bg-gray-100 dark:bg-neutral-800 my-1 mx-2 shrink-0" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSlashMenuOpen(false);
+                      onOpenStore();
+                    }}
+                    className="w-full flex items-center justify-center gap-2 text-left px-3 py-2 rounded-xl transition-colors cursor-pointer hover:bg-brand-50 dark:hover:bg-neutral-800 text-brand-600 dark:text-brand-400 font-medium text-xs mt-0.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Buscar skills novas
+                  </button>
+                </>
+              )}
+            </div>
           )}
 
           {/* Upload Error Banner */}
@@ -3152,11 +3072,11 @@ export default function ChatWindow({
               {/* Bottom Bar */}
               <div className="flex items-center justify-between pt-1">
                 {/* Left Controls */}
-                <div className="flex items-center gap-1 relative">
+                <div ref={attachContainerRef} className="flex items-center gap-1 relative">
                   
                   {/* Attach Menu */}
                   {isAttachMenuOpen && (
-                    <div className="absolute bottom-full left-0 mb-2 w-56 bg-white border border-gray-100 rounded-xl shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 z-50">
+                    <div className={`absolute ${attachMenuPlacement === 'bottom' ? 'top-full mt-2' : 'bottom-full mb-2'} left-0 w-56 bg-white border border-gray-100 rounded-xl shadow-xl animate-in fade-in duration-200 z-50`}>
                       {!isSkillsSubMenuOpen ? (
                         <div className="p-1.5 flex flex-col gap-0.5">
                           <label

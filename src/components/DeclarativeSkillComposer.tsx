@@ -42,12 +42,58 @@ export function DeclarativeSkillComposer({
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
   const [showContentPreview, setShowContentPreview] = useState<Record<string, boolean>>({});
   const [isAddStepOpen, setIsAddStepOpen] = useState(false);
+  const [placement, setPlacement] = useState<'top' | 'bottom' | 'center'>('bottom');
+  const containerRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Dynamically calculate optimal placement based on viewport space
+  useEffect(() => {
+    if (!isInspectorOpen) return;
+
+    const checkPosition = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const cardHeight = popoverRef.current ? popoverRef.current.offsetHeight : 400;
+      const margin = 16;
+
+      const spaceAbove = rect.top;
+      const spaceBelow = viewportHeight - rect.bottom;
+
+      // Smart decision:
+      // 1. If space above is enough without clipping, place on top
+      // 2. Else if space below is enough without clipping, place on bottom
+      // 3. Else (if neither has enough room, e.g. center of screen or small viewport), place centered on screen
+      if (spaceAbove >= cardHeight + margin) {
+        setPlacement('top');
+      } else if (spaceBelow >= cardHeight + margin) {
+        setPlacement('bottom');
+      } else {
+        setPlacement('center');
+      }
+    };
+
+    checkPosition();
+    const timeout = setTimeout(checkPosition, 20);
+    window.addEventListener('resize', checkPosition);
+    window.addEventListener('scroll', checkPosition, true);
+
+    return () => {
+      clearTimeout(timeout);
+      window.removeEventListener('resize', checkPosition);
+      window.removeEventListener('scroll', checkPosition, true);
+    };
+  }, [isInspectorOpen, skillMode, activeSkills.length, showContentPreview]);
 
   // Close inspector when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+      if (
+        popoverRef.current && 
+        !popoverRef.current.contains(event.target as Node) &&
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
         setIsInspectorOpen(false);
         setIsAddStepOpen(false);
       }
@@ -128,7 +174,7 @@ export function DeclarativeSkillComposer({
     : currentSkill?.estimated_time || '< 10s';
 
   return (
-    <div className="relative mb-2 px-1">
+    <div ref={containerRef} className="relative mb-2 px-1">
       {/* ─── Compact Tag / Chip Row ─── */}
       <div className="flex flex-wrap items-center gap-1.5 text-xs select-none">
         {skillMode === 'uma_skill' && currentSkill && (
@@ -209,11 +255,28 @@ export function DeclarativeSkillComposer({
         )}
       </div>
 
+      {/* ─── Centered Modal Backdrop (when placed in center) ─── */}
+      {isInspectorOpen && placement === 'center' && (
+        <div 
+          className="fixed inset-0 bg-black/40 backdrop-blur-xs z-[9998] animate-in fade-in duration-150"
+          onClick={() => {
+            setIsInspectorOpen(false);
+            setIsAddStepOpen(false);
+          }}
+        />
+      )}
+
       {/* ─── Floating Inspector & Composer Popover Card ─── */}
       {isInspectorOpen && (
         <div 
           ref={popoverRef}
-          className="absolute bottom-full mb-2 left-0 z-50 w-full max-w-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-4 text-xs text-gray-900 dark:text-gray-100 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-150"
+          className={`${
+            placement === 'center'
+              ? 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[9999] w-[calc(100vw-32px)] max-w-lg max-h-[min(580px,85vh)] overflow-y-auto'
+              : placement === 'bottom'
+              ? 'absolute top-full mt-2 left-0 z-50 w-full max-w-lg max-h-[min(520px,calc(100vh-140px))] overflow-y-auto'
+              : 'absolute bottom-full mb-2 left-0 z-50 w-full max-w-lg max-h-[min(520px,calc(100vh-140px))] overflow-y-auto'
+          } bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-4 text-xs text-gray-900 dark:text-gray-100 space-y-3 animate-in fade-in duration-150`}
         >
           {/* Header & Mode Switcher */}
           <div className="flex items-center justify-between gap-2 border-b border-gray-100 dark:border-gray-800 pb-2.5">
@@ -303,8 +366,8 @@ export function DeclarativeSkillComposer({
                   </button>
 
                   {isAddStepOpen && (
-                    <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl z-50 p-1.5 space-y-1">
-                      <div className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    <div className="absolute right-0 top-full mt-1 w-56 max-h-52 overflow-y-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl z-50 p-1.5 space-y-1">
+                      <div className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider sticky top-0 bg-white dark:bg-gray-900 z-10">
                         Selecionar Skill
                       </div>
                       {availableSkills.map(sk => (
@@ -461,8 +524,8 @@ export function DeclarativeSkillComposer({
                 )}
 
                 {isAddStepOpen && (
-                  <div className="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl z-50 p-1.5 space-y-1 max-h-40 overflow-y-auto">
-                    <div className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                  <div className="absolute left-0 bottom-full mb-1 w-64 max-h-48 overflow-y-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl z-50 p-1.5 space-y-1">
+                    <div className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider sticky top-0 bg-white dark:bg-gray-900 z-10">
                       Adicionar Skill
                     </div>
                     {availableSkills.map(sk => (

@@ -1,4 +1,5 @@
 import { OmnixRun, RunStep, DetailedToolCall, RunVerifiableTest, ArtifactRecord, Message } from '../types';
+import { extractWsmTerminalActions } from './terminalParser';
 
 /**
  * Extracts explicit task checklists or dynamic steps from a message, its searches, or tool actions.
@@ -320,6 +321,11 @@ export function buildRunFromMessage(
     }
   ];
 
+  const { execActions } = extractWsmTerminalActions(message.text || '');
+  const hasFailedTerminal = execActions.some(e => e.status === 'failed' || e.status === 'timed_out' || (typeof e.exitCode === 'number' && e.exitCode !== 0));
+  const hasFailedTool = toolCalls.some(tc => tc.status === 'failed');
+  const isCancelled = message.text === "Você cancelou essa resposta" || message.text?.includes("cancelou essa resposta");
+
   const completedSteps = steps.filter(s => s.status === 'completed').length;
   const isAllStepsCompleted = steps.length > 0 ? completedSteps === steps.length : true;
   const progressPercentage = steps.length > 0 ? Math.round((completedSteps / steps.length) * 100) : 100;
@@ -328,12 +334,21 @@ export function buildRunFromMessage(
   const calculatedCostAmount = parseFloat((estimatedTokens * 0.00000015 + toolCalls.length * 0.0002).toFixed(6));
   const measuredElapsedTime = (message as any).durationMs || Math.max(350, Math.round((message.text?.length || 50) * 1.5 + toolCalls.length * 300));
 
+  let runStatus: OmnixRun['status'] = 'succeeded';
+  if (isCancelled) {
+    runStatus = 'cancelled';
+  } else if (hasFailedTerminal || hasFailedTool) {
+    runStatus = 'failed';
+  } else if (!isAllStepsCompleted) {
+    runStatus = 'running';
+  }
+
   return {
     id: `run_${messageId}`,
     sessionId,
     messageId,
     objective,
-    status: isAllStepsCompleted ? 'succeeded' : 'running',
+    status: runStatus,
     plan: {
       id: `plan_${messageId}`,
       objective,
@@ -453,11 +468,23 @@ export function createActiveStreamingRun(
   const completedCount = steps.filter(s => s.status === 'completed').length;
   const progressPercentage = steps.length > 0 ? Math.min(95, Math.round((completedCount / steps.length) * 100)) : 0;
 
+  const { execActions } = extractWsmTerminalActions(messageText);
+  const hasFailedTerminal = execActions.some(e => e.status === 'failed' || e.status === 'timed_out' || (typeof e.exitCode === 'number' && e.exitCode !== 0));
+  const hasFailedTool = toolCalls.some(tc => tc.status === 'failed');
+  const isCancelled = messageText === "Você cancelou essa resposta" || messageText?.includes("cancelou essa resposta");
+
+  let streamRunStatus: OmnixRun['status'] = isThinking ? 'running' : 'succeeded';
+  if (isCancelled) {
+    streamRunStatus = 'cancelled';
+  } else if (hasFailedTerminal || hasFailedTool) {
+    streamRunStatus = 'failed';
+  }
+
   return {
     id: `run_stream_${Date.now()}`,
     sessionId,
     objective: userPrompt || 'Executando tarefa agêntica',
-    status: isThinking ? 'running' : 'succeeded',
+    status: streamRunStatus,
     plan: {
       id: `plan_stream_${Date.now()}`,
       objective: userPrompt || 'Executando tarefa agêntica',

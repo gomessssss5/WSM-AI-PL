@@ -39,6 +39,7 @@ export default function WsmMapComponent({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showExtras, setShowExtras] = useState(false);
 
   useEffect(() => {
     if (text) {
@@ -195,6 +196,21 @@ export default function WsmMapComponent({
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {wikiData && (
+            <>
+              <button
+                onClick={() => setShowExtras(!showExtras)}
+                className={`transition-colors inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md ${
+                  showExtras 
+                    ? 'text-purple-700 bg-purple-50 hover:bg-purple-100 dark:text-purple-300 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 border border-purple-200 dark:border-purple-900/50' 
+                    : 'text-gray-600 hover:text-purple-600 dark:text-neutral-300 dark:hover:text-purple-400 bg-gray-100 dark:bg-neutral-800 px-2 py-0.5 rounded border border-gray-200 dark:border-neutral-700'
+                }`}
+              >
+                {showExtras ? 'Ocultar informações extras' : 'Mostrar informações extras'}
+              </button>
+              <span className="text-gray-300 dark:text-neutral-700">|</span>
+            </>
+          )}
           <a
             href={googleMapsUrl}
             target="_blank"
@@ -241,105 +257,107 @@ export default function WsmMapComponent({
         </div>
 
         {/* Card Section / Info Sidebar */}
-        <div className={`border-t md:border-t-0 md:border-l border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex flex-col overflow-y-auto shrink-0 ${
-          isModal
-            ? 'w-full md:w-[320px] lg:w-[360px] h-full p-5'
-            : 'w-full md:w-[250px] lg:w-[270px] p-3.5 sm:p-4 max-h-[320px] md:max-h-none'
-        }`}>
-          {loading ? (
-            <div className="flex flex-col gap-3 animate-pulse py-2">
-              <div className="h-5 bg-gray-200 dark:bg-neutral-800 rounded w-3/4" />
-              <div className="h-3.5 bg-gray-200 dark:bg-neutral-800 rounded w-1/2" />
-              <div className="h-16 bg-gray-200 dark:bg-neutral-800 rounded-lg my-2" />
-              <div className="h-3 bg-gray-200 dark:bg-neutral-800 rounded w-full" />
-            </div>
-          ) : wikiData ? (
-            <div className="flex flex-col justify-between h-full space-y-3">
-              <div>
-                {/* Header Info */}
-                <div className="pb-2.5 border-b border-gray-100 dark:border-neutral-800">
-                  <h3 className="font-bold text-gray-900 dark:text-neutral-100 text-base sm:text-lg leading-tight truncate">
-                    {wikiData.title}
-                  </h3>
-                  <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-neutral-400 font-medium mt-1">
-                    <span className="font-semibold text-gray-800 dark:text-neutral-200">4.7</span>
-                    <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />
-                    <span>(Wikipedia)</span>
+        {showExtras && (
+          <div className={`border-t md:border-t-0 md:border-l border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex flex-col overflow-y-auto shrink-0 ${
+            isModal
+              ? 'w-full md:w-[320px] lg:w-[360px] h-full p-5'
+              : 'w-full md:w-[250px] lg:w-[270px] p-3.5 sm:p-4 max-h-[320px] md:max-h-none'
+          }`}>
+            {loading ? (
+              <div className="flex flex-col gap-3 animate-pulse py-2">
+                <div className="h-5 bg-gray-200 dark:bg-neutral-800 rounded w-3/4" />
+                <div className="h-3.5 bg-gray-200 dark:bg-neutral-800 rounded w-1/2" />
+                <div className="h-16 bg-gray-200 dark:bg-neutral-800 rounded-lg my-2" />
+                <div className="h-3 bg-gray-200 dark:bg-neutral-800 rounded w-full" />
+              </div>
+            ) : wikiData ? (
+              <div className="flex flex-col justify-between h-full space-y-3">
+                <div>
+                  {/* Header Info */}
+                  <div className="pb-2.5 border-b border-gray-100 dark:border-neutral-800">
+                    <h3 className="font-bold text-gray-900 dark:text-neutral-100 text-base sm:text-lg leading-tight truncate">
+                      {wikiData.title}
+                    </h3>
+                    <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-neutral-400 font-medium mt-1">
+                      <span className="font-semibold text-gray-800 dark:text-neutral-200">4.7</span>
+                      <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />
+                      <span>(Wikipedia)</span>
+                    </div>
                   </div>
+
+                  {/* Sobre / Highlight Box */}
+                  <div className="mt-2.5">
+                    <div className="text-[10px] font-semibold tracking-wider text-gray-400 dark:text-neutral-500 uppercase mb-1">
+                      Sobre
+                    </div>
+                    <div className="bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 p-2.5 rounded-xl">
+                      <p className="text-xs text-emerald-950 dark:text-emerald-200 leading-relaxed font-medium">
+                        {wikiData.extract}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Thumbnail image if available */}
+                  {wikiData.thumbnailUrl && (
+                    <div className="mt-2.5 rounded-xl overflow-hidden border border-gray-100 dark:border-neutral-800">
+                      <img
+                        src={wikiData.thumbnailUrl}
+                        alt={wikiData.title}
+                        className="w-full h-28 object-cover"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
 
-                {/* Sobre / Highlight Box */}
-                <div className="mt-2.5">
-                  <div className="text-[10px] font-semibold tracking-wider text-gray-400 dark:text-neutral-500 uppercase mb-1">
-                    Sobre
+                {/* Wikipedia Link Footer */}
+                {(wiki || place) && (
+                  <div className="pt-2.5 border-t border-gray-100 dark:border-neutral-800 shrink-0">
+                    <a
+                      href={`https://pt.wikipedia.org/wiki/${encodeURIComponent(wiki || place)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full py-1.5 px-2.5 bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-800 dark:text-neutral-200 rounded-lg text-[11px] font-semibold transition-colors flex items-center justify-center gap-1"
+                    >
+                      Artigo na Wikipédia <ExternalLink className="w-3 h-3" />
+                    </a>
                   </div>
-                  <div className="bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 p-2.5 rounded-xl">
-                    <p className="text-xs text-emerald-950 dark:text-emerald-200 leading-relaxed font-medium">
-                      {wikiData.extract}
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col justify-between h-full py-1">
+                <div>
+                  <div className="pb-2.5 border-b border-gray-100 dark:border-neutral-800">
+                    <h3 className="font-bold text-gray-900 dark:text-neutral-100 text-base leading-tight truncate">
+                      {displayTitle}
+                    </h3>
+                    <p className="text-[11px] text-gray-500 dark:text-neutral-400 mt-1">
+                      Coordenadas: {lat.toFixed(4)}, {lon.toFixed(4)}
+                    </p>
+                  </div>
+
+                  <div className="bg-purple-50 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/40 p-2.5 rounded-xl mt-2.5">
+                    <p className="text-xs text-purple-900 dark:text-purple-200 font-medium leading-relaxed">
+                      Localização marcada no mapa interativo.
                     </p>
                   </div>
                 </div>
 
-                {/* Thumbnail image if available */}
-                {wikiData.thumbnailUrl && (
-                  <div className="mt-2.5 rounded-xl overflow-hidden border border-gray-100 dark:border-neutral-800">
-                    <img
-                      src={wikiData.thumbnailUrl}
-                      alt={wikiData.title}
-                      className="w-full h-28 object-cover"
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  </div>
-                )}
+                <a
+                  href={googleMapsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full py-1.5 px-2.5 bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-800 dark:text-neutral-200 rounded-lg text-[11px] font-semibold transition-colors flex items-center justify-center gap-1 mt-3"
+                >
+                  Abrir no Google Maps <ExternalLink className="w-3 h-3" />
+                </a>
               </div>
-
-              {/* Wikipedia Link Footer */}
-              {(wiki || place) && (
-                <div className="pt-2.5 border-t border-gray-100 dark:border-neutral-800 shrink-0">
-                  <a
-                    href={`https://pt.wikipedia.org/wiki/${encodeURIComponent(wiki || place)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="w-full py-1.5 px-2.5 bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-800 dark:text-neutral-200 rounded-lg text-[11px] font-semibold transition-colors flex items-center justify-center gap-1"
-                  >
-                    Artigo na Wikipédia <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex flex-col justify-between h-full py-1">
-              <div>
-                <div className="pb-2.5 border-b border-gray-100 dark:border-neutral-800">
-                  <h3 className="font-bold text-gray-900 dark:text-neutral-100 text-base leading-tight truncate">
-                    {displayTitle}
-                  </h3>
-                  <p className="text-[11px] text-gray-500 dark:text-neutral-400 mt-1">
-                    Coordenadas: {lat.toFixed(4)}, {lon.toFixed(4)}
-                  </p>
-                </div>
-
-                <div className="bg-purple-50 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/40 p-2.5 rounded-xl mt-2.5">
-                  <p className="text-xs text-purple-900 dark:text-purple-200 font-medium leading-relaxed">
-                    Localização marcada no mapa interativo.
-                  </p>
-                </div>
-              </div>
-
-              <a
-                href={googleMapsUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full py-1.5 px-2.5 bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-800 dark:text-neutral-200 rounded-lg text-[11px] font-semibold transition-colors flex items-center justify-center gap-1 mt-3"
-              >
-                Abrir no Google Maps <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

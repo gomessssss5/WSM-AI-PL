@@ -1,6 +1,6 @@
 export interface WsmTerminalExecAction {
   command: string;
-  status: 'running' | 'done' | 'failed' | 'success';
+  status: 'queued' | 'running' | 'done' | 'failed' | 'success' | 'timed_out' | 'cancelled';
   exitCode?: number;
 }
 
@@ -69,15 +69,20 @@ export function extractWsmTerminalActions(text: string): {
     }
   }
 
-  // Deduplicate execActions by command
-  const uniqueExecActions: WsmTerminalExecAction[] = [];
-  const seenCmds = new Set<string>();
+  // Deduplicate execActions by command - preserve the LATEST status (e.g. 'failed' or 'exitCode' over 'running')
+  const execMap = new Map<string, WsmTerminalExecAction>();
   for (const ea of execActions) {
-    if (!seenCmds.has(ea.command)) {
-      seenCmds.add(ea.command);
-      uniqueExecActions.push(ea);
+    const existing = execMap.get(ea.command);
+    if (!existing) {
+      execMap.set(ea.command, ea);
+    } else {
+      // Overwrite if new status is non-running or has exit code
+      if (ea.status !== 'running' || existing.status === 'running') {
+        execMap.set(ea.command, ea);
+      }
     }
   }
+  const uniqueExecActions = Array.from(execMap.values());
 
   const cleanText = text
     .replace(/<wsm_terminal_exec\s+[^>]*?(?:\/>|>)/gi, '')

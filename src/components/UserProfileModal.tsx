@@ -9,6 +9,7 @@ interface UserProfileModalProps {
   onClose: () => void;
   onSignOut?: () => void;
   onOpenSecurityModal?: () => void;
+  onOpenPasswordChangeModal?: () => void;
 }
 
 export function getDiceBearAvatar(seed: string): string {
@@ -20,7 +21,8 @@ export default function UserProfileModal({
   userProfile,
   onClose,
   onSignOut,
-  onOpenSecurityModal
+  onOpenSecurityModal,
+  onOpenPasswordChangeModal
 }: UserProfileModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -35,12 +37,18 @@ export default function UserProfileModal({
   const [isSavedSuccess, setIsSavedSuccess] = useState(false);
   const [copiedUid, setCopiedUid] = useState(false);
 
+  // Non-blocking status notification states
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteRequested, setDeleteRequested] = useState(false);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
-      alert("A imagem selecionada é muito grande. Escolha uma imagem de até 5MB.");
+      setErrorMessage("A imagem selecionada é muito grande. Escolha uma imagem de até 5MB.");
       return;
     }
 
@@ -61,6 +69,8 @@ export default function UserProfileModal({
   const handleSave = async () => {
     if (!currentUser) return;
     setIsSaving(true);
+    setErrorMessage(null);
+    setInfoMessage(null);
     try {
       await saveUserProfile(currentUser.uid, {
         displayName: displayName.trim(),
@@ -72,7 +82,7 @@ export default function UserProfileModal({
       }, 2000);
     } catch (err) {
       console.error("Erro ao salvar perfil:", err);
-      alert("Não foi possível salvar as alterações. Tente novamente.");
+      setErrorMessage("Não foi possível salvar as alterações. Tente novamente.");
     } finally {
       setIsSaving(false);
     }
@@ -92,7 +102,52 @@ export default function UserProfileModal({
       
       <div className="bg-white dark:bg-gray-900 border border-[#eae6e1] dark:border-gray-800 rounded-3xl p-6 sm:p-7 shadow-2xl max-w-md w-full relative z-10 animate-in zoom-in-95 duration-200">
         
-        {/* Close Button */}
+        {/* Notification banners */}
+        {errorMessage && (
+          <div className="mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 text-red-700 dark:text-red-400 text-xs flex justify-between items-center animate-in fade-in-50">
+            <span>{errorMessage}</span>
+            <button onClick={() => setErrorMessage(null)} className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {infoMessage && (
+          <div className="mb-4 p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs flex justify-between items-center animate-in fade-in-50">
+            <span>{infoMessage}</span>
+            <button onClick={() => setInfoMessage(null)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-750 rounded">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Delete Account Dialog */}
+        {showDeleteConfirm && (
+          <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 mb-4 space-y-3">
+            <h4 className="text-xs font-bold text-red-800 dark:text-red-400">Confirmar exclusão de conta?</h4>
+            <p className="text-[11px] text-red-600 dark:text-red-500 leading-relaxed">
+              Tem certeza que deseja solicitar a exclusão permanente da sua conta? Todos os seus dados serão apagados de acordo com a LGPD e não poderão ser recuperados.
+            </p>
+            <div className="flex gap-2 justify-end text-[11px]">
+              <button 
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-750 text-gray-700 dark:text-gray-300 font-semibold"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteRequested(true);
+                  setInfoMessage("Solicitação registrada. Sua conta será excluída em até 30 dias.");
+                }}
+                className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold"
+              >
+                Sim, Solicitar Exclusão
+              </button>
+            </div>
+          </div>
+        )}
         <button
           onClick={onClose}
           className="absolute top-5 right-5 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-pointer"
@@ -255,7 +310,11 @@ export default function UserProfileModal({
               <button
                 type="button"
                 className="text-left px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between cursor-pointer"
-                onClick={() => alert("Função em desenvolvimento. Será possível alterar a senha em breve.")}
+                onClick={() => {
+                  if (onOpenPasswordChangeModal) {
+                    onOpenPasswordChangeModal();
+                  }
+                }}
               >
                 <span>Alterar Senha</span>
                 <span className="text-[10px] text-gray-400 font-normal">Recomendado</span>
@@ -263,7 +322,7 @@ export default function UserProfileModal({
               <button
                 type="button"
                 className="text-left px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between cursor-pointer"
-                onClick={() => alert("A Autenticação em Duas Etapas (2FA) estará disponível na próxima atualização.")}
+                onClick={() => setInfoMessage("A Autenticação em Duas Etapas (2FA) estará disponível na próxima atualização.")}
               >
                 <span>Autenticação em Duas Etapas (2FA)</span>
                 <span className="px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700 text-[9px] font-bold text-gray-500 uppercase">Em breve</span>
@@ -271,20 +330,21 @@ export default function UserProfileModal({
               <button
                 type="button"
                 className="text-left px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between cursor-pointer"
-                onClick={() => alert("Para encerrar sessões em outros dispositivos, você precisará confirmar sua identidade.")}
+                onClick={() => setInfoMessage("Para encerrar sessões em outros dispositivos, você precisará confirmar sua identidade.")}
               >
                 <span>Histórico de Sessões / Desconectar Todos</span>
               </button>
               <button
                 type="button"
-                className="text-left px-3.5 py-2.5 rounded-xl border border-red-200 dark:border-red-900/30 bg-red-50/50 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-xs font-semibold text-red-600 dark:text-red-400 flex items-center justify-between cursor-pointer mt-2"
+                disabled={deleteRequested}
+                className="text-left px-3.5 py-2.5 rounded-xl border border-red-200 dark:border-red-900/30 bg-red-50/50 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-xs font-semibold text-red-600 dark:text-red-400 flex items-center justify-between cursor-pointer mt-2 disabled:opacity-50"
                 onClick={() => {
-                  if(confirm("Tem certeza que deseja solicitar a exclusão permanente da sua conta? Todos os seus dados serão apagados de acordo com a LGPD e não poderão ser recuperados.")) {
-                    alert("Solicitação registrada. Sua conta será excluída em até 30 dias.");
-                  }
+                  setShowDeleteConfirm(true);
+                  setErrorMessage(null);
+                  setInfoMessage(null);
                 }}
               >
-                <span>Excluir conta permanentemente (LGPD)</span>
+                <span>{deleteRequested ? "Exclusão Solicitada" : "Excluir conta permanentemente (LGPD)"}</span>
               </button>
             </div>
           </div>

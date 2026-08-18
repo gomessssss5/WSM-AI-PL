@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Paperclip, Globe, Monitor, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain, Languages, ChevronDown, ChevronRight, Sparkles, Calculator, Clock, Video, Volume2, FileText, AlertCircle, X, Check, Menu, FileCode2, Files, BookOpen, MessageCircleDashed, Plus, Camera, Bug, Search, Map } from 'lucide-react';
-import { Skill, buildDeclarativeSkillManifest } from '../lib/skills';
+import { Paperclip, Globe, Monitor, Mic, ArrowUp, Pencil, Code, Image as ImageIcon, Brain, Languages, ChevronDown, ChevronRight, Sparkles, Calculator, Clock, Video, Volume2, FileText, AlertCircle, X, Check, Menu, FileCode2, Files, BookOpen, MessageCircleDashed, Plus, Camera, Bug, Search, Map, ScrollText } from 'lucide-react';
+import { Skill } from '../lib/skills';
 import { OFFICIAL_SKILLS } from '../lib/officialSkills';
 import { DeclarativeSkillComposer } from './DeclarativeSkillComposer';
 import { Draft } from '../types';
@@ -40,7 +40,16 @@ const RANDOM_HEADLINES = [
 ];
 
 interface MainHomeProps {
-  onSendMessage: (text: string, isSearchEnabled: boolean, overrideMessages?: any, attachments?: any[], isHidden?: boolean, isComputerEnabled?: boolean) => void;
+  onSendMessage: (
+    text: string, 
+    isSearchEnabled: boolean, 
+    overrideMessages?: any, 
+    attachments?: any[], 
+    isHidden?: boolean, 
+    isComputerEnabled?: boolean,
+    activeSkills?: Skill[],
+    skillMode?: 'uma_skill' | 'pipeline'
+  ) => void;
   onSuggestionClick: (suggestionType: 'write' | 'code' | 'image' | 'analysis' | 'translate') => void;
   selectedModel: string;
   setSelectedModel: (model: string) => void;
@@ -92,8 +101,24 @@ export default function MainHome({
 
   const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
   const [isSkillsSubMenuOpen, setIsSkillsSubMenuOpen] = useState(false);
+  const [attachMenuPlacement, setAttachMenuPlacement] = useState<'top' | 'bottom'>('top');
+  const attachContainerRef = useRef<HTMLDivElement>(null);
   const [activeSkills, setActiveSkills] = useState<Skill[]>([]);
   const [skillMode, setSkillMode] = useState<'uma_skill' | 'pipeline'>('uma_skill');
+
+  useEffect(() => {
+    if (!isAttachMenuOpen) return;
+    const checkAttachPos = () => {
+      if (!attachContainerRef.current) return;
+      const rect = attachContainerRef.current.getBoundingClientRect();
+      if (rect.top < 220 && (window.innerHeight - rect.bottom) >= 200) {
+        setAttachMenuPlacement('bottom');
+      } else {
+        setAttachMenuPlacement('top');
+      }
+    };
+    checkAttachPos();
+  }, [isAttachMenuOpen, isSkillsSubMenuOpen]);
 
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
 
@@ -403,26 +428,7 @@ export default function MainHome({
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [slashSearchTerm, setSlashSearchTerm] = useState('');
   const [slashMenuIndex, setSlashMenuIndex] = useState(0);
-  const [isSkillsHovered, setIsSkillsHovered] = useState(false);
-  const skillsTimeoutRef = useRef<any>(null);
-
-  const handleSkillsMouseEnter = () => {
-    if (skillsTimeoutRef.current) clearTimeout(skillsTimeoutRef.current);
-    setIsSkillsHovered(true);
-  };
-
-  const handleSkillsMouseLeave = () => {
-    if (skillsTimeoutRef.current) clearTimeout(skillsTimeoutRef.current);
-    skillsTimeoutRef.current = setTimeout(() => {
-      setIsSkillsHovered(false);
-    }, 400);
-  };
-
-  const marteTools = [
-    { id: '/web', name: 'web-search', description: 'Pesquisa na Web', icon: Globe, color: 'text-black' },
-    { id: '/calculadora', name: 'calculadora', description: 'Calculadora Matemática', icon: Calculator, color: 'text-emerald-500' },
-    { id: '/relogio', name: 'relogio', description: 'Relógio e Data Atual', icon: Clock, color: 'text-orange-500' }
-  ];
+  const slashMenuContainerRef = useRef<HTMLDivElement>(null);
 
   const allSkillsList = useMemo(() => {
     const combined = [...OFFICIAL_SKILLS];
@@ -434,20 +440,48 @@ export default function MainHome({
     return combined;
   }, [skills]);
 
-  const slashItems = [
-    ...marteTools,
-    ...allSkillsList.map(skill => ({
-      id: `/${skill.id}`,
-      name: skill.name,
-      description: skill.description,
-      icon: FileCode2,
-      color: 'text-gray-900',
-      isSkill: true,
-      skillObj: skill
-    }))
-  ];
+  interface SlashMenuItem {
+    id: string;
+    name: string;
+    displayName?: string;
+    description: string;
+    icon: any;
+    isAction?: string;
+    isSkill?: boolean;
+    skillObj?: any;
+  }
 
-  const filteredTools = slashItems.filter(item => item.id.toLowerCase().includes(slashSearchTerm.toLowerCase()));
+  const slashItems: SlashMenuItem[] = useMemo(() => {
+    return [
+      {
+        id: 'add-files',
+        name: 'add-files',
+        description: 'Abrir seletor de arquivos',
+        icon: Paperclip,
+        isAction: 'add-files'
+      },
+      ...allSkillsList.map(skill => ({
+        id: skill.id,
+        name: skill.id,
+        displayName: skill.name,
+        description: skill.description,
+        icon: ScrollText,
+        isSkill: true,
+        skillObj: skill
+      }))
+    ];
+  }, [allSkillsList]);
+
+  const filteredTools: SlashMenuItem[] = useMemo(() => {
+    const term = slashSearchTerm.toLowerCase().trim();
+    if (!term) return slashItems;
+    return slashItems.filter(item => 
+      item.id.toLowerCase().includes(term) ||
+      (item.name && item.name.toLowerCase().includes(term)) ||
+      (item.displayName && item.displayName.toLowerCase().includes(term)) ||
+      (item.description && item.description.toLowerCase().includes(term))
+    );
+  }, [slashItems, slashSearchTerm]);
 
   useEffect(() => {
     const textarea = document.getElementById('chat-input-textarea') as HTMLTextAreaElement;
@@ -496,6 +530,21 @@ export default function MainHome({
       const matchIndex = slashMatch.index !== undefined ? slashMatch.index : 0;
       const prefixBefore = slashMatch[1]; // either '' or '\n'
       
+      if (item.isAction === 'add-files') {
+        const newText = textBeforeCursor.slice(0, matchIndex) + prefixBefore + textAfterCursor;
+        setInputValue(newText);
+        setSlashMenuOpen(false);
+        fileInputRef.current?.click();
+        setTimeout(() => {
+          if (textarea) {
+            textarea.focus();
+            const newPos = matchIndex + prefixBefore.length;
+            textarea.setSelectionRange(newPos, newPos);
+          }
+        }, 0);
+        return;
+      }
+
       if (item.isSkill) {
         setActiveSkills(prev => {
           if (skillMode === 'uma_skill') return [item.skillObj];
@@ -516,7 +565,7 @@ export default function MainHome({
       setTimeout(() => {
         if (textarea) {
           textarea.focus();
-          const newPos = item.isSkill ? matchIndex + prefixBefore.length : matchIndex + prefixBefore.length + item.id.length + 1;
+          const newPos = matchIndex + prefixBefore.length;
           textarea.setSelectionRange(newPos, newPos);
         }
       }, 0);
@@ -586,11 +635,20 @@ export default function MainHome({
         reader.onloadend = () => {
           const result = reader.result as string;
           const base64 = result.split(',')[1] || '';
+
+          let hashNum = 0;
+          for (let i = 0; i < base64.length; i++) {
+            hashNum = ((hashNum << 5) - hashNum) + base64.charCodeAt(i);
+            hashNum |= 0;
+          }
+          const hexHash = Math.abs(hashNum).toString(16).padStart(8, '0');
+
           resolve({
             name: file.name,
             type: type,
             size: file.size,
-            mimeType: file.type || "application/octet-stream",
+            mimeType: file.type || (type === 'image' ? 'image/png' : type === 'document' ? 'text/plain' : 'application/octet-stream'),
+            hash: hexHash,
             url: URL.createObjectURL(file),
             base64: base64,
           });
@@ -737,13 +795,10 @@ export default function MainHome({
     
     if (onDeleteDraft) onDeleteDraft();
 
-    let textToSend = inputValue;
-    if (activeSkills.length > 0) {
-      const manifest = buildDeclarativeSkillManifest(activeSkills, skillMode);
-      textToSend = `${manifest}\n\n[SOLICITAÇÃO DO USUÁRIO]:\n${inputValue}`;
-    }
+    const skillsToPass = activeSkills.length > 0 ? [...activeSkills] : undefined;
+    const modeToPass = activeSkills.length > 0 ? skillMode : undefined;
 
-    onSendMessage(textToSend, isSearchEnabled, undefined, attachments, false, isComputerEnabled);
+    onSendMessage(inputValue, isSearchEnabled, undefined, attachments, false, isComputerEnabled, skillsToPass, modeToPass);
     setInputValue('');
     setAttachments([]);
     setUploadError(null);
@@ -891,234 +946,60 @@ export default function MainHome({
 
           {/* Slash Menu */}
           {slashMenuOpen && filteredTools.length > 0 && (
-            <>
-              {/* MOBILE SLASH MENU */}
-              <div className="md:hidden absolute top-[calc(100%+8px)] left-0 w-64 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1 flex flex-col max-h-72 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200 scrollbar-thin">
-                {(() => {
-                  const toolsSection = filteredTools.filter(t => !('isSkill' in t));
-                  const skillsSection = filteredTools.filter(t => 'isSkill' in t);
-                  return (
-                    <>
-                      {toolsSection.length > 0 && (
-                        <div className="flex flex-col">
-                          <div className="text-[10px] font-bold text-gray-400 tracking-wider px-3 py-1.5 uppercase select-none">
-                            Funcionalidades
-                          </div>
-                          {toolsSection.map((tool) => {
-                            const globalIndex = filteredTools.indexOf(tool);
-                            const isSelected = globalIndex === slashMenuIndex;
-                            const Icon = tool.icon;
-                            return (
-                              <button
-                                key={tool.id}
-                                type="button"
-                                onClick={() => handleToolSelect(tool)}
-                                className={`w-full flex flex-col gap-0.5 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer ${
-                                  isSelected ? 'bg-gray-50' : 'hover:bg-gray-50'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Icon className={`w-3.5 h-3.5 ${tool.color}`} />
-                                  <span className="text-[12px] font-semibold text-gray-800">{tool.id}</span>
-                                </div>
-                                <span 
-                                  className="text-[10px] text-gray-500 pl-5.5 line-clamp-1 truncate" 
-                                  title={tool.description}
-                                >
-                                  {tool.description && tool.description.length > 75 
-                                    ? tool.description.slice(0, 75) + '...' 
-                                    : tool.description}
-                                </span>
-                              </button>
-                            );
-                          })}
+            <div 
+              ref={slashMenuContainerRef} 
+              className="absolute top-[calc(100%+8px)] left-0 w-64 sm:w-72 bg-white dark:bg-neutral-900 border border-gray-150 dark:border-neutral-800 rounded-2xl shadow-xl z-50 p-1.5 flex flex-col max-h-[min(340px,calc(100vh-140px))] overflow-y-auto scrollbar-thin animate-in fade-in slide-in-from-top-2 duration-150"
+            >
+              {filteredTools.map((tool, idx) => {
+                const isSelected = idx === slashMenuIndex;
+                const isAddFiles = tool.isAction === 'add-files';
+
+                return (
+                  <button
+                    key={tool.id}
+                    type="button"
+                    onClick={() => handleToolSelect(tool)}
+                    className={`w-full flex items-center gap-3 text-left px-3 py-2.5 rounded-xl transition-colors cursor-pointer select-none ${
+                      isSelected ? 'bg-gray-100 dark:bg-neutral-800' : 'hover:bg-gray-50 dark:hover:bg-neutral-800/60'
+                    }`}
+                  >
+                    {isAddFiles ? (
+                      <>
+                        <Paperclip className="w-4 h-4 text-gray-500 dark:text-neutral-400 shrink-0" />
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-[13px] font-medium text-gray-800 dark:text-neutral-200">add-files</span>
+                          <span className="text-[11px] text-gray-400 dark:text-neutral-500">Abrir seletor de arquivos</span>
                         </div>
-                      )}
+                      </>
+                    ) : (
+                      <>
+                        <ScrollText className="w-4 h-4 text-gray-400 dark:text-neutral-500 shrink-0" />
+                        <span className="text-[13px] font-medium text-gray-800 dark:text-neutral-200 truncate">
+                          {tool.id}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                );
+              })}
 
-                      {toolsSection.length > 0 && skillsSection.length > 0 && (
-                        <div className="h-px bg-gray-150 my-1 mx-2 shrink-0" />
-                      )}
-
-                      {skillsSection.length > 0 && (
-                        <div className="flex flex-col">
-                          <div className="text-[10px] font-bold text-gray-400 tracking-wider px-3 py-1.5 uppercase select-none">
-                            Skills Componíveis
-                          </div>
-                          {skillsSection.map((tool) => {
-                            const globalIndex = filteredTools.indexOf(tool);
-                            const isSelected = globalIndex === slashMenuIndex;
-                            const Icon = tool.icon;
-                            return (
-                              <button
-                                key={tool.id}
-                                type="button"
-                                onClick={() => handleToolSelect(tool)}
-                                className={`w-full flex flex-col gap-0.5 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer ${
-                                  isSelected ? 'bg-gray-50' : 'hover:bg-gray-50'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Icon className={`w-3.5 h-3.5 ${tool.color}`} />
-                                  <span className="text-[12px] font-semibold text-gray-800">{tool.id}</span>
-                                </div>
-                                <span 
-                                  className="text-[10px] text-gray-500 pl-5.5 line-clamp-1 truncate" 
-                                  title={tool.description}
-                                >
-                                  {tool.description && tool.description.length > 75 
-                                    ? tool.description.slice(0, 75) + '...' 
-                                    : tool.description}
-                                </span>
-                              </button>
-                            );
-                          })}
-                          {onOpenStore && (
-                            <>
-                              <div className="h-px bg-gray-150 my-1 mx-2 shrink-0" />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSlashMenuOpen(false);
-                                  onOpenStore();
-                                }}
-                                className="w-full flex items-center justify-center gap-2 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer hover:bg-brand-50 text-brand-600 font-medium text-xs mt-1"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                                Buscar skills novas
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-
-              {/* DESKTOP SLASH MENU */}
-              <div className="hidden md:flex absolute top-[calc(100%+8px)] left-0 w-64 bg-white border border-gray-150 rounded-xl shadow-lg z-50 p-1 flex-col overflow-visible animate-in fade-in slide-in-from-top-2 duration-200">
-                {(() => {
-                  const toolsSection = filteredTools.filter(t => !('isSkill' in t));
-                  const skillsSection = filteredTools.filter(t => 'isSkill' in t);
-                  return (
-                    <>
-                      {toolsSection.length > 0 && (
-                        <div className="flex flex-col">
-                          <div className="text-[10px] font-bold text-gray-400 tracking-wider px-3 py-1.5 uppercase select-none">
-                            Funcionalidades
-                          </div>
-                          {toolsSection.map((tool) => {
-                            const globalIndex = filteredTools.indexOf(tool);
-                            const isSelected = globalIndex === slashMenuIndex;
-                            const Icon = tool.icon;
-                            return (
-                              <button
-                                key={tool.id}
-                                type="button"
-                                onClick={() => handleToolSelect(tool)}
-                                className={`w-full flex flex-col gap-0.5 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer ${
-                                  isSelected ? 'bg-gray-50' : 'hover:bg-gray-50'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Icon className={`w-3.5 h-3.5 ${tool.color}`} />
-                                  <span className="text-[12px] font-semibold text-gray-800">{tool.id}</span>
-                                </div>
-                                <span 
-                                  className="text-[10px] text-gray-500 pl-5.5 line-clamp-1 truncate" 
-                                  title={tool.description}
-                                >
-                                  {tool.description && tool.description.length > 75 
-                                    ? tool.description.slice(0, 75) + '...' 
-                                    : tool.description}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {skillsSection.length > 0 && (
-                        <>
-                          <div className="h-px bg-gray-150 my-1 mx-2 shrink-0" />
-                          <div 
-                            className="relative"
-                            onMouseEnter={handleSkillsMouseEnter}
-                            onMouseLeave={handleSkillsMouseLeave}
-                          >
-                            <button
-                              type="button"
-                              className="w-full flex items-center justify-between text-left px-3 py-2 rounded-lg transition-colors cursor-pointer hover:bg-gray-50"
-                            >
-                              <div className="flex items-center gap-2">
-                                <BookOpen className="w-3.5 h-3.5 text-gray-900" />
-                                <span className="text-[12px] font-semibold text-gray-800">Habilidades</span>
-                              </div>
-                              <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                            </button>
-
-                            {/* Submenu de Habilidades no hover */}
-                            {isSkillsHovered && (
-                              <div className="absolute left-[100%] top-0 pl-2 z-50 animate-in fade-in slide-in-from-left-2 duration-150">
-                                <div className="w-64 bg-white border border-gray-150 rounded-xl shadow-lg p-1 flex flex-col max-h-72 overflow-y-auto scrollbar-thin select-none">
-                                  <div className="text-[10px] font-bold text-gray-400 tracking-wider px-3 py-1.5 uppercase select-none">
-                                    Skills Componíveis
-                                  </div>
-                                  {skillsSection.map((tool) => {
-                                    const Icon = tool.icon;
-                                    return (
-                                      <button
-                                        key={tool.id}
-                                        type="button"
-                                        onClick={() => {
-                                          handleToolSelect(tool);
-                                          setIsSkillsHovered(false);
-                                        }}
-                                        className="w-full flex flex-col gap-0.5 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer hover:bg-gray-50"
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          <Icon className={`w-3.5 h-3.5 ${tool.color}`} />
-                                          <span className="text-[12px] font-semibold text-gray-800">{tool.id}</span>
-                                        </div>
-                                        <span 
-                                          className="text-[10px] text-gray-500 pl-5.5 line-clamp-1 truncate" 
-                                          title={tool.description}
-                                        >
-                                          {tool.description && tool.description.length > 75 
-                                            ? tool.description.slice(0, 75) + '...' 
-                                            : tool.description}
-                                        </span>
-                                      </button>
-                                    );
-                                  })}
-                                  {onOpenStore && (
-                                    <>
-                                      <div className="h-px bg-gray-150 my-1 mx-2 shrink-0" />
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setSlashMenuOpen(false);
-                                          setIsSkillsHovered(false);
-                                          onOpenStore();
-                                        }}
-                                        className="w-full flex items-center justify-center gap-2 text-left px-3 py-2 rounded-lg transition-colors cursor-pointer hover:bg-brand-50 text-brand-600 font-medium text-xs mt-1"
-                                      >
-                                        <Plus className="w-3.5 h-3.5" />
-                                        Buscar skills novas
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            </>
+              {onOpenStore && (
+                <>
+                  <div className="h-px bg-gray-100 dark:bg-neutral-800 my-1 mx-2 shrink-0" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSlashMenuOpen(false);
+                      onOpenStore();
+                    }}
+                    className="w-full flex items-center justify-center gap-2 text-left px-3 py-2 rounded-xl transition-colors cursor-pointer hover:bg-brand-50 dark:hover:bg-neutral-800 text-brand-600 dark:text-brand-400 font-medium text-xs mt-0.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Buscar skills novas
+                  </button>
+                </>
+              )}
+            </div>
           )}
 
           {/* Upload Error Banner */}
@@ -1268,11 +1149,11 @@ export default function MainHome({
               {/* Bottom Controls Bar */}
               <div className="flex items-center justify-between pt-1">
                 {/* Left Controls: Paperclip & Pesquisar Button */}
-                <div className="flex items-center gap-1.5 relative">
+                <div ref={attachContainerRef} className="flex items-center gap-1.5 relative">
                   
                   {/* Attach Menu */}
                   {isAttachMenuOpen && (
-                    <div className="absolute bottom-full left-0 mb-2 w-56 bg-white border border-gray-100 rounded-xl shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 z-50">
+                    <div className={`absolute ${attachMenuPlacement === 'bottom' ? 'top-full mt-2' : 'bottom-full mb-2'} left-0 w-56 bg-white border border-gray-100 rounded-xl shadow-xl animate-in fade-in duration-200 z-50`}>
                       {!isSkillsSubMenuOpen ? (
                         <div className="p-1.5 flex flex-col gap-0.5">
                           <label

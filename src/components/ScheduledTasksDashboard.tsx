@@ -60,6 +60,7 @@ export default function ScheduledTasksDashboard({
   const [hasExpiration, setHasExpiration] = useState(false);
   const [expirationDate, setExpirationDate] = useState('');
   const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
+  const [executionStates, setExecutionStates] = useState<Record<string, 'iniciando' | 'executando' | 'concluido' | 'falhou' | null>>({});
 
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [maxRetries, setMaxRetries] = useState(3);
@@ -68,7 +69,28 @@ export default function ScheduledTasksDashboard({
   const handleExecuteNow = async (task: ScheduledTask) => {
     if (runningTaskId) return;
     setRunningTaskId(task.id);
+    setExecutionStates(prev => ({ ...prev, [task.id]: 'iniciando' }));
+
+    logAuditEvent({
+      toolName: 'scheduler.trigger_now',
+      riskLevel: 'medium',
+      details: `Disparo manual imediato da tarefa agendada: "${task.title}". Status: Iniciando.`,
+      status: 'executed',
+      user_id: currentUserId,
+      task_id: task.id
+    });
+
     try {
+      // Transition to 'executando' quickly
+      setTimeout(() => {
+        setExecutionStates(prev => {
+          if (prev[task.id] === 'iniciando') {
+            return { ...prev, [task.id]: 'executando' };
+          }
+          return prev;
+        });
+      }, 800);
+
       const authHeaders = await getAuthHeader();
       const res = await fetch('/api/scheduled-tasks/execute-now', {
         method: 'POST',
@@ -80,6 +102,29 @@ export default function ScheduledTasksDashboard({
         })
       });
       const data = await res.json();
+
+      if (data.success) {
+        setExecutionStates(prev => ({ ...prev, [task.id]: 'concluido' }));
+        logAuditEvent({
+          toolName: 'scheduler.trigger_now_success',
+          riskLevel: 'low',
+          details: `Disparo manual imediato da tarefa agendada "${task.title}" concluído com sucesso.`,
+          status: 'executed',
+          user_id: currentUserId,
+          task_id: task.id
+        });
+      } else {
+        setExecutionStates(prev => ({ ...prev, [task.id]: 'falhou' }));
+        logAuditEvent({
+          toolName: 'scheduler.trigger_now_failed',
+          riskLevel: 'high',
+          details: `Falha no disparo manual imediato da tarefa agendada "${task.title}". Erro: ${data.error || 'Erro interno'}`,
+          status: 'blocked',
+          user_id: currentUserId,
+          task_id: task.id
+        });
+      }
+
       if (data.session && onSessionCreated) {
         onSessionCreated(data.session);
       }
@@ -89,8 +134,26 @@ export default function ScheduledTasksDashboard({
       if (data.sessionId) {
         onOpenSession(data.sessionId);
       }
+
+      // Reset status after a few seconds so it can be clicked again
+      setTimeout(() => {
+        setExecutionStates(prev => ({ ...prev, [task.id]: null }));
+      }, 5000);
+
     } catch (e) {
       console.error('Erro ao executar tarefa agora:', e);
+      setExecutionStates(prev => ({ ...prev, [task.id]: 'falhou' }));
+      logAuditEvent({
+        toolName: 'scheduler.trigger_now_failed',
+        riskLevel: 'high',
+        details: `Falha no disparo manual imediato da tarefa agendada "${task.title}". Erro de rede ou servidor.`,
+        status: 'blocked',
+        user_id: currentUserId,
+        task_id: task.id
+      });
+      setTimeout(() => {
+        setExecutionStates(prev => ({ ...prev, [task.id]: null }));
+      }, 5000);
     } finally {
       setRunningTaskId(null);
     }
@@ -494,12 +557,32 @@ export default function ScheduledTasksDashboard({
                               className="text-gray-900 bg-gray-100 hover:bg-black hover:text-white px-2 py-1 rounded text-[11px] font-semibold transition-colors flex items-center gap-1"
                               title="Executar tarefa agora"
                             >
-                              {runningTaskId === t.id ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
+                              {executionStates[t.id] === 'iniciando' ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                  <span>Iniciando...</span>
+                                </>
+                              ) : executionStates[t.id] === 'executando' ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 animate-spin text-amber-500" />
+                                  <span>Executando...</span>
+                                </>
+                              ) : executionStates[t.id] === 'concluido' ? (
+                                <>
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                  <span className="text-emerald-600">Concluído</span>
+                                </>
+                              ) : executionStates[t.id] === 'falhou' ? (
+                                <>
+                                  <X className="w-3 h-3 text-red-500" />
+                                  <span className="text-red-600">Falhou</span>
+                                </>
                               ) : (
-                                <Play className="w-3 h-3 fill-current" />
+                                <>
+                                  <Play className="w-3 h-3 fill-current" />
+                                  <span>Rodar</span>
+                                </>
                               )}
-                              <span>Rodar</span>
                             </button>
 
                             <label className="relative inline-flex items-center cursor-pointer scale-75">
@@ -604,10 +687,25 @@ export default function ScheduledTasksDashboard({
                             className="flex items-center gap-1.5 bg-[#18181b] hover:bg-black text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
                             title="Executar tarefa imediatamente em Modo Teste com auditoria"
                           >
-                            {runningTaskId === task.id ? (
+                            {executionStates[task.id] === 'iniciando' ? (
                               <>
                                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>Iniciando...</span>
+                              </>
+                            ) : executionStates[task.id] === 'executando' ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
                                 <span>Executando Teste...</span>
+                              </>
+                            ) : executionStates[task.id] === 'concluido' ? (
+                              <>
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                <span className="text-emerald-400">Concluído!</span>
+                              </>
+                            ) : executionStates[task.id] === 'falhou' ? (
+                              <>
+                                <X className="w-3.5 h-3.5 text-red-400" />
+                                <span className="text-red-400">Falhou!</span>
                               </>
                             ) : (
                               <>

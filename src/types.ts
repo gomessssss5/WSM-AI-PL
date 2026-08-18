@@ -366,6 +366,13 @@ export interface Message {
     url: string;
     mimeType?: string;
     base64?: string;
+    hash?: string;
+  }[];
+  activeSkills?: {
+    id: string;
+    name: string;
+    isOfficial?: boolean;
+    version?: string;
   }[];
   model?: string;
   geminiModel?: string;
@@ -607,6 +614,7 @@ export interface Draft {
     url: string;
     mimeType?: string;
     base64?: string;
+    hash?: string;
   }[];
   timestamp: Date;
 }

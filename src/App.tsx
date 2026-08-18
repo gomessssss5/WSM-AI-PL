@@ -23,11 +23,29 @@ import { DEFAULT_COMPOSABLE_SKILLS } from './utils/defaultSkills';
 import { subscribeScheduledTasks, subscribeTaskExecutions, saveScheduledTask, deleteScheduledTask, saveTaskExecution, calculateNextRunAt } from './lib/scheduledTasks';
 import { getCleanSessionTitle } from './utils/sessionUtils';
 import { terminalSandbox } from './lib/terminalSandbox';
+import { logAuditEvent } from './utils/auditLogger';
 
 import { OfficialSkillsStore } from './components/OfficialSkillsStore';
 import UserProfileModal from './components/UserProfileModal';
 import AgenticSecurityModal from './components/AgenticSecurityModal';
 import ReauthModal from './components/ReauthModal';
+import PasswordChangeModal from './components/PasswordChangeModal';
+
+const cleanSessionTitle = (raw: string) => {
+  if (!raw) return 'Nova conversa';
+  let t = raw;
+  t = t.replace(/^\[Utilize as seguintes skills:[\s\S]*?\]\n\n/i, '');
+  t = t.replace(/^\[SISTEMA:[\s\S]*?\]\n\n/i, '');
+  t = t.replace(/^\[Texto Anexado do Editor:\n"[\s\S]*?"\]\n\n/i, '');
+  t = t.replace(/\[PACOTE_SKILL_DECLARATIVO[\s\S]*?\[SOLICITAÇÃO DO USUÁRIO\]:\s*/gi, '');
+  t = t.replace(/\[PIPELINE_DE_SKILLS_DECLARATIVO[\s\S]*?\[SOLICITAÇÃO DO USUÁRIO\]:\s*/gi, '');
+  t = t.replace(/\[PACOTE_SKILL_DECLARATIVO[\s\S]*?$/gi, '');
+  t = t.replace(/\[PIPELINE_DE_SKILLS_DECLARATIVO[\s\S]*?$/gi, '');
+  t = t.replace(/\[SOLICITAÇÃO DO USUÁRIO\]:\s*/gi, '');
+  t = t.trim();
+  if (!t) return 'Nova conversa';
+  return t.length > 28 ? `${t.substring(0, 28)}...` : t;
+};
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -45,6 +63,7 @@ export default function App() {
   const [isThinking, setIsThinking] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isPasswordChangeModalOpen, setIsPasswordChangeModalOpen] = useState(false);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
   const [isReauthModalOpen, setIsReauthModalOpen] = useState(false);
@@ -186,11 +205,74 @@ export default function App() {
   const isSearchActiveRef = useRef<boolean>(false);
   const executingTasksRef = useRef<Set<string>>(new Set());
   const isThinkingRef = useRef<boolean>(false);
+  const lastExecutionsRef = useRef<Record<string, string>>({});
 
   // Sync isThinking reference
   useEffect(() => {
     isThinkingRef.current = isThinking;
   }, [isThinking]);
+
+  // Subscribe to terminalSandbox events for audit logging
+  useEffect(() => {
+    // Keep track of running processes command lines so we can report them on exit
+    const runningCmds = new Map<number, string>();
+
+    const unsubscribe = terminalSandbox.subscribe((event) => {
+      try {
+        if (event.type === 'start') {
+          const { pid, command } = event.data || {};
+          if (pid && command) {
+            runningCmds.set(pid, command);
+            logAuditEvent({
+              toolName: 'Terminal Sandbox (Executando)',
+              riskLevel: 'medium',
+              details: `Processo [PID: ${pid}] iniciado no sandbox: "${command}"`,
+              status: 'executed',
+              normalized_input: command,
+              permissions_used: ['execute_tool', 'terminal_sandbox']
+            });
+          }
+        } else if (event.type === 'exit') {
+          const { pid, exitCode, durationMs } = event.data || {};
+          const command = runningCmds.get(pid) || 'Comando desconhecido';
+          runningCmds.delete(pid);
+
+          const isError = exitCode !== 0;
+          logAuditEvent({
+            toolName: 'Terminal Sandbox (Concluído)',
+            riskLevel: isError ? 'high' : 'low',
+            details: `Processo [PID: ${pid}] finalizado com código ${exitCode} em ${durationMs || 0}ms. Comando: "${command}"`,
+            status: isError ? 'blocked' : 'executed',
+            normalized_input: command,
+            output: isError ? `Erro de execução no terminal: Exit ${exitCode}` : 'Execução do processo concluída com sucesso.',
+            permissions_used: ['execute_tool', 'terminal_sandbox']
+          });
+        } else if (event.type === 'fs_change') {
+          const { action, path } = event.data || {};
+          if (action && path) {
+            // Only log if it's not a temporary sandbox internal write
+            const name = path.replace('/workspace/', '').replace(/^\//, '');
+            if (name && !name.startsWith('.')) {
+              logAuditEvent({
+                toolName: action === 'write' ? 'Gravação de Arquivo' : 'Exclusão de Arquivo',
+                riskLevel: action === 'write' ? 'medium' : 'high',
+                details: action === 'write' 
+                  ? `Arquivo gravado/atualizado no Workspace Sandbox: "${name}"`
+                  : `Arquivo removido do Workspace Sandbox: "${name}"`,
+                status: 'executed',
+                normalized_input: `Caminho: ${path}`,
+                permissions_used: ['write_workspace']
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[AuditLogs] Error processing terminalSandbox event:', e);
+      }
+    });
+
+    return unsubscribe;
+  }, [currentUser]);
 
   // Request Notification permission and setup beforeunload beacon for interrupted responses
   useEffect(() => {
@@ -693,14 +775,18 @@ export default function App() {
         const isActiveInLoaded = loadedSessions.some((loaded) => loaded.id === currentActiveId);
 
         const updatedLoaded = loadedSessions.map((loaded) => {
+          const cleanedTitle = cleanSessionTitle(loaded.title);
           if (loaded.id === currentActiveId && activeLocal && isActiveLocalDirtyOrPreserved) {
             return {
               ...loaded,
               messages: activeLocal.messages,
-              title: activeLocal.title
+              title: cleanSessionTitle(activeLocal.title)
             };
           }
-          return loaded;
+          return {
+            ...loaded,
+            title: cleanedTitle
+          };
         });
 
         const tempSessions = prevSessions.filter((s) => s.isTemporary);
@@ -722,6 +808,55 @@ export default function App() {
 
     const unsubscribeExecutions = subscribeTaskExecutions(currentUser.uid, (loadedExecutions) => {
       setTaskExecutions(loadedExecutions);
+      
+      try {
+        localStorage.setItem('wsm_task_executions', JSON.stringify(loadedExecutions));
+      } catch (e) {}
+
+      // Track executions and log audit events on status changes in real-time
+      loadedExecutions.forEach((exec) => {
+        const lastStatus = lastExecutionsRef.current[exec.id];
+        if (lastStatus !== exec.status) {
+          lastExecutionsRef.current[exec.id] = exec.status;
+
+          // Don't log on first load if it's undefined to avoid spamming historical entries
+          if (lastStatus !== undefined) {
+            if (exec.status === 'running') {
+              logAuditEvent({
+                toolName: 'Execução de Automação',
+                riskLevel: 'medium',
+                details: `Disparo da tarefa agendada: "${exec.taskTitle}" [ID: ${exec.taskId}]. Status: Em Andamento.`,
+                status: 'executed',
+                user_id: currentUser.uid,
+                task_id: exec.taskId,
+                run_id: exec.runId
+              });
+            } else if (exec.status === 'succeeded') {
+              logAuditEvent({
+                toolName: 'Execução de Automação (Sucesso)',
+                riskLevel: 'low',
+                details: `Tarefa agendada "${exec.taskTitle}" concluída com êxito.`,
+                status: 'executed',
+                user_id: currentUser.uid,
+                task_id: exec.taskId,
+                run_id: exec.runId,
+                output: exec.outputSummary || 'Executada com sucesso.'
+              });
+            } else if (exec.status === 'failed') {
+              logAuditEvent({
+                toolName: 'Execução de Automação (Falhou)',
+                riskLevel: 'high',
+                details: `Falha na execução da tarefa agendada "${exec.taskTitle}". Erro: ${exec.error || 'Erro interno'}`,
+                status: 'blocked',
+                user_id: currentUser.uid,
+                task_id: exec.taskId,
+                run_id: exec.runId,
+                output: exec.error || 'Erro na execução.'
+              });
+            }
+          }
+        }
+      });
     });
 
     const unsubscribeUserProfile = subscribeUserProfile(currentUser.uid, (loadedProfile) => {
@@ -1243,48 +1378,61 @@ Apresente essa resposta e opções de forma amigável para o usuário.`;
   const checkAndApplySkillReading = async (aiText: string): Promise<boolean> => {
     if (!currentUser) return false;
 
-    // Match [Lendo Skill: Nome da Skill] (case-insensitive)
-    const lendoRegex = /\[Lendo Skill:\s*(.*?)\]/i;
-    const match = lendoRegex.exec(aiText);
-    if (!match) return false;
+    // Match all instances of [Lendo Skill: Nome da Skill] (case-insensitive)
+    const matches = Array.from(aiText.matchAll(/\[Lendo Skill:\s*([^\]]+)\]/gi));
+    if (matches.length === 0) return false;
 
-    const rawSkillName = match[1].trim();
-    // Clean trailing bracket if present
-    const skillName = rawSkillName.replace(/\]/g, '').trim();
-
-    // Look up skill
     const allAvailableSkills = [...OFFICIAL_SKILLS, ...skills];
-    const skill = allAvailableSkills.find(
-      (s) => s.name.toLowerCase() === skillName.toLowerCase() || s.id.toLowerCase() === skillName.toLowerCase()
-    );
+    const foundSkills = [];
+    const missingSkills = [];
 
-    if (skill) {
-      console.log(`[skills-loading] Loading content of Skill "${skill.name}"...`);
-      const systemMessage = `[SISTEMA: SKILL REQUISITADA] Você solicitou a leitura da Skill "${skill.name}". O conteúdo completo dela é:
-<wsm_skill_content>
-${skill.content}
-</wsm_skill_content>
+    for (const match of matches) {
+      const rawSkillName = match[1].trim();
+      const skillName = rawSkillName.replace(/\]/g, '').trim();
+      const skill = allAvailableSkills.find(
+        (s) => s.name.toLowerCase() === skillName.toLowerCase() || s.id.toLowerCase() === skillName.toLowerCase()
+      );
+      if (skill) {
+        foundSkills.push(skill);
+      } else {
+        missingSkills.push(skillName);
+      }
+    }
 
-Por favor, prossiga e execute a solicitação do usuário utilizando os conhecimentos desta skill.`;
+    if (foundSkills.length > 0) {
+      console.log(`[skills-loading] Loading content of Skills: ${foundSkills.map(s => s.name).join(', ')}...`);
+      let systemMessage = `[SISTEMA: SKILLS REQUISITADAS] Você solicitou a leitura das seguintes Skills:\n\n`;
+      
+      foundSkills.forEach(skill => {
+        systemMessage += `### Skill: ${skill.name}\n<wsm_skill_content>\n${skill.content}\n</wsm_skill_content>\n\n`;
+      });
+
+      if (missingSkills.length > 0) {
+        systemMessage += `Atenção: As seguintes skills solicitadas não foram encontradas:\n` + missingSkills.map(s => `- ${s}`).join('\n') + `\n\n`;
+      }
+
+      systemMessage += `Por favor, prossiga e execute a solicitação do usuário utilizando os conhecimentos destas skills.`;
 
       setTimeout(() => {
         handleSendMessage(systemMessage, isSearchActiveRef.current, undefined, undefined, true);
       }, 1000);
       return true;
-    } else {
-      console.log(`[skills-loading-error] Skill "${skillName}" not found in current skills list.`);
+    } else if (missingSkills.length > 0) {
+      console.log(`[skills-loading-error] None of the requested skills were found: ${missingSkills.join(', ')}`);
       const listStr = allAvailableSkills.map(s => `- ${s.name}`).join("\n");
-      const systemMessage = `[SISTEMA: ERRO DE SKILL] A skill "${skillName}" não foi encontrada na sua biblioteca.
+      const systemMessage = `[SISTEMA: ERRO DE SKILLS] Nenhuma das skills solicitadas foi encontrada na sua biblioteca.
 As skills disponíveis no momento são:
 ${listStr || 'Nenhuma skill cadastrada.'}
 
-Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessário.`;
+Por favor, corrija os nomes solicitados para a leitura ou crie as skills se necessário.`;
 
       setTimeout(() => {
         handleSendMessage(systemMessage, isSearchActiveRef.current, undefined, undefined, true);
       }, 1000);
       return true;
     }
+
+    return false;
   };
 
   // Main sendMessage routine (used by both MainHome input and ChatWindow input)
@@ -1300,7 +1448,16 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
     }
   };
 
-  const handleSendMessage = async (text: string, isSearchEnabled: boolean, overrideMessages?: Message[], attachments?: any[], isHidden?: boolean, isComputerEnabled?: boolean) => {
+  const handleSendMessage = async (
+    text: string, 
+    isSearchEnabled: boolean, 
+    overrideMessages?: Message[], 
+    attachments?: any[], 
+    isHidden?: boolean, 
+    isComputerEnabled?: boolean,
+    activeSkills?: Skill[],
+    skillMode?: 'uma_skill' | 'pipeline'
+  ) => {
     if (!currentUser) return;
 
     if (text.trim().toUpperCase() === 'ADM') {
@@ -1329,6 +1486,12 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
       metadata: clientMetadata,
       attachments: attachments,
       isHidden: isHidden,
+      activeSkills: activeSkills && activeSkills.length > 0 ? activeSkills.map(s => ({
+        id: s.id,
+        name: s.name,
+        isOfficial: s.isOfficial,
+        version: s.version
+      })) : undefined,
     };
 
     const currentActiveSessionId = activeSessionIdRef.current;
@@ -1336,16 +1499,16 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
 
     if (!currentActiveSessionId) {
       // Create a brand new session locally first
-      let cleanTitleText = text || '';
-      cleanTitleText = cleanTitleText.replace(/^\[Utilize as seguintes skills:[\s\S]*?\]\n\n/i, '');
-      cleanTitleText = cleanTitleText.replace(/^\[SISTEMA:[\s\S]*?\]\n\n/i, '');
-      cleanTitleText = cleanTitleText.replace(/^\[Texto Anexado do Editor:\n"[\s\S]*?"\]\n\n/i, '');
-      cleanTitleText = cleanTitleText.trim();
+      let cleanTitleText = cleanSessionTitle(text || '');
 
-      if (!cleanTitleText && attachments && attachments.length > 0) {
-        cleanTitleText = `Anexo: ${attachments[0].name}`;
-      } else if (!cleanTitleText) {
-        cleanTitleText = "Nova conversa";
+      if (!cleanTitleText || cleanTitleText === 'Nova conversa') {
+        if (attachments && attachments.length > 0) {
+          cleanTitleText = `Anexo: ${attachments[0].name}`;
+        } else if (activeSkills && activeSkills.length > 0) {
+          cleanTitleText = `Skill /${activeSkills[0].name}`;
+        } else {
+          cleanTitleText = "Nova conversa";
+        }
       }
       const truncatedTitle = cleanTitleText.length > 28 ? `${cleanTitleText.substring(0, 28)}...` : cleanTitleText;
       const newId = `session-${Date.now()}`;
@@ -1379,19 +1542,19 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         ['nova conversa', 'chat temporário', 'conversa', 'chat', 'undefined'].includes(titleText.toLowerCase().trim()) ||
         titleText.startsWith('[SISTEMA') ||
         titleText.startsWith('[Utilize') ||
+        titleText.startsWith('[PACOTE') ||
+        titleText.startsWith('[PIPELINE') ||
         titleText.startsWith('Olá!');
 
       if (needsTitleUpdate) {
-        let cleanText = text || '';
-        cleanText = cleanText.replace(/^\[Utilize as seguintes skills:[\s\S]*?\]\n\n/i, '');
-        cleanText = cleanText.replace(/^\[SISTEMA:[\s\S]*?\]\n\n/i, '');
-        cleanText = cleanText.replace(/^\[Texto Anexado do Editor:\n"[\s\S]*?"\]\n\n/i, '');
-        cleanText = cleanText.trim();
+        let cleanText = cleanSessionTitle(text || '');
 
-        if (cleanText) {
+        if (cleanText && cleanText !== 'Nova conversa') {
           titleText = cleanText.length > 28 ? `${cleanText.substring(0, 28)}...` : cleanText;
         } else if (attachments && attachments.length > 0) {
           titleText = `Anexo: ${attachments[0].name}`;
+        } else if (activeSkills && activeSkills.length > 0) {
+          titleText = `Skill /${activeSkills[0].name}`;
         }
       }
 
@@ -1459,8 +1622,14 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
         requestText = "Enviei arquivos em anexo.";
       }
       if (attachments && attachments.length > 0) {
-        const fileList = attachments.map(att => `- [Anexo: ${att.name} (${att.type === 'image' ? 'Imagem' : att.type === 'video' ? 'Vídeo' : att.type === 'audio' ? 'Áudio' : 'Documento'}, ${(att.size / 1024).toFixed(1)} KB)]`).join('\n');
-        requestText += `\n\n[Arquivos Anexados]\n${fileList}`;
+        const fileList = attachments.map(att => {
+          const bytes = att.size || 0;
+          const sizeStr = bytes < 1024 ? `${bytes} bytes` : `${(bytes / 1024).toFixed(1)} KB (${bytes.toLocaleString('pt-BR')} bytes)`;
+          const mime = att.mimeType || 'application/octet-stream';
+          const hashStr = att.hash ? ` | Hash: ${att.hash}` : '';
+          return `- [Anexo: "${att.name}" | Tamanho Exato Real: ${sizeStr} | MIME: ${mime}${hashStr}]`;
+        }).join('\n');
+        requestText += `\n\n[Arquivos Anexados - Metadados Reais do File Object]\n${fileList}`;
       }
 
       // Add 45-second timeout to prevent eternal loading if the request hangs
@@ -1580,6 +1749,8 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           model: sessionToUpdate.model || selectedModel,
           reasoningLevel: reasoningLevel,
           skills: [...OFFICIAL_SKILLS, ...DEFAULT_COMPOSABLE_SKILLS, ...skills],
+          activeSkills: activeSkills && activeSkills.length > 0 ? activeSkills : undefined,
+          activeSkillMode: skillMode || 'uma_skill',
           layeredMemories: getLayeredMemories(),
           userContext: getUserContext(),
           userInfo: currentUser ? {
@@ -1589,12 +1760,25 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           } : undefined,
           history: sessionToUpdate.messages.map(m => {
             let msgText = m.text || m.finalSynthesis || "";
+            msgText = msgText
+              .replace(/\[PACOTE_SKILL_DECLARATIVO[\s\S]*?\[SOLICITAÇÃO DO USUÁRIO\]:\s*/gi, "")
+              .replace(/\[PIPELINE_DE_SKILLS_DECLARATIVO[\s\S]*?\[SOLICITAÇÃO DO USUÁRIO\]:\s*/gi, "")
+              .replace(/\[PACOTE_SKILL_DECLARATIVO[\s\S]*?$/gi, "")
+              .replace(/\[PIPELINE_DE_SKILLS_DECLARATIVO[\s\S]*?$/gi, "")
+              .replace(/\[SOLICITAÇÃO DO USUÁRIO\]:\s*/gi, "");
+
             if (!msgText && m.sender === 'user' && m.attachments && m.attachments.length > 0) {
               msgText = "Enviei arquivos em anexo.";
             }
             if (m.sender === 'user' && m.attachments && m.attachments.length > 0) {
-              const fileList = m.attachments.map(att => `- [Anexo: ${att.name} (${att.type === 'image' ? 'Imagem' : att.type === 'video' ? 'Vídeo' : att.type === 'audio' ? 'Áudio' : 'Documento'}, ${(att.size / 1024).toFixed(1)} KB)]`).join('\n');
-              msgText += `\n\n[Arquivos Anexados]\n${fileList}`;
+              const fileList = m.attachments.map(att => {
+                const bytes = att.size || 0;
+                const sizeStr = bytes < 1024 ? `${bytes} bytes` : `${(bytes / 1024).toFixed(1)} KB (${bytes.toLocaleString('pt-BR')} bytes)`;
+                const mime = att.mimeType || 'application/octet-stream';
+                const hashStr = att.hash ? ` | Hash: ${att.hash}` : '';
+                return `- [Anexo: "${att.name}" | Tamanho Exato Real: ${sizeStr} | MIME: ${mime}${hashStr}]`;
+              }).join('\n');
+              msgText += `\n\n[Arquivos Anexados - Metadados Reais do File Object]\n${fileList}`;
             }
 
             const parts: any[] = [{ text: msgText }];
@@ -1878,6 +2062,28 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                     console.error("Erro ao processar terminal_action no sandbox:", err);
                   }
                 } else if (eventData.type === "tool_event" && eventData.toolEvent) {
+                  const ev = eventData.toolEvent;
+                  if (ev.tool === 'web_search_query' || ev.event === 'web.search') {
+                    logAuditEvent({
+                      toolName: 'web_search_query',
+                      riskLevel: 'low',
+                      details: `Consulta HTTP 200 efetuada na API de Busca Tavily. Query: "${ev.query || ev.normalized_input || 'Pesquisa'}".`,
+                      status: 'executed',
+                      normalized_input: ev.query || ev.normalized_input || '',
+                      output: `HTTP ${ev.httpStatus || 200}: ${ev.sourcesCount || 0} fontes estruturadas retornadas.`,
+                      permissions_used: ['read_workspace', 'web_search']
+                    });
+                  } else {
+                    logAuditEvent({
+                      toolName: ev.tool || ev.event || 'Uso de Ferramenta',
+                      riskLevel: 'low',
+                      details: ev.details || `Ferramenta ${ev.tool || ev.event} executada pelo agente.`,
+                      status: ev.status === 'success' ? 'executed' : 'blocked',
+                      normalized_input: ev.query || ev.normalized_input || '',
+                      output: ev.details || ''
+                    });
+                  }
+
                   setSessions((prev) => {
                     const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
                     if (!currentSess) return prev;
@@ -1989,7 +2195,9 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
             sendCompletionNotification();
           }
 
-          recordLedgerRun(sessionToUpdate.id, sessionToUpdate.title, text, 'succeeded', !!isComputerEnabled, 0, attachments);
+          const hasTerminalFail = accumulatedFinalText.includes('status="failed"') || accumulatedFinalText.includes('status="timed_out"');
+          const finalLedgerStatus = hasTerminalFail ? 'failed' : 'succeeded';
+          recordLedgerRun(sessionToUpdate.id, sessionToUpdate.title, text, finalLedgerStatus, !!isComputerEnabled, 0, attachments);
         })
         .catch((err) => {
           clearTimeout(timeoutId);
@@ -2232,6 +2440,7 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
                 tasks={scheduledTasks}
                 executions={taskExecutions}
                 sessions={sessions.filter((s) => !s.isTemporary)}
+                currentUserId={currentUser?.uid}
                 onOpenMobileHistory={() => setIsMobileHistoryOpen(true)}
                 onSaveTask={async (task) => {
                   if (currentUser) {
@@ -2370,6 +2579,14 @@ Por favor, corrija o nome solicitado para a leitura ou crie a skill se necessár
           onClose={() => setIsProfileModalOpen(false)}
           onSignOut={handleSignOut}
           onOpenSecurityModal={() => setIsSecurityModalOpen(true)}
+          onOpenPasswordChangeModal={() => setIsPasswordChangeModalOpen(true)}
+        />
+      )}
+
+      {isPasswordChangeModalOpen && (
+        <PasswordChangeModal
+          isOpen={isPasswordChangeModalOpen}
+          onClose={() => setIsPasswordChangeModalOpen(false)}
         />
       )}
 

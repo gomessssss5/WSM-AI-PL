@@ -589,7 +589,7 @@ interface ListNode {
 
 const isListItem = (str: string): boolean => {
   const t = str.trim();
-  return t.startsWith('- ') || t.startsWith('* ') || t.startsWith('+ ') || t.startsWith('• ') || /^\d+\.\s+/.test(t);
+  return t.startsWith('- ') || t.startsWith('* ') || t.startsWith('+ ') || t.startsWith('• ') || /^\d+[\.\)]\s+/.test(t);
 };
 
 const buildListTree = (items: ListItem[]): ListNode[] => {
@@ -926,8 +926,22 @@ export default function MarkdownRenderer({
       const id = `:::AGENTICTOKEN-${agenticTokens.length}:::`;
       if (match.includes('wsm_terminal_exec')) {
         const cmdMatch = match.match(/command="([^"]*)"/i) || match.match(/cmd="([^"]*)"/i);
+        const statusMatch = match.match(/status="([^"]*)"/i);
+        const exitMatch = match.match(/exitCode="([^"]*)"/i);
         const cmd = cmdMatch ? cmdMatch[1] : 'script';
-        agenticTokens.push({ id, type: 'terminal_exec', text: `Executou no terminal: ${cmd}` });
+        const status = statusMatch ? statusMatch[1].toLowerCase() : 'done';
+        const exitCode = exitMatch ? exitMatch[1] : undefined;
+        const isFailed = status === 'failed' || status === 'timed_out' || (exitCode !== undefined && exitCode !== '0');
+
+        if (isFailed) {
+          agenticTokens.push({
+            id,
+            type: 'terminal_exec_failed',
+            text: `Falha no terminal (${cmd}${exitCode ? ' - Exit ' + exitCode : ''})`
+          });
+        } else {
+          agenticTokens.push({ id, type: 'terminal_exec', text: `Executou no terminal: ${cmd}` });
+        }
       } else {
         const pathMatch = match.match(/path="([^"]*)"/i) || match.match(/filename="([^"]*)"/i);
         const p = pathMatch ? pathMatch[1] : 'arquivo';
@@ -1180,7 +1194,75 @@ export default function MarkdownRenderer({
                   );
                 }
 
-                if (token.type === 'terminal_exec' || token.type === 'terminal_file') {
+                if (token.type === 'terminal_exec_failed') {
+                  return (
+                    <div key={`agentic-${pIdx}-${keyIndex++}`} className="flex items-center gap-2.5 my-1.5 flex-wrap">
+                      <span
+                        onClick={() => window.dispatchEvent(new CustomEvent('open_terminal'))}
+                        className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-red-600 dark:text-red-400 select-none cursor-pointer hover:underline transition-colors"
+                        title="Clique para ver detalhes no Terminal Sandbox"
+                      >
+                        <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
+                        <span>{displayType}</span>
+                        <ChevronRight className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0" />
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => window.dispatchEvent(new CustomEvent('open_terminal'))}
+                        className="px-2.5 py-1 text-[12px] font-medium bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/60 dark:text-red-300 dark:hover:bg-red-900/60 rounded-md border border-red-200 dark:border-red-800/80 transition-colors cursor-pointer shadow-3xs"
+                      >
+                        Ver detalhes
+                      </button>
+                    </div>
+                  );
+                }
+
+                if (token.type === 'terminal_file') {
+                  const rawFilename = token.text.replace(/^(Criou arquivo|Criando arquivo|Salvou arquivo|Salvando arquivo)\s*/i, '').trim();
+                  const cleanFilename = rawFilename.replace('/workspace/', '').replace(/^\//, '');
+
+                  if (isActive) {
+                    return (
+                      <div
+                        key={`agentic-${pIdx}-${keyIndex++}`}
+                        onClick={() => window.dispatchEvent(new CustomEvent('open_terminal'))}
+                        className="inline-flex items-center gap-1.5 text-[14px] font-medium select-none my-1 searching cursor-pointer hover:opacity-90 transition-opacity"
+                        title="Clique para abrir o Terminal Sandbox"
+                      >
+                        <FileText className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0" />
+                        <span className="shimmer-text">{displayType}</span>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={`agentic-${pIdx}-${keyIndex++}`} className="inline-flex items-center gap-2 my-1 flex-wrap">
+                      <span
+                        onClick={() => window.dispatchEvent(new CustomEvent('open_terminal'))}
+                        className="inline-flex items-center gap-1.5 text-[14px] font-medium text-[#6b7076] dark:text-gray-400 select-none cursor-pointer hover:text-gray-900 dark:hover:text-gray-100 transition-colors group"
+                        title="Clique para abrir o Terminal Sandbox"
+                      >
+                        <FileText className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0 group-hover:text-emerald-500 transition-colors" />
+                        <span>{displayType}</span>
+                        <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                      </span>
+                      {cleanFilename && (
+                        <a
+                          href={`/api/download/${encodeURIComponent(cleanFilename)}`}
+                          download={cleanFilename}
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-900/60 rounded border border-emerald-200 dark:border-emerald-800 transition-colors cursor-pointer"
+                          title={`Baixar ${cleanFilename}`}
+                        >
+                          <Download className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                          <span>Baixar</span>
+                        </a>
+                      )}
+                    </div>
+                  );
+                }
+
+                if (token.type === 'terminal_exec') {
                   if (isActive) {
                     return (
                       <div
@@ -1263,6 +1345,39 @@ export default function MarkdownRenderer({
                     <span key={`link-${pIdx}-${keyIndex++}`} className="text-gray-600 font-medium select-text">
                       {token.text} <span className="text-xs text-red-500 font-mono">[javascript removido]</span>
                     </span>
+                  );
+                }
+
+                const isWorkspaceLink = lowerUrl.startsWith('/workspace/') || 
+                  lowerUrl.startsWith('/api/download/') || 
+                  lowerUrl.startsWith('/api/workspace/download/') || 
+                  lowerUrl.includes('/workspace/') ||
+                  /\.(md|csv|xlsx|xls|pdf|json|txt|py|js|ts|zip)$/i.test(lowerUrl.split('?')[0]);
+
+                if (isWorkspaceLink) {
+                  const rawFilename = token.url.split('/').pop()?.split('?')[0] || token.text || 'arquivo';
+                  const filename = decodeURIComponent(rawFilename).replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '');
+                  const extMatch = filename.match(/\.([a-z0-9]+)$/i);
+                  const ext = extMatch ? extMatch[1].toUpperCase() : 'DOC';
+                  const downloadUrl = `/api/download/${encodeURIComponent(filename)}`;
+
+                  return (
+                    <a
+                      key={`link-${pIdx}-${keyIndex++}`}
+                      href={downloadUrl}
+                      download={filename}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 my-1 mx-0.5 bg-blue-50/90 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 border border-blue-200/80 dark:border-blue-800/80 rounded-lg text-[13px] font-medium text-blue-900 dark:text-blue-100 transition-all select-none cursor-pointer align-middle no-underline shadow-3xs group"
+                      title={`Baixar ${filename}`}
+                    >
+                      <Download className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0 group-hover:scale-110 transition-transform" />
+                      <span className="font-semibold text-blue-800 dark:text-blue-200">{token.text.includes('.') ? token.text : filename}</span>
+                      <span className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-200/80 dark:bg-blue-800/80 text-blue-800 dark:text-blue-200 rounded font-mono uppercase leading-none">
+                        {ext}
+                      </span>
+                    </a>
                   );
                 }
 
@@ -1360,6 +1475,12 @@ export default function MarkdownRenderer({
 
     // Auto-close incomplete markdown links at the very end of the text while streaming to avoid raw URL dumping
     formattedContent = formattedContent.replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)]*)$/, '[$1]($2)');
+
+    // Pre-sanitize duplicated list markers (e.g. "- •", "- -", "1. 1.", "2. 2.", "• •", "* -")
+    formattedContent = formattedContent.replace(/^(\s*)(?:[-*+•]|\d+[\.\)])\s+((?:[-*+•]|\d+[\.\)])\s+)+/gm, (match, p1) => {
+      const firstMarkerMatch = match.trim().match(/^(\d+[\.\)]|[-*+•])\s+/);
+      return p1 + (firstMarkerMatch ? firstMarkerMatch[0] : '- ');
+    });
 
     // Ensure wsm tags are on their own lines so text before/after them doesn't get swallowed
     const tagNames = ['wsm_chart', 'wsm_map', 'wsm_form', 'wsm_task', 'wsm_mindmap'];
@@ -1712,19 +1833,23 @@ export default function MarkdownRenderer({
           const trimmedLine = lineStr.trim();
           let markerType: 'ordered' | 'unordered' = 'unordered';
           let markerText = '•';
-          let text = trimmedLine;
+          let cleanText = trimmedLine;
 
-          const orderedMatch = trimmedLine.match(/^(\d+\.)\s+(.*)$/);
-          if (orderedMatch) {
-            markerType = 'ordered';
-            markerText = orderedMatch[1];
-            text = orderedMatch[2];
-          } else {
-            const unorderedMatch = trimmedLine.match(/^([-*+•])\s+(.*)$/);
-            if (unorderedMatch) {
+          const primaryMatch = trimmedLine.match(/^(\d+[\.\)]|[-*+•])\s+(.*)$/);
+          if (primaryMatch) {
+            const firstMarker = primaryMatch[1];
+            if (/^\d+/.test(firstMarker)) {
+              markerType = 'ordered';
+              markerText = firstMarker.endsWith('.') ? firstMarker : `${firstMarker.slice(0, -1)}.`;
+            } else {
               markerType = 'unordered';
-              markerText = unorderedMatch[1];
-              text = unorderedMatch[2];
+              markerText = firstMarker;
+            }
+            cleanText = primaryMatch[2];
+
+            // Strip any additional residual markers left in cleanText (e.g. "- •", "1. 1.")
+            while (/^(\d+[\.\)]|[-*+•])\s+/.test(cleanText)) {
+              cleanText = cleanText.replace(/^(\d+[\.\)]|[-*+•])\s+/, '');
             }
           }
 
@@ -1733,7 +1858,7 @@ export default function MarkdownRenderer({
             indent,
             markerType,
             markerText,
-            text,
+            text: cleanText,
           };
         });
 
@@ -1853,6 +1978,9 @@ export default function MarkdownRenderer({
 
         const typeVal = parseAttr(chartLine, 'type') || 'bar';
         const titleVal = parseAttr(chartLine, 'title') || 'Gráfico Interativo';
+        const subtitleVal = parseAttr(chartLine, 'subtitle');
+        const xAxisVal = parseAttr(chartLine, 'xAxis') || parseAttr(chartLine, 'x') || parseAttr(chartLine, 'xlabel');
+        const yAxisVal = parseAttr(chartLine, 'yAxis') || parseAttr(chartLine, 'y') || parseAttr(chartLine, 'ylabel');
         let dataVal = parseAttr(chartLine, 'data');
 
         if (!dataVal) {
@@ -1868,6 +1996,9 @@ export default function MarkdownRenderer({
               key={`chart-${i}`}
               type={typeVal}
               title={titleVal}
+              subtitle={subtitleVal}
+              xAxis={xAxisVal}
+              yAxis={yAxisVal}
               data={dataVal}
             />
           );

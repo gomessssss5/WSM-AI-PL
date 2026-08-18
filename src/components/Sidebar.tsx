@@ -64,7 +64,7 @@ export default function Sidebar(props: SidebarProps) {
 
   const handleInstallApp = async () => {
     if (!deferredPrompt) {
-      alert("Para instalar, use a opção 'Adicionar à tela inicial' no menu de opções do seu navegador.");
+      console.warn("Para instalar, use a opção 'Adicionar à tela inicial' no menu de opções do seu navegador.");
       setShowInstallModal(false);
       return;
     }

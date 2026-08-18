@@ -34,6 +34,10 @@ interface WsmChartComponentProps {
   title?: string;
   subtitle?: string;
   data: string | any; // JSON string or object
+  xAxis?: string;
+  yAxis?: string;
+  xLabel?: string;
+  yLabel?: string;
 }
 
 const PALETTE = [
@@ -48,7 +52,7 @@ const PALETTE = [
   '#64748b'
 ];
 
-export default function WsmChartComponent({ type, title, subtitle, data }: WsmChartComponentProps) {
+export default function WsmChartComponent({ type, title, subtitle, data, xAxis, yAxis, xLabel, yLabel }: WsmChartComponentProps) {
   const chartData = useMemo(() => {
     try {
       let raw: any = typeof data === 'string' ? JSON.parse(data) : data;
@@ -67,7 +71,7 @@ export default function WsmChartComponent({ type, title, subtitle, data }: WsmCh
         const first = raw[0];
         const keys = Object.keys(first);
 
-        const labelKey = keys.find(k => ['name', 'label', 'categoria', 'mes', 'mês', 'ano', 'item'].includes(k.toLowerCase())) || keys[0];
+        const labelKey = keys.find(k => ['name', 'label', 'categoria', 'mes', 'mês', 'ano', 'item', 'eixo_x', 'x'].includes(k.toLowerCase())) || keys[0];
         const numericKeys = keys.filter(k => k !== labelKey && typeof first[k] === 'number');
 
         const labels = raw.map(item => String(item[labelKey] ?? ''));
@@ -82,7 +86,9 @@ export default function WsmChartComponent({ type, title, subtitle, data }: WsmCh
               borderColor: '#ffffff',
               borderWidth: 3,
               hoverOffset: 8
-            }]
+            }],
+            inferredXLabel: labelKey,
+            inferredYLabel: valueKey
           };
         }
 
@@ -106,7 +112,12 @@ export default function WsmChartComponent({ type, title, subtitle, data }: WsmCh
               pointBorderWidth: 2,
             };
           });
-          return { labels, datasets };
+          return { 
+            labels, 
+            datasets,
+            inferredXLabel: labelKey,
+            inferredYLabel: numericKeys.join(', ')
+          };
         } else {
           // Fallback if all values are simple numbers
           const valueKey = keys[1] || keys[0];
@@ -126,7 +137,9 @@ export default function WsmChartComponent({ type, title, subtitle, data }: WsmCh
               pointBackgroundColor: '#111111',
               pointBorderColor: '#ffffff',
               pointBorderWidth: 2
-            }]
+            }],
+            inferredXLabel: labelKey,
+            inferredYLabel: valueKey
           };
         }
       }
@@ -155,6 +168,9 @@ export default function WsmChartComponent({ type, title, subtitle, data }: WsmCh
       return null;
     }
   }, [data, type, title]);
+
+  const resolvedXLabel = xLabel || xAxis || (chartData as any)?.inferredXLabel || '';
+  const resolvedYLabel = yLabel || yAxis || (chartData as any)?.inferredYLabel || '';
 
   if (!chartData) {
     return (
@@ -199,13 +215,27 @@ export default function WsmChartComponent({ type, title, subtitle, data }: WsmCh
       x: {
         border: { display: false },
         grid: { display: false },
-        ticks: { color: '#888888', font: { size: 12 } }
+        ticks: { color: '#888888', font: { size: 12 } },
+        title: {
+          display: Boolean(resolvedXLabel && resolvedXLabel !== 'item' && resolvedXLabel !== 'name'),
+          text: resolvedXLabel,
+          color: '#666666',
+          font: { size: 12, weight: '600' },
+          padding: { top: 8 }
+        }
       },
       y: {
         beginAtZero: true,
         border: { display: false },
         grid: { color: '#f1f1f1', drawTicks: false },
-        ticks: { color: '#888888', padding: 8, font: { size: 12 } }
+        ticks: { color: '#888888', padding: 8, font: { size: 12 } },
+        title: {
+          display: Boolean(resolvedYLabel),
+          text: resolvedYLabel,
+          color: '#666666',
+          font: { size: 12, weight: '600' },
+          padding: { bottom: 8 }
+        }
       }
     }
   };
@@ -238,8 +268,18 @@ export default function WsmChartComponent({ type, title, subtitle, data }: WsmCh
           {subtitle && <p className="mt-1 text-xs sm:text-sm text-gray-500 dark:text-neutral-400">{subtitle}</p>}
         </div>
       )}
-      <div className="relative w-full h-[320px] sm:h-[380px]">
+      <div 
+        role="region" 
+        aria-label={title ? `Gráfico: ${title}` : 'Visualização de gráfico de dados'}
+        tabIndex={0}
+        className="relative w-full h-[320px] sm:h-[380px]"
+      >
         {renderChartCanvas()}
+        <span className="sr-only">
+          {title ? `Gráfico de ${title}.` : 'Gráfico de dados.'}
+          {resolvedXLabel ? ` Eixo X: ${resolvedXLabel}.` : ''}
+          {resolvedYLabel ? ` Eixo Y: ${resolvedYLabel}.` : ''}
+        </span>
       </div>
     </div>
   );

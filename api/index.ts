@@ -14,7 +14,7 @@ import {
 import { runAllEmailAutomations } from "./emailAutomation.js";
 import { processBackgroundTasks, executeScheduledTaskNow } from "./scheduledTasksBackground.js";
 import { getAllSystemPrompts, getSystemPrompt, updateSystemPrompt } from "./systemPromptsManager.js";
-import { executeSandboxCommand, writeSandboxFile, readSandboxFile, deleteSandboxFile, listSandboxFiles, ensureSandboxDir } from "./terminalService.js";
+import { executeSandboxCommand, writeSandboxFile, readSandboxFile, deleteSandboxFile, listSandboxFiles, ensureSandboxDir, getSandboxFileDetails, getMimeTypeForFile, preFlightCheck } from "./terminalService.js";
 import { verifyFirebaseIdToken, DecodedAuthToken } from "./authVerifier.js";
 import { cleanAndDeduplicateSources } from "../src/utils/sourceCleaner.js";
 
@@ -437,7 +437,7 @@ function sanitizeOutgoingText(rawText: string): string {
 
 // API endpoint for chatbot communication and Web Search
 app.post("/api/chat", verifyAuthTokenMiddleware, async (req: express.Request, res: express.Response) => {
-  const { text, content, rawText, metadata, attachments, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, userContext, userInfo, isScheduledExecution, sessionId, chatMemoryDoc, workspaceFiles, layeredMemories } = req.body;
+  const { text, content, rawText, metadata, attachments, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, activeSkills, activeSkillMode, userContext, userInfo, isScheduledExecution, sessionId, chatMemoryDoc, workspaceFiles, layeredMemories } = req.body;
 
   const userEmail = userInfo?.email || userContext?.email || req.body?.userEmail;
   let clientDisconnected = false;
@@ -460,6 +460,13 @@ app.post("/api/chat", verifyAuthTokenMiddleware, async (req: express.Request, re
   if (!userPromptText) {
     userPromptText = typeof text === 'string' ? text : (typeof rawText === 'string' ? rawText : JSON.stringify(text || ''));
   }
+  userPromptText = userPromptText
+    .replace(/\[PACOTE_SKILL_DECLARATIVO[\s\S]*?\[SOLICITAÇÃO DO USUÁRIO\]:\s*/gi, '')
+    .replace(/\[PIPELINE_DE_SKILLS_DECLARATIVO[\s\S]*?\[SOLICITAÇÃO DO USUÁRIO\]:\s*/gi, '')
+    .replace(/\[PACOTE_SKILL_DECLARATIVO[\s\S]*?$/gi, '')
+    .replace(/\[PIPELINE_DE_SKILLS_DECLARATIVO[\s\S]*?$/gi, '')
+    .replace(/\[SOLICITAÇÃO DO USUÁRIO\]:\s*/gi, '')
+    .trim();
 
   // 401/419 Interception & Simulation Check
   const authHeader = req.headers.authorization || "";
@@ -530,6 +537,28 @@ REGRAS INVIOLÁVEIS DO REGISTRO DE ARTEFATOS:
 `;
   }
 
+  // Build Attachments Exact Metadata Instruction (Source of Truth for File Size, MIME, Hash)
+  let attachmentContextInstruction = "";
+  if (Array.isArray(attachments) && attachments.length > 0) {
+    const attachmentsListStr = attachments.map((att: any, idx: number) => {
+      const sizeBytes = typeof att.size === 'number' ? att.size : 0;
+      const mime = att.mimeType || 'application/octet-stream';
+      const hashStr = att.hash ? ` | Hash/Checksum: ${att.hash}` : '';
+      return `[Anexo #${idx + 1}] Nome: "${att.name}" | Tamanho Real no Armazenamento/File: ${sizeBytes} bytes | MIME Type: ${mime}${hashStr}`;
+    }).join('\n');
+
+    attachmentContextInstruction = `
+## METADADOS REAIS E EXATOS DOS ANEXOS ENVIADOS
+Abaixo estão os metadados REAIS obtidos diretamente do objeto File / Armazenamento do navegador:
+${attachmentsListStr}
+
+REGRAS OBRIGATÓRIAS SOBRE O TAMANHO E METADADOS DOS ANEXOS:
+1. Sempre utilize o "Tamanho Real no Armazenamento/File" indicado acima (ex: ${attachments.map((a: any) => `${a.size || 0} bytes`).join(', ')}) como o tamanho exato do arquivo. NUNCA tente estimar ou recalcular a contagem de bytes contando caracteres ou medindo o comprimento da string de texto, pois a codificação de caracteres ou quebras de linha pode variar.
+2. Quando o usuário perguntar o tamanho do arquivo enviado em anexo, informe o número exato de bytes (${attachments.map((a: any) => `${a.size || 0} bytes`).join(', ')}) presente nestes metadados oficiais.
+3. Se solicitado, informe também o MIME Type e o Hash/Checksum do anexo.
+`;
+  }
+
   // Build Deterministic System Instruction if triggered
   const deterministicInstruction = isDeterministicRequested ? `
 ## [MODO DETERMINÍSTICO DE ALTA PRECISÃO ATIVADO]
@@ -550,6 +579,7 @@ Instruções Importantes:
 1. Sempre que o usuário perguntar que horas são, que dia é hoje, qual é a previsão do tempo na cidade dele, eventos ou fatos locais, utilize EXATAMENTE as informações acima (${userCity}, ${userDate}, ${userTime}).
 2. Ao realizar pesquisas ou análises temporais (como "notícias de hoje", "jogos de hoje"), tome a data (${userDate}) e a cidade do usuário (${userCity}) como referência absoluta.
 ${workspaceContextInstruction}
+${attachmentContextInstruction}
 ${deterministicInstruction}
 `;
 
@@ -659,6 +689,30 @@ ${skills.map((s: any, idx: number) => `
 - **Instruções Rigorosas de Execução**:
 ${s.instructions || ''}
 `).join('\n---\n')}
+`;
+  }
+
+  // Active Skills explicitly activated for this request
+  let activeSkillsInstruction = "";
+  if (Array.isArray(activeSkills) && activeSkills.length > 0) {
+    activeSkillsInstruction = `
+## SKILLS ATIVADAS PARA ESTA REQUISIÇÃO (${activeSkillMode === 'pipeline' ? 'PIPELINE MULTI-SKILL' : 'EXECUÇÃO DE SKILL'})
+O usuário ativou explicitamente as seguintes Skills para orientar esta resposta. Execute a tarefa solicitada aplicando rigorosamente as diretrizes e procedimentos destas Skills:
+
+${activeSkills.map((s: any, idx: number) => `
+### [SKILL ATIVA #${idx + 1}]: ${s.name} ${s.isOfficial ? '(Oficial)' : ''}
+- **Versão**: ${s.version || '1.0.0'}
+- **Descrição**: ${s.description || 'N/A'}
+- **Schema de Entrada**: ${JSON.stringify(s.inputs || s.schema?.input || [])}
+- **Schema de Saída**: ${JSON.stringify(s.outputs || s.schema?.output || [])}
+- **Permissões / Ferramentas**: ${Array.isArray(s.permissions) ? s.permissions.join(', ') : (Array.isArray(s.tools_allowed) ? s.tools_allowed.join(', ') : 'Padrão')}
+- **Diretrizes e Procedimentos**:
+${s.instructions || s.prompt || s.description || 'Executar com excelência máxima.'}
+`).join('\n---\n')}
+
+CRÍTICO:
+1. NÃO repita, NÃO exponha e NÃO vaze tags como [PACOTE_SKILL_DECLARATIVO], schemas internos, diretrizes de codegen ou configurações de skills na resposta final para o usuário.
+2. Forneça diretamente o resultado final solicitado com máxima qualidade técnica e precisão.
 `;
   }
 
@@ -1260,12 +1314,18 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
       }
       const terminalInstruction = `\n\n## INTEGRAÇÃO TOTAL: WORKSPACE E TERMINAL SANDBOX
 Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal Sandbox isolado (/workspace) do usuário:
-1. **Manipulação de Arquivos e Pastas**: Você pode criar, editar, renomear, excluir e organizar pastas e documentos usando ferramentas de documento (\`create_document\`, \`edit_document\`, \`delete_document\`) ou comandos do terminal (\`mkdir\`, \`touch\`, \`mv\`, \`cp\`, \`rm\`, \`cat\`, \`ls\`, \`write_terminal_file\`). Todos os arquivos criados ou modificados aparecem automaticamente no Workspace do usuário.
-2. **Execução de Códigos e Scripts**: Sempre que o usuário pedir para criar, testar ou executar códigos (Python, Node.js, Shell, npm), utilize \`execute_terminal_command\` (ex: \`python3 script.py\`, \`node index.js\`, \`npm test\`) ou \`run_code_sandbox\`. O terminal abrirá em tempo real para exibir a execução e fechará ao concluir.
-3. **Nunca Simule em Texto**: Sempre invoque a ferramenta correspondente no mesmo turno.`;
-      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + (userLocationContextInstruction ? userLocationContextInstruction + "\n\n" : "") + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + docInstruction + "\n\n" + formInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction + terminalInstruction + modeAdditions;
+1. **Runtimes Instalados e Nativamente Disponíveis no Sandbox**:
+   - **Python 3**: \`python3\` e \`python\` estão totalmente instalados e disponíveis no sistema Linux (/usr/bin/python3, Python 3.10+, módulos padrão: json, math, sys, os, subprocess, unittest, csv, re, etc.).
+   - **Node.js**: \`node\` (v20+), \`npm\`, \`npx\` totalmente funcionais.
+   - **Shell / Linux Utilities**: \`bash\`, \`sh\`, \`ls\`, \`cat\`, \`grep\`, \`mkdir\`, \`cp\`, \`mv\`, \`rm\`, \`touch\`, \`head\`, \`tail\`, etc.
+2. **Manipulação de Arquivos e Pastas**: Crie, edite, renomeie, exclua e organize pastas e documentos usando ferramentas de documento (\`create_document\`, \`edit_document\`, \`delete_document\`) ou comandos do terminal (\`mkdir\`, \`touch\`, \`mv\`, \`cp\`, \`rm\`, \`cat\`, \`ls\`, \`write_terminal_file\`). Todos os arquivos criados ou modificados aparecem automaticamente no Workspace do usuário.
+3. **Execução Real de Códigos e Scripts**: Sempre que o usuário pedir para criar, testar ou executar códigos Python ou JavaScript, utilize \`execute_terminal_command\` (ex: \`python3 script.py\`, \`python script.py\`, \`node index.js\`, \`npm test\`) ou \`run_code_sandbox\`.
+4. **Validação Obrigatória de Status e Erros**:
+   - Se o comando executado retornar erro (\`exit_code !== 0\` ou mensagens em \`stderr\`), você é ESTRITAMENTE OBRIGADO a reportar o erro real que ocorreu (com o código de saída e stderr), e NUNCA declarar falso sucesso ou fingir que o script executou perfeitamente.
+5. **Nunca Simule em Texto**: Sempre invoque a ferramenta correspondente no mesmo turno.`;
+      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + (userLocationContextInstruction ? userLocationContextInstruction + "\n\n" : "") + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + (activeSkillsInstruction ? activeSkillsInstruction + "\n\n" : "") + docInstruction + "\n\n" + formInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction + terminalInstruction + modeAdditions;
     } else {
-      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
+      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + (activeSkillsInstruction ? activeSkillsInstruction + "\n\n" : "") + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
     }
 
     let mappedModel = "gemini-2.5-flash";
@@ -1893,8 +1953,8 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
             }
             else if (fc.name === "run_code_sandbox") {
               const lang = (fc.args as any)?.language || 'javascript';
-              const fn = (fc.args as any)?.filename || (lang === 'python' ? 'script.py' : 'index.js');
-              thinkingText = `\n\n<wsm_terminal_exec command="${lang === 'python' ? 'python ' + fn : 'node ' + fn}" status="running" />\n\n`;
+              const fn = (fc.args as any)?.filename || ((lang === 'python' || lang === 'py') ? 'script.py' : 'index.js');
+              thinkingText = `\n\n<wsm_terminal_exec command="${(lang === 'python' || lang === 'py') ? 'python3 ' + fn : 'node ' + fn}" status="running" />\n\n`;
             }
             else if (fc.name === "write_terminal_file") {
               thinkingText = `\n\n<wsm_terminal_file action="write" path="${(fc.args as any)?.path || 'arquivo'}" />\n\n`;
@@ -2162,8 +2222,11 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
               
               try {
                 workspaceDocuments.set(title, { title, content, format });
-                const readBack = workspaceDocuments.get(title);
-                const isPersisted = readBack && readBack.content === content;
+                writeSandboxFile(title, content);
+                
+                const readBackDoc = workspaceDocuments.get(title);
+                const readBackFile = readSandboxFile(title);
+                const isPersisted = readBackDoc && readBackDoc.content === content && readBackFile !== null;
                 
                 if (isPersisted) {
                   const sha256 = crypto.createHash('sha256').update(content, 'utf8').digest('hex');
@@ -2193,12 +2256,13 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
                         size_bytes: bytes,
                         hash_sha256: sha256,
                         preview,
-                        download_url: `/workspace/${encodeURIComponent(title)}`,
+                        download_url: `/api/download/${encodeURIComponent(title)}`,
                         tool_origin: "create_document",
                         timestamp: new Date().toISOString(),
                         permissions: "read_write",
                         run_id,
                         read_back_verified: true,
+                        sandbox_file_exists: true,
                         total_documents_in_workspace: workspaceDocuments.size
                       }
                     }
@@ -2254,7 +2318,7 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
                       mime_type,
                       size_bytes: bytes,
                       hash_sha256: sha256,
-                      download_url: `/workspace/${encodeURIComponent(docObj.title)}`,
+                      download_url: `/api/download/${encodeURIComponent(docObj.title)}`,
                       format: docObj.format,
                       content: docObj.content
                     }
@@ -2294,8 +2358,11 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
                 const existingDoc = workspaceDocuments.get(title);
                 const format = inferFormat(title, args.format || existingDoc?.format, content);
                 workspaceDocuments.set(title, { title, content, format });
-                const readBack = workspaceDocuments.get(title);
-                const isPersisted = readBack && readBack.content === content;
+                writeSandboxFile(title, content);
+
+                const readBackDoc = workspaceDocuments.get(title);
+                const readBackFile = readSandboxFile(title);
+                const isPersisted = readBackDoc && readBackDoc.content === content && readBackFile !== null;
                 
                 if (isPersisted) {
                   const sha256 = crypto.createHash('sha256').update(content, 'utf8').digest('hex');
@@ -2324,7 +2391,7 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
                         size_bytes: bytes,
                         hash_sha256: sha256,
                         preview,
-                        download_url: `/workspace/${encodeURIComponent(title)}`,
+                        download_url: `/api/download/${encodeURIComponent(title)}`,
                         tool_origin: "edit_document",
                         timestamp: new Date().toISOString(),
                         permissions: "read_write",
@@ -2396,7 +2463,7 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
                     size_bytes: bytes,
                     hash_sha256: sha256,
                     preview,
-                    download_url: `/workspace/${encodeURIComponent(title)}`,
+                    download_url: `/api/download/${encodeURIComponent(title)}`,
                     tool_origin: "append_document",
                     timestamp: new Date().toISOString(),
                     permissions: "read_write",
@@ -2449,7 +2516,7 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
                   mime_type,
                   size_bytes: bytes,
                   hash_sha256: sha256,
-                  download_url: `/workspace/${encodeURIComponent(d.title)}`
+                  download_url: `/api/download/${encodeURIComponent(d.title)}`
                 };
               });
               functionResponseParts.push({
@@ -2495,19 +2562,26 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
                 filesModified
               });
 
+              const termStatus = exitCode === 0 ? "succeeded" : "failed";
+              let termDirective: string | undefined = undefined;
+              if (exitCode !== 0) {
+                termDirective = `[ALERTA CRÍTICO DO SISTEMA - FALHA NA EXECUÇÃO DE TERMINAL (Exit ${exitCode})]: O comando '${cmd}' falhou. Se este comando verificava a existência de arquivos (ex: 'ls', 'test', 'cat') e retornou 'No such file or directory', os arquivos ausentes NÃO EXISTEM no sandbox. É ABSOLUTAMENTE PROIBIDO AFIRMAR QUE OS ARQUIVOS FORAM CRIADOS E VALIDADOS COM SUCESSO. É ESTRITAMENTE PROIBIDO GERAR HASHES SHA-256, TAMANHOS EM BYTES FALSOS OU TAGS <wsm_doc> PARA ARQUIVOS INEXISTENTES. Você DEVE OBRIGATORIAMENTE declarar o status como 'failed', reportar a mensagem de erro no stderr e listar explicitamente quais arquivos falharam/não existem.`;
+              }
+
               functionResponseParts.push({
                 functionResponse: {
                   id: fc.id,
                   name: fc.name,
                   response: {
-                    status: exitCode === 0 ? "succeeded" : "failed",
+                    status: termStatus,
                     command: cmd,
                     exit_code: exitCode,
                     stdout: stdout,
                     stderr: stderr,
                     files_modified: filesModified,
                     execution_time_ms: execResult.durationMs,
-                    network_isolated: true
+                    network_isolated: true,
+                    ...(termDirective ? { system_directive: termDirective } : {})
                   }
                 }
               });
@@ -2543,6 +2617,11 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
                 filesModified: execResult.filesModified
               });
 
+              let codeDirective: string | undefined = undefined;
+              if (execResult.exitCode !== 0) {
+                codeDirective = `[ALERTA CRÍTICO DO SISTEMA - FALHA NA EXECUÇÃO DO SCRIPT (Exit ${execResult.exitCode})]: O script '${fn}' falhou ao executar. Se o script deveria ter gerado arquivos e falhou, esses arquivos NÃO FORAM CRIADOS. É ESTRITAMENTE PROIBIDO AFIRMAR QUE OS ARQUIVOS FORAM CRIADOS E VALIDADOS COM SUCESSO. Você DEVE OBRIGATORIAMENTE declarar 'failed' e exibir a mensagem de erro do stderr.`;
+              }
+
               functionResponseParts.push({
                 functionResponse: {
                   id: fc.id,
@@ -2555,7 +2634,8 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
                     stdout: execResult.stdout,
                     stderr: execResult.stderr,
                     files_modified: execResult.filesModified,
-                    execution_time_ms: execResult.durationMs
+                    execution_time_ms: execResult.durationMs,
+                    ...(codeDirective ? { system_directive: codeDirective } : {})
                   }
                 }
               });
@@ -2650,13 +2730,18 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
               finalTagText = `\n\n<wsm_terminal_exec command="${cmd.replace(/"/g, '&quot;')}" status="${termStatus}" exitCode="${code}" />\n\n`;
             } else if (fc.name === "run_code_sandbox") {
               const lang = (fc.args as any)?.language || 'javascript';
-              const fn = (fc.args as any)?.filename || (lang === 'python' ? 'script.py' : 'index.js');
+              const fn = (fc.args as any)?.filename || ((lang === 'python' || lang === 'py') ? 'script.py' : 'index.js');
               const codeStr = (fc.args as any)?.code || '';
               const code = typeof (fc as any)._exitCode === 'number' ? (fc as any)._exitCode : 0;
               const codeStatus = code === 0 ? "succeeded" : (code === 124 ? "timed_out" : "failed");
-              const ext = fn.split('.').pop() || (lang === 'python' ? 'py' : 'js');
+              const ext = fn.split('.').pop() || ((lang === 'python' || lang === 'py') ? 'py' : 'js');
               const docJson = JSON.stringify({ title: fn, format: ext, content: codeStr });
-              finalTagText = `\n\n<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${fn}" />\n<wsm_terminal_exec command="${lang === 'python' ? 'python3 ' + fn : 'node ' + fn}" status="${codeStatus}" exitCode="${code}" />\n\n`;
+              const execCmd = (lang === 'python' || lang === 'py') ? 'python3 ' + fn : 'node ' + fn;
+              if (code === 0) {
+                finalTagText = `\n\n<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${fn}" />\n<wsm_terminal_exec command="${execCmd}" status="${codeStatus}" exitCode="${code}" />\n\n`;
+              } else {
+                finalTagText = `\n\n<wsm_terminal_exec command="${execCmd}" status="${codeStatus}" exitCode="${code}" />\n\n`;
+              }
             } else if (fc.name === "write_terminal_file") {
               const pathStr = (fc.args as any)?.path || 'arquivo.py';
               const contentStr = (fc.args as any)?.content || '';
@@ -3635,8 +3720,17 @@ app.get("/api/terminal", (req: express.Request, res: express.Response) => {
     status: "ok",
     service: "Terminal Sandbox Service",
     ready: true,
-    endpoints: ["/api/terminal/exec", "/api/terminal/files", "/api/terminal/write", "/api/terminal/delete"]
+    endpoints: ["/api/terminal/exec", "/api/terminal/files", "/api/terminal/write", "/api/terminal/delete", "/api/terminal/preflight"]
   });
+});
+
+app.get("/api/terminal/preflight", async (req: express.Request, res: express.Response) => {
+  try {
+    const check = await preFlightCheck();
+    return res.json({ success: true, ...check });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || "Erro no pre-flight check." });
+  }
 });
 
 app.get("/api/terminal/exec", (req: express.Request, res: express.Response) => {
@@ -3709,6 +3803,54 @@ app.post("/api/terminal/delete", verifyAuthTokenMiddleware, (req: express.Reques
     return res.status(500).json({ error: err?.message || "Erro ao excluir arquivo." });
   }
 });
+
+// Dedicated Workspace & Sandbox File Download Endpoints
+const handleFileDownload = (req: express.Request, res: express.Response) => {
+  try {
+    let rawParam = (req.params as any)?.filename || (req.params as any)?.[0] || (req.query.file as string) || (req.query.path as string) || (req.query.filename as string) || '';
+    if (!rawParam && req.path) {
+      if (req.path.startsWith('/workspace/')) rawParam = req.path.replace(/^\/workspace\//, '');
+      else if (req.path.startsWith('/api/download/')) rawParam = req.path.replace(/^\/api\/download\//, '');
+      else if (req.path.startsWith('/api/workspace/download/')) rawParam = req.path.replace(/^\/api\/workspace\/download\//, '');
+    }
+
+    if (!rawParam) {
+      return res.status(400).json({ error: "Nome de arquivo não especificado." });
+    }
+
+    const cleanFilename = decodeURIComponent(rawParam)
+      .replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '')
+      .replace(/^\/+/, '');
+
+    const details = getSandboxFileDetails(cleanFilename);
+    if (!details || !details.exists) {
+      return res.status(404).json({
+        error: "Arquivo não encontrado",
+        filename: cleanFilename,
+        message: `O arquivo "${cleanFilename}" não foi encontrado no workspace do sandbox.`
+      });
+    }
+
+    res.setHeader("Content-Type", details.mimeType);
+    res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(details.filename)}"; filename*=UTF-8''${encodeURIComponent(details.filename)}`);
+    res.setHeader("Content-Length", details.size.toString());
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+
+    return res.sendFile(details.fullPath);
+  } catch (err: any) {
+    console.error("[Download] Error serving sandbox file:", err);
+    return res.status(500).json({ error: err?.message || "Erro interno ao processar download do arquivo." });
+  }
+};
+
+app.get("/workspace/:filename(*)", handleFileDownload);
+app.get("/api/workspace/download/:filename(*)", handleFileDownload);
+app.get("/api/download/:filename(*)", handleFileDownload);
+app.get("/api/terminal/download", handleFileDownload);
+app.get("/api/terminal/file", handleFileDownload);
 
 // Background tasks executor (every 15 seconds)
 setInterval(() => {

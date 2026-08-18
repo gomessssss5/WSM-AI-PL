@@ -137,6 +137,37 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
   }
 
   const executionId = crypto.randomUUID();
+  const runId = `run-${executionId.slice(0, 8)}`;
+  const startedAt = new Date();
+  const maxRetries = taskData.retryPolicy?.maxRetries || 3;
+  const backoffSeconds = taskData.retryPolicy?.backoffSeconds || 10;
+
+  // Create initial execution record with 'running' status so the frontend shows it in real-time!
+  try {
+    await db.collection('users').doc(userId).collection('taskExecutions').doc(executionId).set({
+      id: executionId,
+      runId: runId,
+      taskId: taskId,
+      taskTitle: taskData.title,
+      executedAt: Timestamp.fromDate(startedAt),
+      startedAt: Timestamp.fromDate(startedAt),
+      status: 'running',
+      triggerType: taskData.triggerType || 'manual',
+      sessionId: newSessionId,
+      attempts: 1,
+      maxRetries: maxRetries,
+      outputSummary: "Iniciando execução...",
+      generatedFiles: [],
+      logs: [
+        `[${startedAt.toISOString()}] Execução iniciada. Tipo: ${taskData.triggerType || 'manual'}.`,
+        `[${startedAt.toISOString()}] Iniciando tentativa 1 de ${maxRetries}...`
+      ]
+    });
+    console.log(`[ScheduledTasks] Created initial running taskExecution ${runId}`);
+  } catch (e) {
+    console.warn('[ScheduledTasks] Warning creating initial taskExecution record:', e);
+  }
+
   const initialMessages = [
     {
       id: crypto.randomUUID(),
@@ -174,10 +205,6 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
   let executionError = "";
   let attempts = 0;
 
-  const maxRetries = taskData.retryPolicy?.maxRetries || 3;
-  const backoffSeconds = taskData.retryPolicy?.backoffSeconds || 10;
-
-  const startedAt = new Date();
   const shouldForceFailure = taskData.prompt?.toLowerCase().includes("simular falha") || taskData.prompt?.toLowerCase().includes("force_failure");
 
   while (attempts < maxRetries) {
@@ -285,7 +312,6 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
 
   // Record task execution log with complete agentic provenance
   const finishedAt = new Date();
-  const runId = `run-${executionId.slice(0, 8)}`;
   const durationMs = finishedAt.getTime() - startedAt.getTime();
 
   // Extract generated files from AI response
@@ -316,11 +342,18 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
       maxRetries: maxRetries,
       outputSummary: finalOutput.slice(0, 400),
       generatedFiles: generatedFiles,
+      logs: [
+        `[${startedAt.toISOString()}] Execução iniciada. Tipo: ${taskData.triggerType || 'manual'}.`,
+        `[${startedAt.toISOString()}] Iniciando tentativa 1 de ${maxRetries}...`,
+        ...(executionStatus === 'success' 
+          ? [`[${finishedAt.toISOString()}] Execução concluída com sucesso. Duração: ${durationMs}ms.`]
+          : [`[${finishedAt.toISOString()}] Falha na execução: ${executionError}`])
+      ],
       ...(executionError ? { error: executionError, errorDetails: executionError } : {})
     });
 
     await db.collection('users').doc(userId).collection('scheduledTasks').doc(taskId).update({
-      lastStatus: executionStatus,
+      lastStatus: executionStatus === 'success' ? 'succeeded' : 'failed',
       lastRunAt: Timestamp.fromDate(startedAt),
       lastOutput: finalOutput.slice(0, 200),
       lastExecutionDurationMs: durationMs,

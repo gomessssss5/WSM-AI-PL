@@ -125,6 +125,157 @@ export function deleteSandboxFile(relPath: string): boolean {
   }
 }
 
+export function getMimeTypeForFile(filename: string): string {
+  const ext = path.extname(filename).toLowerCase();
+  switch (ext) {
+    case '.md':
+      return 'text/markdown; charset=utf-8';
+    case '.csv':
+      return 'text/csv; charset=utf-8';
+    case '.xlsx':
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    case '.xls':
+      return 'application/vnd.ms-excel';
+    case '.pdf':
+      return 'application/pdf';
+    case '.json':
+      return 'application/json; charset=utf-8';
+    case '.txt':
+    case '.log':
+      return 'text/plain; charset=utf-8';
+    case '.py':
+      return 'text/x-python; charset=utf-8';
+    case '.js':
+      return 'application/javascript; charset=utf-8';
+    case '.ts':
+      return 'text/typescript; charset=utf-8';
+    case '.html':
+    case '.htm':
+      return 'text/html; charset=utf-8';
+    case '.css':
+      return 'text/css; charset=utf-8';
+    case '.png':
+      return 'image/png';
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg';
+    case '.svg':
+      return 'image/svg+xml';
+    case '.zip':
+      return 'application/zip';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
+export function getSandboxFileDetails(relPath: string): { fullPath: string; exists: boolean; size: number; mimeType: string; filename: string } | null {
+  ensureSandboxDir();
+  try {
+    const fullPath = sanitizePath(relPath);
+    const filename = path.basename(fullPath);
+    if (!fs.existsSync(fullPath)) {
+      return { fullPath, exists: false, size: 0, mimeType: getMimeTypeForFile(filename), filename };
+    }
+    const stat = fs.statSync(fullPath);
+    if (!stat.isFile()) {
+      return { fullPath, exists: false, size: 0, mimeType: getMimeTypeForFile(filename), filename };
+    }
+    return {
+      fullPath,
+      exists: true,
+      size: stat.size,
+      mimeType: getMimeTypeForFile(filename),
+      filename
+    };
+  } catch {
+    return null;
+  }
+}
+
+export interface PreFlightCheckResult {
+  writablePath: string;
+  isWritable: boolean;
+  runtimes: {
+    node: { available: boolean; version?: string; path?: string };
+    python3: { available: boolean; version?: string; path?: string };
+    bash: { available: boolean; version?: string; path?: string };
+    npm: { available: boolean; version?: string; path?: string };
+  };
+  dependencies: string[];
+  os: string;
+  platform: string;
+}
+
+let cachedPreFlight: PreFlightCheckResult | null = null;
+let lastCheckTime = 0;
+
+export async function preFlightCheck(forceRefresh = false): Promise<PreFlightCheckResult> {
+  const now = Date.now();
+  if (!forceRefresh && cachedPreFlight && (now - lastCheckTime < 60000)) {
+    return cachedPreFlight;
+  }
+
+  ensureSandboxDir();
+
+  let isWritable = false;
+  try {
+    const testFile = path.join(SANDBOX_DIR, '.write_test');
+    fs.writeFileSync(testFile, 'ok', 'utf8');
+    if (fs.existsSync(testFile)) {
+      fs.unlinkSync(testFile);
+      isWritable = true;
+    }
+  } catch {
+    isWritable = false;
+  }
+
+  const checkBinary = (binName: string, versionFlag = '--version'): Promise<{ available: boolean; version?: string; path?: string }> => {
+    return new Promise(resolve => {
+      exec(`${binName} ${versionFlag}`, { timeout: 3000 }, (error, stdout, stderr) => {
+        if (!error && (stdout || stderr)) {
+          const ver = (stdout || stderr).trim().split('\n')[0];
+          resolve({ available: true, version: ver, path: binName });
+        } else {
+          resolve({ available: false });
+        }
+      });
+    });
+  };
+
+  const [nodeRes, pyRes, bashRes, npmRes] = await Promise.all([
+    checkBinary('node', '-v'),
+    checkBinary('python3', '--version'),
+    checkBinary('bash', '--version'),
+    checkBinary('npm', '-v')
+  ]);
+
+  let deps: string[] = [];
+  try {
+    const pkgPath = path.join(SANDBOX_DIR, 'package.json');
+    if (fs.existsSync(pkgPath)) {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      deps = Object.keys(pkg.dependencies || {});
+    }
+  } catch {}
+
+  cachedPreFlight = {
+    writablePath: SANDBOX_DIR,
+    isWritable,
+    runtimes: {
+      node: nodeRes,
+      python3: pyRes,
+      bash: bashRes,
+      npm: npmRes
+    },
+    dependencies: deps,
+    os: `${os.type()} ${os.release()}`,
+    platform: process.platform
+  };
+  lastCheckTime = now;
+
+  return cachedPreFlight;
+}
+
 export function listSandboxFiles(): Array<{ name: string; path: string; size: number; updatedAt: number }> {
   ensureSandboxDir();
   const results: Array<{ name: string; path: string; size: number; updatedAt: number }> = [];
@@ -193,13 +344,14 @@ export async function executeSandboxCommand(command: string, timeoutSec = 15): P
     }
   }
 
-  if (adjustedCommand.startsWith('python ') || adjustedCommand === 'python') {
-    adjustedCommand = adjustedCommand.replace(/^python(\s|$)/, 'python3$1');
+  if (adjustedCommand.startsWith('python ') || adjustedCommand === 'python' || adjustedCommand.includes(' python ')) {
+    adjustedCommand = adjustedCommand.replace(/\bpython(\s|$)/g, 'python3$1');
   }
 
-  // Minimal clean environment stripped of process.env secrets
+  // Minimal clean environment with complete Linux binary PATH
+  const fullPath = `${process.env.PATH || ''}:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin`;
   const safeEnv: Record<string, string> = {
-    PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
+    PATH: fullPath,
     HOME: SANDBOX_DIR,
     TMPDIR: SANDBOX_DIR,
     PYTHONUNBUFFERED: '1',
