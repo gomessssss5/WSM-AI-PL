@@ -71,7 +71,7 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
         const first = raw[0];
         const keys = Object.keys(first);
 
-        const labelKey = keys.find(k => ['name', 'label', 'categoria', 'mes', 'mês', 'ano', 'item', 'eixo_x', 'x'].includes(k.toLowerCase())) || keys[0];
+        const labelKey = keys.find(k => ['mes', 'mês', 'month', 'categoria', 'item', 'eixo_x', 'x', 'nome', 'name', 'label'].includes(k.toLowerCase())) || keys[0];
         const numericKeys = keys.filter(k => k !== labelKey && typeof first[k] === 'number');
 
         const labels = raw.map(item => String(item[labelKey] ?? ''));
@@ -217,7 +217,7 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
         grid: { display: false },
         ticks: { color: '#888888', font: { size: 12 } },
         title: {
-          display: Boolean(resolvedXLabel && resolvedXLabel !== 'item' && resolvedXLabel !== 'name'),
+          display: Boolean(resolvedXLabel),
           text: resolvedXLabel,
           color: '#666666',
           font: { size: 12, weight: '600' },
@@ -240,23 +240,31 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
     }
   };
 
+  const chartAriaLabel = `${title || 'Gráfico'}.${resolvedXLabel ? ` Eixo X: ${resolvedXLabel}.` : ''}${resolvedYLabel ? ` Eixo Y: ${resolvedYLabel}.` : ''}`;
+
   const renderChartCanvas = () => {
     const normalizedType = type.toLowerCase();
+    const commonProps = {
+      data: chartData,
+      options: baseOptions,
+      'aria-label': chartAriaLabel,
+      role: 'img'
+    };
     switch (normalizedType) {
       case 'pie':
-        return <Pie data={chartData} options={baseOptions} />;
+        return <Pie {...commonProps} />;
       case 'doughnut':
-        return <Doughnut data={chartData} options={baseOptions} />;
+        return <Doughnut {...commonProps} />;
       case 'bar_horizontal':
-        return <Bar data={chartData} options={{ ...baseOptions, indexAxis: 'y' as const }} />;
+        return <Bar {...commonProps} options={{ ...baseOptions, indexAxis: 'y' as const }} />;
       case 'bar_vertical':
       case 'bar':
-        return <Bar data={chartData} options={baseOptions} />;
+        return <Bar {...commonProps} />;
       case 'radar':
-        return <Radar data={chartData} options={baseOptions} />;
+        return <Radar {...commonProps} />;
       case 'line':
       default:
-        return <Line data={chartData} options={baseOptions} />;
+        return <Line {...commonProps} />;
     }
   };
 

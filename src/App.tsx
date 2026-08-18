@@ -1637,6 +1637,7 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
         if (abortControllerRef.current) {
           console.warn("Request timed out after 4 minutes. Aborting.");
           abortControllerRef.current.abort();
+          setIsThinking(false);
           setSessions((prev) => {
             const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
             if (!currentSess) return prev;
@@ -2140,7 +2141,7 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
                             searchImages: eventData.searchImages,
                             searchSources: eventData.searchSources,
                             isSearchMessage: isSearchMsg,
-                            isSimulatingSearch: isSearchMsg,
+                            isSimulatingSearch: false,
                             toolEvents: eventData.toolEvents || m.toolEvents || [],
                           };
                         }
@@ -2166,20 +2167,20 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
             if (!currentSess) return prev;
             return prev.map((s) => {
               if (s.id !== sessionToUpdate.id) return s;
-              let changed = false;
-              const updatedMsgs = s.messages.map((m) => {
-                if (m.id === initialAiMsg.id && m.isSimulatingSearch && !m.finalSynthesis) {
-                   changed = true;
-                   return {
-                     ...m,
-                     isSimulatingSearch: false,
-                     text: m.text || "⚠️ O assistente parou de responder inesperadamente.",
-                   };
-                }
-                return m;
-              });
-              if (!changed) return s;
-              return { ...s, messages: updatedMsgs };
+              return {
+                ...s,
+                messages: s.messages.map((m) => {
+                  if (m.id === initialAiMsg.id) {
+                    return {
+                      ...m,
+                      isSimulatingSearch: false,
+                      text: m.text || "⚠️ O assistente parou de responder inesperadamente.",
+                      finalSynthesis: m.finalSynthesis || m.text || "⚠️ O assistente parou de responder inesperadamente.",
+                    };
+                  }
+                  return m;
+                })
+              };
             });
           });
           

@@ -250,6 +250,9 @@ export function parseJsonDocSafely(jsonStr: string): { title?: string; content?:
     let title = obj.title ? String(obj.title).trim() : undefined;
     let format = obj.format || obj.type ? String(obj.format || obj.type).toLowerCase() : undefined;
     let content = obj.content !== undefined ? obj.content : '';
+    if (obj.content === undefined && (obj.sheets || obj.rows || Array.isArray(obj))) {
+      content = JSON.stringify(obj);
+    }
     let validation = obj.validation;
 
     if (typeof content === 'object' && content !== null) {
@@ -416,6 +419,9 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
       } else {
         const title = (tagTitle || parsedDoc.title || 'Documento').trim();
         let content = sanitizeDocumentContent(parsedDoc.content || '');
+        if (!content && jsonStr) {
+          content = sanitizeDocumentContent(jsonStr);
+        }
         
         let rawFormat = (tagFormat || parsedDoc.format || '').toString().toLowerCase();
 

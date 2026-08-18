@@ -1125,26 +1125,66 @@ export default function ChatWindow({
       const type = getFileType(file);
       return new Promise<any>((resolve, reject) => {
         const reader = new FileReader();
-        reader.onloadend = () => {
+        reader.onloadend = async () => {
           const result = reader.result as string;
           const base64 = result.split(',')[1] || '';
           
-          let hashNum = 0;
-          for (let i = 0; i < base64.length; i++) {
-            hashNum = ((hashNum << 5) - hashNum) + base64.charCodeAt(i);
-            hashNum |= 0;
+          let sha256Hash = '';
+          try {
+            const arrayBuffer = await file.arrayBuffer();
+            const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            sha256Hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          } catch (hashError) {
+            let hashNum = 0;
+            for (let i = 0; i < base64.length; i++) {
+              hashNum = ((hashNum << 5) - hashNum) + base64.charCodeAt(i);
+              hashNum |= 0;
+            }
+            sha256Hash = Math.abs(hashNum).toString(16).padStart(8, '0');
           }
-          const hexHash = Math.abs(hashNum).toString(16).padStart(8, '0');
 
-          resolve({
-            name: file.name,
-            type: type,
-            size: file.size,
-            mimeType: file.type || (type === 'image' ? 'image/png' : type === 'document' ? 'text/plain' : 'application/octet-stream'),
-            hash: hexHash,
-            url: URL.createObjectURL(file),
-            base64: base64,
-          });
+          const url = URL.createObjectURL(file);
+
+          if (type === 'image') {
+            const img = new Image();
+            img.onload = () => {
+              resolve({
+                name: file.name,
+                type: type,
+                size: file.size,
+                mimeType: file.type || 'image/png',
+                hash: sha256Hash,
+                url: url,
+                base64: base64,
+                width: img.naturalWidth,
+                height: img.naturalHeight,
+                metadataSource: 'Decodificação Direta do Navegador (FileReader & HTMLImageElement)'
+              });
+            };
+            img.onerror = () => {
+              resolve({
+                name: file.name,
+                type: type,
+                size: file.size,
+                mimeType: file.type || 'image/png',
+                hash: sha256Hash,
+                url: url,
+                base64: base64
+              });
+            };
+            img.src = url;
+          } else {
+            resolve({
+              name: file.name,
+              type: type,
+              size: file.size,
+              mimeType: file.type || (type === 'document' ? 'text/plain' : 'application/octet-stream'),
+              hash: sha256Hash,
+              url: url,
+              base64: base64
+            });
+          }
         };
         reader.onerror = () => reject(new Error("Failed to read file"));
         reader.readAsDataURL(file);
@@ -2345,8 +2385,8 @@ export default function ChatWindow({
                                     return null;
                                   })()}
 
-                                  {/* 5. Thinking indicator - while thinking/navigating and reasoning is done */}
-                                  {isThinking && message.id === messages[messages.length - 1]?.id && isReasoningDone && (
+                                  {/* 5. Thinking indicator - while thinking/navigating and reasoning is done without text content */}
+                                  {isThinking && message.id === messages[messages.length - 1]?.id && isReasoningDone && !message.text?.trim() && (
                                     <div className="flex items-center gap-2 text-gray-500 text-xs py-2 mt-2">
                                       <PacmanLoadingAnimation />
                                     </div>

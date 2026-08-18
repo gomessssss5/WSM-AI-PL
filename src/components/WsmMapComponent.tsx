@@ -17,6 +17,7 @@ interface WsmMapComponentProps {
   wiki?: string;
   text?: string;
   markers?: MarkerData[];
+  disableExtras?: boolean;
 }
 
 interface WikiData {
@@ -34,6 +35,7 @@ export default function WsmMapComponent({
   wiki = '',
   text = '',
   markers = [],
+  disableExtras = false,
 }: WsmMapComponentProps) {
   const [wikiData, setWikiData] = useState<WikiData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -42,6 +44,12 @@ export default function WsmMapComponent({
   const [showExtras, setShowExtras] = useState(false);
 
   useEffect(() => {
+    // If disableExtras is requested or if markers are provided without an explicit wiki request, do not auto-fetch Wikipedia
+    if (disableExtras || (markers && markers.length > 0 && !wiki)) {
+      setWikiData(null);
+      return;
+    }
+
     if (text) {
       setWikiData({
         title: place || 'Localização',
@@ -51,12 +59,12 @@ export default function WsmMapComponent({
       return;
     }
 
-    if (!wiki && !place) {
+    if (!wiki) {
       setWikiData(null);
       return;
     }
 
-    const searchTerm = wiki || place;
+    const searchTerm = wiki;
 
     const fetchWikipediaData = async () => {
       setLoading(true);
@@ -90,7 +98,7 @@ export default function WsmMapComponent({
     };
 
     fetchWikipediaData();
-  }, [wiki, text, place]);
+  }, [wiki, text, place, disableExtras, markers]);
 
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
   const osmExternalUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=${zoom}/${lat}/${lon}`;
@@ -179,7 +187,7 @@ export default function WsmMapComponent({
     </html>
   `;
 
-  const displayTitle = place || wikiData?.title || wiki || 'Localização';
+  const displayTitle = place || wikiData?.title || (markers && markers.length > 0 ? (markers.length === 1 ? markers[0].title : 'Mapa com Marcadores') : 'Localização');
 
   const renderMapContent = (isModal: boolean) => (
     <div className={`flex flex-col bg-white dark:bg-neutral-900 overflow-hidden ${
@@ -196,7 +204,7 @@ export default function WsmMapComponent({
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {wikiData && (
+          {wikiData && !disableExtras && (
             <>
               <button
                 onClick={() => setShowExtras(!showExtras)}
@@ -257,7 +265,7 @@ export default function WsmMapComponent({
         </div>
 
         {/* Card Section / Info Sidebar */}
-        {showExtras && (
+        {showExtras && !disableExtras && (
           <div className={`border-t md:border-t-0 md:border-l border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex flex-col overflow-y-auto shrink-0 ${
             isModal
               ? 'w-full md:w-[320px] lg:w-[360px] h-full p-5'
@@ -279,9 +287,7 @@ export default function WsmMapComponent({
                       {wikiData.title}
                     </h3>
                     <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-neutral-400 font-medium mt-1">
-                      <span className="font-semibold text-gray-800 dark:text-neutral-200">4.7</span>
-                      <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />
-                      <span>(Wikipedia)</span>
+                      <span>Fonte: Wikipédia</span>
                     </div>
                   </div>
 

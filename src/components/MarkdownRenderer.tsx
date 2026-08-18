@@ -636,11 +636,11 @@ const renderNodes = (
   }
 
   return (
-    <div className={`space-y-1.5 ${depth > 0 ? 'mt-1 ml-5' : ''}`}>
+    <div className={`space-y-1.5 ${depth > 0 ? 'mt-1 ml-5' : ''}`} style={{ listStyle: 'none', listStyleType: 'none' }}>
       {groups.map((group, groupIdx) => {
         if (group.type === 'ordered') {
           return (
-            <ol key={`ol-${depth}-${groupIdx}`} className="list-none space-y-1 text-black dark:text-gray-100 text-[14.5px]">
+            <ol key={`ol-${depth}-${groupIdx}`} className="list-none space-y-1 text-black dark:text-gray-100 text-[14.5px]" style={{ listStyle: 'none', listStyleType: 'none' }}>
               {group.items.map((node, nodeIdx) => {
                 let markerColor = 'text-black dark:text-white';
                 if (depth === 1) {
@@ -652,7 +652,7 @@ const renderNodes = (
                 }
 
                 return (
-                  <li key={nodeIdx} className="leading-relaxed">
+                  <li key={nodeIdx} className="leading-relaxed" style={{ listStyle: 'none', listStyleType: 'none' }}>
                     <div className="flex items-start gap-2 select-text">
                       <span className={`${markerColor} font-semibold shrink-0 min-w-[1.25rem] text-right text-xs mt-[2px]`}>
                         {node.item.markerText}
@@ -669,7 +669,7 @@ const renderNodes = (
           );
         } else {
           return (
-            <ul key={`ul-${depth}-${groupIdx}`} className="list-none space-y-1 text-gray-700 text-[13.5px]">
+            <ul key={`ul-${depth}-${groupIdx}`} className="list-none space-y-1 text-gray-700 text-[13.5px]" style={{ listStyle: 'none', listStyleType: 'none' }}>
               {group.items.map((node, nodeIdx) => {
                 let bullet = '•';
                 let bulletColor = 'text-black dark:text-white';
@@ -686,7 +686,7 @@ const renderNodes = (
                 }
 
                 return (
-                  <li key={nodeIdx} className="leading-relaxed">
+                  <li key={nodeIdx} className="leading-relaxed" style={{ listStyle: 'none', listStyleType: 'none' }}>
                     <div className="flex items-start gap-2 select-text">
                       <span className={`${bulletColor} font-bold shrink-0 text-sm align-middle w-5 text-center`}>
                         {bullet}
@@ -1848,8 +1848,8 @@ export default function MarkdownRenderer({
             cleanText = primaryMatch[2];
 
             // Strip any additional residual markers left in cleanText (e.g. "- •", "1. 1.")
-            while (/^(\d+[\.\)]|[-*+•])\s+/.test(cleanText)) {
-              cleanText = cleanText.replace(/^(\d+[\.\)]|[-*+•])\s+/, '');
+            while (/^\s*(\d+[\.\)]|[-*+•])\s+/.test(cleanText)) {
+              cleanText = cleanText.replace(/^\s*(\d+[\.\)]|[-*+•])\s+/, '').trim();
             }
           }
 
@@ -1899,11 +1899,13 @@ export default function MarkdownRenderer({
         let latVal = parseFloat(parseAttr(mapLine, 'lat'));
         let lonVal = parseFloat(parseAttr(mapLine, 'lon'));
         const zoomVal = parseInt(parseAttr(mapLine, 'zoom')) || 13;
-        const placeVal = parseAttr(mapLine, 'place') || 'São Paulo - Centro';
-        const wikiVal = parseAttr(mapLine, 'wiki') || 'São Paulo';
-        const textVal = parseAttr(mapLine, 'text') || 'Centro Histórico de São Paulo';
+        const placeVal = parseAttr(mapLine, 'place');
+        const wikiVal = parseAttr(mapLine, 'wiki');
+        const textVal = parseAttr(mapLine, 'text');
+        const disableExtrasAttr = parseAttr(mapLine, 'disableExtras');
+        const showExtrasAttr = parseAttr(mapLine, 'showExtras');
         
-        let markersVal = [];
+        let markersVal: any[] = [];
         const markersAttr = parseAttr(mapLine, 'markers');
         if (markersAttr) {
           try {
@@ -1914,23 +1916,29 @@ export default function MarkdownRenderer({
           }
         }
 
+        const disableExtras = disableExtrasAttr === 'true' || showExtrasAttr === 'false' || (markersVal.length > 0 && !wikiVal);
+
         if (isNaN(latVal) || isNaN(lonVal)) {
-          const combinedSearch = (placeVal + ' ' + wikiVal + ' ' + textVal).toLowerCase();
-          if (combinedSearch.includes('rio de janeiro') || combinedSearch.includes('rj')) {
-            latVal = -22.9068;
-            lonVal = -43.1729;
-          } else if (combinedSearch.includes('brasilia') || combinedSearch.includes('brasília')) {
-            latVal = -15.7975;
-            lonVal = -47.8919;
+          if (markersVal.length > 0 && typeof markersVal[0].lat === 'number') {
+            latVal = markersVal[0].lat;
+            lonVal = markersVal[0].lon;
           } else {
-            // Default to São Paulo center
-            latVal = -23.5505;
-            lonVal = -46.6333;
+            const combinedSearch = (placeVal + ' ' + wikiVal + ' ' + textVal).toLowerCase();
+            if (combinedSearch.includes('rio de janeiro') || combinedSearch.includes('rj')) {
+              latVal = -22.9068;
+              lonVal = -43.1729;
+            } else if (combinedSearch.includes('brasilia') || combinedSearch.includes('brasília')) {
+              latVal = -15.7975;
+              lonVal = -47.8919;
+            } else {
+              latVal = -23.5505;
+              lonVal = -46.6333;
+            }
           }
         }
 
         if (markersVal.length === 0) {
-          markersVal = [{ lat: latVal, lon: lonVal, title: placeVal || wikiVal || "Centro" }];
+          markersVal = [{ lat: latVal, lon: lonVal, title: placeVal || wikiVal || "Localização" }];
         }
 
         blocks.push(
@@ -1943,6 +1951,7 @@ export default function MarkdownRenderer({
             wiki={wikiVal}
             text={textVal}
             markers={markersVal}
+            disableExtras={disableExtras}
           />
         );
         i++;
@@ -1979,8 +1988,8 @@ export default function MarkdownRenderer({
         const typeVal = parseAttr(chartLine, 'type') || 'bar';
         const titleVal = parseAttr(chartLine, 'title') || 'Gráfico Interativo';
         const subtitleVal = parseAttr(chartLine, 'subtitle');
-        const xAxisVal = parseAttr(chartLine, 'xAxis') || parseAttr(chartLine, 'x') || parseAttr(chartLine, 'xlabel');
-        const yAxisVal = parseAttr(chartLine, 'yAxis') || parseAttr(chartLine, 'y') || parseAttr(chartLine, 'ylabel');
+        const xAxisVal = parseAttr(chartLine, 'xAxis') || parseAttr(chartLine, 'x') || parseAttr(chartLine, 'xlabel') || parseAttr(chartLine, 'eixo_x') || parseAttr(chartLine, 'eixox');
+        const yAxisVal = parseAttr(chartLine, 'yAxis') || parseAttr(chartLine, 'y') || parseAttr(chartLine, 'ylabel') || parseAttr(chartLine, 'eixo_y') || parseAttr(chartLine, 'eixoy');
         let dataVal = parseAttr(chartLine, 'data');
 
         if (!dataVal) {

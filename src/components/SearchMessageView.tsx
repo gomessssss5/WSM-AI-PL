@@ -326,7 +326,7 @@ export default function SearchMessageView({
                   className="inline-flex items-center gap-1.5 text-[14px] font-medium transition-colors select-none border-0 bg-transparent p-0 cursor-pointer text-[#6b7076] hover:text-black dark:text-gray-400 dark:hover:text-white"
                 >
                   <Globe className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0" />
-                  <span>{isThinking ? 'Processando resposta...' : 'Pesquisou na web'}</span>
+                  <span>{isThinking && message.isSimulatingSearch && !showFinal ? 'Processando resposta...' : 'Pesquisou na web'}</span>
                   {isExpanded ? (
                     <ChevronDown className="w-3.5 h-3.5 text-[#6b7076] dark:text-gray-400 shrink-0" />
                   ) : (
@@ -398,7 +398,7 @@ export default function SearchMessageView({
                   {/* Bottom row: Concluído */}
                   <div className="flex items-center h-5 mt-1 select-none">
                     <span className="text-[13px] font-medium text-[#8e9099] dark:text-gray-400">
-                      {isThinking ? 'Processando resposta...' : 'Concluído'}
+                      {isThinking && message.isSimulatingSearch && !showFinal ? 'Processando resposta...' : 'Concluído'}
                     </span>
                   </div>
                 </div>

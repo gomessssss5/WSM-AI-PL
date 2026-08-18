@@ -105,10 +105,15 @@ export const RightRunSidebar: React.FC<RightRunSidebarProps> = ({
               <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400 dark:text-stone-500">
                 Linha do Tempo de Execução
               </span>
-              {isStreaming && (
+              {isStreaming && steps.some(s => s.status === 'running' || s.status === 'pending') ? (
                 <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 animate-pulse">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-ping" />
                   Executando em tempo real
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                  Execução Concluída
                 </span>
               )}
             </div>

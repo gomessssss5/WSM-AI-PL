@@ -218,13 +218,18 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
       const baseUrl = process.env.BASE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://127.0.0.1:3000');
       const res = await fetch(`${baseUrl}/api/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": "Bearer OmnixInternalSchedulerBypassToken_2026",
+          "x-internal-secret": "OmnixInternalSchedulerBypassToken_2026"
+        },
         body: JSON.stringify({
           text: taskData.prompt,
           isSearchEnabled: true,
           isScheduledExecution: true,
           model: 'Omnix 1.6',
           skills: skills,
+          userId: userId,
           userContext: `Execução automática de tarefa agendada em segundo plano. Tentativa ${attempts}/${maxRetries}.`,
           history: []
         })
