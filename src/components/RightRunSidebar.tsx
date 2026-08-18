@@ -2,12 +2,15 @@ import React, { useState } from 'react';
 import { OmnixRun, RunStep, DetailedToolCall } from '../types';
 import { 
   CheckCircle2,
+  XCircle,
   X, 
   Clock, 
   AlertCircle, 
+  AlertTriangle,
   Terminal, 
   Workflow, 
   ShieldCheck, 
+  ShieldAlert,
   RefreshCw, 
   Layers, 
   FileCheck2, 
@@ -198,7 +201,16 @@ export const RightRunSidebar: React.FC<RightRunSidebarProps> = ({
               <div className="grid grid-cols-3 gap-2 pt-2 border-t border-stone-100 dark:border-zinc-800 text-[11px] font-mono">
                 <div>
                   <span className="text-[9px] uppercase font-bold text-stone-400 block">Progresso</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">{run?.progressPercentage || 100}%</span>
+                  <span className={`font-bold ${
+                    run?.status === 'partial' || (run?.progressPercentage && run.progressPercentage < 100 && run.status !== 'running')
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : run?.status === 'failed'
+                      ? 'text-rose-600 dark:text-rose-400'
+                      : 'text-emerald-600 dark:text-emerald-400'
+                  }`}>
+                    {run?.progressPercentage !== undefined ? run.progressPercentage : 100}%
+                    {run?.status === 'partial' && ' (Parcial)'}
+                  </span>
                 </div>
                 <div>
                   <span className="text-[9px] uppercase font-bold text-stone-400 block">Custo Aprox.</span>
@@ -303,24 +315,53 @@ export const RightRunSidebar: React.FC<RightRunSidebarProps> = ({
             <div className="bg-white dark:bg-zinc-900 border border-[#eae6e1] dark:border-zinc-800 rounded-2xl p-3 space-y-2 shadow-2xs">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-stone-800 dark:text-stone-200 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  {tests.every(t => t.status === 'passed') ? (
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  ) : (
+                    <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+                  )}
                   Validador & Testes ({tests.length})
                 </span>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
-                  {tests.filter(t => t.status === 'passed').length} / {tests.length} Aprovados
-                </span>
+                {(() => {
+                  const passedCount = tests.filter(t => t.status === 'passed').length;
+                  const isAllPassed = passedCount === tests.length && tests.length > 0;
+                  return (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                      isAllPassed
+                        ? 'text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                        : 'text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                    }`}>
+                      {passedCount} / {tests.length} Aprovados
+                    </span>
+                  );
+                })()}
               </div>
 
               <div className="space-y-1.5 pt-1">
-                {tests.map((test, tIdx) => (
-                  <div key={test.id || tIdx} className="flex items-start gap-2 text-[11px] border-b border-stone-100 dark:border-zinc-800/80 pb-1.5 last:border-0 last:pb-0">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                    <div>
-                      <span className="font-bold text-stone-800 dark:text-stone-200 block leading-tight">{test.name}</span>
-                      <span className="text-[10px] text-stone-500 dark:text-stone-400">{test.description}</span>
+                {tests.map((test, tIdx) => {
+                  const isPassed = test.status === 'passed';
+                  return (
+                    <div key={test.id || tIdx} className="flex items-start gap-2 text-[11px] border-b border-stone-100 dark:border-zinc-800/80 pb-1.5 last:border-0 last:pb-0">
+                      {isPassed ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                      ) : (
+                        <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                      )}
+                      <div>
+                        <span className={`font-bold block leading-tight ${
+                          isPassed ? 'text-stone-800 dark:text-stone-200' : 'text-rose-700 dark:text-rose-400'
+                        }`}>
+                          {test.name}
+                        </span>
+                        <span className={`text-[10px] ${
+                          isPassed ? 'text-stone-500 dark:text-stone-400' : 'text-rose-600 dark:text-rose-300'
+                        }`}>
+                          {test.description}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

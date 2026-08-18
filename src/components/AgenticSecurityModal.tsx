@@ -41,6 +41,7 @@ export interface AgentAuditLog {
   normalized_input?: string;
   output?: string;
   status: 'allowed' | 'blocked' | 'requires_approval' | 'executed' | 'demonstracao';
+  environment?: 'real' | 'mock' | 'dry_run' | 'demonstration';
   permissions_used?: string[];
   evidence?: string;
   integrity_hash?: string;
@@ -86,7 +87,23 @@ export default function AgenticSecurityModal({ isOpen, onClose, userId }: Agenti
   });
 
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<'all' | 'real' | 'demo'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'real' | 'mock' | 'demo'>('all');
+
+  const isMockLog = (log: AgentAuditLog) => {
+    return log.environment === 'mock' || log.environment === 'dry_run' || log.toolName.includes('MOCK') || log.details.includes('MOCK') || log.details.toLowerCase().includes('simula') || log.details.toLowerCase().includes('sandbox');
+  };
+
+  const isDemoLog = (log: AgentAuditLog) => {
+    return log.environment === 'demonstration' || log.status === 'demonstracao';
+  };
+
+  const isRealLog = (log: AgentAuditLog) => {
+    return (log.environment === 'real' || (!log.environment && !isMockLog(log) && !isDemoLog(log)));
+  };
+
+  const realLogsCount = auditLogs.filter(isRealLog).length;
+  const mockLogsCount = auditLogs.filter(isMockLog).length;
+  const demoLogsCount = auditLogs.filter(isDemoLog).length;
 
   useEffect(() => {
     const handleUpdate = () => {
@@ -313,13 +330,19 @@ export default function AgenticSecurityModal({ isOpen, onClose, userId }: Agenti
                     onClick={() => setFilterType('real')}
                     className={`px-2.5 py-1 rounded text-[11px] font-bold cursor-pointer transition-all ${filterType === 'real' ? 'bg-white text-emerald-800 shadow-xs' : 'text-gray-600 hover:text-black'}`}
                   >
-                    Execuções Reais ({auditLogs.filter(l => l.status !== 'demonstracao').length})
+                    Execuções Reais ({realLogsCount})
+                  </button>
+                  <button 
+                    onClick={() => setFilterType('mock')}
+                    className={`px-2.5 py-1 rounded text-[11px] font-bold cursor-pointer transition-all ${filterType === 'mock' ? 'bg-white text-amber-800 shadow-xs' : 'text-gray-600 hover:text-black'}`}
+                  >
+                    Simulação / Mock ({mockLogsCount})
                   </button>
                   <button 
                     onClick={() => setFilterType('demo')}
-                    className={`px-2.5 py-1 rounded text-[11px] font-bold cursor-pointer transition-all ${filterType === 'demo' ? 'bg-white text-amber-800 shadow-xs' : 'text-gray-600 hover:text-black'}`}
+                    className={`px-2.5 py-1 rounded text-[11px] font-bold cursor-pointer transition-all ${filterType === 'demo' ? 'bg-white text-purple-800 shadow-xs' : 'text-gray-600 hover:text-black'}`}
                   >
-                    Demonstração ({auditLogs.filter(l => l.status === 'demonstracao').length})
+                    Demonstração ({demoLogsCount})
                   </button>
                 </div>
               </div>
@@ -334,18 +357,28 @@ export default function AgenticSecurityModal({ isOpen, onClose, userId }: Agenti
                 <div className="divide-y divide-gray-100 border border-[#eae6e1] rounded-xl overflow-hidden bg-white shadow-3xs">
                   {auditLogs
                     .filter(log => {
-                      if (filterType === 'real') return log.status !== 'demonstracao';
-                      if (filterType === 'demo') return log.status === 'demonstracao';
+                      if (filterType === 'real') return isRealLog(log);
+                      if (filterType === 'mock') return isMockLog(log);
+                      if (filterType === 'demo') return isDemoLog(log);
                       return true;
                     })
                     .map((log) => {
                       const isExpanded = expandedLogId === log.id;
+                      const isMock = isMockLog(log);
+                      const isDemo = isDemoLog(log);
                       return (
                         <div key={log.id} className="p-3.5 hover:bg-gray-50/80 transition-colors">
                           <div className="flex items-start justify-between gap-3 text-xs cursor-pointer" onClick={() => setExpandedLogId(isExpanded ? null : log.id)}>
                             <div className="space-y-1 min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="font-bold text-gray-900">{log.toolName}</span>
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  isMock ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                                  isDemo ? 'bg-purple-100 text-purple-800 border border-purple-200' :
+                                  'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                }`}>
+                                  {isMock ? 'MOCK / SIMULAÇÃO' : isDemo ? 'DEMO' : 'EXECUÇÃO REAL'}
+                                </span>
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                                   log.riskLevel === 'high' ? 'bg-red-100 text-red-800' :
                                   log.riskLevel === 'medium' ? 'bg-amber-100 text-amber-800' :

@@ -5,7 +5,7 @@ interface PacmanLoadingAnimationProps {
   text?: string;
 }
 
-export default function PacmanLoadingAnimation({ className, text = "Omnix 1.6 está trabalhando..." }: PacmanLoadingAnimationProps = {}) {
+export default function PacmanLoadingAnimation({ className, text = "Omnix 1.6 está processando..." }: PacmanLoadingAnimationProps = {}) {
   return (
     <div className={`wsm-response-card ${className || ''}`}>
       <div className="wsm-body-text" style={{ paddingLeft: '0px' }}>

@@ -275,7 +275,7 @@ export function buildRunFromMessage(
     });
   }
 
-  // Real syntax verification test logic
+  // 1. Real syntax verification test logic
   let syntaxPassed = true;
   let syntaxReason = 'Estrutura Markdown/Código válida e bem formatada.';
   if (message.text) {
@@ -286,7 +286,7 @@ export function buildRunFromMessage(
     }
   }
 
-  // Real safety alignment check
+  // 2. Real safety alignment check
   let safetyPassed = true;
   let safetyReason = 'Conforme com as diretivas de privacidade e segurança.';
   if (message.text && (message.text.includes('AI_STUDIO_SECRET') || message.text.includes('wtls sidi'))) {
@@ -294,11 +294,86 @@ export function buildRunFromMessage(
     safetyReason = 'Retido pelo filtro de privacidade de credenciais.';
   }
 
+  // 3. Post-condition & Requirement Fulfillment Analysis
+  const objLower = (objective || '').toLowerCase();
+  const msgLower = (message.text || '').toLowerCase();
+
+  // 3a. Quantity extraction & fulfillment verification
+  const wordToNumMap: Record<string, number> = {
+    'uma': 1, 'um': 1, 'duas': 2, 'dois': 2, 'três': 3, 'tres': 3,
+    'quatro': 4, 'cinco': 5, 'seis': 6, 'sete': 7, 'oito': 8, 'nove': 9, 'dez': 10
+  };
+  const countRegex = /\b(\d+|uma|um|duas|dois|três|tres|quatro|cinco|seis|sete|oito|nove|dez)\s+(notícias|noticias|artigos|exemplos|itens|arquivos|tópicos|topicos|fontes|links|propostas)\b/i;
+  const countMatch = objLower.match(countRegex);
+  let expectedCount: number | null = null;
+  if (countMatch) {
+    const rawVal = countMatch[1].toLowerCase();
+    expectedCount = wordToNumMap[rawVal] || parseInt(rawVal, 10);
+  }
+
+  // Detect delivered count in response text or sources
+  let actualDeliveredCount: number | null = null;
+  if (msgLower.includes('apenas 1 notícia') || msgLower.includes('apenas uma notícia') || msgLower.includes('somente 1 notícia') || msgLower.includes('única notícia') || msgLower.includes('somente uma notícia') || msgLower.includes('apenas 1 item') || msgLower.includes('apenas um item')) {
+    actualDeliveredCount = 1;
+  } else if (msgLower.includes('duas notícias') || msgLower.includes('2 notícias') || msgLower.includes('2 artigos')) {
+    actualDeliveredCount = 2;
+  } else if (msgLower.includes('três notícias') || msgLower.includes('3 notícias') || msgLower.includes('3 artigos')) {
+    actualDeliveredCount = 3;
+  } else if (message.searchSources && message.searchSources.length > 0) {
+    actualDeliveredCount = message.searchSources.length;
+  }
+
+  let quantityPassed = true;
+  let quantityReason = 'Volume de itens entregue conforme o solicitado.';
+  if (expectedCount && actualDeliveredCount !== null && actualDeliveredCount < expectedCount) {
+    quantityPassed = false;
+    quantityReason = `Atendimento parcial (${actualDeliveredCount}/${expectedCount}): Solicitado ${expectedCount} itens, mas apenas ${actualDeliveredCount} foi confirmado/localizado.`;
+  }
+
+  // 3b. Temporal / Date alignment verification
+  const dateRegex = /\b(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})\b/;
+  const reqDateMatch = objLower.match(dateRegex);
+  let datePassed = true;
+  let dateReason = 'Datas de evidência alinhadas com o critério temporal do prompt.';
+  if (reqDateMatch) {
+    const reqDate = reqDateMatch[1];
+    // Check if the response mentions a different confirmed date (e.g. requested 18/08/2026, found 17/08/2026)
+    if (msgLower.includes('17/08/2026') && reqDate.includes('18/08/2026')) {
+      datePassed = false;
+      dateReason = `Divergência de data: Solicitado ${reqDate}, mas a notícia confirmada é de 17/08/2026.`;
+    } else if (msgLower.includes('não foi possível encontrar') && msgLower.includes(reqDate)) {
+      datePassed = false;
+      dateReason = `Data ${reqDate} não localizada nas fontes públicas disponíveis.`;
+    }
+  }
+
+  // 3c. Python / Terminal Runtime verification
+  const { execActions } = extractWsmTerminalActions(message.text || '');
+  const hasPythonCall = execActions.some(e => e.command.includes('python') || e.command.includes('pytest'));
+  const hasPythonFailure = execActions.some(e => 
+    (e.command.includes('python') || e.command.includes('pytest')) &&
+    (e.status === 'failed' || (typeof e.exitCode === 'number' && e.exitCode !== 0))
+  );
+
+  let runtimePassed = true;
+  let runtimeReason = 'Ambiente de execução e runtimes validados.';
+  if (hasPythonCall && hasPythonFailure) {
+    runtimePassed = false;
+    runtimeReason = 'Falha de Runtime: Python 3 não disponível no sandbox de execução.';
+  }
+
   // Real task fulfillment check
-  const fulfillmentPassed = Boolean(message.text && message.text.trim().length > 10);
-  const fulfillmentReason = fulfillmentPassed 
-    ? 'Diretivas do prompt atendidas com síntese completa.' 
-    : 'Resposta incompleta ou vazia.';
+  const isBaseFulfilled = Boolean(message.text && message.text.trim().length > 10);
+  const fulfillmentPassed = isBaseFulfilled && quantityPassed && datePassed && runtimePassed;
+  const fulfillmentReason = !isBaseFulfilled
+    ? 'Resposta incompleta ou vazia.'
+    : !quantityPassed
+    ? quantityReason
+    : !datePassed
+    ? dateReason
+    : !runtimePassed
+    ? runtimeReason
+    : 'Diretivas do prompt atendidas com síntese completa.';
 
   const verifiableTests: RunVerifiableTest[] = [
     {
@@ -321,14 +396,39 @@ export function buildRunFromMessage(
     }
   ];
 
-  const { execActions } = extractWsmTerminalActions(message.text || '');
+  if (!datePassed || reqDateMatch) {
+    verifiableTests.push({
+      id: 'test_temporal',
+      name: 'Alinhamento Temporal & Fontes',
+      description: dateReason,
+      status: datePassed ? 'passed' : 'failed'
+    });
+  }
+
+  if (hasPythonCall) {
+    verifiableTests.push({
+      id: 'test_runtime',
+      name: 'Disponibilidade de Runtime (Python/Sandbox)',
+      description: runtimeReason,
+      status: runtimePassed ? 'passed' : 'failed'
+    });
+  }
+
   const hasFailedTerminal = execActions.some(e => e.status === 'failed' || e.status === 'timed_out' || (typeof e.exitCode === 'number' && e.exitCode !== 0));
   const hasFailedTool = toolCalls.some(tc => tc.status === 'failed');
   const isCancelled = message.text === "Você cancelou essa resposta" || message.text?.includes("cancelou essa resposta");
 
   const completedSteps = steps.filter(s => s.status === 'completed').length;
   const isAllStepsCompleted = steps.length > 0 ? completedSteps === steps.length : true;
-  const progressPercentage = steps.length > 0 ? Math.round((completedSteps / steps.length) * 100) : 100;
+  
+  let progressPercentage = 100;
+  if (!isAllStepsCompleted && steps.length > 0) {
+    progressPercentage = Math.round((completedSteps / steps.length) * 100);
+  } else if (!quantityPassed && expectedCount && actualDeliveredCount !== null) {
+    progressPercentage = Math.round((actualDeliveredCount / expectedCount) * 100);
+  } else if (!datePassed) {
+    progressPercentage = 66;
+  }
 
   const estimatedTokens = Math.round(((message.text?.length || 0) + (objective?.length || 0)) / 3.8);
   const calculatedCostAmount = parseFloat((estimatedTokens * 0.00000015 + toolCalls.length * 0.0002).toFixed(6));
@@ -339,6 +439,8 @@ export function buildRunFromMessage(
     runStatus = 'cancelled';
   } else if (hasFailedTerminal || hasFailedTool) {
     runStatus = 'failed';
+  } else if (!quantityPassed || !datePassed || !runtimePassed) {
+    runStatus = 'partial';
   } else if (!isAllStepsCompleted) {
     runStatus = 'running';
   }

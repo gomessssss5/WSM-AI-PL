@@ -23,6 +23,7 @@ export function logAuditEvent(params: {
   riskLevel?: 'low' | 'medium' | 'high';
   details: string;
   status?: 'allowed' | 'blocked' | 'requires_approval' | 'executed' | 'demonstracao';
+  environment?: 'real' | 'mock' | 'dry_run' | 'demonstration';
   tenant_id?: string;
   user_id?: string;
   run_id?: string;
@@ -38,7 +39,20 @@ export function logAuditEvent(params: {
   const utcString = now.toISOString();
   const localString = now.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'medium' });
 
-  const payloadToHash = `${utcString}:${params.toolName}:${params.details}:${params.user_id || 'usr'}:${params.riskLevel || 'low'}`;
+  // Auto-detect environment if not explicitly set
+  let env: 'real' | 'mock' | 'dry_run' | 'demonstration' = params.environment || 'real';
+  if (!params.environment) {
+    const textToCheck = `${params.toolName} ${params.details}`.toLowerCase();
+    if (params.status === 'demonstracao') {
+      env = 'demonstration';
+    } else if (textToCheck.includes('mock') || textToCheck.includes('simula') || textToCheck.includes('dry_run') || textToCheck.includes('sandbox')) {
+      env = 'mock';
+    } else {
+      env = 'real';
+    }
+  }
+
+  const payloadToHash = `${utcString}:${params.toolName}:${params.details}:${params.user_id || 'usr'}:${params.riskLevel || 'low'}:${env}`;
   const hash = params.integrity_hash || computeVerifiableIntegrityHash(payloadToHash);
 
   const newLog: AgentAuditLog = {
@@ -53,8 +67,9 @@ export function logAuditEvent(params: {
     normalized_input: params.normalized_input || params.details,
     output: params.output || `Execução da ferramenta ${params.toolName} concluída com êxito.`,
     status: params.status || 'executed',
+    environment: env,
     permissions_used: params.permissions_used || ['read_workspace', 'execute_tool'],
-    evidence: params.evidence || `Sandbox Execution Provenance Log: ${utcString} | HASH:${hash}`,
+    evidence: params.evidence || `Sandbox Execution Provenance Log [${env.toUpperCase()}]: ${utcString} | HASH:${hash}`,
     integrity_hash: hash,
     toolName: params.toolName,
     riskLevel: params.riskLevel || 'low',

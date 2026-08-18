@@ -71,17 +71,49 @@ export default function ScheduledTasksDashboard({
     setRunningTaskId(task.id);
     setExecutionStates(prev => ({ ...prev, [task.id]: 'iniciando' }));
 
+    const tempExecutionId = `exec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const startedAt = new Date();
+    const tempRunId = `run-${tempExecutionId.slice(0, 8)}`;
+
+    const optimisticExecution: TaskExecution = {
+      id: tempExecutionId,
+      runId: tempRunId,
+      taskId: task.id,
+      taskTitle: task.title,
+      executedAt: startedAt,
+      startedAt: startedAt,
+      status: 'running',
+      triggerType: 'manual',
+      sessionId: `sess_${tempExecutionId}`,
+      attempts: 1,
+      maxRetries: task.retryPolicy?.maxRetries || 3,
+      outputSummary: "Disparo manual iniciado. Executando em segundo plano...",
+      generatedFiles: [],
+      logs: [
+        `[${startedAt.toISOString()}] Execução manual iniciada pelo usuário.`,
+        `[${startedAt.toISOString()}] Enviando requisição para o orquestrador do sistema...`
+      ]
+    };
+
+    if (onExecutionCreated) {
+      onExecutionCreated(optimisticExecution);
+    }
+
     logAuditEvent({
       toolName: 'scheduler.trigger_now',
       riskLevel: 'medium',
       details: `Disparo manual imediato da tarefa agendada: "${task.title}". Status: Iniciando.`,
       status: 'executed',
       user_id: currentUserId,
-      task_id: task.id
+      task_id: task.id,
+      run_id: tempRunId
     });
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
     try {
-      // Transition to 'executando' quickly
+      // Transition to 'executando' visually
       setTimeout(() => {
         setExecutionStates(prev => {
           if (prev[task.id] === 'iniciando') {
@@ -89,21 +121,85 @@ export default function ScheduledTasksDashboard({
           }
           return prev;
         });
-      }, 800);
+      }, 500);
 
       const authHeaders = await getAuthHeader();
       const res = await fetch('/api/scheduled-tasks/execute-now', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
+        signal: controller.signal,
         body: JSON.stringify({
           userId: currentUserId || 'guest',
           taskId: task.id,
           taskData: task
         })
       });
+
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        let errMessage = `Erro HTTP ${res.status}: ${res.statusText}`;
+        try {
+          const errData = await res.json();
+          if (errData.error || errData.message) {
+            errMessage = errData.message || errData.error;
+          }
+        } catch {}
+
+        if (res.status === 401 || res.status === 419) {
+          errMessage = `[FALHA DE AUTENTICAÇÃO (HTTP ${res.status})]: Sessão não autorizada ou token expirado. Faça login novamente.`;
+        }
+
+        const failedExecution: TaskExecution = {
+          ...optimisticExecution,
+          status: 'failed',
+          finishedAt: new Date(),
+          durationMs: Date.now() - startedAt.getTime(),
+          outputSummary: errMessage,
+          logs: [
+            ...optimisticExecution.logs,
+            `[${new Date().toISOString()}] Falha na resposta da API: ${errMessage}`
+          ]
+        };
+
+        if (onExecutionCreated) {
+          onExecutionCreated(failedExecution);
+        }
+
+        setExecutionStates(prev => ({ ...prev, [task.id]: 'falhou' }));
+        logAuditEvent({
+          toolName: 'scheduler.trigger_now_failed',
+          riskLevel: 'high',
+          details: `Falha no disparo da tarefa "${task.title}". ${errMessage}`,
+          status: 'blocked',
+          user_id: currentUserId,
+          task_id: task.id,
+          run_id: tempRunId
+        });
+        return;
+      }
+
       const data = await res.json();
 
       if (data.success) {
+        const completedExecution: TaskExecution = data.execution || {
+          ...optimisticExecution,
+          id: data.execution?.id || tempExecutionId,
+          status: 'succeeded',
+          finishedAt: new Date(),
+          durationMs: Date.now() - startedAt.getTime(),
+          sessionId: data.sessionId || optimisticExecution.sessionId,
+          outputSummary: data.aiResponse || data.execution?.outputSummary || "Execução concluída com sucesso.",
+          logs: [
+            ...optimisticExecution.logs,
+            `[${new Date().toISOString()}] Tarefa concluída com sucesso.`
+          ]
+        };
+
+        if (onExecutionCreated) {
+          onExecutionCreated(completedExecution);
+        }
+
         setExecutionStates(prev => ({ ...prev, [task.id]: 'concluido' }));
         logAuditEvent({
           toolName: 'scheduler.trigger_now_success',
@@ -111,51 +207,83 @@ export default function ScheduledTasksDashboard({
           details: `Disparo manual imediato da tarefa agendada "${task.title}" concluído com sucesso.`,
           status: 'executed',
           user_id: currentUserId,
-          task_id: task.id
+          task_id: task.id,
+          run_id: tempRunId
         });
       } else {
+        const errDetail = data.error || 'Erro interno retornado pela execução';
+        const failedExecution: TaskExecution = {
+          ...optimisticExecution,
+          status: 'failed',
+          finishedAt: new Date(),
+          durationMs: Date.now() - startedAt.getTime(),
+          outputSummary: errDetail,
+          logs: [
+            ...optimisticExecution.logs,
+            `[${new Date().toISOString()}] Erro no processamento: ${errDetail}`
+          ]
+        };
+
+        if (onExecutionCreated) {
+          onExecutionCreated(failedExecution);
+        }
+
         setExecutionStates(prev => ({ ...prev, [task.id]: 'falhou' }));
         logAuditEvent({
           toolName: 'scheduler.trigger_now_failed',
           riskLevel: 'high',
-          details: `Falha no disparo manual imediato da tarefa agendada "${task.title}". Erro: ${data.error || 'Erro interno'}`,
+          details: `Falha no disparo manual da tarefa "${task.title}". Erro: ${errDetail}`,
           status: 'blocked',
           user_id: currentUserId,
-          task_id: task.id
+          task_id: task.id,
+          run_id: tempRunId
         });
       }
 
       if (data.session && onSessionCreated) {
         onSessionCreated(data.session);
       }
-      if (data.execution && onExecutionCreated) {
-        onExecutionCreated(data.execution);
-      }
-      if (data.sessionId) {
+      if (data.sessionId && onOpenSession) {
         onOpenSession(data.sessionId);
       }
 
-      // Reset status after a few seconds so it can be clicked again
-      setTimeout(() => {
-        setExecutionStates(prev => ({ ...prev, [task.id]: null }));
-      }, 5000);
-
-    } catch (e) {
+    } catch (e: any) {
+      clearTimeout(timeoutId);
       console.error('Erro ao executar tarefa agora:', e);
+      const isAbort = e?.name === 'AbortError';
+      const errMsg = isAbort ? 'Tempo limite de execução excedido (Timeout 60s).' : (e?.message || 'Falha de rede ou servidor.');
+
+      const failedExecution: TaskExecution = {
+        ...optimisticExecution,
+        status: 'failed',
+        finishedAt: new Date(),
+        durationMs: Date.now() - startedAt.getTime(),
+        outputSummary: errMsg,
+        logs: [
+          ...optimisticExecution.logs,
+          `[${new Date().toISOString()}] Exceção não tratada: ${errMsg}`
+        ]
+      };
+
+      if (onExecutionCreated) {
+        onExecutionCreated(failedExecution);
+      }
+
       setExecutionStates(prev => ({ ...prev, [task.id]: 'falhou' }));
       logAuditEvent({
         toolName: 'scheduler.trigger_now_failed',
         riskLevel: 'high',
-        details: `Falha no disparo manual imediato da tarefa agendada "${task.title}". Erro de rede ou servidor.`,
+        details: `Falha no disparo manual imediato da tarefa agendada "${task.title}". ${errMsg}`,
         status: 'blocked',
         user_id: currentUserId,
-        task_id: task.id
+        task_id: task.id,
+        run_id: tempRunId
       });
-      setTimeout(() => {
-        setExecutionStates(prev => ({ ...prev, [task.id]: null }));
-      }, 5000);
     } finally {
       setRunningTaskId(null);
+      setTimeout(() => {
+        setExecutionStates(prev => ({ ...prev, [task.id]: null }));
+      }, 4000);
     }
   };
 

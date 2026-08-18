@@ -491,7 +491,7 @@ export interface OmnixRun {
   sessionId: string;
   messageId?: string;
   objective: string;
-  status: 'planning' | 'running' | 'waiting_approval' | 'validating' | 'succeeded' | 'failed' | 'replanning' | 'cancelled';
+  status: 'planning' | 'running' | 'waiting_approval' | 'validating' | 'succeeded' | 'partial' | 'partially_succeeded' | 'failed' | 'replanning' | 'cancelled';
   plan: {
     id: string;
     objective: string;

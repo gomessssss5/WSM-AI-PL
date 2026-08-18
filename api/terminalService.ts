@@ -102,6 +102,17 @@ export function writeSandboxFile(relPath: string, content: string): string {
   return fullPath;
 }
 
+export function writeSandboxBinaryFile(relPath: string, buffer: Buffer): string {
+  ensureSandboxDir();
+  const fullPath = sanitizePath(relPath);
+  const dir = path.dirname(fullPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  fs.writeFileSync(fullPath, buffer);
+  return fullPath;
+}
+
 export function readSandboxFile(relPath: string): string | null {
   ensureSandboxDir();
   try {
@@ -389,6 +400,19 @@ export async function executeSandboxCommand(command: string, timeoutSec = 15): P
 
           if (!finalStderr && error.message) {
             finalStderr = error.message;
+          }
+        }
+
+        // Anti-masking rule: If python3 was explicitly executed and failed with command not found, do not allow exitCode 0
+        if (
+          (adjustedCommand.includes('python3') || adjustedCommand.includes('python ')) &&
+          (finalStderr.includes('command not found') || finalStderr.includes('not found') || finalStdout.includes('command not found') || (finalStdout.includes('Python não instalado') && !finalStdout.includes('Python 3.')))
+        ) {
+          if (exitCode === 0) {
+            exitCode = 127;
+            if (!finalStderr) {
+              finalStderr = '/bin/sh: line 1: python3: command not found (Runtime Python 3 não instalado no ambiente)';
+            }
           }
         }
 

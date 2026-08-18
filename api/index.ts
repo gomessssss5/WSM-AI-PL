@@ -14,7 +14,8 @@ import {
 import { runAllEmailAutomations } from "./emailAutomation.js";
 import { processBackgroundTasks, executeScheduledTaskNow } from "./scheduledTasksBackground.js";
 import { getAllSystemPrompts, getSystemPrompt, updateSystemPrompt } from "./systemPromptsManager.js";
-import { executeSandboxCommand, writeSandboxFile, readSandboxFile, deleteSandboxFile, listSandboxFiles, ensureSandboxDir, getSandboxFileDetails, getMimeTypeForFile, preFlightCheck } from "./terminalService.js";
+import { executeSandboxCommand, writeSandboxFile, writeSandboxBinaryFile, readSandboxFile, deleteSandboxFile, listSandboxFiles, ensureSandboxDir, getSandboxFileDetails, getMimeTypeForFile, preFlightCheck } from "./terminalService.js";
+import { generateExcelBuffer } from "./excelService.js";
 import { verifyFirebaseIdToken, DecodedAuthToken } from "./authVerifier.js";
 import { cleanAndDeduplicateSources, extractDateFromUrlAndSnippet, normalizeCanonicalUrl } from "../src/utils/sourceCleaner.js";
 
@@ -2279,15 +2280,25 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
               
               try {
                 workspaceDocuments.set(title, { title, content, format });
-                writeSandboxFile(title, content);
+                let bytes = 0;
+                let sha256 = '';
+
+                if (format === 'xlsx' || title.toLowerCase().endsWith('.xlsx')) {
+                  const xlsxBuf = await generateExcelBuffer(title, content);
+                  writeSandboxBinaryFile(title, xlsxBuf);
+                  sha256 = crypto.createHash('sha256').update(xlsxBuf).digest('hex');
+                  bytes = xlsxBuf.length;
+                } else {
+                  writeSandboxFile(title, content);
+                  sha256 = crypto.createHash('sha256').update(content, 'utf8').digest('hex');
+                  bytes = Buffer.byteLength(content, 'utf8');
+                }
                 
                 const readBackDoc = workspaceDocuments.get(title);
-                const readBackFile = readSandboxFile(title);
-                const isPersisted = readBackDoc && readBackDoc.content === content && readBackFile !== null;
+                const fileDetails = getSandboxFileDetails(title);
+                const isPersisted = Boolean(readBackDoc && fileDetails && fileDetails.exists && fileDetails.size > 0);
                 
                 if (isPersisted) {
-                  const sha256 = crypto.createHash('sha256').update(content, 'utf8').digest('hex');
-                  const bytes = Buffer.byteLength(content, 'utf8');
                   const artifact_id = "art_" + crypto.randomBytes(8).toString('hex');
                   const mime_type = getMimeType(format, title);
                   const preview = content.length > 250 ? content.slice(0, 250) + "..." : content;
@@ -2415,15 +2426,25 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
                 const existingDoc = workspaceDocuments.get(title);
                 const format = inferFormat(title, args.format || existingDoc?.format, content);
                 workspaceDocuments.set(title, { title, content, format });
-                writeSandboxFile(title, content);
+                let bytes = 0;
+                let sha256 = '';
+
+                if (format === 'xlsx' || title.toLowerCase().endsWith('.xlsx')) {
+                  const xlsxBuf = await generateExcelBuffer(title, content);
+                  writeSandboxBinaryFile(title, xlsxBuf);
+                  sha256 = crypto.createHash('sha256').update(xlsxBuf).digest('hex');
+                  bytes = xlsxBuf.length;
+                } else {
+                  writeSandboxFile(title, content);
+                  sha256 = crypto.createHash('sha256').update(content, 'utf8').digest('hex');
+                  bytes = Buffer.byteLength(content, 'utf8');
+                }
 
                 const readBackDoc = workspaceDocuments.get(title);
-                const readBackFile = readSandboxFile(title);
-                const isPersisted = readBackDoc && readBackDoc.content === content && readBackFile !== null;
+                const fileDetails = getSandboxFileDetails(title);
+                const isPersisted = Boolean(readBackDoc && fileDetails && fileDetails.exists && fileDetails.size > 0);
                 
                 if (isPersisted) {
-                  const sha256 = crypto.createHash('sha256').update(content, 'utf8').digest('hex');
-                  const bytes = Buffer.byteLength(content, 'utf8');
                   const artifact_id = "art_" + crypto.randomBytes(8).toString('hex');
                   const mime_type = getMimeType(format, title);
                   const preview = content.length > 250 ? content.slice(0, 250) + "..." : content;
@@ -3129,6 +3150,46 @@ Responda EXATAMENTE com "CONCLUIDO" ou "CONTINUAR: <motivo_curto>".`;
 
       const { cleanedText: sanitizedFullOutput, memoryDoc: extractedMemoryDoc } = extractAndCleanHistory(protectedOutput);
       const updatedMemoryDoc = extractedMemoryDoc || (typeof chatMemoryDoc === 'string' ? chatMemoryDoc : "");
+
+      // Materialize and physically persist all workspaceDocuments to sandbox directory
+      if (workspaceDocuments.size > 0) {
+        for (const [dTitle, dObj] of workspaceDocuments.entries()) {
+          try {
+            if (dObj.format === 'xlsx' || dTitle.toLowerCase().endsWith('.xlsx')) {
+              const xlsxBuf = await generateExcelBuffer(dTitle, dObj.content);
+              writeSandboxBinaryFile(dTitle, xlsxBuf);
+            } else {
+              writeSandboxFile(dTitle, dObj.content);
+            }
+          } catch (e) {
+            console.warn(`[ChatAPI] Failed auto-persisting workspace doc ${dTitle}:`, e);
+          }
+        }
+      }
+
+      // Materialize any <wsm_doc> tags inside the generated output into physical sandbox files
+      const docTagRegex = /<wsm_doc(?:\s+format=["']?([a-zA-Z0-9_-]+)["']?)?>([\s\S]*?)<\/wsm_doc>/gi;
+      let match: RegExpExecArray | null;
+      while ((match = docTagRegex.exec(sanitizedFullOutput)) !== null) {
+        try {
+          const rawDocText = match[2].trim();
+          let parsedDoc: any = null;
+          try { parsedDoc = JSON.parse(rawDocText); } catch {}
+          if (parsedDoc && parsedDoc.title) {
+            const title = String(parsedDoc.title).trim();
+            const content = parsedDoc.content !== undefined ? (typeof parsedDoc.content === 'string' ? parsedDoc.content : JSON.stringify(parsedDoc.content, null, 2)) : rawDocText;
+            const fmt = (parsedDoc.format || match[1] || '').toLowerCase();
+            if (fmt === 'xlsx' || title.toLowerCase().endsWith('.xlsx')) {
+              const xlsxBuf = await generateExcelBuffer(title, content);
+              writeSandboxBinaryFile(title, xlsxBuf);
+            } else {
+              writeSandboxFile(title, content);
+            }
+          }
+        } catch (tagErr) {
+          console.warn("[ChatAPI] Error persisting tag doc to disk:", tagErr);
+        }
+      }
 
       sendEvent({
         type: "final",
@@ -3886,7 +3947,7 @@ app.post("/api/terminal/delete", verifyAuthTokenMiddleware, (req: express.Reques
 });
 
 // Dedicated Workspace & Sandbox File Download Endpoints
-const handleFileDownload = (req: express.Request, res: express.Response) => {
+const handleFileDownload = async (req: express.Request, res: express.Response) => {
   try {
     let rawParam = (req.params as any)?.filename || (req.params as any)?.[0] || (req.query.file as string) || (req.query.path as string) || (req.query.filename as string) || '';
     if (!rawParam && req.path) {
@@ -3903,7 +3964,23 @@ const handleFileDownload = (req: express.Request, res: express.Response) => {
       .replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '')
       .replace(/^\/+/, '');
 
-    const details = getSandboxFileDetails(cleanFilename);
+    let details = getSandboxFileDetails(cleanFilename);
+    
+    // If not found on disk, check if it exists in memory workspace documents or if it's an xlsx needing generation
+    if (!details || !details.exists) {
+      // Check if it's .xlsx and a .csv exists or vice versa
+      if (cleanFilename.toLowerCase().endsWith('.xlsx')) {
+        const baseWithoutExt = cleanFilename.replace(/\.xlsx$/i, '');
+        const csvDetails = getSandboxFileDetails(`${baseWithoutExt}.csv`);
+        if (csvDetails && csvDetails.exists) {
+          const csvContent = readSandboxFile(`${baseWithoutExt}.csv`) || '';
+          const xlsxBuf = await generateExcelBuffer(cleanFilename, csvContent);
+          writeSandboxBinaryFile(cleanFilename, xlsxBuf);
+          details = getSandboxFileDetails(cleanFilename);
+        }
+      }
+    }
+
     if (!details || !details.exists) {
       return res.status(404).json({
         error: "Arquivo não encontrado",

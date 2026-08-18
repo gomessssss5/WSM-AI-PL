@@ -2265,9 +2265,9 @@ export default function ChatWindow({
                               )}
 
                               {/* Render rich formats if present */}
-                              {message.text === "" && isThinking && message.id === messages[messages.length - 1].id ? (
+                              {(!message.text || message.text.trim() === "") && isThinking && message.id === messages[messages.length - 1]?.id ? (
                                 <div className="wsm-thinking-state">
-                                  <span className="shimmer-text">Omnix 1.6 está trabalhando...</span>
+                                  <span className="shimmer-text">Omnix 1.6 está processando...</span>
                                 </div>
                               ) : message.text === "Você cancelou essa resposta" ? (
                                 <div className="bg-red-50 text-red-600 border border-red-200 rounded-lg p-3 text-sm font-medium flex items-center gap-2 w-fit">
