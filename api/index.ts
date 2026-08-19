@@ -852,7 +852,39 @@ DIRETRIZES FUNDAMENTAIS DE CONTINUIDADE:
       userPromptLow.includes("não faça pesquisa") ||
       userPromptLow.includes("sem busca");
 
-    const web_search_allowed = !userForbidsSearch;
+    const userForbidsTerminal = /\b(não\s+(execute|rod[eia]|use|dispar[ei]|invoq[ue]|chame|rode)\s+(comandos?|terminal|código|scripts?|sandbox|bash|shell|python|node)|sem\s+(executar|rodar|comandos?|terminal|código)|proibid[oia]\s+(executar|rodar|usar\s+terminal)|não\s+execute\s+nada|modo\s+(informativo|analítico|análise|conversacional))\b/i.test(userPromptLow) ||
+      userPromptLow.includes("não execute comandos") ||
+      userPromptLow.includes("nao execute comandos") ||
+      userPromptLow.includes("não rode comandos") ||
+      userPromptLow.includes("nao rode comandos") ||
+      userPromptLow.includes("não execute código") ||
+      userPromptLow.includes("não use o terminal") ||
+      userPromptLow.includes("sem executar") ||
+      userPromptLow.includes("puramente informativo") ||
+      userPromptLow.includes("não execute nada") ||
+      userPromptLow.includes("não rode nada") ||
+      userPromptLow.includes("apenas explique") ||
+      userPromptLow.includes("não rode nenhum") ||
+      userPromptLow.includes("apenas responda em texto");
+
+    const userForbidsDocuments = /\b(não\s+(cri[ei]|ger[ei]|salv[ei]|escrev[ai])\s+(arquivos?|documentos?|artefatos?|md|pdf|txt|html|xlsx|csv)|sem\s+(criar|gerar|salvar)\s+(arquivos?|documentos?)|proibid[oia]\s+(criar|gerar)\s+(arquivos?|documentos?)|não\s+crie\s+nada)\b/i.test(userPromptLow) ||
+      userPromptLow.includes("não crie arquivos") ||
+      userPromptLow.includes("nao crie arquivos") ||
+      userPromptLow.includes("não crie documentos") ||
+      userPromptLow.includes("nao crie documentos") ||
+      userPromptLow.includes("não crie nenhum arquivo") ||
+      userPromptLow.includes("sem criar arquivos") ||
+      userPromptLow.includes("não gere arquivos") ||
+      userPromptLow.includes("não salvar") ||
+      userPromptLow.includes("não gere documentos");
+
+    const userForbidsTools = /\b(não\s+(use|execut[ei]|chame|invoq[ue])\s+ferramentas?|sem\s+ferramentas?|apenas\s+(texto|responda|explique|analise)|modo\s+informativo|puramente\s+informativo|apenas\s+em\s+texto|responder\s+apenas\s+em\s+texto)\b/i.test(userPromptLow) ||
+      userPromptLow.includes("não use ferramentas") ||
+      userPromptLow.includes("apenas responda em texto") ||
+      userPromptLow.includes("modo informativo") ||
+      userPromptLow.includes("puramente informativo");
+
+    const web_search_allowed = !userForbidsSearch && !userForbidsTools;
 
     // Document, memory, code, or local context request
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
@@ -1403,237 +1435,218 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
       activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + (activeSkillsInstruction ? activeSkillsInstruction + "\n\n" : "") + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
     }
 
+    if (userForbidsTerminal) {
+      activeSystemPrompt += "\n\n[INSTRUÇÃO DE SEGURANÇA ABSOLUTA - MODO APENAS ANÁLISE / SEM COMANDOS]: O usuário ordenou explicitamente: 'NÃO EXECUTE COMANDOS' ou a solicitação é puramente informativa/explicativa. Você está ESTRITAMENTE PROIBIDO de invocar execute_terminal_command, run_code_sandbox, write_terminal_file ou tentar executar qualquer código no terminal sandbox. Sua resposta DEVE ser 100% explicativa, analítica e em texto puro no chat sem abrir o terminal.";
+    }
+
+    if (userForbidsDocuments) {
+      activeSystemPrompt += "\n\n[INSTRUÇÃO DE SEGURANÇA ABSOLUTA - PROIBIÇÃO EXPLÍCITA DE CRIAÇÃO DE ARQUIVOS]: O usuário ordenou explicitamente: 'NÃO CRIE ARQUIVOS/DOCUMENTOS'. Você está ESTRITAMENTE PROIBIDO de invocar create_document, edit_document ou de emitir qualquer bloco <wsm_doc> ou <doc> na sua resposta. Responda exclusivamente em texto no chat.";
+    }
+
+    if (userForbidsTools) {
+      activeSystemPrompt += "\n\n[INSTRUÇÃO DE SEGURANÇA ABSOLUTA - MODO PURAMENTE INFORMATIVO / SEM FERRAMENTAS]: O usuário solicitou uma resposta em texto puro sem uso de ferramentas. Responda diretamente no chat de forma clara, didática e explicativa sem invocar nenhuma ferramenta.";
+    }
+
     let mappedModel = "gemini-2.5-flash";
     if (model === 'Omnix 1.6' || model === 'Omnix 1.6') mappedModel = "gemini-2.5-flash";
 
     if (model === 'Omnix 1.6' || model === 'Omnix 1.6') {
-      console.log(`Starting agentic loop for model: ${model}...`);
-      const marteTools = [{
-        functionDeclarations: [
-          ...(web_search_allowed ? [
-            {
-              name: "web_search",
-              description: "Busca na internet em tempo real.",
-              parameters: {
-                type: Type.OBJECT,
-                properties: {
-                  query: {
-                    type: Type.STRING,
-                    description: "Termo de busca para pesquisar."
-                  }
-                },
-                required: ["query"]
-              }
+      console.log(`Starting agentic loop for model: ${model}... [userForbidsTerminal=${userForbidsTerminal}, userForbidsDocuments=${userForbidsDocuments}, userForbidsTools=${userForbidsTools}]`);
+      
+      const fnDeclarations: any[] = [];
+
+      if (!userForbidsTools) {
+        if (web_search_allowed) {
+          fnDeclarations.push({
+            name: "web_search",
+            description: "Busca na internet em tempo real.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                query: { type: Type.STRING, description: "Termo de busca para pesquisar." }
+              },
+              required: ["query"]
             }
-          ] : []),
+          });
+        }
+
+        fnDeclarations.push(
           {
             name: "calculadora",
             description: "Calculadora matemática avançada.",
             parameters: {
               type: Type.OBJECT,
-              properties: {
-                expression: { type: Type.STRING }
-              },
+              properties: { expression: { type: Type.STRING } },
               required: ["expression"]
             }
           },
           {
             name: "relogio",
             description: "Verifica a data e hora local.",
-            parameters: {
-              type: Type.OBJECT,
-              properties: {}
-            }
+            parameters: { type: Type.OBJECT, properties: {} }
           },
           {
             name: "get_full_conversation_history",
-            description: "Recupera o histórico COMPLETO da conversa atual em texto. Use APENAS quando precisar entender contexto ou referências passadas que não estão mais na memória ativa (ex: 'faça a etapa 2 da nossa conversa', 'como combinamos antes').",
-            parameters: {
-              type: Type.OBJECT,
-              properties: {}
-            }
+            description: "Recupera o histórico COMPLETO da conversa atual em texto.",
+            parameters: { type: Type.OBJECT, properties: {} }
           },
           {
             name: "open_url",
-            description: "Abre uma URL no navegador real em background e retorna o texto exato e literal da página no campo 'text'. Você deve obrigatoriamente ler e citar esse texto exatamente sem alterar ou inventar palavras de memória.",
+            description: "Abre uma URL no navegador real em background e retorna o texto exato.",
             parameters: {
               type: Type.OBJECT,
-              properties: {
-                url: { type: Type.STRING, description: "A URL completa, começando com http:// ou https://" }
-              },
+              properties: { url: { type: Type.STRING, description: "A URL completa" } },
               required: ["url"]
             }
           },
           {
             name: "click",
-            description: "Clica em um elemento na página atual usando um seletor retornado em 'interactable_elements'.",
+            description: "Clica em um elemento na página atual.",
             parameters: {
               type: Type.OBJECT,
-              properties: {
-                selector: { type: Type.STRING, description: "O seletor CSS ou texto (ex: 'text=\"Entrar\"' ou '#submit-btn')" }
-              },
+              properties: { selector: { type: Type.STRING } },
               required: ["selector"]
             }
           },
           {
             name: "type_text",
-            description: "Digita um texto em um campo de input na página atual e aperta Enter. Use o seletor retornado em 'interactable_elements'.",
+            description: "Digita um texto em um campo de input na página atual.",
             parameters: {
               type: Type.OBJECT,
-              properties: {
-                selector: { type: Type.STRING, description: "O seletor CSS ou texto do campo (ex: 'text=\"Pesquisar\"' ou 'input[name=\"q\"]')" },
-                text: { type: Type.STRING, description: "O texto a ser digitado" }
-              },
+              properties: { selector: { type: Type.STRING }, text: { type: Type.STRING } },
               required: ["selector", "text"]
             }
           },
           {
             name: "extract_visible_text",
-            description: "Lê novamente a página atual caso precise atualizar os elementos após uma ação ou navegação lenta.",
-            parameters: {
-              type: Type.OBJECT,
-              properties: {}
-            }
+            description: "Lê novamente a página atual.",
+            parameters: { type: Type.OBJECT, properties: {} }
           },
           {
             name: "scroll_page",
-            description: "Rola a página atual do navegador para baixo ou para cima para ver e ler mais conteúdo.",
+            description: "Rola a página atual do navegador.",
             parameters: {
               type: Type.OBJECT,
-              properties: {
-                direction: { type: Type.STRING, description: "A direção para rolar: 'down' (para baixo) ou 'up' (para cima). Padrão é 'down'." },
-                amount: { type: Type.NUMBER, description: "A quantidade de pixels a rolar. Padrão é 500." }
-              }
+              properties: { direction: { type: Type.STRING }, amount: { type: Type.NUMBER } }
             }
           },
           {
             name: "wait_seconds",
-            description: "Aguarda um número especificado de segundos na página do navegador para que animações longas, scripts ou conteúdos dinâmicos terminem de carregar, e relê a página atualizada com elementos e captura de tela.",
+            description: "Aguarda um número especificado de segundos na página.",
             parameters: {
               type: Type.OBJECT,
-              properties: {
-                seconds: { type: Type.NUMBER, description: "Número de segundos para aguardar (ex: 3, 5, 8, 10, 15)." }
-              },
+              properties: { seconds: { type: Type.NUMBER } },
               required: ["seconds"]
             }
-          },
-          {
-            name: "create_document",
-            description: "Cria um novo documento ou arquivo no Workspace de Documentos da sessão. O documento fica salvo e disponível para leitura, edição, expansão ou entrega ao usuário.",
-            parameters: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING, description: "O título ou nome do arquivo/documento (ex: 'index.html', 'Relatório Financeiro', 'script.py')." },
-                content: { type: Type.STRING, description: "O conteúdo completo em texto ou Markdown do documento." },
-                format: { type: Type.STRING, description: "O formato do arquivo (ex: 'html', 'pdf', 'xlsx', 'py', 'js', 'json', 'md'). Se omitido, é inferido da extensão do título." }
-              },
-              required: ["title", "content"]
+          }
+        );
+
+        if (!userForbidsDocuments) {
+          fnDeclarations.push(
+            {
+              name: "create_document",
+              description: "Cria um novo documento ou arquivo no Workspace de Documentos da sessão.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING, description: "O título ou nome do arquivo" },
+                  content: { type: Type.STRING, description: "O conteúdo completo" },
+                  format: { type: Type.STRING, description: "O formato do arquivo" }
+                },
+                required: ["title", "content"]
+              }
+            },
+            {
+              name: "edit_document",
+              description: "Edita ou substitui o conteúdo completo de um documento existente.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: { title: { type: Type.STRING }, content: { type: Type.STRING } },
+                required: ["title", "content"]
+              }
+            },
+            {
+              name: "append_document",
+              description: "Adiciona novo texto ao final de um documento existente.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: { title: { type: Type.STRING }, text: { type: Type.STRING } },
+                required: ["title", "text"]
+              }
+            },
+            {
+              name: "delete_document",
+              description: "Exclui/apaga um documento do Workspace.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: { title: { type: Type.STRING } },
+                required: ["title"]
+              }
             }
-          },
+          );
+        }
+
+        fnDeclarations.push(
           {
             name: "read_document",
-            description: "Lê o conteúdo completo de um documento existente no Workspace de Documentos.",
+            description: "Lê o conteúdo completo de um documento existente no Workspace.",
             parameters: {
               type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING, description: "O título exato do documento a ser lido." }
-              },
-              required: ["title"]
-            }
-          },
-          {
-            name: "edit_document",
-            description: "Edita ou substitui o conteúdo completo de um documento existente no Workspace de Documentos. Use para revisar, aprimorar, corrigir ou reescrever textos e documentos.",
-            parameters: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING, description: "O título do documento a ser editado." },
-                content: { type: Type.STRING, description: "O novo conteúdo completo e atualizado do documento." }
-              },
-              required: ["title", "content"]
-            }
-          },
-          {
-            name: "append_document",
-            description: "Adiciona novo texto ao final de um documento existente no Workspace.",
-            parameters: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING, description: "O título do documento." },
-                text: { type: Type.STRING, description: "O texto a ser adicionado ao final do documento." }
-              },
-              required: ["title", "text"]
-            }
-          },
-          {
-            name: "delete_document",
-            description: "Exclui/apaga um documento do Workspace de Documentos.",
-            parameters: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING, description: "O título ou nome do documento a ser excluído." }
-              },
+              properties: { title: { type: Type.STRING } },
               required: ["title"]
             }
           },
           {
             name: "list_documents",
-            description: "Lista todos os documentos/arquivos atualmente presentes no Workspace de Documentos da sessão.",
-            parameters: {
-              type: Type.OBJECT,
-              properties: {}
-            }
-          },
-          {
-            name: "execute_terminal_command",
-            description: "Executa comandos de sistema no Terminal Sandbox isolado (WebContainer com Node.js, Python, npm, testes, bash, manipulação de arquivos, CSV/PDF/Office e criação de ZIP). Retorna comando, saída (stdout/stderr), arquivos modificados e código de saída (exitCode). NUNCA assuma que testes passaram se o exitCode for diferente de 0.",
-            parameters: {
-              type: Type.OBJECT,
-              properties: {
-                command: { type: Type.STRING, description: "O comando a ser executado (ex: 'node script.js', 'python analise.py', 'npm test', 'zip projeto.zip dados.csv', 'ls -la', 'csv2json dados.csv saida.json')." },
-                timeout_seconds: { type: Type.NUMBER, description: "Tempo limite máximo em segundos (padrão 15s)." }
-              },
-              required: ["command"]
-            }
-          },
-          {
-            name: "run_code_sandbox",
-            description: "Executa código Python, JavaScript ou Node.js diretamente no terminal sandbox isolado sem rede. Executa e retorna saída real, erros e arquivos modificados.",
-            parameters: {
-              type: Type.OBJECT,
-              properties: {
-                language: { type: Type.STRING, description: "A linguagem: 'python', 'javascript', 'node' ou 'shell'." },
-                code: { type: Type.STRING, description: "O código completo a ser executado no sandbox." },
-                filename: { type: Type.STRING, description: "Nome do arquivo opcional a ser salvo no /workspace (ex: 'analise.py', 'test.js', 'script.js')." }
-              },
-              required: ["language", "code"]
-            }
-          },
-          {
-            name: "write_terminal_file",
-            description: "Cria ou atualiza um arquivo no filesystem virtual /workspace do Terminal Sandbox.",
-            parameters: {
-              type: Type.OBJECT,
-              properties: {
-                path: { type: Type.STRING, description: "Caminho relativo ou absoluto no sandbox (ex: 'dados.csv', 'analise.py', 'relatorio.json')." },
-                content: { type: Type.STRING, description: "Conteúdo textual completo do arquivo." }
-              },
-              required: ["path", "content"]
-            }
-          },
-          {
-            name: "read_terminal_file",
-            description: "Lê o conteúdo de um arquivo do filesystem virtual do Terminal Sandbox.",
-            parameters: {
-              type: Type.OBJECT,
-              properties: {
-                path: { type: Type.STRING, description: "Caminho do arquivo a ser lido (ex: 'dados.csv', 'package.json')." }
-              },
-              required: ["path"]
-            }
+            description: "Lista todos os documentos/arquivos no Workspace.",
+            parameters: { type: Type.OBJECT, properties: {} }
           }
-        ]
-      }];
+        );
+
+        if (!userForbidsTerminal) {
+          fnDeclarations.push(
+            {
+              name: "execute_terminal_command",
+              description: "Executa comandos de sistema no Terminal Sandbox isolado.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: { command: { type: Type.STRING }, timeout_seconds: { type: Type.NUMBER } },
+                required: ["command"]
+              }
+            },
+            {
+              name: "run_code_sandbox",
+              description: "Executa código Python, JavaScript ou Node.js no terminal sandbox.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: { language: { type: Type.STRING }, code: { type: Type.STRING }, filename: { type: Type.STRING } },
+                required: ["language", "code"]
+              }
+            },
+            {
+              name: "write_terminal_file",
+              description: "Cria ou atualiza um arquivo no filesystem virtual do Sandbox.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: { path: { type: Type.STRING }, content: { type: Type.STRING } },
+                required: ["path", "content"]
+              }
+            }
+          );
+        }
+
+        fnDeclarations.push({
+          name: "read_terminal_file",
+          description: "Lê o conteúdo de um arquivo do filesystem virtual do Sandbox.",
+          parameters: {
+            type: Type.OBJECT,
+            properties: { path: { type: Type.STRING } },
+            required: ["path"]
+          }
+        });
+      }
+
+      const marteTools = fnDeclarations.length > 0 ? [{ functionDeclarations: fnDeclarations }] : undefined;
 
       let currentContents = Array.isArray(finalContents) 
         ? sanitizeGeminiContents(finalContents) 
@@ -2042,6 +2055,66 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
             sendEvent({ type: "chunk", text: thinkingText });
             fullOutput += thinkingText;
             
+            if (userForbidsTerminal && ["execute_terminal_command", "run_code_sandbox", "write_terminal_file"].includes(fc.name)) {
+              console.warn(`[Security Block] Intercepted and blocked terminal execution tool '${fc.name}' due to user prohibition ('Não execute comandos').`);
+              const callId = fc.id || `call_${fc.name}_${Math.random().toString(36).substring(2, 8)}`;
+              functionResponseParts.push({
+                functionResponse: {
+                  id: callId,
+                  name: fc.name,
+                  response: {
+                    status: "blocked",
+                    error: "Execução de terminal/comandos bloqueada por instrução explícita de segurança do usuário ('Não execute comandos').",
+                    instruction: "AVISO CRÍTICO DE SEGURANÇA: O usuário proibiu explicitamente a execução de comandos. Você DEVE responder APENAS em texto explicativo sem executar comandos."
+                  }
+                }
+              });
+              const preventText = `\n\n⚠️ **[Execução de Comando Bloqueada]** Tentativa de execução de comando no terminal ('${fc.name}') foi impedida e bloqueada pelas diretivas de segurança do sistema devido à sua instrução explícita: *"Não execute comandos"*.\n\n`;
+              sendEvent({ type: "chunk", text: preventText });
+              fullOutput += preventText;
+              continue;
+            }
+
+            if (userForbidsDocuments && ["create_document", "edit_document", "append_document", "delete_document"].includes(fc.name)) {
+              console.warn(`[Security Block] Intercepted and blocked document creation tool '${fc.name}' due to user prohibition ('Não crie arquivos').`);
+              const callId = fc.id || `call_${fc.name}_${Math.random().toString(36).substring(2, 8)}`;
+              functionResponseParts.push({
+                functionResponse: {
+                  id: callId,
+                  name: fc.name,
+                  response: {
+                    status: "blocked",
+                    error: "Criação/edição de documentos bloqueada por instrução explícita do usuário ('Não crie arquivos').",
+                    instruction: "AVISO CRÍTICO DE SEGURANÇA: O usuário proibiu explicitamente a criação de documentos. Forneça apenas resposta explicativa em texto."
+                  }
+                }
+              });
+              const preventText = `\n\n⚠️ **[Criação de Documento Bloqueada]** A chamada da ferramenta '${fc.name}' foi impedida e bloqueada pelas diretivas de segurança devido à sua instrução explícita: *"Não crie arquivos"*.\n\n`;
+              sendEvent({ type: "chunk", text: preventText });
+              fullOutput += preventText;
+              continue;
+            }
+
+            if (userForbidsTools && fc.name !== "get_full_conversation_history") {
+              console.warn(`[Security Block] Intercepted and blocked tool '${fc.name}' due to user prohibition ('Modo Informativo').`);
+              const callId = fc.id || `call_${fc.name}_${Math.random().toString(36).substring(2, 8)}`;
+              functionResponseParts.push({
+                functionResponse: {
+                  id: callId,
+                  name: fc.name,
+                  response: {
+                    status: "blocked",
+                    error: "Execução de ferramentas bloqueada: a consulta foi definida como puramente informativa/sem ferramentas.",
+                    instruction: "AVISO: Responda apenas com texto explicativo e análise conceitual sem utilizar ferramentas."
+                  }
+                }
+              });
+              const preventText = `\n\n⚠️ **[Ferramenta Bloqueada]** A execução de '${fc.name}' foi impedida pois a solicitação foi classificada em Modo Informativo / Sem Ferramentas.\n\n`;
+              sendEvent({ type: "chunk", text: preventText });
+              fullOutput += preventText;
+              continue;
+            }
+
             if (fc.name === "web_search") {
               if (!web_search_allowed) {
                 console.warn(`[Executor Block] Bloqueando a execução da ferramenta web_search devido a restrição do usuário (web_search_allowed=false).`);
@@ -3188,7 +3261,7 @@ Responda EXATAMENTE com "CONCLUIDO" ou "CONTINUAR: <motivo_curto>".`;
         protectedOutput = protectedOutput.replace(`___WSM_IMAGE_PROTECTED_${idx}___`, tag);
       });
 
-      const { cleanedText: sanitizedFullOutput, memoryDoc: extractedMemoryDoc } = extractAndCleanHistory(protectedOutput);
+      let { cleanedText: sanitizedFullOutput, memoryDoc: extractedMemoryDoc } = extractAndCleanHistory(protectedOutput);
       const updatedMemoryDoc = extractedMemoryDoc || (typeof chatMemoryDoc === 'string' ? chatMemoryDoc : "");
 
       // Materialize and physically persist all workspaceDocuments to sandbox directory
@@ -3208,27 +3281,32 @@ Responda EXATAMENTE com "CONCLUIDO" ou "CONTINUAR: <motivo_curto>".`;
       }
 
       // Materialize any <wsm_doc> tags inside the generated output into physical sandbox files
-      const docTagRegex = /<wsm_doc(?:\s+format=["']?([a-zA-Z0-9_-]+)["']?)?>([\s\S]*?)<\/wsm_doc>/gi;
-      let match: RegExpExecArray | null;
-      while ((match = docTagRegex.exec(sanitizedFullOutput)) !== null) {
-        try {
-          const rawDocText = match[2].trim();
-          let parsedDoc: any = null;
-          try { parsedDoc = JSON.parse(rawDocText); } catch {}
-          if (parsedDoc && parsedDoc.title) {
-            const title = String(parsedDoc.title).trim();
-            const content = parsedDoc.content !== undefined ? (typeof parsedDoc.content === 'string' ? parsedDoc.content : JSON.stringify(parsedDoc.content, null, 2)) : rawDocText;
-            const fmt = (parsedDoc.format || match[1] || '').toLowerCase();
-            if (fmt === 'xlsx' || title.toLowerCase().endsWith('.xlsx')) {
-              const xlsxBuf = await generateExcelBuffer(title, content);
-              writeSandboxBinaryFile(title, xlsxBuf);
-            } else {
-              writeSandboxFile(title, content);
+      if (!userForbidsDocuments) {
+        const docTagRegex = /<wsm_doc(?:\s+format=["']?([a-zA-Z0-9_-]+)["']?)?>([\s\S]*?)<\/wsm_doc>/gi;
+        let match: RegExpExecArray | null;
+        while ((match = docTagRegex.exec(sanitizedFullOutput)) !== null) {
+          try {
+            const rawDocText = match[2].trim();
+            let parsedDoc: any = null;
+            try { parsedDoc = JSON.parse(rawDocText); } catch {}
+            if (parsedDoc && parsedDoc.title) {
+              const title = String(parsedDoc.title).trim();
+              const content = parsedDoc.content !== undefined ? (typeof parsedDoc.content === 'string' ? parsedDoc.content : JSON.stringify(parsedDoc.content, null, 2)) : rawDocText;
+              const fmt = (parsedDoc.format || match[1] || '').toLowerCase();
+              if (fmt === 'xlsx' || title.toLowerCase().endsWith('.xlsx')) {
+                const xlsxBuf = await generateExcelBuffer(title, content);
+                writeSandboxBinaryFile(title, xlsxBuf);
+              } else {
+                writeSandboxFile(title, content);
+              }
             }
+          } catch (tagErr) {
+            console.warn("[ChatAPI] Error persisting tag doc to disk:", tagErr);
           }
-        } catch (tagErr) {
-          console.warn("[ChatAPI] Error persisting tag doc to disk:", tagErr);
         }
+      } else {
+        // Strip <wsm_doc> tags if document creation was explicitly forbidden by user
+        sanitizedFullOutput = sanitizedFullOutput.replace(/<wsm_doc(?:\s+format=["']?([a-zA-Z0-9_-]+)["']?)?>([\s\S]*?)<\/wsm_doc>/gi, "");
       }
 
       sendEvent({

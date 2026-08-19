@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { ChatSession } from '../types';
 
+import { sanitizeMessageText } from '../utils/exportSanitizer';
+
 interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -132,6 +134,7 @@ export default function SearchModal({
     
     const cleanText = (text: string) => {
       let t = text || '';
+      t = sanitizeMessageText(t);
       t = t.replace(/<raciocinio>[\s\S]*?<\/raciocinio>/g, '');
       if (t.includes('<raciocinio>')) t = t.substring(0, t.indexOf('<raciocinio>'));
       t = t.replace(/<task>[\s\S]*?<\/task>/g, '');

@@ -951,6 +951,16 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
       return await this.executePytest(args, stdout, stderr);
     }
 
+    // PIP command
+    if (cleanCmd === 'pip' || cleanCmd === 'pip3') {
+      const pkg = args[args.length - 1];
+      stdout(`Collecting ${pkg}...\n`);
+      setTimeout(() => stdout(`Downloading ${pkg}-latest-py3-none-any.whl\n`), 200);
+      setTimeout(() => stdout(`Installing collected packages: ${pkg}\n`), 400);
+      setTimeout(() => stdout(`Successfully installed ${pkg}\n`), 600);
+      return new Promise((resolve) => setTimeout(() => resolve(0), 650));
+    }
+
     // 8. Network Tool Check (Isolation check)
     if (cleanCmd === 'curl' || cleanCmd === 'wget' || cleanCmd === 'ping') {
       if (this.networkIsolated) {
@@ -1118,6 +1128,21 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
       let insideDocstring = false;
       let hasError = false;
 
+      const createMockModule = (name: string): any => {
+        return new Proxy(function() {}, {
+          get: (target, prop) => {
+            if (prop === 'then') return undefined; // avoid promise issues
+            if (prop === 'toString') return () => `[Mock Python Module: ${name}]`;
+            return createMockModule(`${name}.${String(prop)}`);
+          },
+          apply: (target, thisArg, argsList) => {
+            return createMockModule(`${name}()`);
+          }
+        });
+      };
+
+      const mockModule = createMockModule('mock');
+
       const pythonGlobals: Record<string, any> = {
         math: Math,
         json: {
@@ -1139,7 +1164,17 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
           const res = [];
           for (let i = start; i < stop; i += step) res.push(i);
           return res;
-        }
+        },
+        matplotlib: mockModule,
+        plt: mockModule,
+        numpy: mockModule,
+        np: mockModule,
+        pandas: mockModule,
+        pd: mockModule,
+        os: mockModule,
+        sys: mockModule,
+        requests: mockModule,
+        re: mockModule
       };
 
       // Execute Python statements or fall back to translated JS sandbox
@@ -1150,6 +1185,11 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
         let l = line;
         // Strip comment
         if (l.trim().startsWith('#')) return;
+
+        // Strip python imports to prevent JS syntax errors
+        if (l.trim().match(/^(import|from)\s+/)) {
+          l = `// ${l}`;
+        }
 
         // Python print -> custom print
         l = l.replace(/print\s*\((.*?)\)/g, (match, inner) => {
@@ -1199,7 +1239,7 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
 
       // Execute translated script in safe context
       const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-      const runner = new AsyncFunction('__py_print', '__py_sum', '__py_len', 'math', 'json', 'sys', translatedJs);
+      const runner = new AsyncFunction('__py_print', '__py_sum', '__py_len', 'math', 'json', 'sys', 'matplotlib', 'plt', 'numpy', 'np', 'pandas', 'pd', 'os', 'requests', 're', translatedJs);
       
       const customSys = {
         argv: [fileName, ...args.slice(1)],
@@ -1208,7 +1248,7 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
         }
       };
 
-      await runner(customPyPrint, pySum, pyLen, pythonGlobals.math, pythonGlobals.json, customSys);
+      await runner(customPyPrint, pySum, pyLen, pythonGlobals.math, pythonGlobals.json, customSys, pythonGlobals.matplotlib, pythonGlobals.plt, pythonGlobals.numpy, pythonGlobals.np, pythonGlobals.pandas, pythonGlobals.pd, pythonGlobals.os, pythonGlobals.requests, pythonGlobals.re);
       return 0;
     } catch (err: any) {
       if (err?.message?.startsWith('__PY_EXIT_')) {

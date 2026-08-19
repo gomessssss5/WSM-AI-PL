@@ -807,10 +807,30 @@ export default function App() {
     });
 
     const unsubscribeExecutions = subscribeTaskExecutions(currentUser.uid, (loadedExecutions) => {
-      setTaskExecutions(loadedExecutions);
+      let localExecs: TaskExecution[] = [];
+      try {
+        const saved = localStorage.getItem('wsm_task_executions');
+        if (saved) localExecs = JSON.parse(saved);
+      } catch (e) {}
+
+      // Combine Firestore and local executions by unique ID
+      const combinedMap = new Map<string, TaskExecution>();
+      [...loadedExecutions, ...localExecs].forEach(e => {
+        if (!combinedMap.has(e.id) || e.status === 'succeeded' || e.status === 'failed') {
+          combinedMap.set(e.id, {
+            ...e,
+            executedAt: e.executedAt ? new Date(e.executedAt) : new Date(),
+            startedAt: e.startedAt ? new Date(e.startedAt) : new Date(),
+            finishedAt: e.finishedAt ? new Date(e.finishedAt) : undefined
+          });
+        }
+      });
+
+      const combined = Array.from(combinedMap.values()).sort((a, b) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime());
+      setTaskExecutions(combined);
       
       try {
-        localStorage.setItem('wsm_task_executions', JSON.stringify(loadedExecutions));
+        localStorage.setItem('wsm_task_executions', JSON.stringify(combined));
       } catch (e) {}
 
       // Track executions and log audit events on status changes in real-time
@@ -2494,15 +2514,12 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
                   if (activeSessionId && currentUser) {
                     try {
                       await saveSession(currentUser.uid, { ...activeSession, isPublic: true });
-                      const url = `${window.location.origin}/share/${activeSessionId}?uid=${currentUser.uid}`;
-                      await navigator.clipboard.writeText(url);
-                      alert("Link de compartilhamento copiado para a área de transferência!");
                     } catch(e) {
-                      console.error(e);
-                      alert("Erro ao compartilhar chat.");
+                      console.error("Erro ao salvar sessao compartilhada no Firestore:", e);
                     }
                   }
                 }}
+                currentUserId={currentUser?.uid}
                 onDeleteSession={() => {
                   if (activeSessionId) {
                     handleDeleteSession(activeSessionId);

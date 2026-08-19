@@ -19,7 +19,8 @@ import {
   FileCode,
   ShieldCheck,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 
 interface ArtifactPersistenceCardProps {

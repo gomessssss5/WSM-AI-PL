@@ -17,48 +17,96 @@ export const subscribeScheduledTasks = (
   userId: string,
   onUpdate: (tasks: ScheduledTask[]) => void
 ) => {
-  const q = query(
-    collection(db, 'users', userId, 'scheduledTasks'),
-    orderBy('createdAt', 'desc')
-  );
+  try {
+    const q = query(
+      collection(db, 'users', userId, 'scheduledTasks'),
+      orderBy('createdAt', 'desc')
+    );
 
-  return onSnapshot(q, (snapshot) => {
-    const tasks: ScheduledTask[] = [];
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      tasks.push({
-        ...data,
-        id: doc.id,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        lastRunAt: data.lastRunAt?.toDate(),
-        nextRunAt: data.nextRunAt?.toDate() || new Date(),
-      } as ScheduledTask);
+    return onSnapshot(q, (snapshot) => {
+      const tasks: ScheduledTask[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        tasks.push({
+          ...data,
+          id: doc.id,
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date()),
+          lastRunAt: data.lastRunAt?.toDate ? data.lastRunAt.toDate() : (data.lastRunAt ? new Date(data.lastRunAt) : undefined),
+          nextRunAt: data.nextRunAt?.toDate ? data.nextRunAt.toDate() : (data.nextRunAt ? new Date(data.nextRunAt) : new Date()),
+        } as ScheduledTask);
+      });
+      onUpdate(tasks);
+    }, (error) => {
+      console.warn('[subscribeScheduledTasks] Index/Query warning, falling back to simple collection snapshot:', error);
+      const fallbackCol = collection(db, 'users', userId, 'scheduledTasks');
+      return onSnapshot(fallbackCol, (snapshot) => {
+        const tasks: ScheduledTask[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          tasks.push({
+            ...data,
+            id: doc.id,
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date()),
+            lastRunAt: data.lastRunAt?.toDate ? data.lastRunAt.toDate() : (data.lastRunAt ? new Date(data.lastRunAt) : undefined),
+            nextRunAt: data.nextRunAt?.toDate ? data.nextRunAt.toDate() : (data.nextRunAt ? new Date(data.nextRunAt) : new Date()),
+          } as ScheduledTask);
+        });
+        tasks.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        onUpdate(tasks);
+      });
     });
-    onUpdate(tasks);
-  });
+  } catch (e) {
+    console.error('[subscribeScheduledTasks] Critical subscription error:', e);
+    return () => {};
+  }
 };
 
 export const subscribeTaskExecutions = (
   userId: string,
   onUpdate: (executions: TaskExecution[]) => void
 ) => {
-  const q = query(
-    collection(db, 'users', userId, 'taskExecutions'),
-    orderBy('executedAt', 'desc')
-  );
+  try {
+    const q = query(
+      collection(db, 'users', userId, 'taskExecutions'),
+      orderBy('executedAt', 'desc')
+    );
 
-  return onSnapshot(q, (snapshot) => {
-    const executions: TaskExecution[] = [];
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      executions.push({
-        ...data,
-        id: doc.id,
-        executedAt: data.executedAt?.toDate() || new Date(),
-      } as TaskExecution);
+    return onSnapshot(q, (snapshot) => {
+      const executions: TaskExecution[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        executions.push({
+          ...data,
+          id: doc.id,
+          executedAt: data.executedAt?.toDate ? data.executedAt.toDate() : (data.executedAt ? new Date(data.executedAt) : new Date()),
+          startedAt: data.startedAt?.toDate ? data.startedAt.toDate() : (data.startedAt ? new Date(data.startedAt) : new Date()),
+          finishedAt: data.finishedAt?.toDate ? data.finishedAt.toDate() : (data.finishedAt ? new Date(data.finishedAt) : undefined),
+        } as TaskExecution);
+      });
+      onUpdate(executions);
+    }, (error) => {
+      console.warn('[subscribeTaskExecutions] Index/Query warning, falling back to simple collection snapshot:', error);
+      const fallbackCol = collection(db, 'users', userId, 'taskExecutions');
+      return onSnapshot(fallbackCol, (snapshot) => {
+        const executions: TaskExecution[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          executions.push({
+            ...data,
+            id: doc.id,
+            executedAt: data.executedAt?.toDate ? data.executedAt.toDate() : (data.executedAt ? new Date(data.executedAt) : new Date()),
+            startedAt: data.startedAt?.toDate ? data.startedAt.toDate() : (data.startedAt ? new Date(data.startedAt) : new Date()),
+            finishedAt: data.finishedAt?.toDate ? data.finishedAt.toDate() : (data.finishedAt ? new Date(data.finishedAt) : undefined),
+          } as TaskExecution);
+        });
+        executions.sort((a, b) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime());
+        onUpdate(executions);
+      });
     });
-    onUpdate(executions);
-  });
+  } catch (e) {
+    console.error('[subscribeTaskExecutions] Critical subscription error:', e);
+    return () => {};
+  }
 };
 
 export const saveScheduledTask = async (userId: string, task: ScheduledTask) => {

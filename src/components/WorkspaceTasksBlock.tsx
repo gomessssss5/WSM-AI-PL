@@ -51,7 +51,7 @@ export const WorkspaceTasksBlock: React.FC<WorkspaceTasksBlockProps> = ({ text, 
     if (!text) return [];
     
     // 1. Parse workspace tools actions
-    const regex = /<wsm_workspace_action\s+status="([^"]+)"\s+type="([^"]+)"\s+file="([^"]+)"\s*\/>/g;
+    const regex = /<wsm_workspace_action\s+status="([^"]+)"\s+type="([^"]+)"\s+file="([^"]+)"\s*(?:\/>|>)/g;
     const matches = [...text.matchAll(regex)];
     const workspaceActions = matches.map(m => ({
       status: m[1],

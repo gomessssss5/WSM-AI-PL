@@ -153,7 +153,7 @@ export default function ScheduledTasksDashboard({
         const isAuthError = res.status === 401 || res.status === 419;
         const failedExecution: TaskExecution = {
           ...optimisticExecution,
-          status: isAuthError ? 'needs_auth' : 'failed',
+          status: (isAuthError ? 'needs_auth' : 'failed') as any,
           finishedAt: new Date(),
           durationMs: Date.now() - startedAt.getTime(),
           outputSummary: errMessage,
@@ -170,10 +170,10 @@ export default function ScheduledTasksDashboard({
         if (onSaveTask && isAuthError) {
           onSaveTask({
             ...task,
-            lastStatus: 'needs_auth' as any,
+            lastStatus: 'needs_auth',
             lastExecutionStatus: 'failed',
             lastErrorDetails: errMessage
-          });
+          } as any);
         }
 
         setExecutionStates(prev => ({ ...prev, [task.id]: 'falhou' }));
@@ -252,9 +252,6 @@ export default function ScheduledTasksDashboard({
 
       if (data.session && onSessionCreated) {
         onSessionCreated(data.session);
-      }
-      if (data.sessionId && onOpenSession) {
-        onOpenSession(data.sessionId);
       }
 
     } catch (e: any) {
@@ -486,10 +483,17 @@ export default function ScheduledTasksDashboard({
 
   const parseDate = (d: any): Date => {
     if (!d) return new Date();
-    if (d instanceof Date) return d;
-    if (typeof d.toDate === 'function') return d.toDate();
-    if (d && typeof d === 'object' && 'seconds' in d) return new Date(d.seconds * 1000);
-    return new Date(d);
+    if (d instanceof Date) return isNaN(d.getTime()) ? new Date() : d;
+    if (typeof d.toDate === 'function') {
+      const res = d.toDate();
+      return isNaN(res.getTime()) ? new Date() : res;
+    }
+    if (d && typeof d === 'object' && 'seconds' in d) {
+      const res = new Date(d.seconds * 1000);
+      return isNaN(res.getTime()) ? new Date() : res;
+    }
+    const res = new Date(d);
+    return isNaN(res.getTime()) ? new Date() : res;
   };
 
   const formatShortTime = (d: any) => {
@@ -819,7 +823,7 @@ export default function ScheduledTasksDashboard({
                           <div>
                             <div className="flex items-center gap-2">
                               <h3 className="font-semibold text-gray-900 text-base">{task.title}</h3>
-                              {task.lastStatus === ('needs_auth' as any) ? (
+                              {(task as any).lastStatus === 'needs_auth' ? (
                                 <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full border uppercase tracking-wider bg-amber-100 text-amber-900 border-amber-300">
                                   needs_auth (401)
                                 </span>

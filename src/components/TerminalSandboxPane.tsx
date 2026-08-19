@@ -394,45 +394,6 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
             className="w-full h-full flex-1 overflow-hidden" 
           />
         </div>
-
-        {/* Floating Controls Bar (Matching Manus image screenshot) */}
-        <div className="absolute bottom-0 inset-x-0 flex flex-col items-center pointer-events-none pb-2 z-30">
-          {/* Center Floating Pill: Pular para ao vivo */}
-          <button
-            type="button"
-            onClick={() => {
-              xtermInstance.current?.scrollToBottom();
-              fitAddonInstance.current?.fit();
-            }}
-            className="pointer-events-auto mb-2 px-4 py-2 bg-white dark:bg-zinc-900 shadow-md hover:shadow-lg border border-gray-200/90 dark:border-zinc-800 rounded-full text-xs font-semibold text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white flex items-center gap-2 transition-all cursor-pointer active:scale-95"
-          >
-            <Play className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
-            <span>Pular para ao vivo</span>
-          </button>
-
-          {/* Bottom Timeline Bar */}
-          <div className="pointer-events-auto w-[94%] mx-auto px-3.5 py-1.5 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-gray-200/80 dark:border-zinc-800 rounded-xl shadow-xs flex items-center justify-between gap-3 text-xs font-mono select-none">
-            <div className="flex items-center gap-1.5 text-gray-500">
-              <SkipBack className="w-3.5 h-3.5 cursor-pointer hover:text-gray-800" />
-              <Play className="w-3.5 h-3.5 cursor-pointer hover:text-gray-800 fill-current" />
-            </div>
-
-            {/* Timeline track */}
-            <div className="flex-1 h-1.5 bg-gray-200 dark:bg-zinc-800 rounded-full relative overflow-hidden">
-              <div 
-                className={`h-full bg-emerald-500 rounded-full transition-all duration-300 ${
-                  isRunning ? 'w-full animate-pulse' : 'w-full'
-                }`} 
-              />
-            </div>
-
-            {/* Live Status indicator dot */}
-            <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold text-[11px] shrink-0">
-              <span className={`w-2 h-2 rounded-full bg-emerald-500 ${isRunning ? 'animate-ping' : ''}`} />
-              <span>• Ao vivo</span>
-            </div>
-          </div>
-        </div>
       </div>
     </aside>
   );

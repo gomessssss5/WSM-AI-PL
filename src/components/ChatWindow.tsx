@@ -257,6 +257,7 @@ interface ChatWindowProps {
   onOpenUpdateModal?: () => void;
   onOpenLedger?: () => void;
   sessionId?: string;
+  currentUserId?: string;
 }
 
 const displayUserText = (text: string) => {
@@ -339,7 +340,8 @@ export default function ChatWindow({
   isScheduled = false,
   onOpenUpdateModal,
   onOpenLedger,
-  sessionId
+  sessionId,
+  currentUserId
 }: ChatWindowProps) {
   const [inputValue, setInputValue] = useState('');
   const [showModelInUseCard, setShowModelInUseCard] = useState(false);
@@ -2321,12 +2323,12 @@ export default function ChatWindow({
                                     )
                                   )}
                                   
-                                  {/* 4. Document cards - only after reasoning AND typewriter complete */}
-                                  {isReasoningDone && isTypewriterDone && (!isThinking || message.id !== messages[messages.length - 1]?.id) && (() => {
+                                  {/* 4. Document cards - Rendered immediately even during streaming */}
+                                  {isReasoningDone && (() => {
                                     const { docObjs } = extractWsmDoc(extractWsmForm(cleanRaciocinioTags(message.text)).cleanText);
                                     if (docObjs && docObjs.length > 0) {
                                       return (
-                                        <div className="flex flex-col gap-2 mt-3 w-full">
+                                        <div className="flex flex-col gap-2 mt-3 w-full animate-in fade-in zoom-in duration-300">
                                           {docObjs.map((doc, idx) => (
                                             <DocumentCard 
                                               key={idx} 
@@ -2341,12 +2343,12 @@ export default function ChatWindow({
                                     return null;
                                   })()}
 
-                                  {/* 4b. Scheduled Task Cards - rendered when AI schedules a task */}
-                                  {isReasoningDone && isTypewriterDone && (!isThinking || message.id !== messages[messages.length - 1]?.id) && (() => {
+                                  {/* 4b. Scheduled Task Cards - rendered immediately */}
+                                  {isReasoningDone && (() => {
                                     const { taskObjs } = extractWsmTasks(message.text || message.finalSynthesis || "");
                                     if (taskObjs && taskObjs.length > 0) {
                                       return (
-                                        <div className="flex flex-col gap-3 mt-3 w-full">
+                                        <div className="flex flex-col gap-3 mt-3 w-full animate-in fade-in duration-300">
                                           {taskObjs.map((task, idx) => (
                                             <ScheduledTaskCard key={idx} task={task} onOpenScheduledTasks={onOpenScheduledTasks} />
                                           ))}
@@ -2365,8 +2367,8 @@ export default function ChatWindow({
                                 </div>
                               )}
 
-                              {/* 6. Rich format cards - only after reasoning AND typewriter complete */}
-                              {isReasoningDone && isTypewriterDone && (!isThinking || message.id !== messages[messages.length - 1]?.id) && (
+                              {/* 6. Rich format cards - rendered immediately */}
+                              {isReasoningDone && (
                                 <>
                                   {/* Table Render */}
                                   {message.tableData && (
@@ -3187,14 +3189,15 @@ export default function ChatWindow({
                     type="button"
                     id="btn-search-toggle"
                     onClick={() => setIsSearchEnabled(!isSearchEnabled)}
+                    aria-pressed={isSearchEnabled}
                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold transition-all cursor-pointer ${
                       isSearchEnabled
-                        ? 'bg-white text-black dark:text-white border border-black dark:border-white shadow-2xs'
+                        ? 'bg-blue-500 text-white dark:bg-blue-600 dark:text-white border border-blue-500 shadow-2xs'
                         : 'bg-white text-gray-700 border border-[#eae6e1] hover:border-gray-300 hover:bg-gray-50/50 shadow-2xs'
                     }`}
-                    title="Ativar busca web"
+                    title={isSearchEnabled ? "Desativar busca web" : "Ativar busca web"}
                   >
-                    <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-black dark:text-white animate-spin-slow' : 'text-gray-500'}`} />
+                    <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-white animate-spin-slow' : 'text-gray-500'}`} />
                     <span>Pesquisar</span>
                   </button>
                 </div>
@@ -3769,12 +3772,12 @@ export default function ChatWindow({
                 <input
                   type="text"
                   readOnly
-                  value={`${window.location.origin}/share/${sessionId || 'chat'}`}
+                  value={`${window.location.origin}/share/${sessionId || 'chat'}${currentUserId ? `?uid=${currentUserId}` : ''}`}
                   className="flex-1 text-xs p-2.5 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl outline-none font-mono text-gray-700 dark:text-gray-300"
                 />
                 <button
                   onClick={async () => {
-                    const shareUrl = `${window.location.origin}/share/${sessionId || 'chat'}`;
+                    const shareUrl = `${window.location.origin}/share/${sessionId || 'chat'}${currentUserId ? `?uid=${currentUserId}` : ''}`;
                     try {
                       await navigator.clipboard.writeText(shareUrl);
                     } catch {

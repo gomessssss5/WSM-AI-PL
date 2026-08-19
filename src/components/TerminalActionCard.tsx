@@ -14,12 +14,13 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
   onOpenTerminal
 }) => {
   if (execAction) {
-    const isRunning = execAction.status === 'running';
-    const isBlocked = execAction.status === 'blocked';
-    const isFailed = execAction.status === 'failed' || execAction.status === 'timed_out' || (typeof execAction.exitCode === 'number' && execAction.exitCode !== 0);
-    const isMock = execAction.isMock || execAction.status === 'simulated' || (execAction as any).isSimulated;
-    const requiresAuth = execAction.status === 'requires_auth';
-    const isSuccess = !isRunning && !isFailed && !isBlocked && !isMock && !requiresAuth && execAction.exitCode === 0;
+    const act = execAction as any;
+    const isRunning = act.status === 'running';
+    const isBlocked = act.status === 'blocked';
+    const isFailed = act.status === 'failed' || act.status === 'timed_out' || (typeof act.exitCode === 'number' && act.exitCode !== 0);
+    const isMock = act.isMock || act.status === 'simulated' || act.isSimulated;
+    const requiresAuth = act.status === 'requires_auth';
+    const isSuccess = !isRunning && !isFailed && !isBlocked && !isMock && !requiresAuth && act.exitCode === 0;
 
     let stateLabel = "DESCONHECIDO";
     let stateColor = "text-gray-500 bg-gray-100 border-gray-200";
@@ -40,8 +41,8 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
               <Icon className={`w-3.5 h-3.5 ${isRunning ? 'animate-spin' : ''}`} />
               {stateLabel}
             </span>
-            <span className="text-[12px] font-mono text-gray-800 dark:text-gray-200 truncate max-w-[200px]" title={execAction.command}>
-              $ {execAction.command}
+            <span className="text-[12px] font-mono text-gray-800 dark:text-gray-200 truncate max-w-[200px]" title={act.command}>
+              $ {act.command}
             </span>
           </div>
           <button
@@ -55,7 +56,7 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
         <div className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] text-gray-500 dark:text-gray-400 font-mono">
           <div className="flex flex-col">
             <span className="uppercase font-bold text-[9px] mb-0.5">Run ID</span>
-            <span className="truncate text-gray-800 dark:text-gray-200">{execAction.runId || 'N/A'}</span>
+            <span className="truncate text-gray-800 dark:text-gray-200">{act.runId || 'N/A'}</span>
           </div>
           <div className="flex flex-col">
             <span className="uppercase font-bold text-[9px] mb-0.5">Origem</span>
@@ -63,7 +64,7 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
           </div>
           <div className="flex flex-col">
             <span className="uppercase font-bold text-[9px] mb-0.5">Exit Code</span>
-            <span className="truncate text-gray-800 dark:text-gray-200">{execAction.exitCode ?? 'N/A'}</span>
+            <span className="truncate text-gray-800 dark:text-gray-200">{act.exitCode ?? 'N/A'}</span>
           </div>
           <div className="flex flex-col">
             <span className="uppercase font-bold text-[9px] mb-0.5">URL Testada</span>
@@ -75,16 +76,17 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
   }
 
   if (fileAction) {
-    const fileName = fileAction.path.replace('/workspace/', '').replace(/^\//, '');
+    const act = fileAction as any;
+    const fileName = act.path.replace('/workspace/', '').replace(/^\//, '');
     const isMock = Boolean(
-      fileAction.isMock || 
-      fileAction.status === 'simulated' || 
-      (fileAction as any).isSimulated ||
+      act.isMock || 
+      act.status === 'simulated' || 
+      act.isSimulated ||
       fileName.includes('mock') ||
       fileName.includes('simula')
     );
-    const isFailed = fileAction.status === 'failed';
-    const isRunning = fileAction.status === 'writing';
+    const isFailed = act.status === 'failed';
+    const isRunning = act.status === 'writing' || act.status === 'working';
     const isSuccess = !isRunning && !isFailed && !isMock;
 
     let stateLabel = "DESCONHECIDO";
@@ -119,7 +121,7 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
         <div className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] text-gray-500 dark:text-gray-400 font-mono">
           <div className="flex flex-col">
             <span className="uppercase font-bold text-[9px] mb-0.5">Run ID</span>
-            <span className="truncate text-gray-800 dark:text-gray-200">{fileAction.runId || 'N/A'}</span>
+            <span className="truncate text-gray-800 dark:text-gray-200">{act.runId || 'N/A'}</span>
           </div>
           <div className="flex flex-col">
             <span className="uppercase font-bold text-[9px] mb-0.5">Origem</span>
@@ -131,7 +133,7 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
           </div>
           <div className="flex flex-col">
             <span className="uppercase font-bold text-[9px] mb-0.5">Hash</span>
-            <span className="truncate text-gray-800 dark:text-gray-200">{(fileAction as any).hash || 'N/A'}</span>
+            <span className="truncate text-gray-800 dark:text-gray-200">{act.hash || 'N/A'}</span>
           </div>
         </div>
       </div>

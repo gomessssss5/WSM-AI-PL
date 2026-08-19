@@ -465,9 +465,11 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
         let tagTitle = tagAttrs['title'] || '';
 
         const incompleteContent = currentText.substring(openMatch.index + openMatch[0].length).trim();
-        if (incompleteContent) {
+        if (incompleteContent || tagTitle) {
            const parsedDoc = parseJsonDocSafely(incompleteContent);
-           if (parsedDoc && (parsedDoc.title || parsedDoc.content)) {
+           const isRawText = !incompleteContent.startsWith('{');
+
+           if (parsedDoc && !isRawText && (parsedDoc.title || parsedDoc.content)) {
              const title = (tagTitle || parsedDoc.title || 'Documento').trim();
              const content = sanitizeDocumentContent(parsedDoc.content || '');
              let rawFormat = (tagFormat || parsedDoc.format || '').toString().toLowerCase();
@@ -480,12 +482,22 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
              else if (rawFormat === 'excel' || rawFormat === 'sheet' || rawFormat === 'planilha') format = 'xlsx';
              else if (rawFormat === 'csv') format = 'csv';
              rawDocObjs.push({ title, content, format, validation: parsedDoc.validation });
-           } else if (tagFormat.toLowerCase() === 'html' || incompleteContent.startsWith('<!DOCTYPE') || incompleteContent.startsWith('<html') || incompleteContent.includes('<head>')) {
-              let docTitle = tagTitle || 'index.html';
-              const titleTagMatch = incompleteContent.match(/<title>([^<]+)<\/title>/i);
-              if (titleTagMatch && titleTagMatch[1].trim() && !tagTitle) docTitle = titleTagMatch[1].trim() + '.html';
-              if (!docTitle.toLowerCase().endsWith('.html')) docTitle += '.html';
-              rawDocObjs.push({ title: docTitle, content: incompleteContent, format: 'html' });
+           } else {
+             // Treat as raw text streaming
+             let docTitle = (tagTitle || 'documento').trim();
+             let rawFormat = (tagFormat || inferFormatFromTitle(docTitle, 'md')).toLowerCase();
+             if (rawFormat === 'markdown') rawFormat = 'md';
+             else if (rawFormat === 'excel' || rawFormat === 'sheet' || rawFormat === 'planilha') rawFormat = 'xlsx';
+             else if (rawFormat === 'csv') rawFormat = 'csv';
+             
+             if (rawFormat === 'html' || incompleteContent.startsWith('<!DOCTYPE') || incompleteContent.startsWith('<html')) {
+                const titleTagMatch = incompleteContent.match(/<title>([^<]+)<\/title>/i);
+                if (titleTagMatch && titleTagMatch[1].trim() && !tagTitle) docTitle = titleTagMatch[1].trim() + '.html';
+                if (!docTitle.toLowerCase().endsWith('.html')) docTitle += '.html';
+                rawFormat = 'html';
+             }
+
+             rawDocObjs.push({ title: docTitle, content: incompleteContent, format: rawFormat || 'md' });
            }
         }
         currentText = currentText.substring(0, openMatch.index);
