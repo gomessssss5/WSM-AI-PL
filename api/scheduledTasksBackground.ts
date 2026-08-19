@@ -124,13 +124,20 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
     );
   }
 
+  let secret = taskData.executionSecret;
+  if (!secret) {
+    secret = `task-secret-${crypto.randomUUID()}`;
+    taskData.executionSecret = secret;
+  }
+
   // Update task state in Firestore
   try {
     await db.collection('users').doc(userId).collection('scheduledTasks').doc(taskId).update({
       lastRunAt: Timestamp.fromDate(now),
       lastStatus: 'running',
       ...(newNextRunAt ? { nextRunAt: Timestamp.fromDate(newNextRunAt) } : {}),
-      isActive: newIsActive
+      isActive: newIsActive,
+      executionSecret: secret
     });
   } catch (e) {
     console.warn('[ScheduledTasks] Warning updating task doc state:', e);
@@ -183,6 +190,7 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
       title: `[Execução Agendada] ${taskData.title}`,
       createdAt: Timestamp.fromDate(now),
       updatedAt: Timestamp.fromDate(now),
+      timestamp: Timestamp.fromDate(now),
       messages: initialMessages,
       isUnread: true,
       isTemporary: false
@@ -201,7 +209,7 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
 
   let aiText = "";
   let aiFinalSynthesis = "";
-  let executionStatus: 'success' | 'error' = 'success';
+  let executionStatus: 'success' | 'error' | 'needs_auth' = 'success';
   let executionError = "";
   let attempts = 0;
 
@@ -220,8 +228,11 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "Authorization": "Bearer OmnixInternalSchedulerBypassToken_2026",
-          "x-internal-secret": "OmnixInternalSchedulerBypassToken_2026"
+          "Authorization": `Bearer ${taskData.executionSecret || 'OmnixInternalSchedulerBypassToken_2026'}`,
+          "x-internal-secret": "OmnixInternalSchedulerBypassToken_2026",
+          "x-task-execution-secret": taskData.executionSecret || "",
+          "x-scheduled-task-id": taskId,
+          "x-scheduled-task-user-id": userId
         },
         body: JSON.stringify({
           text: taskData.prompt,
@@ -321,7 +332,8 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
 
     await db.collection('users').doc(userId).collection('sessions').doc(newSessionId).update({
       messages: initialMessages,
-      updatedAt: Timestamp.fromDate(new Date())
+      updatedAt: Timestamp.fromDate(new Date()),
+      timestamp: Timestamp.fromDate(new Date())
     });
   } catch (e) {
     console.warn('[ScheduledTasks] Warning updating session with AI message:', e);
@@ -388,6 +400,7 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
     title: `[Execução Agendada] ${taskData.title}`,
     createdAt: startedAt,
     updatedAt: finishedAt,
+    timestamp: finishedAt,
     messages: initialMessages,
     isUnread: true,
     isTemporary: false,

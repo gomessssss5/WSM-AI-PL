@@ -417,6 +417,7 @@ export interface ScheduledTask {
   lastExecutionDurationMs?: number;
   lastExecutionStatus?: 'succeeded' | 'failed' | 'running';
   lastErrorDetails?: string;
+  executionSecret?: string;
 }
 
 export interface TaskExecution {

@@ -217,7 +217,11 @@ Ao executar esta Skill, siga rigorosamente as etapas:
     instructions: `
 ## SKILL: EXTRAÇÃO DE CONTRATO E PRESERVAÇÃO SEMÂNTICA DE CÓDIGO
 
-Ao analisar, depurar ou refatorar qualquer trecho de código, siga OBRIGATORIAMENTE o seguinte protocolo em 4 etapas:
+### REGRA CRÍTICA DE CÓDIGO AUSENTE:
+- Se o usuário solicitar para "corrigir seu código", analisar código ou utilizar esta skill, mas NÃO fornecer, colar ou anexar nenhum código ou arquivo na mensagem, você está ABSOLUTAMENTE PROIBIDO de iniciar o protocolo de 4 etapas abaixo, gerar análises de contrato simuladas, inventar patches ou prometer realizar execuções/telemetrias de teste no terminal.
+- Em vez disso, simplesmente peça de forma curta, direta e amigável que ele forneça, cole ou anexe o código que deseja corrigir. NUNCA gere uma resposta com mais de um parágrafo nessas condições, evitando duplicações e falsas promessas de telemetria.
+
+Ao analisar, depurar ou refatorar qualquer trecho de código disponível, siga OBRIGATORIAMENTE o seguinte protocolo em 4 etapas:
 
 ### 1. Etapa de Extração de Contrato (Contract Extraction) ANTES de editar:
 Registre e declare explicitamente:

@@ -111,12 +111,14 @@ export const subscribeTaskExecutions = (
 
 export const saveScheduledTask = async (userId: string, task: ScheduledTask) => {
   const taskRef = doc(db, 'users', userId, 'scheduledTasks', task.id);
+  const secret = task.executionSecret || `task-secret-${self.crypto.randomUUID()}`;
   const data: any = {
     title: task.title,
     prompt: task.prompt,
     scheduleType: task.scheduleType,
     time: task.time,
     isActive: task.isActive,
+    executionSecret: secret,
     createdAt: Timestamp.fromDate(task.createdAt instanceof Date ? task.createdAt : new Date(task.createdAt)),
     lastRunAt: task.lastRunAt ? Timestamp.fromDate(task.lastRunAt instanceof Date ? task.lastRunAt : new Date(task.lastRunAt)) : null,
     nextRunAt: Timestamp.fromDate(task.nextRunAt instanceof Date ? task.nextRunAt : new Date(task.nextRunAt))

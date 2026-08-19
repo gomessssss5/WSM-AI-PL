@@ -38,6 +38,22 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
   const val = document.validation;
   const isValidated = val && val.status === 'success';
 
+  const getMimeType = (fmt: string) => {
+    switch (fmt) {
+      case 'pdf': return 'application/pdf';
+      case 'xlsx': return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case 'csv': return 'text/csv';
+      case 'json': return 'application/json';
+      case 'html': return 'text/html';
+      case 'md':
+      case 'markdown': return 'text/markdown';
+      case 'js': return 'application/javascript';
+      case 'ts': return 'application/typescript';
+      case 'py': return 'text/x-python';
+      default: return 'text/plain';
+    }
+  };
+
   const formatFileSize = (contentStr: string) => {
     if (!contentStr) return '0 B';
     const bytes = new Blob([contentStr]).size;
@@ -169,11 +185,28 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
                 </span>
               )}
             </div>
-            <span className="text-[12px] text-gray-500 dark:text-gray-400 font-normal mt-0.5 flex items-center gap-1.5 flex-wrap">
-              <span>{format === 'xlsx' ? 'Planilha Excel' : format === 'csv' ? 'Planilha CSV' : isCode ? 'Código' : format === 'txt' ? 'Texto' : (format === 'md' || format === 'markdown') ? 'Markdown' : 'Documento'} · {format.toUpperCase()}</span>
-              <span>•</span>
-              <span>{formatFileSize(document.content || '')}</span>
-            </span>
+            <div className="flex flex-col gap-1 mt-0.5">
+              <span className="text-[12px] text-gray-500 dark:text-gray-400 font-normal flex items-center gap-1.5 flex-wrap leading-tight">
+                <span>{format === 'xlsx' ? 'Planilha Excel' : format === 'csv' ? 'Planilha CSV' : isCode ? 'Código' : format === 'txt' ? 'Texto' : (format === 'md' || format === 'markdown') ? 'Markdown' : 'Documento'} · {format.toUpperCase()}</span>
+                <span>•</span>
+                <span>{formatFileSize(document.content || '')}</span>
+              </span>
+              
+              <span className="text-[10px] text-gray-400 dark:text-gray-500 font-mono flex items-center gap-1.5 flex-wrap leading-tight">
+                <span className="flex items-center gap-0.5 bg-[#eae6e1]/40 dark:bg-gray-800/40 px-1 py-0.25 rounded text-[9.5px]">
+                  <ShieldCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>Workspace</span>
+                </span>
+                <span>•</span>
+                <span>MIME: {getMimeType(format)}</span>
+                {val?.hash && (
+                  <>
+                    <span>•</span>
+                    <span title={val.hash}>SHA-256: {val.hash.substring(0, 10)}...</span>
+                  </>
+                )}
+              </span>
+            </div>
           </div>
         </div>
 

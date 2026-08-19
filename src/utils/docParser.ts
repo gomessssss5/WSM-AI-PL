@@ -605,9 +605,9 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
     }
   }
 
-  // 3. Deduplicate docObjs by title / content signature
+  // 3. Deduplicate docObjs by title (case-insensitive) to ensure unique file cards
   const docObjs: WsmDocument[] = [];
-  const seenKeys = new Set<string>();
+  const docMap = new Map<string, WsmDocument>();
 
   for (const doc of rawDocObjs) {
     doc.title = normalizeFilename(doc.title);
@@ -629,12 +629,29 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
       }
     }
 
-    const key = `${doc.title.toLowerCase()}:::${doc.content.substring(0, 100)}`;
-    if (!seenKeys.has(key)) {
-      seenKeys.add(key);
-      doc.validation = doc.validation || buildDocumentValidation(doc.title, doc.format || 'md', doc.content);
-      docObjs.push(doc);
+    const key = doc.title.toLowerCase();
+    const existing = docMap.get(key);
+    
+    if (!existing) {
+      docMap.set(key, doc);
+    } else {
+      // Choose the better or more complete version.
+      // We prefer the version with greater length (e.g., includes trailing newline from sandbox disk write)
+      // or the one that is already validated.
+      const existingLen = existing.content ? existing.content.length : 0;
+      const docLen = doc.content ? doc.content.length : 0;
+      
+      // If the content is identical except for a single trailing whitespace/newline, 
+      // we prefer the one from sandbox/terminal (larger length usually or from terminal sandbox)
+      if (docLen > existingLen || (!existing.validation && doc.validation)) {
+        docMap.set(key, doc);
+      }
     }
+  }
+
+  for (const doc of docMap.values()) {
+    doc.validation = doc.validation || buildDocumentValidation(doc.title, doc.format || 'md', doc.content);
+    docObjs.push(doc);
   }
 
   let finalCleanText = currentText.trim();

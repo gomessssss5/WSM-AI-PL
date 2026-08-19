@@ -22,7 +22,7 @@ export function logAuditEvent(params: {
   toolName: string;
   riskLevel?: 'low' | 'medium' | 'high';
   details: string;
-  status?: 'allowed' | 'blocked' | 'requires_approval' | 'executed' | 'demonstracao';
+  status?: 'allowed' | 'blocked' | 'requires_approval' | 'executed' | 'demonstracao' | 'failed' | 'succeeded' | 'partial' | 'cancelled';
   environment?: 'real' | 'mock' | 'dry_run' | 'demonstration';
   tenant_id?: string;
   user_id?: string;
@@ -55,6 +55,13 @@ export function logAuditEvent(params: {
   const payloadToHash = `${utcString}:${params.toolName}:${params.details}:${params.user_id || 'usr'}:${params.riskLevel || 'low'}:${env}`;
   const hash = params.integrity_hash || computeVerifiableIntegrityHash(payloadToHash);
 
+  const isFailure = params.status === 'failed' || params.status === 'blocked' || params.toolName.toLowerCase().includes('fail') || params.details.toLowerCase().includes('falha') || params.details.toLowerCase().includes('erro') || params.details.toLowerCase().includes('401');
+  const defaultOutput = isFailure 
+    ? (params.details.includes('401') || params.details.toLowerCase().includes('não autorizado') || params.details.toLowerCase().includes('unauthorized')
+      ? `Erro de Autenticação (HTTP 401): Acesso não autorizado. Erro na resposta da API.`
+      : `Falha na execução: ${params.details}`)
+    : `Execução da ferramenta ${params.toolName} concluída com êxito.`;
+
   const newLog: AgentAuditLog = {
     id: `audit_${now.getTime()}_${hash.slice(0, 8)}`,
     tenant_id: params.tenant_id || 'tenant_main_01',
@@ -65,7 +72,7 @@ export function logAuditEvent(params: {
     timestamp: now,
     timestamp_local: localString,
     normalized_input: params.normalized_input || params.details,
-    output: params.output || `Execução da ferramenta ${params.toolName} concluída com êxito.`,
+    output: params.output || defaultOutput,
     status: params.status || 'executed',
     environment: env,
     permissions_used: params.permissions_used || ['read_workspace', 'execute_tool'],

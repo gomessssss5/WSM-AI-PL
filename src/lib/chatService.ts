@@ -60,6 +60,40 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
+// Helper to safely parse and convert any timestamp/date value to a valid Date object
+export const safeToDate = (t: any): Date => {
+  if (t instanceof Date) {
+    return isNaN(t.getTime()) ? new Date() : t;
+  }
+  if (t && typeof t.toDate === 'function') {
+    try {
+      const d = t.toDate();
+      if (d instanceof Date && !isNaN(d.getTime())) return d;
+    } catch (_) {}
+  }
+  if (t && typeof t.seconds === 'number') {
+    const d = new Date(t.seconds * 1000);
+    if (!isNaN(d.getTime())) return d;
+  }
+  if (t && typeof t._seconds === 'number') {
+    const d = new Date(t._seconds * 1000);
+    if (!isNaN(d.getTime())) return d;
+  }
+  if (typeof t === 'number') {
+    const d = new Date(t);
+    if (!isNaN(d.getTime())) return d;
+  }
+  if (typeof t === 'string') {
+    if (/^\d+$/.test(t)) {
+      const d = new Date(parseInt(t, 10));
+      if (!isNaN(d.getTime())) return d;
+    }
+    const d = new Date(t);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return new Date();
+};
+
 // Converts firestore document data to local ChatSession object
 const mapDocToSession = (id: string, data: any): ChatSession => {
   return {
@@ -70,10 +104,10 @@ const mapDocToSession = (id: string, data: any): ChatSession => {
     isScheduled: !!data.isScheduled,
     model: data.model,
     chatMemoryDoc: data.chatMemoryDoc || '',
-    timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : new Date(data.timestamp || Date.now()),
+    timestamp: safeToDate(data.timestamp || data.updatedAt || data.createdAt),
     messages: (data.messages || []).map((msg: any) => ({
       ...msg,
-      timestamp: msg.timestamp instanceof Timestamp ? msg.timestamp.toDate() : new Date(msg.timestamp || Date.now()),
+      timestamp: safeToDate(msg.timestamp),
       ...(msg.tableData && {
         tableData: {
           headers: msg.tableData.headers || [],

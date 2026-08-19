@@ -41,11 +41,11 @@ export default function WsmMapComponent({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showExtras, setShowExtras] = useState(false);
+  const [showExtras, setShowExtras] = useState(true);
 
   useEffect(() => {
-    // If disableExtras is requested or if markers are provided without an explicit wiki request, do not auto-fetch Wikipedia
-    if (disableExtras || (markers && markers.length > 0 && !wiki)) {
+    // If disableExtras is requested, do not fetch Wikipedia
+    if (disableExtras) {
       setWikiData(null);
       return;
     }
@@ -59,12 +59,12 @@ export default function WsmMapComponent({
       return;
     }
 
-    if (!wiki) {
+    const searchTerm = wiki || place;
+
+    if (!searchTerm) {
       setWikiData(null);
       return;
     }
-
-    const searchTerm = wiki;
 
     const fetchWikipediaData = async () => {
       setLoading(true);
@@ -98,7 +98,7 @@ export default function WsmMapComponent({
     };
 
     fetchWikipediaData();
-  }, [wiki, text, place, disableExtras, markers]);
+  }, [wiki, text, place, disableExtras]);
 
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
   const osmExternalUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=${zoom}/${lat}/${lon}`;
@@ -187,7 +187,18 @@ export default function WsmMapComponent({
     </html>
   `;
 
-  const displayTitle = place || wikiData?.title || (markers && markers.length > 0 ? (markers.length === 1 ? markers[0].title : 'Mapa com Marcadores') : 'Localização');
+  // Compute a descriptive, audit-friendly title
+  let displayTitle = place;
+  if (markers && markers.length > 1) {
+    const markerTitles = markers.map(m => m.title).filter(Boolean);
+    if (markerTitles.length > 0) {
+      displayTitle = `${place ? place + ' - ' : ''}Marcadores: ${markerTitles.join(', ')}`;
+    } else {
+      displayTitle = place || 'Mapa com Múltiplos Marcadores';
+    }
+  } else if (!displayTitle) {
+    displayTitle = wikiData?.title || (markers && markers.length === 1 ? markers[0].title : 'Localização');
+  }
 
   const renderMapContent = (isModal: boolean) => (
     <div className={`flex flex-col bg-white dark:bg-neutral-900 overflow-hidden ${
@@ -204,7 +215,7 @@ export default function WsmMapComponent({
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {wikiData && !disableExtras && (
+          {(wikiData || (markers && markers.length > 1)) && !disableExtras && (
             <>
               <button
                 onClick={() => setShowExtras(!showExtras)}
@@ -279,11 +290,11 @@ export default function WsmMapComponent({
                 <div className="h-3 bg-gray-200 dark:bg-neutral-800 rounded w-full" />
               </div>
             ) : wikiData ? (
-              <div className="flex flex-col justify-between h-full space-y-3">
+              <div className="flex flex-col justify-between h-full space-y-4">
                 <div>
                   {/* Header Info */}
                   <div className="pb-2.5 border-b border-gray-100 dark:border-neutral-800">
-                    <h3 className="font-bold text-gray-900 dark:text-neutral-100 text-base sm:text-lg leading-tight truncate">
+                    <h3 className="font-bold text-gray-900 dark:text-neutral-100 text-base leading-tight">
                       {wikiData.title}
                     </h3>
                     <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-neutral-400 font-medium mt-1">
@@ -317,6 +328,37 @@ export default function WsmMapComponent({
                       />
                     </div>
                   )}
+
+                  {/* Beautiful Legend / Marcadores */}
+                  {markers && markers.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-100 dark:border-neutral-800">
+                      <div className="text-[10px] font-semibold tracking-wider text-gray-400 dark:text-neutral-500 uppercase mb-2">
+                        Pontos no Mapa
+                      </div>
+                      <div className="space-y-2">
+                        {markers.map((m, idx) => {
+                          const markerGpsUrl = `https://www.google.com/maps/search/?api=1&query=${m.lat},${m.lon}`;
+                          return (
+                            <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-neutral-800/50 hover:bg-gray-100/70 dark:hover:bg-neutral-800 transition-colors text-xs border border-gray-100 dark:border-neutral-800/50">
+                              <div className="flex flex-col min-w-0 pr-2">
+                                <span className="font-bold text-gray-800 dark:text-neutral-200 truncate">{m.title || `Ponto ${idx + 1}`}</span>
+                                <span className="text-[10px] text-gray-500 dark:text-neutral-400 font-mono">{m.lat.toFixed(4)}, {m.lon.toFixed(4)}</span>
+                              </div>
+                              <a
+                                href={markerGpsUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 p-1 rounded hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors shrink-0"
+                                title={`Abrir ${m.title} no Google Maps`}
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Wikipedia Link Footer */}
@@ -337,7 +379,7 @@ export default function WsmMapComponent({
               <div className="flex flex-col justify-between h-full py-1">
                 <div>
                   <div className="pb-2.5 border-b border-gray-100 dark:border-neutral-800">
-                    <h3 className="font-bold text-gray-900 dark:text-neutral-100 text-base leading-tight truncate">
+                    <h3 className="font-bold text-gray-900 dark:text-neutral-100 text-base leading-tight">
                       {displayTitle}
                     </h3>
                     <p className="text-[11px] text-gray-500 dark:text-neutral-400 mt-1">
@@ -345,11 +387,36 @@ export default function WsmMapComponent({
                     </p>
                   </div>
 
-                  <div className="bg-purple-50 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/40 p-2.5 rounded-xl mt-2.5">
-                    <p className="text-xs text-purple-900 dark:text-purple-200 font-medium leading-relaxed">
-                      Localização marcada no mapa interativo.
-                    </p>
-                  </div>
+                  {/* Beautiful Legend / Marcadores */}
+                  {markers && markers.length > 0 && (
+                    <div className="mt-4 pt-2">
+                      <div className="text-[10px] font-semibold tracking-wider text-gray-400 dark:text-neutral-500 uppercase mb-2">
+                        Pontos no Mapa
+                      </div>
+                      <div className="space-y-2">
+                        {markers.map((m, idx) => {
+                          const markerGpsUrl = `https://www.google.com/maps/search/?api=1&query=${m.lat},${m.lon}`;
+                          return (
+                            <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-neutral-800/50 hover:bg-gray-100/70 dark:hover:bg-neutral-800 transition-colors text-xs border border-gray-100 dark:border-neutral-800/50">
+                              <div className="flex flex-col min-w-0 pr-2">
+                                <span className="font-bold text-gray-800 dark:text-neutral-200 truncate">{m.title || `Ponto ${idx + 1}`}</span>
+                                <span className="text-[10px] text-gray-500 dark:text-neutral-400 font-mono">{m.lat.toFixed(4)}, {m.lon.toFixed(4)}</span>
+                              </div>
+                              <a
+                                href={markerGpsUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 p-1 rounded hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors shrink-0"
+                                title={`Abrir ${m.title} no Google Maps`}
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <a

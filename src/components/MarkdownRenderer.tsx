@@ -178,9 +178,21 @@ export function AgenticSkillTag({ text, type }: AgenticSkillTagProps) {
             {/* Footer */}
             <div className="px-6 py-4 border-t border-gray-100 bg-slate-50 flex items-center justify-between">
               <div className="text-xs text-gray-400">
-                {skillData?.updatedAt && (
-                  <span>Última atualização: {new Date(skillData.updatedAt?.seconds ? skillData.updatedAt.seconds * 1000 : skillData.updatedAt).toLocaleString()}</span>
-                )}
+                {(() => {
+                  try {
+                    const t = skillData.updatedAt;
+                    let d: Date | null = null;
+                    if (t?.seconds) {
+                      d = new Date(t.seconds * 1000);
+                    } else if (t) {
+                      d = new Date(t);
+                    }
+                    if (d && !isNaN(d.getTime())) {
+                      return <span>Última atualização: {d.toLocaleString()}</span>;
+                    }
+                  } catch (_) {}
+                  return <span>Última atualização: data desconhecida</span>;
+                })()}
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -1903,7 +1915,7 @@ export default function MarkdownRenderer({
           }
         }
 
-        const disableExtras = disableExtrasAttr === 'true' || showExtrasAttr === 'false' || (markersVal.length > 0 && !wikiVal);
+        const disableExtras = disableExtrasAttr === 'true' || showExtrasAttr === 'false';
 
         if (isNaN(latVal) || isNaN(lonVal)) {
           if (markersVal.length > 0 && typeof markersVal[0].lat === 'number') {

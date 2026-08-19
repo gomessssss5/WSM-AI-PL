@@ -3,6 +3,29 @@ import crypto from "crypto";
 import path from "path";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import { initializeApp as initAdminApp, getApps as getAdminApps } from 'firebase-admin/app';
+import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
+import fs from 'fs';
+
+let adminDbInstance: any = null;
+function getDb() {
+  if (adminDbInstance) return adminDbInstance;
+  try {
+    const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      const app = getAdminApps().length > 0 ? getAdminApps()[0] : initAdminApp({
+        projectId: config.projectId
+      });
+      adminDbInstance = config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)'
+        ? getAdminFirestore(app, config.firestoreDatabaseId)
+        : getAdminFirestore(app);
+    }
+  } catch (err) {
+    console.warn('[Backend DB] Error connecting to Firestore Admin SDK:', err);
+  }
+  return adminDbInstance;
+}
 
 export const workspaceDocuments = new Map<string, { title: string; content: string; format: string }>();
 import sharp from "sharp";
@@ -74,6 +97,48 @@ export async function verifyAuthTokenMiddleware(
   next: express.NextFunction
 ) {
   if (req.method === 'OPTIONS') return next();
+
+  // Task-Specific Secure Token Check (Bypasses ephemeral session tokens)
+  const executionSecret = req.headers['x-task-execution-secret'];
+  const taskId = req.headers['x-scheduled-task-id'];
+  const userId = req.headers['x-scheduled-task-user-id'];
+
+  if (executionSecret && taskId && userId) {
+    try {
+      const db = getDb();
+      if (db) {
+        const taskDoc = await db.collection('users').doc(userId as string).collection('scheduledTasks').doc(taskId as string).get();
+        if (taskDoc.exists) {
+          const taskData = taskDoc.data();
+          if (taskData.isActive && taskData.executionSecret === executionSecret) {
+            req.user = {
+              uid: userId as string,
+              email: 'wsmathenas@gmail.com',
+              admin: true,
+              emailVerified: true
+            };
+            return next();
+          } else if (!taskData.isActive) {
+            console.warn(`[AuthMiddleware] Task ${taskId} is inactive. Rejecting.`);
+            return res.status(401).json({
+              error: 'Tarefa inativa',
+              code: 'TASK_INACTIVE',
+              message: 'Esta tarefa agendada está desativada ou já foi executada.'
+            });
+          } else {
+            console.warn(`[AuthMiddleware] Invalid execution secret for task ${taskId}.`);
+            return res.status(401).json({
+              error: 'Credenciais inválidas',
+              code: 'INVALID_EXECUTION_SECRET',
+              message: 'O token de execução da tarefa é inválido ou expirou.'
+            });
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error('[AuthMiddleware] Task-specific auth failed:', err.message);
+    }
+  }
 
   const authHeader = req.headers.authorization;
   const isInternalBypass = authHeader === 'Bearer OmnixInternalSchedulerBypassToken_2026' || 
@@ -361,13 +426,18 @@ async function executeWithAllFallbacks(options: any, isStream: boolean): Promise
     reqConfig.tools = options.tools;
   }
 
-  // Model fallback hierarchy strictly using 3.1 and 3.5 flash-lite models
+  // Model fallback hierarchy using 20s per model timeout cascade as requested
+  const requestedModel = options.model || "gemini-3.5-flash-lite";
   const modelList: string[] = [
-    "gemini-3.1-flash-lite",
+    requestedModel,
     "gemini-3.5-flash-lite",
     "gemini-3.1-flash-lite",
-    "gemini-3.5-flash-lite"
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite"
   ];
+
+  // Remove consecutive duplicates
+  const uniqueModelList = modelList.filter((m, i, arr) => i === 0 || m !== arr[i - 1]);
 
   // Collect all unique available API keys
   const rawKeys: { name: string; key: string }[] = [];
@@ -392,7 +462,10 @@ async function executeWithAllFallbacks(options: any, isStream: boolean): Promise
   let lastError: any = null;
   let firstAttempt = true;
 
-  for (const modelToTry of modelList) {
+  for (let idx = 0; idx < uniqueModelList.length; idx++) {
+    const modelToTry = uniqueModelList[idx];
+    const nextModel = uniqueModelList[idx + 1] || "gemini-3.1-flash-lite";
+
     for (const keyItem of keys) {
       if (!firstAttempt) {
         await new Promise(resolve => setTimeout(resolve, 300));
@@ -414,11 +487,46 @@ async function executeWithAllFallbacks(options: any, isStream: boolean): Promise
           model: modelToTry,
           config: reqConfig,
         };
+        delete callOpts.sendEvent;
+        delete callOpts.onModelSwitch;
 
         if (isStream) {
-          return await client.models.generateContentStream(callOpts);
+          // Promise race with 20s timeout for stream connection and initial chunk yield
+          const streamPromise = client.models.generateContentStream(callOpts);
+          const timeout20s = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error(`MODEL_TIMEOUT_20S: Modelo ${modelToTry} demorou mais de 20s para responder.`)), 20000)
+          );
+
+          const rawStream: any = await Promise.race([streamPromise, timeout20s]);
+          const iterator = rawStream[Symbol.asyncIterator]();
+
+          const firstChunkPromise = iterator.next();
+          const firstChunkTimeout = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error(`MODEL_TIMEOUT_20S: Modelo ${modelToTry} demorou mais de 20s para gerar o primeiro token.`)), 20000)
+          );
+
+          const firstChunkResult: any = await Promise.race([firstChunkPromise, firstChunkTimeout]);
+          if (firstChunkResult.done) {
+            throw new Error("Empty stream returned from Gemini model.");
+          }
+
+          // Return async iterable generator yielding the first chunk and continuing
+          return (async function* () {
+            yield firstChunkResult.value;
+            while (true) {
+              const next = await iterator.next();
+              if (next.done) break;
+              yield next.value;
+            }
+          })();
         } else {
-          const res = await client.models.generateContent(callOpts);
+          // Promise race with 20s timeout for non-stream generation
+          const contentPromise = client.models.generateContent(callOpts);
+          const timeout20s = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error(`MODEL_TIMEOUT_20S: Modelo ${modelToTry} demorou mais de 20s.`)), 20000)
+          );
+
+          const res: any = await Promise.race([contentPromise, timeout20s]);
           if (!res.candidates?.[0]?.content) {
             throw new Error("No content returned from Gemini model (empty candidates). Finish reason: " + (res.candidates?.[0]?.finishReason || 'Unknown'));
           }
@@ -427,7 +535,18 @@ async function executeWithAllFallbacks(options: any, isStream: boolean): Promise
       } catch (err: any) {
         lastError = err;
         const errMsg = err?.message || String(err);
-        console.warn(`[Fallback] Model '${modelToTry}' with key '${keyItem.name}' failed:`, errMsg);
+        console.warn(`[Fallback 20s] Model '${modelToTry}' with key '${keyItem.name}' failed or timed out:`, errMsg);
+
+        if (errMsg.includes("MODEL_TIMEOUT_20S") && options.sendEvent) {
+          try {
+            options.sendEvent({
+              type: "chunk",
+              text: `\n\n*[A resposta da IA demorou mais de 20s no modelo ${modelToTry}. Alternando modelo para ${nextModel}...]*\n\n`
+            });
+          } catch(e) {
+            // Ignore stream write error
+          }
+        }
       }
     }
   }
@@ -1735,12 +1854,20 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
         let retryStreamCount = 0;
         const maxStreamRetries = 2;
         
+        if (hasAttachments && turnCount === 0) {
+          sendEvent({
+            type: "chunk",
+            text: "[Analisando imagem e extraindo detalhes visuais...]\n\n"
+          });
+        }
+
         while (retryStreamCount <= maxStreamRetries) {
           try {
              const streamPromise = callGeminiStreamWithFallback({
               model: mappedModel,
               contents: currentContents,
               tools: marteTools,
+              sendEvent,
               config: {
                 systemInstruction: activeSystemPrompt + 
                   "\nREGRA PRINCIPAL E OBRIGATÓRIA DE ROTEAMENTO DE ARQUIVOS E MÚLTIPLOS ENTREGÁVEIS:\n" +

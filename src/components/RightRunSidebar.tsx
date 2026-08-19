@@ -59,6 +59,95 @@ export const RightRunSidebar: React.FC<RightRunSidebarProps> = ({
   const toolCalls = run?.toolCalls || [];
   const tests = run?.plan?.verifiableTests || [];
 
+  // Helper to determine the precise execution state
+  const getExecutionState = () => {
+    if (isStreaming && steps.some(s => s.status === 'running' || s.status === 'pending')) {
+      return {
+        key: 'executando',
+        label: 'Executando em tempo real',
+        colorClass: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800',
+        bulletColor: 'bg-blue-600 animate-ping'
+      };
+    }
+
+    // Determine if the message asks for code/input (Awaiting Input)
+    const textLow = (
+      (run?.outputs?.summary || '') + ' ' + 
+      (run?.objective || '') + ' ' + 
+      (steps.map(s => s.title + ' ' + s.description).join(' '))
+    ).toLowerCase();
+
+    const asksForInput = 
+      /por favor|envie|cole|compartilhe|digite|forneça|aguardando|informe|insira/i.test(textLow) && 
+      /código|codigo|arquivo|texto|entrada|script/i.test(textLow);
+
+    const hasTools = toolCalls.length > 0;
+    const hasValidations = tests.length > 0 && tests.some(t => t.id === 'test_runtime' || t.id === 'test_fulfillment' || t.id === 'test_syntax');
+
+    // 1. Aguardando Entrada
+    if (asksForInput && !hasTools) {
+      return {
+        key: 'aguardando_entrada',
+        label: 'Aguardando Entrada',
+        colorClass: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800',
+        bulletColor: 'bg-amber-500'
+      };
+    }
+
+    // 2. Plano Criado
+    if (!hasTools) {
+      return {
+        key: 'plano_criado',
+        label: 'Plano Criado',
+        colorClass: 'bg-stone-100 text-stone-700 border-stone-200 dark:bg-stone-900/60 dark:text-stone-300 dark:border-stone-800',
+        bulletColor: 'bg-stone-500'
+      };
+    }
+
+    // 3. Resultado Entregue / Execução Concluída
+    // "O painel só deve marcar “Execução Concluída” depois de uma chamada registrada com entrada, saída e código de retorno."
+    const hasSuccessfulOrFailedExecution = toolCalls.some(tc => 
+      tc.status === 'success' || tc.status === 'failed'
+    );
+
+    if (hasValidations && hasSuccessfulOrFailedExecution) {
+      return {
+        key: 'resultado_entregue',
+        label: 'Execução Concluída',
+        colorClass: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800',
+        bulletColor: 'bg-emerald-600'
+      };
+    }
+
+    // 4. Validação Executada
+    if (hasValidations) {
+      return {
+        key: 'validacao_executada',
+        label: 'Validação Executada',
+        colorClass: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800',
+        bulletColor: 'bg-indigo-600'
+      };
+    }
+
+    // 5. Ferramenta Executada
+    if (hasTools) {
+      return {
+        key: 'ferramenta_executada',
+        label: 'Ferramenta Executada',
+        colorClass: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800',
+        bulletColor: 'bg-sky-500'
+      };
+    }
+
+    // Fallback: Plano Criado
+    return {
+      key: 'plano_criado',
+      label: 'Plano Criado',
+      colorClass: 'bg-stone-100 text-stone-700 border-stone-200 dark:bg-stone-900/60 dark:text-stone-300 dark:border-stone-800',
+      bulletColor: 'bg-stone-500'
+    };
+  };
+
   return (
     <aside className="w-80 md:w-96 shrink-0 h-full bg-[#fcfbf9] dark:bg-[#121212] border-l border-[#eae6e1] dark:border-zinc-800 flex flex-col font-sans select-none overflow-hidden relative z-10">
       {/* Top Segmented Pill Switcher (Matching Reference Image) */}
@@ -108,17 +197,15 @@ export const RightRunSidebar: React.FC<RightRunSidebarProps> = ({
               <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400 dark:text-stone-500">
                 Linha do Tempo de Execução
               </span>
-              {isStreaming && steps.some(s => s.status === 'running' || s.status === 'pending') ? (
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 animate-pulse">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-ping" />
-                  Executando em tempo real
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                  Execução Concluída
-                </span>
-              )}
+              {(() => {
+                const state = getExecutionState();
+                return (
+                  <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full border ${state.colorClass} ${state.key === 'executando' ? 'animate-pulse' : ''}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${state.bulletColor}`} />
+                    {state.label}
+                  </span>
+                );
+              })()}
             </div>
 
             {/* Vertical Steps List */}

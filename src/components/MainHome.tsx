@@ -852,11 +852,9 @@ export default function MainHome({
       return;
     }
 
-    // 2. Touch device check
-    const isTouchDevice = typeof window !== 'undefined' && (
-      'ontouchstart' in window || 
-      navigator.maxTouchPoints > 0 || 
-      window.innerWidth < 768
+    // 2. Touch device check (Accurate Mobile verification to allow touchscreen laptops to send with Enter)
+    const isMobile = typeof window !== 'undefined' && (
+      /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)
     );
 
     // 3. Slash menu navigation
@@ -890,7 +888,7 @@ export default function MainHome({
 
     // 5. Plain Enter on desktop sends the message; on mobile it inserts newline
     if (e.key === 'Enter' && !e.shiftKey) {
-      if (isTouchDevice) {
+      if (isMobile) {
         return;
       }
       e.preventDefault();

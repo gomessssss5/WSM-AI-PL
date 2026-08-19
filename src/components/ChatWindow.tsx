@@ -1709,11 +1709,9 @@ export default function ChatWindow({
       return;
     }
 
-    // 2. Check if mobile touch device
-    const isTouchDevice = typeof window !== 'undefined' && (
-      'ontouchstart' in window || 
-      navigator.maxTouchPoints > 0 || 
-      window.innerWidth < 768
+    // 2. Check if mobile touch device (Accurate Mobile verification to allow touchscreen laptops to send with Enter)
+    const isMobile = typeof window !== 'undefined' && (
+      /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)
     );
 
     // 3. Slash menu navigation
@@ -1747,7 +1745,7 @@ export default function ChatWindow({
 
     // 5. Plain Enter on desktop sends the message; on mobile it inserts a newline
     if (e.key === 'Enter' && !e.shiftKey) {
-      if (isTouchDevice) {
+      if (isMobile) {
         // On mobile keyboards, allow standard newline
         return;
       }
@@ -2545,7 +2543,17 @@ export default function ChatWindow({
                   {!(isThinking && index > lastVisibleUserIndex) && (
                     <div className={`flex items-center gap-2 mt-1 px-1 ${isUser ? 'flex-row-reverse' : ''}`}>
                       <span className="text-[9px] text-gray-400">
-                        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+                        {(() => {
+                          try {
+                            const d = message.timestamp instanceof Date ? message.timestamp : new Date(message.timestamp);
+                            if (d && !isNaN(d.getTime())) {
+                              return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+                            }
+                          } catch (err) {
+                            console.error('[ChatWindow] Error rendering message timestamp:', err);
+                          }
+                          return '00:00';
+                        })()}
                       </span>
                       
                       {isUser && !editingMessageId && (
@@ -3667,7 +3675,16 @@ export default function ChatWindow({
                             Resposta #{index + 1}
                           </span>
                           <span className="text-[10px] text-gray-400">
-                            {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''}
+                            {(() => {
+                              if (!msg.timestamp) return '';
+                              try {
+                                const d = msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp);
+                                if (d && !isNaN(d.getTime())) {
+                                  return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                                }
+                              } catch (_) {}
+                              return '00:00';
+                            })()}
                           </span>
                         </div>
                         <span className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium">
