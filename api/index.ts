@@ -2190,9 +2190,9 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
                       } else {
                         resultData = {
                           status: "failed",
-                          error: "Não foi possível verificar dados atualizados na web no momento. Nenhum resultado encontrado.",
+                          error: "A API de pesquisa falhou e não retornou resultados.",
                           results: [],
-                          instruction: "AVISO: A busca na web não retornou resultados. Responda obrigatoriamente que 'Não foi possível verificar informações atualizadas na web no momento' e NUNCA invente cotações, dados ou links de memória."
+                          instruction: "AVISO: A busca rápida falhou. Você DEVE informar ao usuário que a busca falhou ou, alternativamente, utilizar imediatamente a ferramenta 'open_url' com a URL 'https://search.brave.com/search?q=" + encodeURIComponent(args.query || args.search_query || text) + "' para realizar a pesquisa via navegador."
                         };
                       }
                     }
@@ -2203,7 +2203,12 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
                       resultData = { status: "succeeded", results: fallbackRes };
                       fallbackRes.forEach(r => marteSources.push(r));
                     } else {
-                      resultData = { status: "failed", error: "Não foi possível verificar dados na web no momento.", results: [] };
+                      resultData = { 
+                        status: "failed", 
+                        error: "A API de pesquisa falhou.", 
+                        results: [],
+                        instruction: "AVISO: A busca rápida falhou. Você DEVE informar ao usuário que a busca falhou ou utilizar a ferramenta 'open_url' com 'https://search.brave.com/search?q=" + encodeURIComponent(args.query || args.search_query || text) + "' para realizar a pesquisa via navegador."
+                      };
                     }
                   }
                 } else {
@@ -2213,7 +2218,12 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
                     resultData = { status: "succeeded", results: fallbackRes };
                     fallbackRes.forEach(r => marteSources.push(r));
                   } else {
-                    resultData = { status: "failed", error: "Não foi possível verificar dados na web no momento.", results: [] };
+                    resultData = { 
+                      status: "failed", 
+                      error: "Chave de API não configurada.", 
+                      results: [],
+                      instruction: "AVISO: A busca rápida não está configurada. Você DEVE utilizar a ferramenta 'open_url' acessando 'https://search.brave.com/search?q=" + encodeURIComponent(args.query || args.search_query || text) + "' para pesquisar."
+                    };
                   }
                 }
               } catch (e) {
@@ -2223,7 +2233,12 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
                   resultData = { status: "succeeded", results: fallbackRes };
                   fallbackRes.forEach(r => marteSources.push(r));
                 } else {
-                  resultData = { status: "failed", error: "Não foi possível verificar dados na web no momento.", results: [] };
+                  resultData = { 
+                    status: "failed", 
+                    error: "A API de pesquisa falhou por erro de rede.", 
+                    results: [],
+                    instruction: "AVISO: A busca rápida falhou. Você DEVE utilizar a ferramenta 'open_url' acessando 'https://search.brave.com/search?q=" + encodeURIComponent(args.query || args.search_query || text) + "' para pesquisar."
+                  };
                 }
               }
               const callId = fc.id || `call_${fc.name}_${Math.random().toString(36).substring(2, 8)}`;

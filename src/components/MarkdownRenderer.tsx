@@ -325,7 +325,7 @@ export function AgenticSearchTag({
                   } catch {
                     domain = src.url;
                   }
-                  const favicon = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+                  const isInvalid = !domain || domain.includes(" ") || !domain.includes(".") || domain.length < 3; const favicon = isInvalid ? "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><line x1='2' y1='12' x2='22' y2='12'/></svg>" : `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`;
                   return (
                     <a
                       key={sIdx}
@@ -1394,7 +1394,7 @@ export default function MarkdownRenderer({
                   displayText = domain;
                 }
 
-                const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+                const isInvalid2 = !domain || domain.includes(" ") || !domain.includes(".") || domain.length < 3; const faviconUrl = isInvalid2 ? "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><line x1='2' y1='12' x2='22' y2='12'/></svg>" : `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`;
 
                 return (
                   <a

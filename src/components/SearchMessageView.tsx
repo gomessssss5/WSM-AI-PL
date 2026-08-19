@@ -88,7 +88,7 @@ export default function SearchMessageView({
 
   const getFaviconUrl = (urlStr: string) => {
     const domain = getDomain(urlStr);
-    return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+    const isInvalid = !domain || domain.includes(" ") || !domain.includes(".") || domain.length < 3; return isInvalid ? "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><line x1='2' y1='12' x2='22' y2='12'/></svg>" : `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`;
   };
 
   // We can track the last message ID to reset states on message change
@@ -501,7 +501,7 @@ export default function SearchMessageView({
                 {/* Overlapping Favicons */}
                 <div className="flex items-center -space-x-1.5">
                   {previewSources.map((src, pIdx) => {
-                    const favUrl = `https://www.google.com/s2/favicons?domain=${src.hostname}&sz=32`;
+                    const isInvalid = !src.hostname || src.hostname.includes(" ") || !src.hostname.includes(".") || src.hostname.length < 3; const favUrl = isInvalid ? "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><line x1='2' y1='12' x2='22' y2='12'/></svg>" : `https://www.google.com/s2/favicons?domain=${encodeURIComponent(src.hostname)}&sz=32`;
                     return (
                       <div 
                         key={pIdx} 
