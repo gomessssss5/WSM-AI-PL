@@ -36,6 +36,7 @@ import { ArtifactPersistenceCard } from './ArtifactPersistenceCard';
 import { ExecutionRuntimeViewer } from './ExecutionRuntimeViewer';
 import { RightRunSidebar } from './RightRunSidebar';
 import { buildRunFromMessage, createActiveStreamingRun } from '../utils/runCenterParser';
+import { generateSanitizedExportMarkdown } from '../utils/exportSanitizer';
 import { OmnixRun } from '../types';
 
 const UiverseLoader = ({ isThinking = false }: { isThinking?: boolean }) => (
@@ -974,53 +975,12 @@ export default function ChatWindow({
   };
 
   const handleExportConversation = () => {
-    let md = `# Conversa do Omnix AI - ${title || 'Chat'}\n\n`;
-    md += `**Modelo selecionado:** ${selectedModel}\n`;
-    md += `**Exportado em:** ${new Date().toLocaleString()}\n\n`;
-    md += `---\n\n`;
-
-    messages.forEach((msg) => {
-      if (msg.isHidden) return;
-
-      // Clean internal skill protocol tags, system tags, reasoning tags from exported text
-      const rawTextToClean = cleanSkillTags(cleanRaciocinioTags(cleanTaskTags(cleanWriterUpdateTags(cleanWorkspaceTags(msg.text || '')))));
-      const { cleanText: docCleanText, docObjs } = extractWsmDoc(rawTextToClean);
-      let exportedText = docCleanText.trim();
-      
-      if (docObjs && docObjs.length > 0) {
-        docObjs.forEach(d => {
-          exportedText += `\n\n📄 **Documento Gerado:** ${d.title} (Formato: ${(d.format || 'pdf').toUpperCase()})`;
-        });
-        exportedText = exportedText.trim();
-      }
-      
-      // Skip messages that consist ONLY of internal protocol tags or system messages
-      if (!exportedText && !msg.imageUrl && !msg.codeBlock) return;
-      if (exportedText.startsWith('[SISTEMA:') || exportedText.startsWith('SISTEMA (') || /^\[Lendo Skill:.*?\]$/is.test(exportedText)) return;
-
-      const senderName = msg.sender === 'user' ? 'Usuário' : 'Omnix 1.6';
-      const senderEmoji = msg.sender === 'user' ? '👤' : '🤖';
-      md += `### ${senderEmoji} **${senderName}** (${new Date(msg.timestamp).toLocaleTimeString()})\n\n`;
-      if (exportedText) {
-        md += `${exportedText}\n\n`;
-      }
-      
-      if (msg.imageUrl) {
-        md += `![Imagem Gerada](${msg.imageUrl})\n\n`;
-      }
-      
-      if (msg.codeBlock) {
-        md += `\`\`\`${msg.codeBlock.language || 'code'}\n${msg.codeBlock.code}\n\`\`\`\n\n`;
-      }
-      
-      md += `---\n\n`;
-    });
-
-    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const sanitizedMd = generateSanitizedExportMarkdown(messages, title || 'Chat', selectedModel || 'Omnix 1.6');
+    const blob = new Blob([sanitizedMd], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `conversa-${(title || 'wsm-ai').toLowerCase().replace(/\s+/g, '-')}.md`;
+    link.download = `conversa-${(title || 'wsm-ai').toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')}.md`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1732,7 +1692,7 @@ export default function ChatWindow({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // 1. If user is in the middle of IME composition (accents, Japanese/Chinese input, mobile autocomplete), do NOT submit
-    if ((e.nativeEvent as any).isComposing || (e as any).isComposing || e.keyCode === 229 || isComposingRef.current) {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) {
       return;
     }
 
@@ -2902,15 +2862,23 @@ export default function ChatWindow({
                     : 'rounded-[28px] md:rounded-[26px] shadow-lg md:shadow-[0_1px_8px_rgba(0,0,0,0.01)]'
                 }`}
               >
-          {/* Hidden File Input */}
+          {/* Hidden File Input (Using absolute positioning to ensure automation tools can find it) */}
           <input 
             id="omnix-chat-file-input"
             type="file" 
             ref={fileInputRef} 
-            onChange={handleFileChange} 
+            onChange={(e) => {
+              handleFileChange(e);
+              // Clear the input value so the same file can be selected again if removed
+              if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+              }
+            }} 
             accept=".txt,.pdf,.doc,.docx,.csv,.xlsx,.json,.md,.png,.jpg,.jpeg,.gif,.webp,*/*"
             multiple 
-            className="hidden" 
+            className="absolute w-0 h-0 opacity-0 overflow-hidden pointer-events-none" 
+            tabIndex={-1}
+            aria-hidden="true"
           />
 
           {/* Slash Menu */}

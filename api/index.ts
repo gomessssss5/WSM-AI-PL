@@ -1,7 +1,10 @@
 import express from "express";
 import crypto from "crypto";
+import path from "path";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+
+export const workspaceDocuments = new Map<string, { title: string; content: string; format: string }>();
 import sharp from "sharp";
 import { openUrl, clickSelector, typeText, scrollPage, extractText, waitSeconds } from "./playwrightAgent.js";
 import { 
@@ -2728,30 +2731,52 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
               });
             } else if (fc.name === "write_terminal_file") {
               const args = fc.args as any;
-              const path = String(args.path || 'arquivo.txt');
+              const pathStr = String(args.path || 'arquivo.txt');
               const content = String(args.content || '');
 
-              writeSandboxFile(path, content);
+              writeSandboxFile(pathStr, content);
+              const fileDetails = getSandboxFileDetails(pathStr);
+              const isVerified = Boolean(fileDetails && fileDetails.exists && fileDetails.size >= 0);
 
               sendEvent({
                 type: "terminal_action",
                 action: "write_file",
-                path,
+                path: pathStr,
                 content
               });
 
-              functionResponseParts.push({
-                functionResponse: {
-                  id: fc.id,
-                  name: fc.name,
-                  response: {
-                    status: "succeeded",
-                    operation: "sandbox.write_file",
-                    path,
-                    bytes_written: Buffer.byteLength(content, 'utf8')
+              if (isVerified) {
+                functionResponseParts.push({
+                  functionResponse: {
+                    id: fc.id,
+                    name: fc.name,
+                    response: {
+                      status: "succeeded",
+                      operation: "sandbox.write_file",
+                      path: pathStr,
+                      bytes_written: fileDetails?.size ?? Buffer.byteLength(content, 'utf8'),
+                      download_url: `/api/download/${encodeURIComponent(pathStr)}`,
+                      read_back_verified: true,
+                      sandbox_file_exists: true,
+                      timestamp: new Date().toISOString()
+                    }
                   }
-                }
-              });
+                });
+              } else {
+                functionResponseParts.push({
+                  functionResponse: {
+                    id: fc.id,
+                    name: fc.name,
+                    response: {
+                      status: "failed",
+                      operation: "sandbox.write_file",
+                      path: pathStr,
+                      error: "Falha na verificação do arquivo gravado no sandbox local.",
+                      read_back_verified: false
+                    }
+                  }
+                });
+              }
             } else if (fc.name === "read_terminal_file") {
               const args = fc.args as any;
               const path = String(args.path || 'package.json');
@@ -3977,6 +4002,35 @@ const handleFileDownload = async (req: express.Request, res: express.Response) =
           const xlsxBuf = await generateExcelBuffer(cleanFilename, csvContent);
           writeSandboxBinaryFile(cleanFilename, xlsxBuf);
           details = getSandboxFileDetails(cleanFilename);
+        }
+      }
+
+      // Check workspaceDocuments map in memory
+      if ((!details || !details.exists) && typeof workspaceDocuments !== 'undefined') {
+        const baseName = path.basename(cleanFilename);
+        const memDoc = workspaceDocuments.get(cleanFilename) || workspaceDocuments.get(baseName);
+        if (memDoc) {
+          if (memDoc.format === 'xlsx' || cleanFilename.toLowerCase().endsWith('.xlsx')) {
+            const xlsxBuf = await generateExcelBuffer(memDoc.title || cleanFilename, memDoc.content);
+            writeSandboxBinaryFile(cleanFilename, xlsxBuf);
+          } else {
+            writeSandboxFile(cleanFilename, memDoc.content);
+          }
+          details = getSandboxFileDetails(cleanFilename);
+        }
+      }
+
+      // Check persistentArtifactsMap in memory
+      if ((!details || !details.exists) && typeof persistentArtifactsMap !== 'undefined') {
+        const baseName = path.basename(cleanFilename);
+        for (const [_, artData] of persistentArtifactsMap.entries()) {
+          if (artData.name === cleanFilename || artData.name === baseName || artData.title === cleanFilename) {
+            if (artData.content) {
+              writeSandboxFile(cleanFilename, artData.content);
+              details = getSandboxFileDetails(cleanFilename);
+              break;
+            }
+          }
         }
       }
     }

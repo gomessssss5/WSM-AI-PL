@@ -159,9 +159,16 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
 
           {/* Middle text */}
           <div className="flex flex-col min-w-0 flex-1">
-            <span className="font-semibold text-[14px] text-gray-900 dark:text-gray-100 truncate tracking-tight leading-snug">
-              {document.title || 'Documento'}
-            </span>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="font-semibold text-[14px] text-gray-900 dark:text-gray-100 truncate tracking-tight leading-snug">
+                {document.title || 'Documento'}
+              </span>
+              {((document as any).isMock || (document as any).status === 'simulated' || (document.title || '').toLowerCase().includes('mock') || (document.title || '').toLowerCase().includes('simula')) && (
+                <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-700">
+                  MOCK / SIMULADO
+                </span>
+              )}
+            </div>
             <span className="text-[12px] text-gray-500 dark:text-gray-400 font-normal mt-0.5 flex items-center gap-1.5 flex-wrap">
               <span>{format === 'xlsx' ? 'Planilha Excel' : format === 'csv' ? 'Planilha CSV' : isCode ? 'Código' : format === 'txt' ? 'Texto' : (format === 'md' || format === 'markdown') ? 'Markdown' : 'Documento'} · {format.toUpperCase()}</span>
               <span>•</span>

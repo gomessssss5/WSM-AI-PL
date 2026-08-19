@@ -21,9 +21,9 @@ interface ScheduledTasksDashboardProps {
 }
 
 export default function ScheduledTasksDashboard({
-  tasks,
-  executions,
-  sessions,
+  tasks = [],
+  executions = [],
+  sessions = [],
   currentUserId,
   onOpenMobileHistory,
   onSaveTask,
@@ -147,12 +147,13 @@ export default function ScheduledTasksDashboard({
         } catch {}
 
         if (res.status === 401 || res.status === 419) {
-          errMessage = `[FALHA DE AUTENTICAÇÃO (HTTP ${res.status})]: Sessão não autorizada ou token expirado. Faça login novamente.`;
+          errMessage = `[FALHA DE AUTENTICAÇÃO (HTTP ${res.status})]: Sessão não autorizada ou token de autenticação expirado. Reautenticação necessária.`;
         }
 
+        const isAuthError = res.status === 401 || res.status === 419;
         const failedExecution: TaskExecution = {
           ...optimisticExecution,
-          status: 'failed',
+          status: isAuthError ? 'needs_auth' : 'failed',
           finishedAt: new Date(),
           durationMs: Date.now() - startedAt.getTime(),
           outputSummary: errMessage,
@@ -164,6 +165,15 @@ export default function ScheduledTasksDashboard({
 
         if (onExecutionCreated) {
           onExecutionCreated(failedExecution);
+        }
+
+        if (onSaveTask && isAuthError) {
+          onSaveTask({
+            ...task,
+            lastStatus: 'needs_auth' as any,
+            lastExecutionStatus: 'failed',
+            lastErrorDetails: errMessage
+          });
         }
 
         setExecutionStates(prev => ({ ...prev, [task.id]: 'falhou' }));
@@ -474,14 +484,30 @@ export default function ScheduledTasksDashboard({
     setBackoffSeconds(10);
   };
 
-  const formatShortTime = (d: Date | string | number) => {
-    const date = new Date(d);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const parseDate = (d: any): Date => {
+    if (!d) return new Date();
+    if (d instanceof Date) return d;
+    if (typeof d.toDate === 'function') return d.toDate();
+    if (d && typeof d === 'object' && 'seconds' in d) return new Date(d.seconds * 1000);
+    return new Date(d);
   };
 
-  const formatShortDate = (d: Date | string | number) => {
-    const date = new Date(d);
-    return date.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
+  const formatShortTime = (d: any) => {
+    try {
+      const date = parseDate(d);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return '--:--';
+    }
+  };
+
+  const formatShortDate = (d: any) => {
+    try {
+      const date = parseDate(d);
+      return date.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch (e) {
+      return '--/--/----';
+    }
   };
 
   return (
@@ -793,15 +819,21 @@ export default function ScheduledTasksDashboard({
                           <div>
                             <div className="flex items-center gap-2">
                               <h3 className="font-semibold text-gray-900 text-base">{task.title}</h3>
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${
-                                runningTaskId === task.id
-                                  ? 'bg-blue-50 text-blue-700 border-blue-200 animate-pulse'
-                                  : task.isActive 
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                                  : 'bg-amber-50 text-amber-700 border-amber-200'
-                              }`}>
-                                {runningTaskId === task.id ? 'executando' : task.isActive ? 'ativa' : 'pausada'}
-                              </span>
+                              {task.lastStatus === ('needs_auth' as any) ? (
+                                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full border uppercase tracking-wider bg-amber-100 text-amber-900 border-amber-300">
+                                  needs_auth (401)
+                                </span>
+                              ) : (
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${
+                                  runningTaskId === task.id
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200 animate-pulse'
+                                    : task.isActive 
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                                }`}>
+                                  {runningTaskId === task.id ? 'executando' : task.isActive ? 'ativa' : 'pausada'}
+                                </span>
+                              )}
                             </div>
                             <p className="text-[11px] text-gray-400 font-mono mt-0.5">ID: {task.id.slice(0, 8)}</p>
                           </div>

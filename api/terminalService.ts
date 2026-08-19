@@ -182,19 +182,80 @@ export function getMimeTypeForFile(filename: string): string {
 export function getSandboxFileDetails(relPath: string): { fullPath: string; exists: boolean; size: number; mimeType: string; filename: string } | null {
   ensureSandboxDir();
   try {
-    const fullPath = sanitizePath(relPath);
-    const filename = path.basename(fullPath);
-    if (!fs.existsSync(fullPath)) {
-      return { fullPath, exists: false, size: 0, mimeType: getMimeTypeForFile(filename), filename };
+    const rawRel = String(relPath || '').trim();
+    const cleanRel = rawRel
+      .replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '')
+      .replace(/^\/+/, '');
+    
+    let fullPath = sanitizePath(cleanRel);
+    let filename = path.basename(fullPath);
+
+    // 1. Direct check in SANDBOX_DIR
+    if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+      const stat = fs.statSync(fullPath);
+      return {
+        fullPath,
+        exists: true,
+        size: stat.size,
+        mimeType: getMimeTypeForFile(filename),
+        filename
+      };
     }
-    const stat = fs.statSync(fullPath);
-    if (!stat.isFile()) {
-      return { fullPath, exists: false, size: 0, mimeType: getMimeTypeForFile(filename), filename };
+
+    // Candidate paths to search for temporary / system probe files
+    const candidatePaths: string[] = [];
+
+    // If cleanRel starts with "tmp/", search without "tmp/" prefix inside SANDBOX_DIR
+    if (cleanRel.startsWith('tmp/')) {
+      const strippedTmp = cleanRel.replace(/^tmp\//, '');
+      candidatePaths.push(path.resolve(SANDBOX_DIR, strippedTmp));
+      candidatePaths.push(path.join('/tmp', strippedTmp));
+      candidatePaths.push(path.join(os.tmpdir(), strippedTmp));
     }
+
+    // Direct /tmp and os.tmpdir() checks for cleanRel or filename
+    candidatePaths.push(path.join('/tmp', cleanRel));
+    candidatePaths.push(path.join(os.tmpdir(), cleanRel));
+    candidatePaths.push(path.join('/tmp', filename));
+    candidatePaths.push(path.join(os.tmpdir(), filename));
+    candidatePaths.push(path.resolve(SANDBOX_DIR, 'tmp', filename));
+
+    for (const candPath of candidatePaths) {
+      try {
+        if (fs.existsSync(candPath) && fs.statSync(candPath).isFile()) {
+          const stat = fs.statSync(candPath);
+          // Sync candidate file into SANDBOX_DIR for durable access
+          try {
+            const dir = path.dirname(fullPath);
+            if (!fs.existsSync(dir)) {
+              fs.mkdirSync(dir, { recursive: true });
+            }
+            fs.copyFileSync(candPath, fullPath);
+            const copiedStat = fs.statSync(fullPath);
+            return {
+              fullPath,
+              exists: true,
+              size: copiedStat.size,
+              mimeType: getMimeTypeForFile(filename),
+              filename
+            };
+          } catch {
+            return {
+              fullPath: candPath,
+              exists: true,
+              size: stat.size,
+              mimeType: getMimeTypeForFile(filename),
+              filename
+            };
+          }
+        }
+      } catch {}
+    }
+
     return {
       fullPath,
-      exists: true,
-      size: stat.size,
+      exists: false,
+      size: 0,
       mimeType: getMimeTypeForFile(filename),
       filename
     };

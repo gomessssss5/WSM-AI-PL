@@ -150,20 +150,33 @@ export const ArtifactPersistenceCard: React.FC<ArtifactPersistenceCardProps> = (
     URL.revokeObjectURL(url);
   };
 
+  const isMockArtifact = Boolean(
+    (artifact as any)?.isMock ||
+    (artifact as any)?.status === 'simulated' ||
+    filename.toLowerCase().includes('mock') ||
+    filename.toLowerCase().includes('simula')
+  );
+
   return (
     <div className="w-full my-3 border border-[#eae6e1] dark:border-[#2e2e2e] rounded-2xl bg-white dark:bg-[#151515] overflow-hidden shadow-xs transition-all">
       {/* Top Header Status Bar */}
       <div className={`px-4 py-3 flex items-center justify-between border-b ${
-        status === 'persisted' 
+        status === 'persisted' && !isMockArtifact
           ? 'bg-emerald-50/70 border-emerald-100 dark:bg-emerald-950/20 dark:border-emerald-900/30' 
+          : status === 'persisted' && isMockArtifact
+          ? 'bg-amber-50/70 border-amber-100 dark:bg-amber-950/20 dark:border-amber-900/30'
           : status === 'failed'
           ? 'bg-rose-50/70 border-rose-100 dark:bg-rose-950/20 dark:border-rose-900/30'
           : 'bg-amber-50/70 border-amber-100 dark:bg-amber-950/20 dark:border-amber-900/30'
       }`}>
         <div className="flex items-center gap-2.5 min-w-0">
-          {status === 'persisted' ? (
+          {status === 'persisted' && !isMockArtifact ? (
             <div className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center shrink-0">
               <FileCheck2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
+            </div>
+          ) : status === 'persisted' && isMockArtifact ? (
+            <div className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-4 h-4 text-amber-700 dark:text-amber-400" />
             </div>
           ) : status === 'failed' ? (
             <div className="w-7 h-7 rounded-lg bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center shrink-0">
@@ -176,12 +189,19 @@ export const ArtifactPersistenceCard: React.FC<ArtifactPersistenceCardProps> = (
           )}
 
           <div className="flex flex-col min-w-0">
-            <span className="text-[13px] font-bold text-gray-800 dark:text-gray-100 truncate">
+            <span className="text-[13px] font-bold text-gray-800 dark:text-gray-100 truncate flex items-center gap-2">
               {displayTitle}
+              {isMockArtifact && (
+                <span className="px-1.5 py-0.5 rounded text-[9.5px] font-extrabold uppercase bg-amber-200 text-amber-900 border border-amber-400">
+                  SIMULAÇÃO / MOCK
+                </span>
+              )}
             </span>
             <span className="text-[10.5px] font-medium text-gray-500 dark:text-gray-400">
-              {status === 'persisted' 
-                ? 'Gravação confirmada no backend' 
+              {status === 'persisted' && !isMockArtifact
+                ? 'Gravação confirmada e verificada em disco (Real)' 
+                : status === 'persisted' && isMockArtifact
+                ? 'Gravação MOCK / SIMULAÇÃO (Rascunho salvo em memória)'
                 : status === 'failed'
                 ? 'Erro de persitência no armazenamento'
                 : 'Gravando no armazenamento persistente...'}
@@ -191,7 +211,12 @@ export const ArtifactPersistenceCard: React.FC<ArtifactPersistenceCardProps> = (
 
         {/* Status Badge */}
         <div className="flex items-center gap-2 shrink-0">
-          {status === 'persisted' && validationResult && (
+          {status === 'persisted' && isMockArtifact && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 dark:bg-amber-900/80 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+              SIMULADO (MOCK)
+            </span>
+          )}
+          {status === 'persisted' && !isMockArtifact && validationResult && (
             <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
               validationResult.isDone
                 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'

@@ -1549,74 +1549,61 @@ export default function MarkdownRenderer({
         if (normalizedLang === 'map' || normalizedLang === 'leaflet' || normalizedLang === 'geojson') {
           try {
             const mapObj = JSON.parse(code.trim());
+            const latVal = mapObj.lat || (mapObj.length && mapObj[0].lat) || -23.5505;
+            const lonVal = mapObj.lon || (mapObj.length && mapObj[0].lon) || -46.6333;
             blocks.push(
               <WsmMapComponent
                 key={`map-code-${i}`}
-                lat={mapObj.lat || -23.5505}
-                lon={mapObj.lon || -46.6333}
-                zoom={mapObj.zoom || 13}
-                place={mapObj.place || mapObj.title || 'São Paulo'}
-                wiki={mapObj.wiki || 'São Paulo'}
+                lat={latVal}
+                lon={lonVal}
+                zoom={mapObj.zoom || 10}
+                place={mapObj.place || mapObj.title || 'Localização'}
+                wiki={mapObj.wiki || ''}
                 text={mapObj.text || ''}
-                markers={mapObj.markers || []}
+                markers={Array.isArray(mapObj) ? mapObj : (mapObj.markers || [])}
               />
             );
             continue;
           } catch (e) {
-            blocks.push(
-              <WsmMapComponent
-                key={`map-code-fallback-${i}`}
-                lat={-23.5505}
-                lon={-46.6333}
-                zoom={13}
-                place="São Paulo - Centro"
-                wiki="São Paulo"
-                text={code.trim()}
-              />
-            );
-            continue;
+            // fallback
           }
         }
 
-        // Intercept ASCII art blocks for charts, mindmaps or city maps
-        const isAsciiArt = /[█┌─┐│┤┬┴┼═║╔╗╚╝░▒▓]/g.test(code);
-        if (isAsciiArt) {
-          const codeLower = code.toLowerCase();
-          if (codeLower.includes('poo') || codeLower.includes('orientada') || codeLower.includes('mindmap') || codeLower.includes('conceitual') || codeLower.includes('objeto')) {
-            blocks.push(
-              <WsmMindmapComponent
-                key={`mindmap-ascii-${i}`}
-                title="Mapa Mental Interativo"
-                markdown={code.trim()}
-              />
-            );
-            continue;
-          }
-          if (codeLower.includes('gráfico') || codeLower.includes('grafico') || codeLower.includes('população') || codeLower.includes('estados') || codeLower.includes('brasil')) {
-            blocks.push(
-              <WsmChartComponent
-                key={`chart-ascii-${i}`}
-                type="bar"
-                title="População dos Maiores Estados do Brasil"
-                data='[{"name":"São Paulo","valor":44420459},{"name":"Minas Gerais","valor":20538718},{"name":"Rio de Janeiro","valor":16054524},{"name":"Bahia","valor":14136417},{"name":"Paraná","valor":11443208}]'
-              />
-            );
-            continue;
-          }
-          if (codeLower.includes('são paulo') || codeLower.includes('sao paulo') || codeLower.includes('sp') || codeLower.includes('centro') || codeLower.includes('mapa')) {
-            blocks.push(
-              <WsmMapComponent
-                key={`map-ascii-${i}`}
-                lat={-23.5505}
-                lon={-46.6333}
-                zoom={13}
-                place="São Paulo - Centro"
-                wiki="São Paulo"
-                text="Centro Histórico de São Paulo"
-                markers={[{ lat: -23.5505, lon: -46.6333, title: "Centro de SP - Praça da Sé" }]}
-              />
-            );
-            continue;
+        // Try to infer map or chart from generic JSON blocks
+        if (normalizedLang === 'json') {
+          try {
+            const parsed = JSON.parse(code.trim());
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const first = parsed[0];
+              // Detect Map
+              if ('lat' in first && 'lon' in first) {
+                blocks.push(
+                  <WsmMapComponent
+                    key={`map-json-${i}`}
+                    lat={first.lat}
+                    lon={first.lon}
+                    zoom={10}
+                    place={first.cidade || first.title || first.name || 'Localização'}
+                    markers={parsed}
+                  />
+                );
+                continue;
+              }
+              // Detect simple Chart
+              if (('valor' in first || 'value' in first) && ('name' in first || 'label' in first || 'categoria' in first)) {
+                blocks.push(
+                  <WsmChartComponent
+                    key={`chart-json-${i}`}
+                    type="bar"
+                    title="Gráfico Interativo"
+                    data={code.trim()}
+                  />
+                );
+                continue;
+              }
+            }
+          } catch (e) {
+            // Not a valid JSON or parsing failed, fallback to normal code block
           }
         }
 

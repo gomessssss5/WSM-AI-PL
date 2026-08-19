@@ -55,6 +55,14 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
 
   if (fileAction) {
     const fileName = fileAction.path.replace('/workspace/', '').replace(/^\//, '');
+    const isMock = Boolean(
+      fileAction.isMock || 
+      fileAction.status === 'simulated' || 
+      (fileAction as any).isSimulated ||
+      fileName.includes('mock') ||
+      fileName.includes('simula')
+    );
+
     return (
       <div className="flex items-center justify-start py-0.5 my-1">
         <button
@@ -63,7 +71,16 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
           className="inline-flex items-center gap-1.5 text-[14px] font-medium transition-colors select-none border-0 bg-transparent p-0 cursor-pointer text-[#6b7076] hover:text-black dark:text-gray-400 dark:hover:text-white"
         >
           <FileCode className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0" />
-          <span>Criou o arquivo <code className="px-1 py-0.5 bg-gray-100 dark:bg-zinc-800 rounded text-[13px] font-mono text-gray-800 dark:text-gray-200">{fileName}</code></span>
+          {isMock ? (
+            <span className="flex items-center gap-1.5">
+              <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-700 rounded">
+                SIMULAÇÃO / MOCK
+              </span>
+              <span>Gravou arquivo em modo simulado: <code className="px-1 py-0.5 bg-gray-100 dark:bg-zinc-800 rounded text-[13px] font-mono text-gray-800 dark:text-gray-200">{fileName}</code></span>
+            </span>
+          ) : (
+            <span>Criou o arquivo (Real em Sandbox) <code className="px-1 py-0.5 bg-gray-100 dark:bg-zinc-800 rounded text-[13px] font-mono text-gray-800 dark:text-gray-200">{fileName}</code></span>
+          )}
           <ChevronRight className="w-3.5 h-3.5 text-[#6b7076] dark:text-gray-400 shrink-0" />
         </button>
       </div>

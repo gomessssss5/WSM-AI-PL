@@ -277,13 +277,25 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
         executionError = "";
         break; // exit loop on success
       } else {
+        if (res.status === 401 || res.status === 419) {
+          executionStatus = 'needs_auth';
+          executionError = `[HTTP ${res.status} Unauthorized]: Falha de autenticação. Token de sessão do usuário expirado ou inválido. Reautenticação necessária.`;
+          console.warn(`[ScheduledTasks] HTTP ${res.status} encountered for task ${taskId}. Halting execution.`);
+          break; // Do not retry on 401/419 auth failure
+        }
         throw new Error(`Erro HTTP ${res.status}: ${res.statusText}`);
       }
     } catch (e: any) {
-      executionStatus = 'error';
-      executionError = e?.message || String(e);
+      if (executionStatus !== 'needs_auth') {
+        executionStatus = 'error';
+        executionError = e?.message || String(e);
+      }
       aiText = `⚠️ Falha de execução: ${executionError}`;
       console.log(`[ScheduledTasks] Attempt ${attempts} failed: ${executionError}`);
+
+      if (executionStatus === 'needs_auth') {
+        break;
+      }
 
       if (attempts < maxRetries) {
         console.log(`[ScheduledTasks] Backing off for ${backoffSeconds}s before retry...`);
@@ -342,7 +354,7 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
       durationMs: durationMs,
       triggerType: taskData.triggerType || 'manual',
       sessionId: newSessionId,
-      status: executionStatus === 'success' ? 'succeeded' : 'failed',
+      status: executionStatus === 'success' ? 'succeeded' : executionStatus === 'needs_auth' ? 'needs_auth' : 'failed',
       attempts: attempts,
       maxRetries: maxRetries,
       outputSummary: finalOutput.slice(0, 400),
@@ -352,17 +364,19 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
         `[${startedAt.toISOString()}] Iniciando tentativa 1 de ${maxRetries}...`,
         ...(executionStatus === 'success' 
           ? [`[${finishedAt.toISOString()}] Execução concluída com sucesso. Duração: ${durationMs}ms.`]
+          : executionStatus === 'needs_auth'
+          ? [`[${finishedAt.toISOString()}] FALHA CRÍTICA DE AUTENTICAÇÃO (HTTP 401/419): Token de sessão expirado. Execução interrompida.`]
           : [`[${finishedAt.toISOString()}] Falha na execução: ${executionError}`])
       ],
       ...(executionError ? { error: executionError, errorDetails: executionError } : {})
     });
 
     await db.collection('users').doc(userId).collection('scheduledTasks').doc(taskId).update({
-      lastStatus: executionStatus === 'success' ? 'succeeded' : 'failed',
+      lastStatus: executionStatus === 'success' ? 'succeeded' : executionStatus === 'needs_auth' ? 'needs_auth' : 'failed',
       lastRunAt: Timestamp.fromDate(startedAt),
       lastOutput: finalOutput.slice(0, 200),
       lastExecutionDurationMs: durationMs,
-      lastExecutionStatus: executionStatus === 'success' ? 'succeeded' : 'failed',
+      lastExecutionStatus: executionStatus === 'success' ? 'succeeded' : executionStatus === 'needs_auth' ? 'needs_auth' : 'failed',
       ...(executionError ? { lastErrorDetails: executionError } : {})
     });
   } catch (e) {
