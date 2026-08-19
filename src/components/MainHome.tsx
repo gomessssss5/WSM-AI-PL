@@ -847,8 +847,8 @@ export default function MainHome({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // 1. IME composition check
-    if ((e.nativeEvent as any).isComposing || (e as any).isComposing || e.keyCode === 229 || isComposingRef.current) {
+    // 1. IME composition check (strict native check, ignore keyCode 229 false positives)
+    if (e.nativeEvent && e.nativeEvent.isComposing) {
       return;
     }
 

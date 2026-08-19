@@ -612,10 +612,18 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
           });
         }
         return typeof data.exitCode === 'number' ? data.exitCode : 0;
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        stderr(`[Erro de Infraestrutura de Terminal]: A execução via API falhou com status ${res.status}. ${errData.error || ''}\n`);
+        return 126; // Command cannot execute
       }
-    } catch {
-      // Fall through to client-side built-in interpreter if server request fails
+    } catch (error: any) {
+      stderr(`[Erro de Transporte do Terminal]: Falha ao comunicar com a sandbox remota: ${error?.message || 'Failed to fetch'}\n`);
+      return 126; // Command cannot execute
     }
+
+    // Client-side fallback removed for server commands to avoid dual-brain sync issues.
+    // Basic built-in navigation is still handled if we wanted, but we'll let it fail correctly now.
 
     // 1. Filesystem Navigation & Commands
     if (cleanCmd === 'pwd') {

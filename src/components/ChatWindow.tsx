@@ -1056,8 +1056,19 @@ export default function ChatWindow({
       else if (att.type === 'image' || att.type === 'document') imgDocCount++;
     });
     
+    // Calculate total size of existing attachments
+    let totalSize = attachments.reduce((acc, att) => acc + (att.size || 0), 0);
+
     // First, validate limits
     for (const file of fileList) {
+      totalSize += file.size;
+      
+      // Vercel Serverless Function limit is 4.5MB. We set a safe margin at 4MB.
+      if (totalSize > 4 * 1024 * 1024) {
+        setUploadError("Limite de tamanho excedido: O tamanho total dos arquivos não pode ultrapassar 4MB.");
+        return;
+      }
+
       const type = getFileType(file);
       if (type === 'video') {
         videoCount++;

@@ -157,65 +157,36 @@ export const ArtifactPersistenceCard: React.FC<ArtifactPersistenceCardProps> = (
     filename.toLowerCase().includes('simula')
   );
 
+  const isHtml = format === 'html' || filename.toLowerCase().endsWith('.html') || filename.toLowerCase().endsWith('.htm');
+
+  let stateLabel = "DESCONHECIDO";
+  let stateColor = "text-gray-500 bg-gray-100 border-gray-200";
+  let Icon = Database;
+
+  if (status === 'persisting') { stateLabel = "EXECUTANDO"; stateColor = "text-blue-600 bg-blue-50 border-blue-200"; Icon = Loader2; }
+  else if (status === 'failed') { stateLabel = "FALHOU"; stateColor = "text-rose-700 bg-rose-50 border-rose-200"; Icon = AlertTriangle; }
+  else if (isMockArtifact) { stateLabel = "SIMULADO"; stateColor = "text-amber-800 bg-amber-100 border-amber-300"; Icon = FileCode; }
+  else if (status === 'persisted') { stateLabel = "SUCESSO"; stateColor = "text-emerald-700 bg-emerald-50 border-emerald-200"; Icon = CheckCircle2; }
+
   return (
-    <div className="w-full my-3 border border-[#eae6e1] dark:border-[#2e2e2e] rounded-2xl bg-white dark:bg-[#151515] overflow-hidden shadow-xs transition-all">
+    <div className="w-full my-3 border border-[#eae6e1] dark:border-[#2e2e2e] rounded-xl bg-[#faf9f6] dark:bg-[#151515] overflow-hidden shadow-xs transition-all">
       {/* Top Header Status Bar */}
-      <div className={`px-4 py-3 flex items-center justify-between border-b ${
-        status === 'persisted' && !isMockArtifact
-          ? 'bg-emerald-50/70 border-emerald-100 dark:bg-emerald-950/20 dark:border-emerald-900/30' 
-          : status === 'persisted' && isMockArtifact
-          ? 'bg-amber-50/70 border-amber-100 dark:bg-amber-950/20 dark:border-amber-900/30'
-          : status === 'failed'
-          ? 'bg-rose-50/70 border-rose-100 dark:bg-rose-950/20 dark:border-rose-900/30'
-          : 'bg-amber-50/70 border-amber-100 dark:bg-amber-950/20 dark:border-amber-900/30'
-      }`}>
-        <div className="flex items-center gap-2.5 min-w-0">
-          {status === 'persisted' && !isMockArtifact ? (
-            <div className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center shrink-0">
-              <FileCheck2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
-            </div>
-          ) : status === 'persisted' && isMockArtifact ? (
-            <div className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center shrink-0">
-              <AlertTriangle className="w-4 h-4 text-amber-700 dark:text-amber-400" />
-            </div>
-          ) : status === 'failed' ? (
-            <div className="w-7 h-7 rounded-lg bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center shrink-0">
-              <AlertTriangle className="w-4 h-4 text-rose-700 dark:text-rose-400" />
-            </div>
-          ) : (
-            <div className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center shrink-0">
-              <Database className="w-4 h-4 text-amber-700 dark:text-amber-400 animate-spin" />
-            </div>
-          )}
+      <div className="px-3 py-2 flex items-center justify-between border-b border-[#eae6e1] dark:border-[#2e2e2e] bg-white dark:bg-[#1a1a1a]">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-extrabold uppercase rounded border shrink-0 ${stateColor}`}>
+            <Icon className={`w-3.5 h-3.5 ${status === 'persisting' ? 'animate-spin' : ''}`} />
+            {stateLabel}
+          </span>
 
           <div className="flex flex-col min-w-0">
-            <span className="text-[13px] font-bold text-gray-800 dark:text-gray-100 truncate flex items-center gap-2">
+            <span className="text-[12px] font-mono font-bold text-gray-800 dark:text-gray-100 truncate flex items-center gap-2">
               {displayTitle}
-              {isMockArtifact && (
-                <span className="px-1.5 py-0.5 rounded text-[9.5px] font-extrabold uppercase bg-amber-200 text-amber-900 border border-amber-400">
-                  SIMULAÇÃO / MOCK
-                </span>
-              )}
-            </span>
-            <span className="text-[10.5px] font-medium text-gray-500 dark:text-gray-400">
-              {status === 'persisted' && !isMockArtifact
-                ? 'Gravação confirmada e verificada em disco (Real)' 
-                : status === 'persisted' && isMockArtifact
-                ? 'Gravação MOCK / SIMULAÇÃO (Rascunho salvo em memória)'
-                : status === 'failed'
-                ? 'Erro de persitência no armazenamento'
-                : 'Gravando no armazenamento persistente...'}
             </span>
           </div>
         </div>
 
         {/* Status Badge */}
         <div className="flex items-center gap-2 shrink-0">
-          {status === 'persisted' && isMockArtifact && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 dark:bg-amber-900/80 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
-              SIMULADO (MOCK)
-            </span>
-          )}
           {status === 'persisted' && !isMockArtifact && validationResult && (
             <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
               validationResult.isDone
@@ -226,22 +197,42 @@ export const ArtifactPersistenceCard: React.FC<ArtifactPersistenceCardProps> = (
               {validationResult.statusLabel}
             </span>
           )}
-          {status === 'failed' && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
-              Falha de Gravação
-            </span>
-          )}
-          {status === 'persisting' && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800 animate-pulse">
-              Persistindo...
-            </span>
-          )}
         </div>
       </div>
 
       {/* Main Body */}
-      <div className="p-4 space-y-3">
-        {status === 'persisted' && artifact && (
+      <div className="p-3 space-y-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] text-gray-500 dark:text-gray-400 font-mono bg-white dark:bg-[#1a1a1a] p-2 rounded-lg border border-[#eae6e1] dark:border-[#2e2e2e]">
+          <div className="flex flex-col">
+            <span className="uppercase font-bold text-[9px] mb-0.5">Run ID</span>
+            <span className="truncate text-gray-800 dark:text-gray-200">{taskId || 'N/A'}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="uppercase font-bold text-[9px] mb-0.5">Origem</span>
+            <span className="truncate text-gray-800 dark:text-gray-200">Gerador de Artefatos</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="uppercase font-bold text-[9px] mb-0.5">Caminho / ID</span>
+            <span className="truncate text-gray-800 dark:text-gray-200" title={filename}>{filename}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="uppercase font-bold text-[9px] mb-0.5">Hash SHA-256</span>
+            <span className="truncate text-gray-800 dark:text-gray-200" title={artifact?.hash || 'N/A'}>{artifact?.hash || 'N/A'}</span>
+          </div>
+        </div>
+
+        {isHtml && status === 'persisted' && !isMockArtifact && (
+          <div className="w-full bg-white rounded-lg border border-gray-200 dark:border-zinc-800 overflow-hidden shadow-inner h-[400px]">
+            <iframe
+              srcDoc={content}
+              title={displayTitle}
+              className="w-full h-full border-0"
+              sandbox="allow-scripts allow-same-origin"
+            />
+          </div>
+        )}
+
+        {status === 'persisted' && artifact && !isHtml && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-[11px] bg-[#faf9f6] dark:bg-[#1a1a1a] p-3 rounded-xl border border-[#eae6e1] dark:border-[#282828]">
             <div className="flex flex-col gap-0.5">
               <span className="text-gray-400 dark:text-gray-500 text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1">

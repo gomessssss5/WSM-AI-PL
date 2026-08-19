@@ -2044,9 +2044,6 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
                 } else if (eventData.type === "terminal_action") {
                   try {
                     if (eventData.action === "execute" && eventData.command) {
-                      if (eventData.command.includes("hello.py") && !terminalSandbox.readFile("/workspace/hello.py")) {
-                        terminalSandbox.writeFile("/workspace/hello.py", 'print("Hello, World!")');
-                      }
                       terminalSandbox.spawn(eventData.command, [], { caller: 'ai' });
                     } else if (eventData.action === "write_file" && eventData.path) {
                       terminalSandbox.writeFile(eventData.path, eventData.content || '');
@@ -2056,7 +2053,7 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
                       const fn = eventData.filename || (eventData.language === 'python' ? 'script.py' : 'index.js');
                       const path = `/workspace/${fn.replace(/^\//, '')}`;
                       terminalSandbox.writeFile(path, eventData.code || 'print("Hello, World!")');
-                      const runCmd = eventData.language === 'python' ? `python3 ${path}` : `node ${path}`;
+                      const runCmd = (eventData.language === 'python' || eventData.language === 'py') ? `python3 ${path}` : `node ${path}`;
                       terminalSandbox.spawn(runCmd, [], { caller: 'ai' });
                     }
                   } catch (err) {

@@ -457,6 +457,20 @@ function sanitizeOutgoingText(rawText: string): string {
 app.post("/api/chat", verifyAuthTokenMiddleware, async (req: express.Request, res: express.Response) => {
   const { text, content, rawText, metadata, attachments, isSearchEnabled, isComputerEnabled, model, reasoningLevel, history, isWriterMode, writerDocument, skills, activeSkills, activeSkillMode, userContext, userInfo, isScheduledExecution, sessionId, chatMemoryDoc, workspaceFiles, layeredMemories } = req.body;
 
+  // Persist incoming attachments to sandbox memory so tools and endpoints can read them
+  if (Array.isArray(attachments) && attachments.length > 0) {
+    for (const att of attachments) {
+      if (att.name && att.base64) {
+        try {
+          const buf = Buffer.from(att.base64, 'base64');
+          writeSandboxBinaryFile(att.name, buf);
+        } catch(e) {
+          console.error("[ChatAPI] Error writing attachment to sandbox:", e);
+        }
+      }
+    }
+  }
+
   // Run a quick pre-flight check to discover environment runtimes
   let isPythonInstalled = true;
   try {
@@ -1725,6 +1739,7 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
                   "\nREGRA DA CALCULADORA E CÓDIGO: Chame a ferramenta 'calculadora' SEMPRE que precisar realizar ou validar qualquer conta, expressão matemática, ou resultado de um código exato que envolva cálculos (ex: validando saídas numéricas de um código Python como stdev). Não confie na sua intuição para matemática. NÃO chame a calculadora para ler arquivos." +
                   "\nREGRA DE IMAGENS EM HTML/MD: Para placeholders de imagens em HTML ou Markdown, NUNCA use source.unsplash.com. Você é OBRIGADO a usar https://picsum.photos/ ou https://images.unsplash.com/photo-<ID>?w=800 ou SVGs inline." +
                   "\nREGRA DA WEB SEARCH: Use web_search EXCLUSIVAMENTE para pesquisas de fatos do mundo real, notícias atualizadas ou quando o usuário pedir explicitamente para buscar algo na web. É ESTRITAMENTE PROIBIDO usar web_search para ler textos colados pelo usuário, resumir documentos, responder dúvidas de programação ou gerar códigos." +
+                  "\nRASTREABILIDADE DE FONTES DA WEB: Quando você utilizar a ferramenta 'web_search', você DEVE OBRIGATORIAMENTE citar as fontes ao longo do seu texto final usando colchetes numerados (ex: [1], [2]) que correspondam diretamente aos resultados fornecidos pelo buscador. Se uma afirmação veio do resultado 1, insira [1] ao final da frase. NUNCA gere uma resposta de pesquisa web sem citações numéricas no texto apontando para as fontes." +
                   "\nREGRA DE NAVEGAÇÃO WEB REAL (PLAYWRIGHT): SEMPRE que o usuário pedir para abrir, acessar ou navegar em qualquer site (ex: Brave Search, Google, Wikipedia, etc), VOCÊ DEVE OBRIGATORIAMENTE emitir a chamada de função 'open_url' (functionCall) no MESMO TURNO. É ABSOLUTAMENTE PROIBIDO apenas escrever texto prometendo abrir o site sem enviar a chamada da ferramenta 'open_url'!" +
                   "\nREGRAS OBRIGATÓRIAS DE AGENTE SEQUENCIAL MULTI-ETAPAS (PASSO A PASSO):" +
                   "\n1. Atue como um AGENTE SEQUENCIAL AUTÔNOMO que executa tarefas agênticas em múltiplos turnos encadeados (pesquisar na web, abrir sites, clicar em botões, ler conteúdos, preparar resumos)." +

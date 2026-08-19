@@ -1,5 +1,5 @@
 import React from 'react';
-import { Terminal, FileCode, ChevronRight, Loader2, AlertTriangle } from 'lucide-react';
+import { Terminal, FileCode, ChevronRight, Loader2, AlertTriangle, ShieldAlert, CheckCircle2, Lock } from 'lucide-react';
 import { WsmTerminalExecAction, WsmTerminalFileAction } from '../utils/terminalParser';
 
 interface TerminalActionCardProps {
@@ -15,40 +15,61 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
 }) => {
   if (execAction) {
     const isRunning = execAction.status === 'running';
+    const isBlocked = execAction.status === 'blocked';
     const isFailed = execAction.status === 'failed' || execAction.status === 'timed_out' || (typeof execAction.exitCode === 'number' && execAction.exitCode !== 0);
+    const isMock = execAction.isMock || execAction.status === 'simulated' || (execAction as any).isSimulated;
+    const requiresAuth = execAction.status === 'requires_auth';
+    const isSuccess = !isRunning && !isFailed && !isBlocked && !isMock && !requiresAuth && execAction.exitCode === 0;
+
+    let stateLabel = "DESCONHECIDO";
+    let stateColor = "text-gray-500 bg-gray-100 border-gray-200";
+    let Icon = Terminal;
+
+    if (isRunning) { stateLabel = "EXECUTANDO"; stateColor = "text-blue-600 bg-blue-50 border-blue-200"; Icon = Loader2; }
+    else if (isBlocked) { stateLabel = "BLOQUEADO"; stateColor = "text-red-700 bg-red-100 border-red-300"; Icon = ShieldAlert; }
+    else if (requiresAuth) { stateLabel = "REQUER AUTENTICAÇÃO"; stateColor = "text-amber-700 bg-amber-100 border-amber-300"; Icon = Lock; }
+    else if (isFailed) { stateLabel = "FALHOU"; stateColor = "text-rose-700 bg-rose-50 border-rose-200"; Icon = AlertTriangle; }
+    else if (isMock) { stateLabel = "SIMULADO"; stateColor = "text-amber-800 bg-amber-100 border-amber-300"; Icon = FileCode; }
+    else if (isSuccess) { stateLabel = "SUCESSO"; stateColor = "text-emerald-700 bg-emerald-50 border-emerald-200"; Icon = CheckCircle2; }
 
     return (
-      <div className="flex items-center justify-start py-0.5 my-1">
-        {isRunning ? (
+      <div className="w-full my-2 border border-[#eae6e1] dark:border-[#2e2e2e] rounded-xl bg-[#faf9f6] dark:bg-[#151515] overflow-hidden shadow-xs">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-[#eae6e1] dark:border-[#2e2e2e] bg-white dark:bg-[#1a1a1a]">
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-extrabold uppercase rounded border ${stateColor}`}>
+              <Icon className={`w-3.5 h-3.5 ${isRunning ? 'animate-spin' : ''}`} />
+              {stateLabel}
+            </span>
+            <span className="text-[12px] font-mono text-gray-800 dark:text-gray-200 truncate max-w-[200px]" title={execAction.command}>
+              $ {execAction.command}
+            </span>
+          </div>
           <button
             type="button"
             onClick={onOpenTerminal}
-            className="inline-flex items-center gap-1.5 text-[14px] font-medium select-none cursor-pointer border-0 bg-transparent p-0"
+            className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center cursor-pointer"
           >
-            <Loader2 className="w-4 h-4 text-[#8e9099] dark:text-gray-400 animate-spin shrink-0" />
-            <span className="shimmer-text">Executando no terminal...</span>
+            Terminal <ChevronRight className="w-3.5 h-3.5" />
           </button>
-        ) : isFailed ? (
-          <button
-            type="button"
-            onClick={onOpenTerminal}
-            className="inline-flex items-center gap-1.5 text-[14px] font-medium transition-colors select-none border-0 bg-transparent p-0 cursor-pointer text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-          >
-            <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
-            <span>Falha no terminal (Exit {execAction.exitCode ?? 1})</span>
-            <ChevronRight className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onOpenTerminal}
-            className="inline-flex items-center gap-1.5 text-[14px] font-medium transition-colors select-none border-0 bg-transparent p-0 cursor-pointer text-[#6b7076] hover:text-black dark:text-gray-400 dark:hover:text-white"
-          >
-            <Terminal className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0" />
-            <span>Executou no terminal</span>
-            <ChevronRight className="w-3.5 h-3.5 text-[#6b7076] dark:text-gray-400 shrink-0" />
-          </button>
-        )}
+        </div>
+        <div className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] text-gray-500 dark:text-gray-400 font-mono">
+          <div className="flex flex-col">
+            <span className="uppercase font-bold text-[9px] mb-0.5">Run ID</span>
+            <span className="truncate text-gray-800 dark:text-gray-200">{execAction.runId || 'N/A'}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="uppercase font-bold text-[9px] mb-0.5">Origem</span>
+            <span className="truncate text-gray-800 dark:text-gray-200">Terminal (Exec)</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="uppercase font-bold text-[9px] mb-0.5">Exit Code</span>
+            <span className="truncate text-gray-800 dark:text-gray-200">{execAction.exitCode ?? 'N/A'}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="uppercase font-bold text-[9px] mb-0.5">URL Testada</span>
+            <span className="truncate text-gray-800 dark:text-gray-200">N/A</span>
+          </div>
+        </div>
       </div>
     );
   }
@@ -62,27 +83,57 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
       fileName.includes('mock') ||
       fileName.includes('simula')
     );
+    const isFailed = fileAction.status === 'failed';
+    const isRunning = fileAction.status === 'writing';
+    const isSuccess = !isRunning && !isFailed && !isMock;
+
+    let stateLabel = "DESCONHECIDO";
+    let stateColor = "text-gray-500 bg-gray-100 border-gray-200";
+    let Icon = FileCode;
+
+    if (isRunning) { stateLabel = "EXECUTANDO"; stateColor = "text-blue-600 bg-blue-50 border-blue-200"; Icon = Loader2; }
+    else if (isFailed) { stateLabel = "FALHOU"; stateColor = "text-rose-700 bg-rose-50 border-rose-200"; Icon = AlertTriangle; }
+    else if (isMock) { stateLabel = "SIMULADO"; stateColor = "text-amber-800 bg-amber-100 border-amber-300"; Icon = FileCode; }
+    else if (isSuccess) { stateLabel = "SUCESSO"; stateColor = "text-emerald-700 bg-emerald-50 border-emerald-200"; Icon = CheckCircle2; }
 
     return (
-      <div className="flex items-center justify-start py-0.5 my-1">
-        <button
-          type="button"
-          onClick={onOpenTerminal}
-          className="inline-flex items-center gap-1.5 text-[14px] font-medium transition-colors select-none border-0 bg-transparent p-0 cursor-pointer text-[#6b7076] hover:text-black dark:text-gray-400 dark:hover:text-white"
-        >
-          <FileCode className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0" />
-          {isMock ? (
-            <span className="flex items-center gap-1.5">
-              <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-700 rounded">
-                SIMULAÇÃO / MOCK
-              </span>
-              <span>Gravou arquivo em modo simulado: <code className="px-1 py-0.5 bg-gray-100 dark:bg-zinc-800 rounded text-[13px] font-mono text-gray-800 dark:text-gray-200">{fileName}</code></span>
+      <div className="w-full my-2 border border-[#eae6e1] dark:border-[#2e2e2e] rounded-xl bg-[#faf9f6] dark:bg-[#151515] overflow-hidden shadow-xs">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-[#eae6e1] dark:border-[#2e2e2e] bg-white dark:bg-[#1a1a1a]">
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-extrabold uppercase rounded border ${stateColor}`}>
+              <Icon className={`w-3.5 h-3.5 ${isRunning ? 'animate-spin' : ''}`} />
+              {stateLabel}
             </span>
-          ) : (
-            <span>Criou o arquivo (Real em Sandbox) <code className="px-1 py-0.5 bg-gray-100 dark:bg-zinc-800 rounded text-[13px] font-mono text-gray-800 dark:text-gray-200">{fileName}</code></span>
-          )}
-          <ChevronRight className="w-3.5 h-3.5 text-[#6b7076] dark:text-gray-400 shrink-0" />
-        </button>
+            <span className="text-[12px] font-mono text-gray-800 dark:text-gray-200 truncate max-w-[200px]" title={fileName}>
+              {fileName}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenTerminal}
+            className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center cursor-pointer"
+          >
+            Workspace <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <div className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] text-gray-500 dark:text-gray-400 font-mono">
+          <div className="flex flex-col">
+            <span className="uppercase font-bold text-[9px] mb-0.5">Run ID</span>
+            <span className="truncate text-gray-800 dark:text-gray-200">{fileAction.runId || 'N/A'}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="uppercase font-bold text-[9px] mb-0.5">Origem</span>
+            <span className="truncate text-gray-800 dark:text-gray-200">Terminal (File)</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="uppercase font-bold text-[9px] mb-0.5">Caminho / ID</span>
+            <span className="truncate text-gray-800 dark:text-gray-200" title={fileName}>{fileName}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="uppercase font-bold text-[9px] mb-0.5">Hash</span>
+            <span className="truncate text-gray-800 dark:text-gray-200">{(fileAction as any).hash || 'N/A'}</span>
+          </div>
+        </div>
       </div>
     );
   }
