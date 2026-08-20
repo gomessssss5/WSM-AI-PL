@@ -18,6 +18,7 @@ import {
 import { ChatSession } from '../types';
 
 import { sanitizeMessageText } from '../utils/exportSanitizer';
+import { safeParseDate, formatTimeSafely } from '../utils/dateUtils';
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -75,8 +76,10 @@ export default function SearchModal({
   });
 
   // Group sessions by date
-  const getSessionGroup = (dateInput: Date | string | number) => {
-    const date = new Date(dateInput);
+  const getSessionGroup = (dateInput: any) => {
+    const date = safeParseDate(dateInput);
+    if (!date) return 'Mais antigas';
+
     const now = new Date();
     
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -99,8 +102,10 @@ export default function SearchModal({
   };
 
   // Format date/time
-  const formatSessionTime = (dateInput: Date | string | number) => {
-    const date = new Date(dateInput);
+  const formatSessionTime = (dateInput: any) => {
+    const date = safeParseDate(dateInput);
+    if (!date) return 'Data indisponível';
+
     const now = new Date();
     
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -223,9 +228,11 @@ export default function SearchModal({
   };
 
   // Sort sessions by timestamp descending, then group
-  const sortedSessions = [...filteredSessions].sort((a, b) => 
-    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-  );
+  const sortedSessions = [...filteredSessions].sort((a, b) => {
+    const timeA = safeParseDate(a.timestamp)?.getTime() || 0;
+    const timeB = safeParseDate(b.timestamp)?.getTime() || 0;
+    return timeB - timeA;
+  });
 
   sortedSessions.forEach(session => {
     const groupName = getSessionGroup(session.timestamp);

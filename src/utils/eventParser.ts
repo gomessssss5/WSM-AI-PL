@@ -1,4 +1,5 @@
 import { Message, ToolEvent } from '../types';
+import { safeToISOString } from './dateUtils';
 
 /**
  * Extracts and maps all workspace, search, code, and scheduling actions into a 
@@ -7,7 +8,7 @@ import { Message, ToolEvent } from '../types';
  */
 export function extractStructuredEvents(message: Message): ToolEvent[] {
   const events: ToolEvent[] = [];
-  const timestampStr = message.timestamp ? new Date(message.timestamp).toISOString() : new Date().toISOString();
+  const timestampStr = safeToISOString(message.timestamp);
   const baseRunId = `run_${message.id.replace('msg-', '')}`;
 
   // 1. Process Web Search Steps (isSearchMessage / searchSteps)

@@ -130,13 +130,13 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
     taskData.executionSecret = secret;
   }
 
-  // Update task state in Firestore
+  // Update task state in Firestore to 'iniciada' (running) while keeping isActive=true during execution
   try {
     await db.collection('users').doc(userId).collection('scheduledTasks').doc(taskId).update({
       lastRunAt: Timestamp.fromDate(now),
-      lastStatus: 'running',
+      lastStatus: 'iniciada',
       ...(newNextRunAt ? { nextRunAt: Timestamp.fromDate(newNextRunAt) } : {}),
-      isActive: newIsActive,
+      isActive: true, // Keep active while executing
       executionSecret: secret
     });
   } catch (e) {
@@ -149,7 +149,7 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
   const maxRetries = taskData.retryPolicy?.maxRetries || 3;
   const backoffSeconds = taskData.retryPolicy?.backoffSeconds || 10;
 
-  // Create initial execution record with 'running' status so the frontend shows it in real-time!
+  // Create initial execution record with 'iniciada' status so the frontend shows state progression in real-time
   try {
     await db.collection('users').doc(userId).collection('taskExecutions').doc(executionId).set({
       id: executionId,
@@ -158,7 +158,7 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
       taskTitle: taskData.title,
       executedAt: Timestamp.fromDate(startedAt),
       startedAt: Timestamp.fromDate(startedAt),
-      status: 'running',
+      status: 'iniciada',
       triggerType: taskData.triggerType || 'manual',
       sessionId: newSessionId,
       attempts: 1,
@@ -373,22 +373,24 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
       generatedFiles: generatedFiles,
       logs: [
         `[${startedAt.toISOString()}] Execução iniciada. Tipo: ${taskData.triggerType || 'manual'}.`,
-        `[${startedAt.toISOString()}] Iniciando tentativa 1 de ${maxRetries}...`,
+        `[${startedAt.toISOString()}] Tentativas executadas: ${attempts} de ${maxRetries}.`,
         ...(executionStatus === 'success' 
           ? [`[${finishedAt.toISOString()}] Execução concluída com sucesso. Duração: ${durationMs}ms.`]
           : executionStatus === 'needs_auth'
-          ? [`[${finishedAt.toISOString()}] FALHA CRÍTICA DE AUTENTICAÇÃO (HTTP 401/419): Token de sessão expirado. Execução interrompida.`]
+          ? [`[${finishedAt.toISOString()}] FALHA DE AUTENTICAÇÃO (HTTP 401/419): Reautenticação necessária.`]
           : [`[${finishedAt.toISOString()}] Falha na execução: ${executionError}`])
       ],
       ...(executionError ? { error: executionError, errorDetails: executionError } : {})
     });
 
+    const isOnceTask = taskData.scheduleType === 'once';
     await db.collection('users').doc(userId).collection('scheduledTasks').doc(taskId).update({
       lastStatus: executionStatus === 'success' ? 'succeeded' : executionStatus === 'needs_auth' ? 'needs_auth' : 'failed',
       lastRunAt: Timestamp.fromDate(startedAt),
       lastOutput: finalOutput.slice(0, 200),
       lastExecutionDurationMs: durationMs,
       lastExecutionStatus: executionStatus === 'success' ? 'succeeded' : executionStatus === 'needs_auth' ? 'needs_auth' : 'failed',
+      ...(isOnceTask ? { isActive: false } : {}),
       ...(executionError ? { lastErrorDetails: executionError } : {})
     });
   } catch (e) {

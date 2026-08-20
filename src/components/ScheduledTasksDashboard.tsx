@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { calculateNextRunAt } from '../lib/scheduledTasks';
 import { logAuditEvent } from '../utils/auditLogger';
 import { getAuthHeader } from '../lib/firebase';
+import { safeParseDate, formatTimeSafely, formatDateSafely } from '../utils/dateUtils';
 
 interface ScheduledTasksDashboardProps {
   tasks: ScheduledTask[];
@@ -65,6 +66,7 @@ export default function ScheduledTasksDashboard({
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [maxRetries, setMaxRetries] = useState(3);
   const [backoffSeconds, setBackoffSeconds] = useState(10);
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null);
 
   const handleExecuteNow = async (task: ScheduledTask) => {
     if (runningTaskId) return;
@@ -481,37 +483,16 @@ export default function ScheduledTasksDashboard({
     setBackoffSeconds(10);
   };
 
-  const parseDate = (d: any): Date => {
-    if (!d) return new Date();
-    if (d instanceof Date) return isNaN(d.getTime()) ? new Date() : d;
-    if (typeof d.toDate === 'function') {
-      const res = d.toDate();
-      return isNaN(res.getTime()) ? new Date() : res;
-    }
-    if (d && typeof d === 'object' && 'seconds' in d) {
-      const res = new Date(d.seconds * 1000);
-      return isNaN(res.getTime()) ? new Date() : res;
-    }
-    const res = new Date(d);
-    return isNaN(res.getTime()) ? new Date() : res;
+  const parseDate = (d: any): Date | null => {
+    return safeParseDate(d);
   };
 
   const formatShortTime = (d: any) => {
-    try {
-      const date = parseDate(d);
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } catch (e) {
-      return '--:--';
-    }
+    return formatTimeSafely(d, { hour: '2-digit', minute: '2-digit' }, 'Data indisponível');
   };
 
   const formatShortDate = (d: any) => {
-    try {
-      const date = parseDate(d);
-      return date.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
-    } catch (e) {
-      return '--/--/----';
-    }
+    return formatDateSafely(d, { day: '2-digit', month: 'short', year: 'numeric' }, 'Data indisponível');
   };
 
   return (
@@ -559,6 +540,19 @@ export default function ScheduledTasksDashboard({
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-6 sm:p-10">
+          {sessionNotice && (
+            <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm flex items-center justify-between shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <span className="font-semibold">{sessionNotice}</span>
+              </div>
+              <button
+                onClick={() => setSessionNotice(null)}
+                className="text-amber-700 hover:text-amber-950 p-1 rounded-md hover:bg-amber-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           
           {activeTab === 'calendar' && (
             <div className="flex flex-col lg:flex-row gap-6 items-stretch">
@@ -823,19 +817,29 @@ export default function ScheduledTasksDashboard({
                           <div>
                             <div className="flex items-center gap-2">
                               <h3 className="font-semibold text-gray-900 text-base">{task.title}</h3>
-                              {(task as any).lastStatus === 'needs_auth' ? (
+                              {runningTaskId === task.id || (task as any).lastStatus === 'iniciada' || (task as any).lastStatus === 'running' ? (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider bg-blue-50 text-blue-700 border-blue-200 animate-pulse">
+                                  iniciada
+                                </span>
+                              ) : (task as any).lastStatus === 'needs_auth' ? (
                                 <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full border uppercase tracking-wider bg-amber-100 text-amber-900 border-amber-300">
-                                  needs_auth (401)
+                                  reautenticar
+                                </span>
+                              ) : task.isActive ? (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider bg-emerald-50 text-emerald-700 border-emerald-200">
+                                  agendada
+                                </span>
+                              ) : (task as any).lastStatus === 'succeeded' || (task as any).lastStatus === 'concluido' ? (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider bg-gray-100 text-gray-700 border-gray-300">
+                                  concluída
+                                </span>
+                              ) : (task as any).lastStatus === 'failed' ? (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider bg-red-50 text-red-700 border-red-200">
+                                  falhou
                                 </span>
                               ) : (
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${
-                                  runningTaskId === task.id
-                                    ? 'bg-blue-50 text-blue-700 border-blue-200 animate-pulse'
-                                    : task.isActive 
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                                    : 'bg-amber-50 text-amber-700 border-amber-200'
-                                }`}>
-                                  {runningTaskId === task.id ? 'executando' : task.isActive ? 'ativa' : 'pausada'}
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider bg-amber-50 text-amber-700 border-amber-200">
+                                  pausada
                                 </span>
                               )}
                             </div>
@@ -1083,7 +1087,19 @@ export default function ScheduledTasksDashboard({
 
                         <button
                           type="button"
-                          onClick={() => onOpenSession(exec.sessionId)}
+                          onClick={() => {
+                            if (!exec.sessionId) {
+                              setSessionNotice('Nenhuma conversa foi gerada para esta execução.');
+                              return;
+                            }
+                            const sessionExists = sessions.some(s => s.id === exec.sessionId);
+                            if (!sessionExists) {
+                              setSessionNotice('A conversa associada a esta execução não está disponível no seu histórico.');
+                              return;
+                            }
+                            setSessionNotice(null);
+                            onOpenSession(exec.sessionId);
+                          }}
                           className="px-3 py-1.5 rounded-lg bg-black hover:bg-neutral-800 text-white text-xs font-semibold transition-all active:scale-95 shrink-0 flex items-center gap-1 cursor-pointer shadow-sm"
                         >
                           Ver Conversa

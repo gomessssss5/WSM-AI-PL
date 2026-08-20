@@ -110,13 +110,28 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
               {fileName}
             </span>
           </div>
-          <button
-            type="button"
-            onClick={onOpenTerminal}
-            className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center cursor-pointer"
-          >
-            Workspace <ChevronRight className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                const { downloadWorkspaceFile } = await import('../utils/fileDownload');
+                const success = await downloadWorkspaceFile(fileName);
+                if (!success) {
+                  alert(`O arquivo '${fileName}' não foi encontrado no workspace para download.`);
+                }
+              }}
+              className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center cursor-pointer gap-1 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800"
+            >
+              Baixar
+            </button>
+            <button
+              type="button"
+              onClick={onOpenTerminal}
+              className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center cursor-pointer"
+            >
+              Workspace <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
         <div className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] text-gray-500 dark:text-gray-400 font-mono">
           <div className="flex flex-col">

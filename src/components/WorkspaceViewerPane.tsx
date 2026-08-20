@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { formatTimeSafely } from '../utils/dateUtils';
 import { 
   X, 
   Download, 
@@ -848,7 +849,7 @@ export default function WorkspaceViewerPane({
                           >
                             <div className="flex items-center justify-between">
                               <span className="font-mono text-xs font-bold">Versão v{ver.version}</span>
-                              <span className="text-[9px] opacity-70">{new Date(ver.updatedAt).toLocaleTimeString()}</span>
+                              <span className="text-[9px] opacity-70">{formatTimeSafely(ver.updatedAt, undefined, 'Data indisponível')}</span>
                             </div>
                             <p className="text-[10px] mt-1 font-medium truncate italic">"{ver.summary}"</p>
                             <div className="flex items-center gap-1.5 mt-2 text-[9px] opacity-80 border-t border-dashed border-gray-300/40 pt-1.5">

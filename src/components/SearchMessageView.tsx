@@ -22,7 +22,7 @@ interface SearchMessageViewProps {
   setLightboxImage: (url: string) => void;
   onSimulationComplete?: () => void;
   onStepChange?: () => void;
-  onOpenSources?: (sources: { hostname: string; title: string; url: string; snippet?: string }[], query: string, count: number, messageId?: string) => void;
+  onOpenSources?: (sources: { hostname: string; title: string; url: string; url_final?: string; source?: string; published_at?: string | null; verifiedDate?: string | null; snippet?: string }[], query: string, count: number, messageId?: string) => void;
   onOpenScheduledTasks?: () => void;
   onOpenDocument?: (doc: WsmDocument) => void;
   onOpenWorkspace?: () => void;
@@ -476,13 +476,22 @@ export default function SearchMessageView({
             const activeQuery = message.userQuery || (message.searchSteps && message.searchSteps[0]?.tag) || message.searchIntro || title;
             const cleanedSources = cleanAndDeduplicateSources(message.searchSources, activeQuery, 15);
             const uniqueSources = cleanedSources.map(src => {
-              let hostname = '';
+              let hostname = src.hostname || '';
               try {
                 hostname = new URL(src.url).hostname.replace(/^www\./, '');
               } catch {
                 hostname = src.title;
               }
-              return { hostname, title: src.title, url: src.url, snippet: src.snippet };
+              return {
+                hostname,
+                title: src.title,
+                url: src.url,
+                url_final: src.url_final || src.url,
+                source: src.source || hostname,
+                published_at: src.published_at || null,
+                verifiedDate: src.verifiedDate || null,
+                snippet: src.snippet
+              };
             });
 
             if (uniqueSources.length === 0) return null;

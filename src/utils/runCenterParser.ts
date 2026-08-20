@@ -1,5 +1,6 @@
 import { OmnixRun, RunStep, DetailedToolCall, RunVerifiableTest, ArtifactRecord, Message } from '../types';
 import { extractWsmTerminalActions } from './terminalParser';
+import { safeToISOString } from './dateUtils';
 
 /**
  * Extracts explicit task checklists or dynamic steps from a message, its searches, or tool actions.
@@ -187,7 +188,7 @@ export function buildRunFromMessage(
   historyMessages: Message[] = []
 ): OmnixRun {
   const messageId = message.id;
-  const createdAt = message.timestamp ? new Date(message.timestamp).toISOString() : new Date().toISOString();
+  const createdAt = safeToISOString(message.timestamp);
   
   // 1. Determine Objective
   let objective = 'Executar pedido do usuário';

@@ -8,6 +8,7 @@ import WsmChartComponent from './WsmChartComponent';
 import WsmMindmapComponent from './WsmMindmapComponent';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { downloadWorkspaceFile } from '../utils/fileDownload';
 
 interface AgenticSkillTagProps {
   key?: string;
@@ -1262,7 +1263,14 @@ export default function MarkdownRenderer({
                         <a
                           href={`/api/download/${encodeURIComponent(cleanFilename)}`}
                           download={cleanFilename}
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const success = await downloadWorkspaceFile(cleanFilename);
+                            if (!success) {
+                              alert(`O arquivo '${cleanFilename}' não está disponível para download no workspace. Execute o comando para recriá-lo se necessário.`);
+                            }
+                          }}
                           className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-900/60 rounded border border-emerald-200 dark:border-emerald-800 transition-colors cursor-pointer"
                           title={`Baixar ${cleanFilename}`}
                         >
@@ -1378,8 +1386,13 @@ export default function MarkdownRenderer({
                       key={`link-${pIdx}-${keyIndex++}`}
                       href={downloadUrl}
                       download={filename}
-                      onClick={(e) => {
+                      onClick={async (e) => {
+                        e.preventDefault();
                         e.stopPropagation();
+                        const success = await downloadWorkspaceFile(filename);
+                        if (!success) {
+                          alert(`O arquivo '${filename}' não está disponível para download no workspace.`);
+                        }
                       }}
                       className="inline-flex items-center gap-1.5 px-2.5 py-1 my-1 mx-0.5 bg-blue-50/90 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 border border-blue-200/80 dark:border-blue-800/80 rounded-lg text-[13px] font-medium text-blue-900 dark:text-blue-100 transition-all select-none cursor-pointer align-middle no-underline shadow-3xs group"
                       title={`Baixar ${filename}`}

@@ -53,6 +53,8 @@ export default function App() {
   const [isProfileLoaded, setIsProfileLoaded] = useState<boolean>(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [isLoadingSessions, setIsLoadingSessions] = useState<boolean>(true);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isImagesView, setIsImagesView] = useState(false);
@@ -762,41 +764,55 @@ export default function App() {
       setSessions([]);
       setUserProfile(null);
       setIsProfileLoaded(false);
+      setIsLoadingSessions(true);
+      setSessionsError(null);
       return;
     }
 
-    const unsubscribeSessions = subscribeSessions(currentUser.uid, (loadedSessions) => {
-      setSessions((prevSessions) => {
-        const currentActiveId = activeSessionIdRef.current;
-        const activeLocal = prevSessions.find((s) => s.id === currentActiveId);
-        const isStreamingOrSimulating = activeLocal?.messages.some((m) => m.isSimulatingSearch);
-        const isLocalActivePreserved = !!activeLocal;
-        const isActiveLocalDirtyOrPreserved = activeLocal && (isDirtyRef.current || isStreamingOrSimulating || isThinkingRef.current);
-        const isActiveInLoaded = loadedSessions.some((loaded) => loaded.id === currentActiveId);
+    setIsLoadingSessions(true);
+    setSessionsError(null);
 
-        const updatedLoaded = loadedSessions.map((loaded) => {
-          const cleanedTitle = cleanSessionTitle(loaded.title);
-          if (loaded.id === currentActiveId && activeLocal && isActiveLocalDirtyOrPreserved) {
+    const unsubscribeSessions = subscribeSessions(
+      currentUser.uid,
+      (loadedSessions) => {
+        setIsLoadingSessions(false);
+        setSessionsError(null);
+        setSessions((prevSessions) => {
+          const currentActiveId = activeSessionIdRef.current;
+          const activeLocal = prevSessions.find((s) => s.id === currentActiveId);
+          const isStreamingOrSimulating = activeLocal?.messages.some((m) => m.isSimulatingSearch);
+          const isLocalActivePreserved = !!activeLocal;
+          const isActiveLocalDirtyOrPreserved = activeLocal && (isDirtyRef.current || isStreamingOrSimulating || isThinkingRef.current);
+          const isActiveInLoaded = loadedSessions.some((loaded) => loaded.id === currentActiveId);
+
+          const updatedLoaded = loadedSessions.map((loaded) => {
+            const cleanedTitle = cleanSessionTitle(loaded.title);
+            if (loaded.id === currentActiveId && activeLocal && isActiveLocalDirtyOrPreserved) {
+              return {
+                ...loaded,
+                messages: activeLocal.messages,
+                title: cleanSessionTitle(activeLocal.title)
+              };
+            }
             return {
               ...loaded,
-              messages: activeLocal.messages,
-              title: cleanSessionTitle(activeLocal.title)
+              title: cleanedTitle
             };
+          });
+
+          const tempSessions = prevSessions.filter((s) => s.isTemporary);
+
+          if (isActiveLocalDirtyOrPreserved && !isActiveInLoaded && activeLocal && !activeLocal.isTemporary) {
+            return [...tempSessions, activeLocal, ...updatedLoaded];
           }
-          return {
-            ...loaded,
-            title: cleanedTitle
-          };
+          return [...tempSessions, ...updatedLoaded];
         });
-
-        const tempSessions = prevSessions.filter((s) => s.isTemporary);
-
-        if (isActiveLocalDirtyOrPreserved && !isActiveInLoaded && activeLocal && !activeLocal.isTemporary) {
-          return [...tempSessions, activeLocal, ...updatedLoaded];
-        }
-        return [...tempSessions, ...updatedLoaded];
-      });
-    });
+      },
+      (error) => {
+        setIsLoadingSessions(false);
+        setSessionsError(error?.message || 'Erro ao carregar conversas');
+      }
+    );
 
     const unsubscribeDrafts = subscribeDrafts(currentUser.uid, (loadedDrafts) => {
       setDrafts(loadedDrafts);
@@ -1517,6 +1533,26 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
     const currentActiveSessionId = activeSessionIdRef.current;
     let sessionToUpdate: ChatSession;
 
+    const currentRequestedModel = selectedModel;
+    const generationId = `gen-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const initialAiMsg: Message = {
+      id: `msg-${Date.now()}-ai`,
+      generationId,
+      sender: "ai",
+      text: "",
+      userQuery: text,
+      timestamp: new Date(),
+      model: currentRequestedModel,
+      geminiModel: 'gemini-3.5-flash-lite',
+      isSearchMessage: isSearchEnabled,
+      searchIntro: isSearchEnabled ? "Preparando a pesquisa..." : undefined,
+      searchSteps: [],
+      finalSynthesis: "",
+      searchImages: [],
+      searchSources: [],
+      isSimulatingSearch: isSearchEnabled,
+    };
+
     if (!currentActiveSessionId) {
       // Create a brand new session locally first
       let cleanTitleText = cleanSessionTitle(text || '');
@@ -1536,12 +1572,13 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
         id: newId,
         title: truncatedTitle,
         timestamp: new Date(),
-        messages: [userMsg],
+        messages: [userMsg, initialAiMsg],
         category: 'general',
         model: selectedModel,
       };
       
       sessionToUpdate = newSession;
+      activeSessionRef.current = newSession;
       
       // Update local state immediately for smooth UI transition
       setSessions((prev) => [newSession, ...prev]);
@@ -1578,13 +1615,20 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
         }
       }
 
+      // If overrideMessages was provided (e.g. from editing a previous message), cleanly truncate previous tree
+      const baseMessages = overrideMessages ? [...overrideMessages] : [...currentSession.messages];
+      const initialMessages = [...baseMessages, userMsg, initialAiMsg];
+
       sessionToUpdate = {
         ...currentSession,
         title: titleText,
-        messages: overrideMessages ? [...overrideMessages, userMsg] : [...currentSession.messages, userMsg],
+        model: currentSession.model || selectedModel,
+        messages: initialMessages,
       };
+      initialAiMsg.model = sessionToUpdate.model || selectedModel;
+      activeSessionRef.current = sessionToUpdate;
       
-      // Update local state immediately for smooth UI transition
+      // Update local state immediately in single atomic step
       setSessions((prev) => prev.map((s) => s.id === currentActiveSessionId ? sessionToUpdate : s));
       
       if (!currentSession.isTemporary) {
@@ -1600,41 +1644,6 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
       isExplicitCancelRef.current = false;
     }
     abortControllerRef.current = new AbortController();
-
-    const currentRequestedModel = sessionToUpdate.model || selectedModel;
-    const initialAiMsg: Message = {
-      id: `msg-${Date.now()}-ai`,
-      sender: "ai",
-      text: "",
-      userQuery: text,
-      timestamp: new Date(),
-      model: currentRequestedModel,
-      geminiModel: 'gemini-3.5-flash-lite',
-      isSearchMessage: isSearchEnabled,
-      searchIntro: isSearchEnabled ? "Preparando a pesquisa..." : undefined,
-      searchSteps: [],
-      finalSynthesis: "",
-      searchImages: [],
-      searchSources: [],
-      isSimulatingSearch: isSearchEnabled,
-    };
-
-    // Put the user's message and the initial AI searching message in state immediately
-    setSessions((prev) => {
-      const currentSess = prev.find((s) => s.id === sessionToUpdate.id);
-        if (!currentSess) return prev;
-        return prev.map((s) => {
-          if (s.id !== sessionToUpdate.id) return s;
-          return {
-            ...s,
-            messages: [
-              ...s.messages.filter((m) => m.id !== userMsg.id),
-              userMsg,
-              initialAiMsg,
-            ],
-          };
-        });
-      });
 
       // Format current request text with attachments if present
       let requestText = text;
@@ -1779,7 +1788,7 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
             email: currentUser.email,
             displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Usuário Omnix'
           } : undefined,
-          history: sessionToUpdate.messages.map(m => {
+          history: sessionToUpdate.messages.filter(m => m.id !== initialAiMsg.id).map(m => {
             let msgText = m.text || m.finalSynthesis || "";
             msgText = msgText
               .replace(/\[PACOTE_SKILL_DECLARATIVO[\s\S]*?\[SOLICITAÇÃO DO USUÁRIO\]:\s*/gi, "")
@@ -2312,14 +2321,22 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
   const handleEditMessage = async (msgId: string, newText: string) => {
     if (!activeSessionId) return;
     handleCancelGeneration();
-    const currentSession = sessions.find((s) => s.id === activeSessionId);
+    const currentSession = activeSessionRef.current || sessions.find((s) => s.id === activeSessionId);
     if (!currentSession) return;
     const idx = currentSession.messages.findIndex((m) => m.id === msgId);
     if (idx === -1) return;
     const overrideMessages = currentSession.messages.slice(0, idx);
-    
     const userMessage = currentSession.messages[idx];
-    await handleSendMessage(newText, isSearchActiveRef.current, overrideMessages, userMessage.attachments, false, false);
+
+    // Immediately reflect truncation in ref and UI
+    const truncatedSession = {
+      ...currentSession,
+      messages: overrideMessages
+    };
+    activeSessionRef.current = truncatedSession;
+    setSessions((prev) => prev.map((s) => s.id === activeSessionId ? truncatedSession : s));
+    
+    await handleSendMessage(newText, isSearchActiveRef.current, overrideMessages, userMessage?.attachments, false, false);
   };
 
   const handleCancelGeneration = () => {
@@ -2421,6 +2438,8 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
         onCloseMobileHistory={() => setIsMobileHistoryOpen(false)}
         onOpenSearchModal={() => setIsSearchModalOpen(true)}
         onOpenProfileModal={() => setIsProfileModalOpen(true)}
+        isLoadingSessions={isLoadingSessions}
+        sessionsError={sessionsError}
       />
 
       {/* Global Search Modal in Center of Screen */}
@@ -2479,8 +2498,12 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
                   }
                 }}
                 onOpenSession={(sessionId) => {
-                  handleSelectSession(sessionId);
-                  setIsScheduledTasksView(false);
+                  if (!sessionId) return;
+                  const targetSession = sessions.find((s) => s.id === sessionId);
+                  if (targetSession) {
+                    handleSelectSession(sessionId);
+                    setIsScheduledTasksView(false);
+                  }
                 }}
                 onSessionCreated={(createdSession) => {
                   setSessions((prev) => [createdSession, ...prev.filter((s) => s.id !== createdSession.id)]);

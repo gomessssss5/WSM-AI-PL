@@ -2,12 +2,24 @@ export interface WsmTerminalExecAction {
   command: string;
   status: 'queued' | 'running' | 'done' | 'failed' | 'success' | 'timed_out' | 'cancelled';
   exitCode?: number;
+  runId?: string;
+  hash?: string;
+  sha256?: string;
+  size?: number;
+  size_bytes?: number;
+  bytes_written?: number;
 }
 
 export interface WsmTerminalFileAction {
   action: 'write' | 'read' | 'delete' | 'zip';
   path: string;
   status?: 'working' | 'done' | 'failed';
+  runId?: string;
+  hash?: string;
+  sha256?: string;
+  size?: number;
+  size_bytes?: number;
+  bytes_written?: number;
 }
 
 export function extractWsmTerminalActions(text: string): {
@@ -31,15 +43,27 @@ export function extractWsmTerminalActions(text: string): {
     const cmdMatch = rawAttrs.match(/command="([^"]*)"/i);
     const statusMatch = rawAttrs.match(/status="([^"]*)"/i);
     const exitMatch = rawAttrs.match(/exitCode="([^"]*)"/i);
+    const hashMatch = rawAttrs.match(/(?:hash|sha256)="([^"]*)"/i);
+    const runIdMatch = rawAttrs.match(/runId="([^"]*)"/i);
+    const sizeMatch = rawAttrs.match(/(?:size|size_bytes|bytes_written)="([^"]*)"/i);
 
     const command = cmdMatch ? cmdMatch[1] : 'ls';
     const status = (statusMatch ? statusMatch[1].toLowerCase() : 'done') as any;
     const exitCode = exitMatch ? parseInt(exitMatch[1], 10) : undefined;
+    const hash = hashMatch ? hashMatch[1] : undefined;
+    const runId = runIdMatch ? runIdMatch[1] : undefined;
+    const size = sizeMatch ? parseInt(sizeMatch[1], 10) : undefined;
 
     execActions.push({
       command,
       status,
-      exitCode
+      exitCode,
+      hash,
+      sha256: hash,
+      runId,
+      size,
+      size_bytes: size,
+      bytes_written: size
     });
   }
 
@@ -50,11 +74,23 @@ export function extractWsmTerminalActions(text: string): {
     const actionMatch = rawAttrs.match(/action="([^"]*)"/i);
     const pathMatch = rawAttrs.match(/path="([^"]*)"/i);
     const statusMatch = rawAttrs.match(/status="([^"]*)"/i);
+    const hashMatch = rawAttrs.match(/(?:hash|sha256)="([^"]*)"/i);
+    const runIdMatch = rawAttrs.match(/runId="([^"]*)"/i);
+    const sizeMatch = rawAttrs.match(/(?:size|size_bytes|bytes_written)="([^"]*)"/i);
+
+    const size = sizeMatch ? parseInt(sizeMatch[1], 10) : undefined;
+    const hash = hashMatch ? hashMatch[1] : undefined;
 
     fileActions.push({
       action: (actionMatch ? actionMatch[1].toLowerCase() : 'write') as any,
       path: pathMatch ? pathMatch[1] : 'arquivo',
-      status: (statusMatch ? statusMatch[1].toLowerCase() : 'done') as any
+      status: (statusMatch ? statusMatch[1].toLowerCase() : 'done') as any,
+      hash,
+      sha256: hash,
+      runId: runIdMatch ? runIdMatch[1] : undefined,
+      size,
+      size_bytes: size,
+      bytes_written: size
     });
   }
 

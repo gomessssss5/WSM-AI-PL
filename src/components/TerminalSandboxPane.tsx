@@ -76,8 +76,11 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
   const historyIndex = useRef<number>(-1);
   const localCommandHistory = useRef<string[]>([]);
 
+  const [currentCwd, setCurrentCwd] = useState<string>(sandboxEngine.getCwd());
+
   // Refresh files & resources
   const refreshSandboxState = () => {
+    setCurrentCwd(sandboxEngine.getCwd());
     setFiles(sandboxEngine.listFiles('/workspace'));
     setCommandLogs(sandboxEngine.getHistory());
     setResourceUsage(sandboxEngine.getResourceUsage());
@@ -85,7 +88,7 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
 
   const writePrompt = () => {
     if (xtermInstance.current) {
-      xtermInstance.current.write('\r\n\x1b[1;32mubuntu@sandbox:~\x1b[0m$ ');
+      xtermInstance.current.write(`\r\n${sandboxEngine.getPrompt()}`);
       promptBuffer.current = '';
     }
   };
@@ -189,7 +192,7 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
             if (localCommandHistory.current.length > 0 && historyIndex.current > 0) {
               historyIndex.current--;
               const prevCmd = localCommandHistory.current[historyIndex.current];
-              term.write('\r\x1b[K\x1b[1;32mubuntu@sandbox:~\x1b[0m$ ' + prevCmd);
+              term.write('\r\x1b[K' + sandboxEngine.getPrompt() + prevCmd);
               promptBuffer.current = prevCmd;
             }
             return;
@@ -200,11 +203,11 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
             if (historyIndex.current < localCommandHistory.current.length - 1) {
               historyIndex.current++;
               const nextCmd = localCommandHistory.current[historyIndex.current];
-              term.write('\r\x1b[K\x1b[1;32mubuntu@sandbox:~\x1b[0m$ ' + nextCmd);
+              term.write('\r\x1b[K' + sandboxEngine.getPrompt() + nextCmd);
               promptBuffer.current = nextCmd;
             } else {
               historyIndex.current = localCommandHistory.current.length;
-              term.write('\r\x1b[K\x1b[1;32mubuntu@sandbox:~\x1b[0m$ ');
+              term.write('\r\x1b[K' + sandboxEngine.getPrompt());
               promptBuffer.current = '';
             }
             return;
@@ -267,7 +270,7 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
       }
     } catch (err: any) {
       if (xtermInstance.current) {
-        xtermInstance.current.write(`\x1b[31m✕ Falha na execução: ${err?.message || String(err)}\x1b[0m\r\n\x1b[1;32mubuntu@sandbox:~\x1b[0m$ `);
+        xtermInstance.current.write(`\x1b[31m✕ Falha na execução: ${err?.message || String(err)}\x1b[0m\r\n${sandboxEngine.getPrompt()}`);
       }
     } finally {
       setIsRunning(false);
@@ -354,7 +357,7 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 font-mono tracking-tight">
-              ubuntu@sandbox:~
+              ubuntu@sandbox:{currentCwd}
             </span>
             {isRunning && (
               <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 animate-pulse">

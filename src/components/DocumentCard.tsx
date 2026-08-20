@@ -54,25 +54,43 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
     }
   };
 
-  const formatFileSize = (contentStr: string) => {
-    if (!contentStr) return '0 B';
-    const bytes = new Blob([contentStr]).size;
+  const formatBytes = (bytes: number): string => {
+    if (typeof bytes !== 'number' || isNaN(bytes) || bytes <= 0) return '0 B';
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const getExactFileSize = (): string => {
+    if (typeof document.size === 'number' && document.size >= 0) {
+      return formatBytes(document.size);
+    }
+    if (typeof (document as any).sizeBytes === 'number' && (document as any).sizeBytes >= 0) {
+      return formatBytes((document as any).sizeBytes);
+    }
+    if (typeof val?.sizeBytes === 'number' && val.sizeBytes >= 0) {
+      return formatBytes(val.sizeBytes);
+    }
+    if (!document.content) return '0 B';
+    const bytes = new TextEncoder().encode(document.content).length;
+    return formatBytes(bytes);
+  };
+
   const handleDownload = async (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+
+    const exactBytes = typeof document.size === 'number' && document.size >= 0 
+      ? document.size 
+      : (typeof val?.sizeBytes === 'number' ? val.sizeBytes : new TextEncoder().encode(document.content || '').length);
 
     // Log audit event for download
     logAuditEvent({
       toolName: 'Download de Artefato',
       riskLevel: 'low',
-      details: `Download efetuado do artefato "${document.title}" (Formato: ${format.toUpperCase()})`,
+      details: `Download efetuado do artefato "${document.title}" (Formato: ${format.toUpperCase()}, Tamanho: ${exactBytes} bytes)`,
       status: 'executed',
       normalized_input: `Title: ${document.title}, Format: ${format}`,
-      output: `Arquivo ${document.title} (${format}) exportado pelo usuário.`,
+      output: `Arquivo ${document.title} (${format}, ${exactBytes} bytes) exportado pelo usuário.`,
       integrity_hash: val?.hash || undefined,
       evidence: isValidated ? `Artefato verificado com ${val?.testsPassed}/${val?.testsTotal} testes` : 'Artefato baixado com integridade verificada'
     });
@@ -189,7 +207,7 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
               <span className="text-[12px] text-gray-500 dark:text-gray-400 font-normal flex items-center gap-1.5 flex-wrap leading-tight">
                 <span>{format === 'xlsx' ? 'Planilha Excel' : format === 'csv' ? 'Planilha CSV' : isCode ? 'Código' : format === 'txt' ? 'Texto' : (format === 'md' || format === 'markdown') ? 'Markdown' : 'Documento'} · {format.toUpperCase()}</span>
                 <span>•</span>
-                <span>{formatFileSize(document.content || '')}</span>
+                <span>{getExactFileSize()}</span>
               </span>
               
               <span className="text-[10px] text-gray-400 dark:text-gray-500 font-mono flex items-center gap-1.5 flex-wrap leading-tight">

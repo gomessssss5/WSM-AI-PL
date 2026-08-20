@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import crypto from 'crypto';
 import { exec } from 'child_process';
 
 export const SANDBOX_DIR = path.join(os.tmpdir(), 'omnix_terminal_sandbox');
@@ -179,7 +180,7 @@ export function getMimeTypeForFile(filename: string): string {
   }
 }
 
-export function getSandboxFileDetails(relPath: string): { fullPath: string; exists: boolean; size: number; mimeType: string; filename: string } | null {
+export function getSandboxFileDetails(relPath: string): { fullPath: string; exists: boolean; size: number; sha256: string; mimeType: string; filename: string } | null {
   ensureSandboxDir();
   try {
     const rawRel = String(relPath || '').trim();
@@ -193,10 +194,13 @@ export function getSandboxFileDetails(relPath: string): { fullPath: string; exis
     // 1. Direct check in SANDBOX_DIR
     if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
       const stat = fs.statSync(fullPath);
+      const buf = fs.readFileSync(fullPath);
+      const sha256 = crypto.createHash('sha256').update(buf).digest('hex');
       return {
         fullPath,
         exists: true,
         size: stat.size,
+        sha256,
         mimeType: getMimeTypeForFile(filename),
         filename
       };
@@ -224,6 +228,8 @@ export function getSandboxFileDetails(relPath: string): { fullPath: string; exis
       try {
         if (fs.existsSync(candPath) && fs.statSync(candPath).isFile()) {
           const stat = fs.statSync(candPath);
+          const buf = fs.readFileSync(candPath);
+          const candSha = crypto.createHash('sha256').update(buf).digest('hex');
           // Sync candidate file into SANDBOX_DIR for durable access
           try {
             const dir = path.dirname(fullPath);
@@ -232,10 +238,13 @@ export function getSandboxFileDetails(relPath: string): { fullPath: string; exis
             }
             fs.copyFileSync(candPath, fullPath);
             const copiedStat = fs.statSync(fullPath);
+            const copiedBuf = fs.readFileSync(fullPath);
+            const copiedSha = crypto.createHash('sha256').update(copiedBuf).digest('hex');
             return {
               fullPath,
               exists: true,
               size: copiedStat.size,
+              sha256: copiedSha,
               mimeType: getMimeTypeForFile(filename),
               filename
             };
@@ -244,6 +253,7 @@ export function getSandboxFileDetails(relPath: string): { fullPath: string; exis
               fullPath: candPath,
               exists: true,
               size: stat.size,
+              sha256: candSha,
               mimeType: getMimeTypeForFile(filename),
               filename
             };
@@ -256,6 +266,7 @@ export function getSandboxFileDetails(relPath: string): { fullPath: string; exis
       fullPath,
       exists: false,
       size: 0,
+      sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
       mimeType: getMimeTypeForFile(filename),
       filename
     };

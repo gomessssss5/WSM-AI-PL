@@ -23,6 +23,7 @@ import ScheduledTaskCard from './ScheduledTaskCard';
 import PacmanLoadingAnimation from './PacmanLoadingAnimation';
 import { extractWsmForm } from '../utils/formParser';
 import { extractWsmDoc } from '../utils/docParser';
+import { formatTimeSafely } from '../utils/dateUtils';
 import { extractWsmTask, extractWsmTasks, cleanWsmTaskTags } from '../utils/taskParser';
 import { cleanWorkspaceTags } from '../utils/workspaceParser';
 import { extractRaciocinio, cleanRaciocinioTags } from '../utils/raciocinioParser';
@@ -673,7 +674,7 @@ export default function ChatWindow({
     };
   }, [inputValue, attachedText, attachments, onSaveDraft, onDeleteDraft]);
   const [drawerSources, setDrawerSources] = useState<{
-    sources: { hostname: string; title: string; url: string; snippet?: string }[];
+    sources: { hostname: string; title: string; url: string; url_final?: string; source?: string; published_at?: string | null; verifiedDate?: string | null; snippet?: string }[];
     query: string;
     count: number;
     messageId?: string;
@@ -2311,7 +2312,7 @@ export default function ChatWindow({
                                       </div>
                                     ) : (
                                       <TypewriterMarkdown
-                                        content={cleanSkillTags(cleanTaskTags(cleanWriterUpdateTags(cleanWorkspaceTags(extractWsmDoc(extractWsmForm(cleanRaciocinioTags(message.text)).cleanText).cleanText))))}
+                                        content={cleanTerminalTags(cleanSkillTags(cleanTaskTags(cleanWriterUpdateTags(cleanWorkspaceTags(extractWsmDoc(extractWsmForm(cleanRaciocinioTags(message.text)).cleanText).cleanText)))))}
                                         searchSources={message.searchSources}
                                         searchSteps={message.searchSteps}
                                         enabled={!isHistorical}
@@ -2349,6 +2350,32 @@ export default function ChatWindow({
                                         <div className="flex flex-col gap-3 mt-3 w-full animate-in fade-in duration-300">
                                           {taskObjs.map((task, idx) => (
                                             <ScheduledTaskCard key={idx} task={task} onOpenScheduledTasks={onOpenScheduledTasks} />
+                                          ))}
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+
+                                  {/* 4c. Terminal Execution and File Action Cards */}
+                                  {isReasoningDone && (() => {
+                                    const { execActions, fileActions } = extractWsmTerminalActions(message.text || "");
+                                    if (execActions.length > 0 || fileActions.length > 0) {
+                                      return (
+                                        <div className="flex flex-col gap-2 mt-3 w-full animate-in fade-in duration-300">
+                                          {execActions.map((ea, idx) => (
+                                            <TerminalActionCard 
+                                              key={`exec-${idx}`} 
+                                              execAction={ea} 
+                                              onOpenTerminal={() => openTerminalPanel(true)} 
+                                            />
+                                          ))}
+                                          {fileActions.map((fa, idx) => (
+                                            <TerminalActionCard 
+                                              key={`file-${idx}`} 
+                                              fileAction={fa} 
+                                              onOpenTerminal={() => openTerminalPanel(true)} 
+                                            />
                                           ))}
                                         </div>
                                       );
@@ -2543,17 +2570,7 @@ export default function ChatWindow({
                   {!(isThinking && index > lastVisibleUserIndex) && (
                     <div className={`flex items-center gap-2 mt-1 px-1 ${isUser ? 'flex-row-reverse' : ''}`}>
                       <span className="text-[9px] text-gray-400">
-                        {(() => {
-                          try {
-                            const d = message.timestamp instanceof Date ? message.timestamp : new Date(message.timestamp);
-                            if (d && !isNaN(d.getTime())) {
-                              return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-                            }
-                          } catch (err) {
-                            console.error('[ChatWindow] Error rendering message timestamp:', err);
-                          }
-                          return '00:00';
-                        })()}
+                        {formatTimeSafely(message.timestamp, { hour: '2-digit', minute: '2-digit', hour12: false })}
                       </span>
                       
                       {isUser && !editingMessageId && (
@@ -3394,9 +3411,9 @@ export default function ChatWindow({
                       key={idx} 
                       className="p-3.5 bg-white border border-[#eae6e1] hover:border-gray-300 rounded-xl transition-all hover:shadow-2xs group"
                     >
-                      {/* Header (Favicon + Hostname + Direct Link) */}
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-2 min-w-0">
+                      {/* Header (Favicon + Hostname / Source + Published Date + Direct Link) */}
+                      <div className="flex items-center justify-between mb-1.5 gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
                           <img
                             src={favUrl}
                             alt=""
@@ -3405,12 +3422,17 @@ export default function ChatWindow({
                               (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%23666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>';
                             }}
                           />
-                          <span className="text-[11px] font-semibold text-gray-500 truncate">
-                            {hostname}
+                          <span className="text-[11px] font-semibold text-gray-700 truncate">
+                            {src.source || hostname}
                           </span>
+                          {(src.published_at || src.verifiedDate) && (
+                            <span className="text-[9.5px] font-medium text-gray-400 shrink-0 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
+                              {src.published_at || src.verifiedDate}
+                            </span>
+                          )}
                         </div>
                         <a 
-                          href={src.url} 
+                          href={src.url_final || src.url} 
                           target="_blank" 
                           rel="noreferrer"
                           className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 shrink-0 bg-blue-50 px-2 py-0.5 rounded-md hover:bg-blue-100 transition-colors"
@@ -3422,7 +3444,7 @@ export default function ChatWindow({
 
                       {/* Title */}
                       <a 
-                        href={src.url} 
+                        href={src.url_final || src.url} 
                         target="_blank" 
                         rel="noreferrer"
                         className="font-bold text-[13px] text-gray-900 group-hover:text-black leading-snug transition-colors line-clamp-2 block mb-1.5 hover:underline"
@@ -3432,7 +3454,7 @@ export default function ChatWindow({
 
                       {/* Direct Canonical URL display */}
                       <div className="text-[10.5px] font-mono text-gray-400 truncate mb-2 select-all">
-                        {src.url}
+                        {src.url_final || src.url}
                       </div>
 
                       {/* Excerpt / Supporting Evidence Snippet */}
@@ -3675,16 +3697,7 @@ export default function ChatWindow({
                             Resposta #{index + 1}
                           </span>
                           <span className="text-[10px] text-gray-400">
-                            {(() => {
-                              if (!msg.timestamp) return '';
-                              try {
-                                const d = msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp);
-                                if (d && !isNaN(d.getTime())) {
-                                  return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                                }
-                              } catch (_) {}
-                              return '00:00';
-                            })()}
+                            {formatTimeSafely(msg.timestamp, { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
                         <span className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium">

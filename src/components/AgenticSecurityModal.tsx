@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { safeToISOString, formatDateTimeSafely } from '../utils/dateUtils';
 import { 
   ShieldCheck, 
   Lock, 
@@ -459,9 +460,9 @@ export default function AgenticSecurityModal({ isOpen, onClose, userId }: Agenti
                               </div>
                               <p className="text-gray-700 leading-normal font-medium">{log.details}</p>
                               <div className="flex items-center gap-3 text-[10px] text-gray-400">
-                                <span>UTC: {log.timestamp.toISOString()}</span>
+                                <span>UTC: {safeToISOString(log.timestamp)}</span>
                                 <span>•</span>
-                                <span>Local: {log.timestamp_local || log.timestamp.toLocaleString('pt-BR')}</span>
+                                <span>Local: {log.timestamp_local || formatDateTimeSafely(log.timestamp, undefined, 'Data indisponível')}</span>
                               </div>
                             </div>
  

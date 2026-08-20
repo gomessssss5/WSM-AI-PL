@@ -237,6 +237,7 @@ export interface ValidationState {
   testsTotal?: number;
   version?: string;
   hash?: string;
+  sizeBytes?: number;
   filesGenerated?: string[];
   commandsReproduced?: string[];
   logs?: string;
@@ -264,6 +265,10 @@ export interface WsmDocument {
   validation?: ValidationState;
   versions?: FileVersion[];
   currentVersion?: number;
+  size?: number;
+  sizeBytes?: number;
+  hash?: string;
+  sha256?: string;
 }
 
 export interface SearchStep {
@@ -273,7 +278,12 @@ export interface SearchStep {
   sources: {
     title: string;
     url: string;
+    url_final?: string;
+    source?: string;
+    published_at?: string | null;
     snippet?: string;
+    hostname?: string;
+    verifiedDate?: string | null;
   }[];
   isCompleted?: boolean;
 }
@@ -317,6 +327,7 @@ export interface UnifiedChatPayload {
 
 export interface Message {
   id: string;
+  generationId?: string;
   sender: 'user' | 'ai';
   text: string;
   userQuery?: string;
@@ -343,7 +354,12 @@ export interface Message {
   searchSources?: {
     title: string;
     url: string;
+    url_final?: string;
+    source?: string;
+    published_at?: string | null;
     snippet?: string;
+    hostname?: string;
+    verifiedDate?: string | null;
   }[];
   // Search Upgrade Fields
   isSearchMessage?: boolean;

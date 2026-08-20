@@ -76,10 +76,9 @@ export function sanitizeDocumentContent(rawContent: string): string {
   return str;
 }
 
-export function computeSha256(str: string): string {
-  if (!str) return 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+export function computeSha256Bytes(data: Uint8Array): string {
+  if (!data || data.length === 0) return 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
   
-  const utf8 = new TextEncoder().encode(str);
   const rr = (n: number, x: number) => (x >>> n) | (x << (32 - n));
 
   const K = [
@@ -98,13 +97,13 @@ export function computeSha256(str: string): string {
     0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
   ];
 
-  const l = utf8.length;
+  const l = data.length;
   const bitLen = l * 8;
 
   const padLen = (l % 64 < 56) ? (56 - l % 64) : (120 - l % 64);
   const totalLen = l + padLen + 8;
   const bytes = new Uint8Array(totalLen);
-  bytes.set(utf8);
+  bytes.set(data);
   bytes[l] = 0x80;
 
   const view = new DataView(bytes.buffer);
@@ -154,10 +153,18 @@ export function computeSha256(str: string): string {
   return H.map(x => x.toString(16).padStart(8, '0')).join('');
 }
 
-export function buildDocumentValidation(title: string, format: string, content: string) {
+export function computeSha256(str: string): string {
+  if (!str) return 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+  const utf8 = new TextEncoder().encode(str);
+  return computeSha256Bytes(utf8);
+}
+
+export function buildDocumentValidation(title: string, format: string, content: string, customSizeBytes?: number, customHash?: string) {
   const contentStr = content || '';
-  const byteSize = new TextEncoder().encode(contentStr).length;
-  const hash = computeSha256(contentStr);
+  const byteSize = typeof customSizeBytes === 'number' && customSizeBytes >= 0 
+    ? customSizeBytes 
+    : new TextEncoder().encode(contentStr).length;
+  const hash = customHash || computeSha256(contentStr);
 
   const metRequirements: string[] = [];
   const unmetRequirements: string[] = [];
@@ -650,7 +657,21 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
   }
 
   for (const doc of docMap.values()) {
-    doc.validation = doc.validation || buildDocumentValidation(doc.title, doc.format || 'md', doc.content);
+    const stats = terminalSandbox.getFileStats(doc.title);
+    if (stats.exists && stats.content !== null) {
+      doc.content = stats.content;
+      doc.size = stats.size;
+      doc.sizeBytes = stats.size;
+      doc.hash = stats.sha256;
+      doc.sha256 = stats.sha256;
+      doc.validation = buildDocumentValidation(doc.title, doc.format || 'md', stats.content, stats.size, stats.sha256);
+    } else {
+      doc.validation = doc.validation || buildDocumentValidation(doc.title, doc.format || 'md', doc.content, doc.size, doc.hash);
+      doc.size = doc.size ?? doc.validation.sizeBytes;
+      doc.sizeBytes = doc.sizeBytes ?? doc.validation.sizeBytes;
+      doc.hash = doc.hash ?? doc.validation.hash;
+      doc.sha256 = doc.sha256 ?? doc.validation.hash;
+    }
     docObjs.push(doc);
   }
 

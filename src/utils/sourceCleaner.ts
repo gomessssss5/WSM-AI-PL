@@ -1,6 +1,9 @@
 export interface RawSource {
   title: string;
   url: string;
+  url_final?: string;
+  source?: string;
+  published_at?: string | null;
   snippet?: string;
   hostname?: string;
   relevanceScore?: number;
@@ -45,10 +48,64 @@ export function extractForbiddenKeywords(userQuery?: string): string[] {
     forbidden.push('feed', 'rss');
   }
   if (/categoria/i.test(lower) && /(?:proíba|proibir|sem|não|bloqueie)/i.test(lower)) {
-    forbidden.push('category', 'categoria', 'tag', 'secao');
+    forbidden.push('category', 'categoria', 'tag', 'secao', 'noticias-sobre');
   }
 
   return Array.from(new Set(forbidden));
+}
+
+/**
+ * Extracts a friendly source/publisher name from a hostname or title.
+ */
+export function extractSourceName(hostnameOrUrl: string, title?: string): string {
+  if (title) {
+    const titleMatch = title.match(/[\-\|–—]\s*([A-Za-z0-9\s\.À-ÿ]+)$/);
+    if (titleMatch && titleMatch[1] && titleMatch[1].trim().length > 1 && titleMatch[1].trim().length < 30) {
+      return titleMatch[1].trim();
+    }
+  }
+
+  try {
+    const parsed = new URL(hostnameOrUrl.startsWith('http') ? hostnameOrUrl : `https://${hostnameOrUrl}`);
+    const host = parsed.hostname.replace(/^www\./, '').toLowerCase();
+
+    const knownSources: Record<string, string> = {
+      'exame.com': 'Exame',
+      'veja.abril.com.br': 'Veja',
+      'g1.globo.com': 'G1',
+      'globo.com': 'Globo',
+      'folha.uol.com.br': 'Folha de S.Paulo',
+      'uol.com.br': 'UOL',
+      'estadao.com.br': 'Estadão',
+      'cnnbrasil.com.br': 'CNN Brasil',
+      'bbc.com': 'BBC News',
+      'techtudo.com.br': 'TechTudo',
+      'canaltech.com.br': 'Canaltech',
+      'olhardigital.com.br': 'Olhar Digital',
+      'infomoney.com.br': 'InfoMoney',
+      'valor.globo.com': 'Valor Econômico',
+      'iabrasilnoticias.com.br': 'IA Brasil Notícias',
+      'techcrunch.com': 'TechCrunch',
+      'theverge.com': 'The Verge',
+      'reuters.com': 'Reuters',
+      'bloomberg.com': 'Bloomberg'
+    };
+
+    for (const [domain, name] of Object.entries(knownSources)) {
+      if (host === domain || host.endsWith('.' + domain)) {
+        return name;
+      }
+    }
+
+    const parts = host.split('.');
+    if (parts.length > 0) {
+      const main = parts[0] === 'noticias' || parts[0] === 'news' ? (parts[1] || parts[0]) : parts[0];
+      return main.charAt(0).toUpperCase() + main.slice(1);
+    }
+    return host;
+  } catch {
+    return hostnameOrUrl;
+  }
 }
 
 /**
@@ -140,7 +197,7 @@ export function extractDateFromUrlAndSnippet(urlStr: string, snippet?: string, t
     };
     const m = months[monthName.toLowerCase()] || '01';
     const paddedD = d.padStart(2, '0');
-    return { dateISO: `${y}-${m}-${paddedD}`, formattedDate: `${paddedD}/${m}/${y}` };
+    return { dateISO: `${y}-${m}-${paddedD}`, formattedDate: `${d.padStart(2, '0')}/${m}/${y}` };
   }
 
   return { dateISO: null, formattedDate: null };
@@ -160,7 +217,7 @@ export function isGenericOrInvalidSource(urlStr: string, title?: string, snippet
     return true;
   }
 
-  // 2. Explicit User Negative Constraints (e.g., "proíba instagram", "sem feeds")
+  // 2. Explicit User Negative Constraints (e.g., "proíba instagram", "sem feeds", "sem categorias")
   const forbiddenKeywords = extractForbiddenKeywords(userQuery);
   for (const kw of forbiddenKeywords) {
     if (lowerUrl.includes(kw) || lowerTitle.includes(kw)) {
@@ -183,8 +240,10 @@ export function isGenericOrInvalidSource(urlStr: string, title?: string, snippet
     /\/tag\//i, /\/tags\//i, /\/tag-/i,
     /\/category\//i, /\/categories\//i, /\/categoria\//i, /\/categorias\//i,
     /\/topic\//i, /\/topics\//i, /\/topico\//i, /\/topicos\//i,
+    /\/noticias-sobre\//i, /\/noticias-de\//i, /\/noticias_sobre\//i,
+    /\/materias-sobre\//i, /\/tudo-sobre\//i, /\/assunto\//i, /\/temas?\//i,
+    /\/canal\//i, /\/editoria\//i, /\/secao\//i, /\/secoes\//i, /\/section\//i,
     /\/archive\//i, /\/archives\//i, /\/arquivo\//i, /\/arquivos\//i,
-    /\/secao\//i, /\/secoes\//i, /\/section\//i,
     /\/page\/\d+/i, /\/p\/\d+/i,
     /\/search/i, /\/busca/i, /\/pesquisa/i,
     /\/label\//i, /\/author\//i, /\/autor\//i,
@@ -201,18 +260,18 @@ export function isGenericOrInvalidSource(urlStr: string, title?: string, snippet
   const genericTitles = [
     'página', 'page', 'tag', 'categoria', 'category', 'arquivo', 'archive',
     'feed', 'rss', 'verificação', 'ocr', 'busca', 'search', 'home', 'index',
-    'notícias de', 'artigos sobre', 'resultado da busca', 'tags'
+    'notícias de', 'artigos sobre', 'resultado da busca', 'tags', 'notícias sobre'
   ];
   if (genericTitles.some(t => lowerTitle === t || lowerTitle.startsWith(`${t}:`) || lowerTitle.startsWith(`${t} `) || lowerTitle.endsWith(` - ${t}`))) {
     return true;
   }
 
-  // 6. Must be a specific article page (not root domain or category hub landing page like sapo.pt or sapo.pt/noticias)
+  // 6. Must be a specific article page (not root domain or category hub landing page like sapo.pt or exame.com/inteligencia-artificial)
   try {
     const urlObj = new URL(urlStr.startsWith('http') ? urlStr : `https://${urlStr}`);
     const path = urlObj.pathname.replace(/\/$/, '');
     if (!path || path === '' || path === '/') {
-      return true; // Root domain homepages are generic landing pages
+      return true; // Root domain homepages are generic landing pages (e.g. https://iabrasilnoticias.com.br)
     }
 
     const cleanPathLower = path.toLowerCase();
@@ -220,10 +279,24 @@ export function isGenericOrInvalidSource(urlStr: string, title?: string, snippet
       '/noticias', '/noticia', '/ultimas-noticias', '/home',
       '/esporte', '/esportes', '/politica', '/economia', '/mundo', '/brasil',
       '/tech', '/tecnologia', '/pop', '/famosos', '/blogs', '/opiniao', '/colunas',
-      '/feed', '/rss', '/xml', '/tags', '/tag', '/category', '/categorias'
+      '/feed', '/rss', '/xml', '/tags', '/tag', '/category', '/categorias',
+      '/inteligencia-artificial', '/ia', '/mercados', '/negocios'
     ];
     if (genericSections.includes(cleanPathLower)) {
       return true; // Category hub landing pages with no article slug/id
+    }
+
+    const segments = cleanPathLower.split('/').filter(Boolean);
+    // If only 1 single segment without date, without number/id, and with <= 1 word/hyphen on major news portals, it's a category/topic page
+    // e.g. exame.com/inteligencia-artificial or veja.abril.com.br/tecnologia
+    if (segments.length === 1) {
+      const seg = segments[0];
+      const hyphenCount = (seg.match(/-/g) || []).length;
+      const hasDigits = /\d/.test(seg);
+      const hasFileExt = /\.(html|htm|shtml|phtml|php)$/i.test(seg);
+      if (!hasDigits && !hasFileExt && hyphenCount < 2) {
+        return true; // Single-segment category page like /inteligencia-artificial or /tecnologia
+      }
     }
   } catch {
     return true;
@@ -279,7 +352,7 @@ export function calculateSourceRelevance(query: string, title?: string, snippet?
 /**
  * Clean, deduplicate, filter, and rank sources.
  */
-export function cleanAndDeduplicateSources<T extends { title: string; url: string; snippet?: string; verifiedDate?: string | null }>(
+export function cleanAndDeduplicateSources<T extends { title: string; url: string; url_final?: string; source?: string; published_at?: string | null; snippet?: string; hostname?: string; verifiedDate?: string | null }>(
   rawSources: T[],
   userQuery?: string,
   maxResults: number = 15
@@ -306,7 +379,8 @@ export function cleanAndDeduplicateSources<T extends { title: string; url: strin
     if (!src || !src.url) continue;
 
     // 1. Get canonical URL
-    const canonical = normalizeCanonicalUrl(src.url);
+    const rawTarget = src.url_final || src.url;
+    const canonical = normalizeCanonicalUrl(rawTarget);
     if (!canonical) continue;
 
     // 2. Check deduplication
@@ -343,11 +417,22 @@ export function cleanAndDeduplicateSources<T extends { title: string; url: strin
       }
     }
 
+    let host = src.hostname || '';
+    try {
+      host = new URL(canonical).hostname.replace(/^www\./, '');
+    } catch {}
+
+    const sourceName = src.source || extractSourceName(host, src.title);
+
     seenCanonicalUrls.add(canonical);
     processedSources.push({
       source: {
         ...src,
-        url: canonical, // Use clean canonical URL!
+        url: canonical,
+        url_final: canonical,
+        source: sourceName,
+        published_at: formattedDate || src.published_at || src.verifiedDate || null,
+        hostname: host,
         verifiedDate: formattedDate || src.verifiedDate || null
       },
       canonicalUrl: canonical,

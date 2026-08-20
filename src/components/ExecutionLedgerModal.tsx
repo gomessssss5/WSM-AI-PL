@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatTimeSafely } from '../utils/dateUtils';
 import { 
   Activity, 
   CheckCircle2, 
@@ -201,7 +202,7 @@ export default function ExecutionLedgerModal({
                       </p>
 
                       <div className="flex items-center justify-between text-[10px] text-gray-400 mt-1">
-                        <span>{new Date(entry.startedAt).toLocaleTimeString('pt-BR')}</span>
+                        <span>{formatTimeSafely(entry.startedAt, undefined, 'Data indisponível')}</span>
                         <span>{entry.steps.filter(s => s.status === 'completed').length}/{entry.steps.length} Passos</span>
                       </div>
                     </button>

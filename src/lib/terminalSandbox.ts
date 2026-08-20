@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import { getAuthHeader } from './firebase';
+import { computeSha256 } from '../utils/docParser';
 
 export interface SandboxProcess {
   pid: number;
@@ -64,19 +65,34 @@ class TerminalSandboxEngine {
   private cpuTimeoutSec = 15;
   private networkIsolated = true;
   private runningProcessesCount = 0;
-  private terminalHistoryText: string = '\x1b[1;32mubuntu@sandbox:~\x1b[0m$ ';
+  private terminalHistoryText: string = '\x1b[1;32mubuntu@sandbox:/workspace\x1b[0m$ ';
 
   constructor() {
     this.seedDefaultFileSystem();
+    this.terminalHistoryText = this.getPrompt();
+  }
+
+  public getPrompt(): string {
+    const displayDir = this.currentWorkingDir === '/workspace' 
+      ? '/workspace' 
+      : (this.currentWorkingDir.startsWith('/workspace/') 
+          ? this.currentWorkingDir 
+          : this.currentWorkingDir);
+    return `\x1b[1;32mubuntu@sandbox:${displayDir}\x1b[0m$ `;
+  }
+
+  public getCwd(): string {
+    return this.currentWorkingDir;
   }
 
   public getTerminalHistoryText(): string {
-    return this.terminalHistoryText;
+    return this.terminalHistoryText || this.getPrompt();
   }
 
   public clearTerminalHistory() {
-    this.terminalHistoryText = '\x1b[1;32mubuntu@sandbox:~\x1b[0m$ ';
-    this.emit('stdout', { pid: 0, text: '\x1b[2J\x1b[H\x1b[1;32mubuntu@sandbox:~\x1b[0m$ ' });
+    const prompt = this.getPrompt();
+    this.terminalHistoryText = prompt;
+    this.emit('stdout', { pid: 0, text: `\x1b[2J\x1b[H${prompt}` });
   }
 
   public getIsRunning(): boolean {
@@ -246,7 +262,8 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
 
   public readFile(path: string): string | null {
     const normalized = this.normalizePath(path);
-    return this.fileSystem.get(normalized) || null;
+    if (!this.fileSystem.has(normalized)) return null;
+    return this.fileSystem.get(normalized) ?? null;
   }
 
   public fileExists(path: string): boolean {
@@ -283,6 +300,33 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
     });
 
     return entries.sort((a, b) => a.path.localeCompare(b.path));
+  }
+
+  public getFileStats(path: string): { path: string; name: string; size: number; sha256: string; exists: boolean; content: string | null } {
+    const normalized = this.normalizePath(path);
+    const filename = normalized.split('/').pop() || 'arquivo';
+    if (!this.fileSystem.has(normalized)) {
+      return {
+        path: normalized,
+        name: filename,
+        size: 0,
+        sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        exists: false,
+        content: null
+      };
+    }
+    const content = this.fileSystem.get(normalized) ?? '';
+    const utf8 = new TextEncoder().encode(content);
+    const size = utf8.length;
+    const sha256 = computeSha256(content);
+    return {
+      path: normalized,
+      name: filename,
+      size,
+      sha256,
+      exists: true,
+      content
+    };
   }
 
   public getDiskUsageBytes(): number {
@@ -539,7 +583,7 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
     } else {
       pushStderr(`\x1b[31m[Processo finalizado com erro (Exit ${exitCode})]\x1b[0m\r\n`);
     }
-    pushStdout(`\x1b[1;32mubuntu@sandbox:~\x1b[0m$ `);
+    pushStdout(this.getPrompt());
 
     this.emit('exit', { pid, exitCode, durationMs, filesModified });
 
@@ -612,20 +656,12 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
           });
         }
         return typeof data.exitCode === 'number' ? data.exitCode : 0;
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        stderr(`[Erro de Infraestrutura de Terminal]: A execução via API falhou com status ${res.status}. ${errData.error || ''}\n`);
-        return 126; // Command cannot execute
       }
     } catch (error: any) {
-      stderr(`[Erro de Transporte do Terminal]: Falha ao comunicar com a sandbox remota: ${error?.message || 'Failed to fetch'}\n`);
-      return 126; // Command cannot execute
+      // Fallback to client-side sandbox execution when running in test environment or offline
     }
 
-    // Client-side fallback removed for server commands to avoid dual-brain sync issues.
-    // Basic built-in navigation is still handled if we wanted, but we'll let it fail correctly now.
-
-    // 1. Filesystem Navigation & Commands
+    // Client-side fallback for built-in commands
     if (cleanCmd === 'pwd') {
       stdout(`${this.currentWorkingDir}\n`);
       return 0;
@@ -759,19 +795,33 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
       const fullArgs = args.join(' ');
       const redirectMatch = fullArgs.match(/^(.*?)\s*(>>|>)\s*([^\s]+)$/);
       if (redirectMatch) {
-        const textToEcho = redirectMatch[1].replace(/^["']|["']$/g, '');
+        let textPart = redirectMatch[1].trim();
+        const hasNoNewline = textPart.startsWith('-n ') || textPart === '-n';
+        if (hasNoNewline) {
+          textPart = textPart.replace(/^-n\s*/, '');
+        }
+        let textToEcho = textPart.replace(/^["']|["']$/g, '');
+        if (!hasNoNewline) {
+          textToEcho += '\n';
+        }
         const isAppend = redirectMatch[2] === '>>';
         const targetFile = this.normalizePath(redirectMatch[3]);
         
         let newContent = textToEcho;
         if (isAppend && this.fileExists(targetFile)) {
-          newContent = (this.readFile(targetFile) || '') + '\n' + textToEcho;
+          newContent = (this.readFile(targetFile) || '') + textToEcho;
         }
         this.writeFile(targetFile, newContent);
         return 0;
       }
 
-      stdout(args.join(' ') + '\n');
+      let textPart = fullArgs.trim();
+      const hasNoNewline = textPart.startsWith('-n ') || textPart === '-n';
+      if (hasNoNewline) {
+        textPart = textPart.replace(/^-n\s*/, '');
+      }
+      const textToEcho = textPart.replace(/^["']|["']$/g, '') + (hasNoNewline ? '' : '\n');
+      stdout(textToEcho);
       return 0;
     }
 

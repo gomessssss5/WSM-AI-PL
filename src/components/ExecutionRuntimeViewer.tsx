@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatTimeSafely } from '../utils/dateUtils';
 import { ExecutionTask, ExecutionStepRecord } from '../types';
 import { getLocalTaskGraph } from '../utils/executionRuntime';
 import { 
@@ -211,9 +212,9 @@ export const ExecutionRuntimeViewer: React.FC<ExecutionRuntimeViewerProps> = ({ 
 
                         {/* Timing */}
                         <div className="text-[10.5px] text-gray-400 dark:text-gray-500 flex items-center gap-2">
-                          <span>Início: {new Date(step.startTime).toLocaleTimeString('pt-BR')}</span>
+                          <span>Início: {formatTimeSafely(step.startTime, undefined, 'Data indisponível')}</span>
                           {step.endTime && (
-                            <span>• Fim: {new Date(step.endTime).toLocaleTimeString('pt-BR')}</span>
+                            <span>• Fim: {formatTimeSafely(step.endTime, undefined, 'Data indisponível')}</span>
                           )}
                         </div>
                       </div>

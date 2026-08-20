@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Image as ImageIcon, MessageSquare, Trash2, LogOut, Clock, BookOpen, Folder, MessageSquarePlus, User, X, Languages, Wrench, Menu, Download, Activity } from 'lucide-react';
+import { Plus, Search, Image as ImageIcon, MessageSquare, Trash2, LogOut, Clock, BookOpen, Folder, MessageSquarePlus, User, X, Languages, Wrench, Menu, Download, Activity, Loader2, AlertCircle } from 'lucide-react';
 import { ChatSession } from '../types';
 import { getCleanSessionTitle } from '../utils/sessionUtils';
 
@@ -21,6 +21,8 @@ interface SidebarProps {
   onCloseMobileHistory?: () => void;
   onOpenSearchModal?: () => void;
   onOpenProfileModal?: () => void;
+  isLoadingSessions?: boolean;
+  sessionsError?: string | null;
 }
 
 export default function Sidebar(props: SidebarProps) {
@@ -41,7 +43,9 @@ export default function Sidebar(props: SidebarProps) {
     isMobileHistoryOpen,
     onCloseMobileHistory,
     onOpenSearchModal,
-    onOpenProfileModal
+    onOpenProfileModal,
+    isLoadingSessions,
+    sessionsError
   } = props;
   
   const userAvatarUrl = userProfile?.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(userEmail || 'omnix')}`;
@@ -293,7 +297,17 @@ export default function Sidebar(props: SidebarProps) {
           </div>
 
           <div className="flex flex-col gap-0.5">
-            {filteredSessions.length > 0 ? (
+            {isLoadingSessions ? (
+              <div className="flex items-center gap-2 text-[11px] text-gray-500 px-2.5 py-3 animate-pulse">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400 shrink-0" />
+                <span>Carregando conversas...</span>
+              </div>
+            ) : sessionsError ? (
+              <div className="flex items-center gap-2 text-[11px] text-red-500 px-2.5 py-3">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>Erro ao carregar conversas</span>
+              </div>
+            ) : filteredSessions.length > 0 ? (
               filteredSessions.map((session) => {
                 const isActive = activeSessionId === session.id && !isImagesView;
                 return (

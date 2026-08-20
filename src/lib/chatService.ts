@@ -60,39 +60,8 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
-// Helper to safely parse and convert any timestamp/date value to a valid Date object
-export const safeToDate = (t: any): Date => {
-  if (t instanceof Date) {
-    return isNaN(t.getTime()) ? new Date() : t;
-  }
-  if (t && typeof t.toDate === 'function') {
-    try {
-      const d = t.toDate();
-      if (d instanceof Date && !isNaN(d.getTime())) return d;
-    } catch (_) {}
-  }
-  if (t && typeof t.seconds === 'number') {
-    const d = new Date(t.seconds * 1000);
-    if (!isNaN(d.getTime())) return d;
-  }
-  if (t && typeof t._seconds === 'number') {
-    const d = new Date(t._seconds * 1000);
-    if (!isNaN(d.getTime())) return d;
-  }
-  if (typeof t === 'number') {
-    const d = new Date(t);
-    if (!isNaN(d.getTime())) return d;
-  }
-  if (typeof t === 'string') {
-    if (/^\d+$/.test(t)) {
-      const d = new Date(parseInt(t, 10));
-      if (!isNaN(d.getTime())) return d;
-    }
-    const d = new Date(t);
-    if (!isNaN(d.getTime())) return d;
-  }
-  return new Date();
-};
+import { safeToDate, safeParseDate } from '../utils/dateUtils';
+export { safeToDate, safeParseDate };
 
 // Converts firestore document data to local ChatSession object
 const mapDocToSession = (id: string, data: any): ChatSession => {
@@ -218,7 +187,8 @@ export const ensureUserExists = async (userId: string): Promise<void> => {
  */
 export const subscribeSessions = (
   userId: string,
-  onUpdate: (sessions: ChatSession[]) => void
+  onUpdate: (sessions: ChatSession[]) => void,
+  onError?: (error: any) => void
 ) => {
   const path = `users/${userId}/sessions`;
   const sessionsCollectionRef = collection(db, 'users', userId, 'sessions');
@@ -235,6 +205,7 @@ export const subscribeSessions = (
     onUpdate(sessionsList);
   }, (error) => {
     handleFirestoreError(error, OperationType.LIST, path);
+    if (onError) onError(error);
   });
 };
 
