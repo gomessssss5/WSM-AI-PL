@@ -47,6 +47,100 @@ import { cleanAndDeduplicateSources, extractDateFromUrlAndSnippet, normalizeCano
 
 dotenv.config();
 
+export function syncWorkspaceWithDisk() {
+  try {
+    const sandboxFiles = listSandboxFiles();
+    const diskKeys = new Set<string>();
+
+    sandboxFiles.forEach(f => {
+      const cleanPath = f.path.replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '').replace(/^\/+/, '');
+      if (!cleanPath || cleanPath.startsWith('.') || ['package.json', 'index.js', 'test.js'].includes(cleanPath.toLowerCase())) return;
+
+      const baseName = path.basename(cleanPath);
+      diskKeys.add(cleanPath);
+      diskKeys.add(baseName);
+
+      const content = readSandboxFile(cleanPath) || '';
+      const ext = path.extname(cleanPath).replace(/^\./, '').toLowerCase() || 'txt';
+      const details = getSandboxFileDetails(cleanPath);
+      const size = details?.size ?? Buffer.byteLength(content, 'utf8');
+      const sha256 = details?.sha256 ?? crypto.createHash('sha256').update(content, 'utf8').digest('hex');
+
+      const docEntry = { title: cleanPath, content, format: ext, size, sha256 };
+      workspaceDocuments.set(cleanPath, docEntry);
+      workspaceDocuments.set(baseName, docEntry);
+    });
+
+    for (const key of workspaceDocuments.keys()) {
+      if (!diskKeys.has(key)) {
+        const cleanPath = key.replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '').replace(/^\/+/, '');
+        const details = getSandboxFileDetails(cleanPath);
+        if (!details || !details.exists) {
+          workspaceDocuments.delete(key);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[SyncWorkspace] Error syncing with disk:', err);
+  }
+}
+
+export function findDocumentInWorkspace(inputTitle: string): { title: string; docObj: { title: string; content: string; format: string; size?: number; sha256?: string } } | null {
+  syncWorkspaceWithDisk();
+  
+  const trimmed = (inputTitle || '').trim();
+  const lowerTrimmed = trimmed.toLowerCase();
+
+  // If inputTitle is missing or generic "Documento", try finding existing single doc
+  if (!trimmed || lowerTrimmed === 'documento' || lowerTrimmed === 'documento.md') {
+    const uniqueDocs = new Map<string, { title: string; content: string; format: string; size?: number; sha256?: string }>();
+    for (const doc of workspaceDocuments.values()) {
+      uniqueDocs.set(doc.title, doc);
+    }
+    if (uniqueDocs.size === 1) {
+      const singleDoc = Array.from(uniqueDocs.values())[0];
+      return { title: singleDoc.title, docObj: singleDoc };
+    }
+    if (!trimmed) return null;
+  }
+
+  const rawClean = trimmed.replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '').replace(/^\/+/, '').trim();
+  const baseName = path.basename(rawClean);
+
+  // Exact lookup
+  let found = workspaceDocuments.get(rawClean) || workspaceDocuments.get(baseName) || workspaceDocuments.get(trimmed);
+  if (found) return { title: found.title, docObj: found };
+
+  // Case-insensitive lookup
+  const lowerClean = rawClean.toLowerCase();
+  const lowerBase = baseName.toLowerCase();
+
+  for (const [key, doc] of workspaceDocuments.entries()) {
+    if (key.toLowerCase() === lowerClean || key.toLowerCase() === lowerBase || doc.title.toLowerCase() === lowerClean || doc.title.toLowerCase() === lowerBase) {
+      return { title: doc.title, docObj: doc };
+    }
+  }
+
+  // Look up disk directly
+  const diskDetails = getSandboxFileDetails(rawClean) || getSandboxFileDetails(baseName);
+  if (diskDetails && diskDetails.exists) {
+    const diskContent = readSandboxFile(rawClean) || readSandboxFile(baseName) || '';
+    const ext = path.extname(rawClean).replace(/^\./, '').toLowerCase() || 'txt';
+    const docEntry = {
+      title: diskDetails.filename || rawClean,
+      content: diskContent,
+      format: ext,
+      size: diskDetails.size,
+      sha256: diskDetails.sha256
+    };
+    workspaceDocuments.set(rawClean, docEntry);
+    workspaceDocuments.set(baseName, docEntry);
+    return { title: docEntry.title, docObj: docEntry };
+  }
+
+  return null;
+}
+
 let cachedLogoBuffer: Buffer | null = null;
 async function getWatermarkLogoBuffer(): Promise<Buffer | null> {
   if (cachedLogoBuffer) return cachedLogoBuffer;
@@ -963,8 +1057,26 @@ DIRETRIZES FUNDAMENTAIS DE CONTINUIDADE:
     const userPromptLow = userPromptText.toLowerCase();
     const isHtmlSiteRequest = /\b(html|site|landing\s*page|página|pagina|website|frontend)\b/i.test(userPromptLow);
 
+    // Detection of user prohibition against external services / offline mode
+    const userForbidsExternalServices = /\b(sem\s+(usar\s+|utilizar\s+)?(serviços?|servicos?|conexões?|conexoes?|apis?|links?|redes?)\s+(externos?|externas?|terceiros?)|não\s+(use|utilize|chame)\s+(serviços?|servicos?|apis?|conexões?|links?)\s+(externos?|externas?|terceiros?)|modo\s+offline|sem\s+internet|sem\s+conexão|sem\s+conexao|sem\s+acesso\s+externo|100%\s+local|totalmente\s+local|sem\s+terceiros)\b/i.test(userPromptLow) ||
+      userPromptLow.includes("sem serviços externos") ||
+      userPromptLow.includes("sem servicos externos") ||
+      userPromptLow.includes("sem usar serviços externos") ||
+      userPromptLow.includes("sem usar servicos externos") ||
+      userPromptLow.includes("sem utilizar serviços externos") ||
+      userPromptLow.includes("sem utilizar servicos externos") ||
+      userPromptLow.includes("não use serviços externos") ||
+      userPromptLow.includes("nao use servicos externos") ||
+      userPromptLow.includes("não utilize serviços externos") ||
+      userPromptLow.includes("nao utilize servicos externos") ||
+      userPromptLow.includes("sem conexões externas") ||
+      userPromptLow.includes("sem apis externas") ||
+      userPromptLow.includes("modo offline") ||
+      userPromptLow.includes("sem links externos") ||
+      userPromptLow.includes("sem usar a internet");
+
     // Explicit user prohibition against web search or tools
-    const userForbidsSearch = /\b(não\s+(pesquis|busq|procur|use\s+a\s+web|use\s+a\s+internet|consulte\s+a\s+web|use\s+ferramentas)|sem\s+(web|internet|pesquisa|busca|ferramentas)|proibid\w*\s+(pesquis|buscar|usar\s+web)|desligad\w*\s+a\s+busca)\b/i.test(userPromptLow) ||
+    const userForbidsSearch = userForbidsExternalServices || /\b(não\s+(pesquis|busq|procur|use\s+a\s+web|use\s+a\s+internet|consulte\s+a\s+web|use\s+ferramentas)|sem\s+(web|internet|pesquisa|busca|ferramentas)|proibid\w*\s+(pesquis|buscar|usar\s+web)|desligad\w*\s+a\s+busca)\b/i.test(userPromptLow) ||
       /\b(não\s+faça\s+(pesquis|busc|procur))|não\s+pesquise|don't\s+search|do\s+not\s+search|no\s+web\s+search|sem\s+pesquisa/i.test(userPromptLow) ||
       userPromptLow.includes("não pesquise") ||
       userPromptLow.includes("não buscar") ||
@@ -1556,8 +1668,10 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
    - **Shell / Linux Utilities**: \`bash\`, \`sh\`, \`ls\`, \`cat\`, \`grep\`, \`mkdir\`, \`cp\`, \`mv\`, \`rm\`, \`touch\`, \`head\`, \`tail\`, etc.
 2. **Manipulação de Arquivos e Pastas**: Crie, edite, renomeie, exclua e organize pastas e documentos usando ferramentas de documento (\`create_document\`, \`edit_document\`, \`delete_document\`) ou comandos do terminal (\`mkdir\`, \`touch\`, \`mv\`, \`cp\`, \`rm\`, \`cat\`, \`ls\`, \`write_terminal_file\`). Todos os arquivos criados ou modificados aparecem automaticamente no Workspace do usuário.
 3. **Execução Real de Códigos e Scripts**: Sempre que o usuário pedir para criar, testar ou executar códigos Python ou JavaScript, utilize \`execute_terminal_command\` (ex: \`python3 script.py\`, \`python script.py\`, \`node index.js\`, \`npm test\`) ou \`run_code_sandbox\`. ${isPythonInstalled ? "" : "IMPORTANTE: Como o Python não está instalado no sandbox, você NUNCA deve chamar execute_terminal_command ou run_code_sandbox para Python; use apenas para JavaScript/Node.js."}
-4. **Validação Obrigatória de Status e Erros**:
-   - Se o comando executado retornar erro (\`exit_code !== 0\` ou mensagens em \`stderr\`), você é ESTRITAMENTE OBRIGADO a reportar o erro real que ocorreu (com o código de saída e stderr), e NUNCA declarar falso sucesso ou fingir que o script executou perfeitamente.
+4. **Validação Obrigatória de Status, Erros e Hashes SHA-256 (PROIBIDO INVENTAR SUCESSO OU HASHES)**:
+   - **PROIBIDO INVENTAR HASHES**: É ABSOLUTAMENTE PROIBIDO inventar, adivinhar ou escrever hashes SHA-256 (ex: strings de 64 caracteres hexa) ou tamanhos de arquivos manualmente no texto da sua resposta. Todos os hashes SHA-256 e tamanhos em bytes são gerados exclusivamente pelo backend do sistema a partir do arquivo real salvo no disco.
+   - **CONDIÇÃO PARA APROVAÇÃO DE TESTES**: A palavra 'aprovado' ou afirmações de que testes/código foram executados e aprovados SÓ PODEM SER DECLARADAS se um comando de teste (\`execute_terminal_command\` ou \`run_code_sandbox\`) foi REALMENTE invocado e retornou \`exit_code === 0\` com saída confirmada no stdout.
+   - **FERRAMENTAS BLOQUEADAS OU NÃO EXECUTADAS**: Se qualquer ferramenta foi bloqueada (por instrução do usuário, modo informativo ou diretiva de segurança) ou não foi executada, você DEVE OBRIGATORIAMENTE declarar o status como 'Não executado / Bloqueado'. NUNCA simule um sucesso sintético, NUNCA invente resultados de testes nem crie um relatório falso de aprovação.
 5. **Nunca Simule em Texto**: Sempre invoque a ferramenta correspondente no mesmo turno.`;
       activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + (userLocationContextInstruction ? userLocationContextInstruction + "\n\n" : "") + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + (activeSkillsInstruction ? activeSkillsInstruction + "\n\n" : "") + docInstruction + "\n\n" + formInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction + terminalInstruction + modeAdditions;
     } else {
@@ -1574,6 +1688,18 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
 
     if (userForbidsTools) {
       activeSystemPrompt += "\n\n[INSTRUÇÃO DE SEGURANÇA ABSOLUTA - MODO PURAMENTE INFORMATIVO / SEM FERRAMENTAS]: O usuário solicitou uma resposta em texto puro sem uso de ferramentas. Responda diretamente no chat de forma clara, didática e explicativa sem invocar nenhuma ferramenta.";
+    }
+
+    if (userForbidsExternalServices) {
+      activeSystemPrompt += "\n\n[INSTRUÇÃO DE RESTRIÇÃO CRÍTICA DE COMPLIANCE - AMBIENTE LOCAL / SEM SERVIÇOS EXTERNOS / MODO OFFLINE]: O usuário especificou EXPLICITAMENTE que a tarefa DEVE ser realizada 'Sem usar serviços externos' (ou modo offline / sem conexões externas).\n" +
+        "Você DEVE OBRIGATORIAMENTE cumprir as seguintes diretrizes estritas de segurança, privacidade e compliance:\n" +
+        "1. PROIBIÇÃO DE BUSCA E APIS EXTERNAS: Não utilize a ferramenta web_search nem chame serviços de terceiros via internet.\n" +
+        "2. PROIBIÇÃO DE LINKS EXTERNOS: Não inclua URLs ou links para sites/serviços de terceiros (como Google Maps, Wikipédia, OpenStreetMap, ou outros sites externos) no seu texto, respostas ou relatórios.\n" +
+        "3. REGRA ESTRITA PARA MAPAS INTERATIVOS (<wsm_map>): O componente de mapa interativo <wsm_map> renderiza imagens e camadas de tiles através da internet (OpenStreetMap / Leaflet CDN). Por esse motivo, quando o usuário solicitar um mapa exigindo 'sem usar serviços externos':\n" +
+        "   - VOCÊ ESTÁ ESTRITAMENTE PROIBIDO DE EMITIR A TAG <wsm_map>.\n" +
+        "   - VOCÊ DEVE OBRIGATORIAMENTE EXPLICAR na sua resposta que um mapa interativo/dinâmico requer o carregamento de camadas/tiles de serviços de mapa externos (como OpenStreetMap ou Google Maps), o que violaria a restrição de 'sem usar serviços externos'.\n" +
+        "   - VOCÊ DEVE APRESENTAR UMA ALTERNATIVA 100% LOCAL (ex: uma Tabela de Coordenadas/Locais em Markdown, uma lista geográfica estruturada ou um esquema/diagrama textual/SVG local) totalmente autocontida e processada localmente no chat sem chamada de rede.\n" +
+        "4. TABELAS E GRÁFICOS: Podem ser gerados normalmente usando Markdown e a tag <wsm_chart>, pois são processados e renderizados 100% localmente no navegador do usuário sem chamadas de rede.";
     }
 
     let mappedModel = "gemini-2.5-flash";
@@ -2249,11 +2375,20 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                   name: fc.name,
                   response: {
                     status: "blocked",
+                    executed: false,
+                    exit_code: null,
                     error: "Execução de terminal/comandos bloqueada por instrução explícita de segurança do usuário ('Não execute comandos').",
-                    instruction: "AVISO CRÍTICO DE SEGURANÇA: O usuário proibiu explicitamente a execução de comandos. Você DEVE responder APENAS em texto explicativo sem executar comandos."
+                    instruction: "AVISO CRÍTICO DE INTEGRIDADE: O usuário proibiu explicitamente a execução de comandos. A ferramenta FOI BLOQUEADA E NÃO FOI EXECUTADA. É ABSOLUTAMENTE PROIBIDO AFIRMAR QUE COMANDOS OU TESTES FORAM EXECUTADOS, APROVADOS OU SUCEDIDOS. É ABSOLUTAMENTE PROIBIDO INVENTAR HASHES SHA-256 OU RESULTADOS DE TESTE. Você DEVE responder APENAS em texto explicativo declarando que a execução foi 'Não executada / Bloqueada'."
                   }
                 }
               });
+              const cmdStr = (fc.args as any)?.command || fc.name;
+              const blockedTag = `<wsm_terminal_exec command="${String(cmdStr).replace(/"/g, '&quot;')}" status="failed" exitCode="1" error="blocked" />`;
+              if (thinkingText && fullOutput.includes(thinkingText)) {
+                fullOutput = fullOutput.replace(thinkingText, blockedTag);
+              } else {
+                fullOutput += blockedTag;
+              }
               const preventText = `\n\n⚠️ **[Execução de Comando Bloqueada]** Tentativa de execução de comando no terminal ('${fc.name}') foi impedida e bloqueada pelas diretivas de segurança do sistema devido à sua instrução explícita: *"Não execute comandos"*.\n\n`;
               sendEvent({ type: "chunk", text: preventText });
               fullOutput += preventText;
@@ -2269,11 +2404,16 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                   name: fc.name,
                   response: {
                     status: "blocked",
+                    executed: false,
+                    exit_code: null,
                     error: "Criação/edição de documentos bloqueada por instrução explícita do usuário ('Não crie arquivos').",
-                    instruction: "AVISO CRÍTICO DE SEGURANÇA: O usuário proibiu explicitamente a criação de documentos. Forneça apenas resposta explicativa em texto."
+                    instruction: "AVISO CRÍTICO DE INTEGRIDADE: O usuário proibiu explicitamente a criação de documentos. A ferramenta FOI BLOQUEADA E NÃO FOI EXECUTADA. É ABSOLUTAMENTE PROIBIDO AFIRMAR QUE OS ARQUIVOS FORAM CRIADOS OU EDITADOS. Forneça apenas resposta explicativa em texto."
                   }
                 }
               });
+              if (thinkingText && fullOutput.includes(thinkingText)) {
+                fullOutput = fullOutput.replace(thinkingText, "");
+              }
               const preventText = `\n\n⚠️ **[Criação de Documento Bloqueada]** A chamada da ferramenta '${fc.name}' foi impedida e bloqueada pelas diretivas de segurança devido à sua instrução explícita: *"Não crie arquivos"*.\n\n`;
               sendEvent({ type: "chunk", text: preventText });
               fullOutput += preventText;
@@ -2289,11 +2429,20 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                   name: fc.name,
                   response: {
                     status: "blocked",
+                    executed: false,
+                    exit_code: null,
                     error: "Execução de ferramentas bloqueada: a consulta foi definida como puramente informativa/sem ferramentas.",
-                    instruction: "AVISO: Responda apenas com texto explicativo e análise conceitual sem utilizar ferramentas."
+                    instruction: "AVISO CRÍTICO DE INTEGRIDADE: A ferramenta FOI BLOQUEADA E NÃO FOI EXECUTADA. É ABSOLUTAMENTE PROIBIDO AFIRMAR QUE COMANDOS OU TESTES FORAM EXECUTADOS, APROVADOS OU SUCEDIDOS. É ABSOLUTAMENTE PROIBIDO INVENTAR HASHES SHA-256 OU RESULTADOS DE TESTE. Responda apenas com texto explicativo e análise conceitual declarando que as ferramentas foram bloqueadas."
                   }
                 }
               });
+              const cmdStr = (fc.args as any)?.command || fc.name;
+              const blockedTag = `<wsm_terminal_exec command="${String(cmdStr).replace(/"/g, '&quot;')}" status="failed" exitCode="1" error="blocked" />`;
+              if (thinkingText && fullOutput.includes(thinkingText)) {
+                fullOutput = fullOutput.replace(thinkingText, blockedTag);
+              } else {
+                fullOutput += blockedTag;
+              }
               const preventText = `\n\n⚠️ **[Ferramenta Bloqueada]** A execução de '${fc.name}' foi impedida pois a solicitação foi classificada em Modo Informativo / Sem Ferramentas.\n\n`;
               sendEvent({ type: "chunk", text: preventText });
               fullOutput += preventText;
@@ -2555,53 +2704,52 @@ function getAttachmentStatusMessage(attachments: any[]): string {
               const args = fc.args as any;
               let title = String(args.title || 'Documento').trim();
               let content = String(args.content || '');
-              let format = inferFormat(title, args.format, content);
               
-              // Prevent JSON wrapper bug if model passed the JSON wrapper into the 'content' argument
               if (content.trim().startsWith('{') && content.trim().endsWith('}') && content.includes('"content"')) {
                  try {
                     const parsed = JSON.parse(content);
                     if (parsed && typeof parsed === 'object' && parsed.content) {
                        content = String(parsed.content);
                        if (parsed.title) title = String(parsed.title);
-                       if (parsed.format) format = String(parsed.format).toLowerCase();
                     }
                  } catch(e) {}
               }
-              
-              try {
-                workspaceDocuments.set(title, { title, content, format });
-                let bytes = 0;
-                let sha256 = '';
 
-                if (format === 'xlsx' || title.toLowerCase().endsWith('.xlsx')) {
-                  const xlsxBuf = await generateExcelBuffer(title, content);
-                  writeSandboxBinaryFile(title, xlsxBuf);
+              const cleanTitle = title.replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '').replace(/^\/+/, '').trim();
+              const baseName = path.basename(cleanTitle);
+              const format = inferFormat(cleanTitle, args.format, content);
+
+              try {
+                if (format === 'xlsx' || cleanTitle.toLowerCase().endsWith('.xlsx')) {
+                  const xlsxBuf = await generateExcelBuffer(cleanTitle, content);
+                  writeSandboxBinaryFile(cleanTitle, xlsxBuf);
                 } else {
-                  writeSandboxFile(title, content);
+                  writeSandboxFile(cleanTitle, content);
                 }
 
-                const fileDetails = getSandboxFileDetails(title);
-                bytes = fileDetails?.size ?? Buffer.byteLength(content, 'utf8');
-                sha256 = fileDetails?.sha256 ?? crypto.createHash('sha256').update(content, 'utf8').digest('hex');
-                const diskContent = readSandboxFile(title) ?? content;
+                const fileDetails = getSandboxFileDetails(cleanTitle);
+                const bytes = fileDetails?.size ?? Buffer.byteLength(content, 'utf8');
+                const sha256 = fileDetails?.sha256 ?? crypto.createHash('sha256').update(content, 'utf8').digest('hex');
+                const diskContent = readSandboxFile(cleanTitle) ?? content;
 
-                workspaceDocuments.set(title, { title, content: diskContent, format, size: bytes, sha256 });
-                
-                const readBackDoc = workspaceDocuments.get(title);
-                const isPersisted = Boolean(readBackDoc && fileDetails && fileDetails.exists && fileDetails.size >= 0);
+                const docEntry = { title: cleanTitle, content: diskContent, format, size: bytes, sha256 };
+                workspaceDocuments.set(cleanTitle, docEntry);
+                workspaceDocuments.set(baseName, docEntry);
+                syncWorkspaceWithDisk();
+
+                const isPersisted = Boolean(fileDetails && fileDetails.exists);
                 
                 if (isPersisted) {
                   const artifact_id = "art_" + crypto.randomBytes(8).toString('hex');
-                  const mime_type = getMimeType(format, title);
-                  const preview = content.length > 250 ? content.slice(0, 250) + "..." : content;
+                  const mime_type = getMimeType(format, cleanTitle);
+                  const preview = diskContent.length > 250 ? diskContent.slice(0, 250) + "..." : diskContent;
                   const run_id = `run_${Date.now()}`;
                   
                   sendEvent({
                     type: "terminal_action",
                     action: "write_file",
-                    path: `/workspace/${title.replace(/^\//, '')}`,
-                    content: content
+                    path: `/workspace/${cleanTitle}`,
+                    content: diskContent
                   });
 
                   functionResponseParts.push({
@@ -2611,13 +2759,19 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                       response: {
                         status: "succeeded",
                         operation: "workspace.create_artifact",
+                        operation_id: `op_create_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
                         artifact_id,
-                        name: title,
+                        name: cleanTitle,
+                        path: `/workspace/${cleanTitle}`,
                         mime_type,
+                        previous_version: 0,
+                        previous_size: 0,
+                        previous_hash: null,
                         size_bytes: bytes,
                         hash_sha256: sha256,
+                        diff_short: `+ ${bytes} B criados`,
                         preview,
-                        download_url: `/api/download/${encodeURIComponent(title)}`,
+                        download_url: `/api/download/${encodeURIComponent(cleanTitle)}`,
                         tool_origin: "create_document",
                         timestamp: new Date().toISOString(),
                         permissions: "read_write",
@@ -2636,7 +2790,8 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                       response: {
                         status: "failed",
                         operation: "workspace.create_artifact",
-                        name: title,
+                        name: cleanTitle,
+                        path: `/workspace/${cleanTitle}`,
                         error: "Falha na verificação de leitura de volta (read-back mismatch). Não foi possível materializar o artefato.",
                         failed_at: new Date().toISOString(),
                         read_back_verified: false
@@ -2652,7 +2807,8 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                     response: {
                       status: "failed",
                       operation: "workspace.create_artifact",
-                      name: title,
+                      name: cleanTitle,
+                      path: `/workspace/${cleanTitle}`,
                       error: err?.message || String(err),
                       failed_at: new Date().toISOString(),
                       read_back_verified: false
@@ -2662,11 +2818,13 @@ function getAttachmentStatusMessage(attachments: any[]): string {
               }
             } else if (fc.name === "read_document") {
               const args = fc.args as any;
-              const title = String(args.title || '').trim();
-              const docObj = workspaceDocuments.get(title);
-              if (docObj) {
-                const sha256 = crypto.createHash('sha256').update(docObj.content, 'utf8').digest('hex');
-                const bytes = Buffer.byteLength(docObj.content, 'utf8');
+              const inputTitle = String(args.title || '').trim();
+              const found = findDocumentInWorkspace(inputTitle);
+
+              if (found) {
+                const docObj = found.docObj;
+                const bytes = docObj.size ?? Buffer.byteLength(docObj.content, 'utf8');
+                const sha256 = docObj.sha256 ?? crypto.createHash('sha256').update(docObj.content, 'utf8').digest('hex');
                 const mime_type = getMimeType(docObj.format, docObj.title);
                 functionResponseParts.push({
                   functionResponse: {
@@ -2676,16 +2834,20 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                       status: "succeeded",
                       operation: "workspace.read_artifact",
                       name: docObj.title,
+                      path: `/workspace/${docObj.title}`,
                       mime_type,
                       size_bytes: bytes,
                       hash_sha256: sha256,
                       download_url: `/api/download/${encodeURIComponent(docObj.title)}`,
                       format: docObj.format,
-                      content: docObj.content
+                      content: docObj.content,
+                      read_back_verified: true
                     }
                   }
                 });
               } else {
+                syncWorkspaceWithDisk();
+                const availableTitles = Array.from(new Set(Array.from(workspaceDocuments.values()).map(d => d.title)));
                 functionResponseParts.push({
                   functionResponse: {
                     id: fc.id,
@@ -2693,62 +2855,72 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                     response: {
                       status: "failed",
                       operation: "workspace.read_artifact",
-                      name: title,
-                      error: `Documento "${title}" não encontrado no workspace. Documentos disponíveis: ${Array.from(workspaceDocuments.keys()).join(', ') || 'Nenhum'}`,
-                      failed_at: new Date().toISOString()
+                      name: inputTitle,
+                      error: `Documento "${inputTitle}" não encontrado no workspace. Documentos disponíveis: ${availableTitles.join(', ') || 'Nenhum'}`,
+                      failed_at: new Date().toISOString(),
+                      read_back_verified: false
                     }
                   }
                 });
               }
             } else if (fc.name === "edit_document") {
               const args = fc.args as any;
-              let title = String(args.title || 'Documento').trim();
+              let titleArg = String(args.title || '').trim();
               let content = String(args.content || '');
-              
+
               if (content.trim().startsWith('{') && content.trim().endsWith('}') && content.includes('"content"')) {
                  try {
                     const parsed = JSON.parse(content);
                     if (parsed && typeof parsed === 'object' && parsed.content) {
                        content = String(parsed.content);
-                       if (parsed.title) title = String(parsed.title);
+                       if (parsed.title) titleArg = String(parsed.title);
                     }
                  } catch(e) {}
               }
-              
-              try {
-                const existingDoc = workspaceDocuments.get(title);
-                const format = inferFormat(title, args.format || existingDoc?.format, content);
-                workspaceDocuments.set(title, { title, content, format });
-                let bytes = 0;
-                let sha256 = '';
 
-                if (format === 'xlsx' || title.toLowerCase().endsWith('.xlsx')) {
-                  const xlsxBuf = await generateExcelBuffer(title, content);
-                  writeSandboxBinaryFile(title, xlsxBuf);
+              const existing = findDocumentInWorkspace(titleArg);
+              const targetTitle = existing ? existing.title : (titleArg.replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '').replace(/^\/+/, '').trim() || 'documento.md');
+              const baseName = path.basename(targetTitle);
+
+              const prevContent = existing ? existing.docObj.content : '';
+              const prevBytes = existing?.docObj.size ?? Buffer.byteLength(prevContent, 'utf8');
+              const prevHash = existing?.docObj.sha256 ?? (prevContent ? crypto.createHash('sha256').update(prevContent, 'utf8').digest('hex') : null);
+
+              const format = inferFormat(targetTitle, args.format || existing?.docObj.format, content);
+
+              try {
+                if (format === 'xlsx' || targetTitle.toLowerCase().endsWith('.xlsx')) {
+                  const xlsxBuf = await generateExcelBuffer(targetTitle, content);
+                  writeSandboxBinaryFile(targetTitle, xlsxBuf);
                 } else {
-                  writeSandboxFile(title, content);
+                  writeSandboxFile(targetTitle, content);
                 }
 
-                const fileDetails = getSandboxFileDetails(title);
-                bytes = fileDetails?.size ?? Buffer.byteLength(content, 'utf8');
-                sha256 = fileDetails?.sha256 ?? crypto.createHash('sha256').update(content, 'utf8').digest('hex');
-                const diskContent = readSandboxFile(title) ?? content;
+                const fileDetails = getSandboxFileDetails(targetTitle);
+                const bytes = fileDetails?.size ?? Buffer.byteLength(content, 'utf8');
+                const sha256 = fileDetails?.sha256 ?? crypto.createHash('sha256').update(content, 'utf8').digest('hex');
+                const diskContent = readSandboxFile(targetTitle) ?? content;
 
-                workspaceDocuments.set(title, { title, content: diskContent, format, size: bytes, sha256 });
+                const docEntry = { title: targetTitle, content: diskContent, format, size: bytes, sha256 };
+                workspaceDocuments.set(targetTitle, docEntry);
+                workspaceDocuments.set(baseName, docEntry);
+                syncWorkspaceWithDisk();
 
-                const readBackDoc = workspaceDocuments.get(title);
-                const isPersisted = Boolean(readBackDoc && fileDetails && fileDetails.exists && fileDetails.size >= 0);
-                
+                const isPersisted = Boolean(fileDetails && fileDetails.exists);
+
                 if (isPersisted) {
                   const artifact_id = "art_" + crypto.randomBytes(8).toString('hex');
-                  const mime_type = getMimeType(format, title);
-                  const preview = content.length > 250 ? content.slice(0, 250) + "..." : content;
+                  const mime_type = getMimeType(format, targetTitle);
+                  const preview = diskContent.length > 250 ? diskContent.slice(0, 250) + "..." : diskContent;
                   const run_id = `run_${Date.now()}`;
+                  const byteDiff = bytes - prevBytes;
+                  const diffShort = `${byteDiff >= 0 ? '+' : ''}${byteDiff} B alterados (de ${prevBytes} B para ${bytes} B)`;
+
                   sendEvent({
                     type: "terminal_action",
                     action: "write_file",
-                    path: `/workspace/${title.replace(/^\//, '')}`,
-                    content: content
+                    path: `/workspace/${targetTitle}`,
+                    content: diskContent
                   });
 
                   functionResponseParts.push({
@@ -2758,18 +2930,24 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                       response: {
                         status: "succeeded",
                         operation: "workspace.update_artifact",
+                        operation_id: `op_edit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
                         artifact_id,
-                        name: title,
+                        name: targetTitle,
+                        path: `/workspace/${targetTitle}`,
                         mime_type,
+                        previous_size: prevBytes,
+                        previous_hash: prevHash,
                         size_bytes: bytes,
                         hash_sha256: sha256,
+                        diff_short: diffShort,
                         preview,
-                        download_url: `/api/download/${encodeURIComponent(title)}`,
+                        download_url: `/api/download/${encodeURIComponent(targetTitle)}`,
                         tool_origin: "edit_document",
                         timestamp: new Date().toISOString(),
                         permissions: "read_write",
                         run_id,
-                        read_back_verified: true
+                        read_back_verified: true,
+                        content: diskContent
                       }
                     }
                   });
@@ -2781,7 +2959,8 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                       response: {
                         status: "failed",
                         operation: "workspace.update_artifact",
-                        name: title,
+                        name: targetTitle,
+                        path: `/workspace/${targetTitle}`,
                         error: "Falha ao verificar persistência da edição no workspace (read-back mismatch).",
                         failed_at: new Date().toISOString(),
                         read_back_verified: false
@@ -2797,7 +2976,8 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                     response: {
                       status: "failed",
                       operation: "workspace.update_artifact",
-                      name: title,
+                      name: targetTitle,
+                      path: `/workspace/${targetTitle}`,
                       error: err?.message || String(err),
                       failed_at: new Date().toISOString(),
                       read_back_verified: false
@@ -2807,84 +2987,192 @@ function getAttachmentStatusMessage(attachments: any[]): string {
               }
             } else if (fc.name === "append_document") {
               const args = fc.args as any;
-              const title = String(args.title || 'Documento').trim();
-              const textToAppend = String(args.text || '');
-              const existingDoc = workspaceDocuments.get(title);
-              const newContent = existingDoc ? existingDoc.content + "\n\n" + textToAppend : textToAppend;
-              const format = inferFormat(title, existingDoc?.format, newContent);
-              
-              workspaceDocuments.set(title, { title, content: newContent, format });
-              const readBack = workspaceDocuments.get(title);
-              const isPersisted = readBack && readBack.content === newContent;
-              const sha256 = crypto.createHash('sha256').update(newContent, 'utf8').digest('hex');
-              const bytes = Buffer.byteLength(newContent, 'utf8');
-              const artifact_id = "art_" + crypto.randomBytes(8).toString('hex');
-              const mime_type = getMimeType(format, title);
-              const preview = newContent.length > 250 ? newContent.slice(0, 250) + "..." : newContent;
-              const run_id = `run_${Date.now()}`;
-              
-              functionResponseParts.push({
-                functionResponse: {
-                  id: fc.id,
-                  name: fc.name,
-                  response: isPersisted ? {
-                    status: "succeeded",
-                    operation: "workspace.append_artifact",
-                    artifact_id,
-                    name: title,
-                    mime_type,
-                    size_bytes: bytes,
-                    hash_sha256: sha256,
-                    preview,
-                    download_url: `/api/download/${encodeURIComponent(title)}`,
-                    tool_origin: "append_document",
-                    timestamp: new Date().toISOString(),
-                    permissions: "read_write",
-                    run_id,
-                    read_back_verified: true
-                  } : {
-                    status: "failed",
-                    operation: "workspace.append_artifact",
-                    name: title,
-                    error: "Falha na verificação de leitura de volta após append",
-                    failed_at: new Date().toISOString(),
-                    read_back_verified: false
-                  }
+              const titleArg = String(args.title || '').trim();
+              const textToAppend = String(args.text || args.content || '');
+
+              const existing = findDocumentInWorkspace(titleArg);
+              const targetTitle = existing ? existing.title : (titleArg.replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '').replace(/^\/+/, '').trim() || 'documento.md');
+              const baseName = path.basename(targetTitle);
+
+              const prevContent = existing ? existing.docObj.content : (readSandboxFile(targetTitle) || '');
+              const prevBytes = existing?.docObj.size ?? Buffer.byteLength(prevContent, 'utf8');
+              const prevHash = existing?.docObj.sha256 ?? (prevContent ? crypto.createHash('sha256').update(prevContent, 'utf8').digest('hex') : null);
+
+              const newContent = prevContent ? (prevContent + "\n\n" + textToAppend) : textToAppend;
+              const format = inferFormat(targetTitle, existing?.docObj.format, newContent);
+
+              try {
+                writeSandboxFile(targetTitle, newContent);
+
+                const fileDetails = getSandboxFileDetails(targetTitle);
+                const bytes = fileDetails?.size ?? Buffer.byteLength(newContent, 'utf8');
+                const sha256 = fileDetails?.sha256 ?? crypto.createHash('sha256').update(newContent, 'utf8').digest('hex');
+                const diskContent = readSandboxFile(targetTitle) ?? newContent;
+
+                const docEntry = { title: targetTitle, content: diskContent, format, size: bytes, sha256 };
+                workspaceDocuments.set(targetTitle, docEntry);
+                workspaceDocuments.set(baseName, docEntry);
+                syncWorkspaceWithDisk();
+
+                const isPersisted = Boolean(fileDetails && fileDetails.exists && diskContent.includes(textToAppend));
+
+                if (isPersisted) {
+                  const artifact_id = "art_" + crypto.randomBytes(8).toString('hex');
+                  const mime_type = getMimeType(format, targetTitle);
+                  const preview = diskContent.length > 250 ? diskContent.slice(0, 250) + "..." : diskContent;
+                  const run_id = `run_${Date.now()}`;
+                  const appendedBytes = Buffer.byteLength(textToAppend, 'utf8');
+                  const diffShort = `+ ${appendedBytes} B acrescentados (de ${prevBytes} B para ${bytes} B)`;
+
+                  sendEvent({
+                    type: "terminal_action",
+                    action: "write_file",
+                    path: `/workspace/${targetTitle}`,
+                    content: diskContent
+                  });
+
+                  functionResponseParts.push({
+                    functionResponse: {
+                      id: fc.id,
+                      name: fc.name,
+                      response: {
+                        status: "succeeded",
+                        operation: "workspace.append_artifact",
+                        operation_id: `op_append_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+                        artifact_id,
+                        name: targetTitle,
+                        path: `/workspace/${targetTitle}`,
+                        mime_type,
+                        previous_size: prevBytes,
+                        previous_hash: prevHash,
+                        size_bytes: bytes,
+                        hash_sha256: sha256,
+                        diff_short: diffShort,
+                        preview,
+                        download_url: `/api/download/${encodeURIComponent(targetTitle)}`,
+                        tool_origin: "append_document",
+                        timestamp: new Date().toISOString(),
+                        permissions: "read_write",
+                        run_id,
+                        read_back_verified: true,
+                        content: diskContent
+                      }
+                    }
+                  });
+                } else {
+                  functionResponseParts.push({
+                    functionResponse: {
+                      id: fc.id,
+                      name: fc.name,
+                      response: {
+                        status: "failed",
+                        operation: "workspace.append_artifact",
+                        name: targetTitle,
+                        path: `/workspace/${targetTitle}`,
+                        error: "Falha na verificação de leitura de volta após append (read-back mismatch).",
+                        failed_at: new Date().toISOString(),
+                        read_back_verified: false
+                      }
+                    }
+                  });
                 }
-              });
+              } catch (err: any) {
+                functionResponseParts.push({
+                  functionResponse: {
+                    id: fc.id,
+                    name: fc.name,
+                    response: {
+                      status: "failed",
+                      operation: "workspace.append_artifact",
+                      name: targetTitle,
+                      path: `/workspace/${targetTitle}`,
+                      error: err?.message || String(err),
+                      failed_at: new Date().toISOString(),
+                      read_back_verified: false
+                    }
+                  }
+                });
+              }
             } else if (fc.name === "delete_document") {
               const args = fc.args as any;
-              const title = String(args.title || '').trim();
-              const existed = workspaceDocuments.delete(title);
-              
-              if (existed) {
+              const inputTitle = String(args.title || '').trim();
+              const existing = findDocumentInWorkspace(inputTitle);
+
+              if (existing) {
+                const targetTitle = existing.title;
+                const baseName = path.basename(targetTitle);
+                const prevBytes = existing.docObj.size ?? Buffer.byteLength(existing.docObj.content, 'utf8');
+                const prevHash = existing.docObj.sha256 ?? crypto.createHash('sha256').update(existing.docObj.content, 'utf8').digest('hex');
+
+                workspaceDocuments.delete(targetTitle);
+                workspaceDocuments.delete(baseName);
+                deleteSandboxFile(targetTitle);
+                syncWorkspaceWithDisk();
+
+                const diskCheck = getSandboxFileDetails(targetTitle);
+                const isDeleted = !diskCheck || !diskCheck.exists;
+
                 sendEvent({
                   type: "terminal_action",
                   action: "delete_file",
-                  path: `/workspace/${title.replace(/^\//, '')}`
+                  path: `/workspace/${targetTitle}`
+                });
+
+                functionResponseParts.push({
+                  functionResponse: {
+                    id: fc.id,
+                    name: fc.name,
+                    response: {
+                      status: isDeleted ? "succeeded" : "failed",
+                      operation: "workspace.delete_artifact",
+                      operation_id: `op_delete_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+                      name: targetTitle,
+                      path: `/workspace/${targetTitle}`,
+                      previous_size: prevBytes,
+                      previous_hash: prevHash,
+                      size_bytes: 0,
+                      hash_sha256: null,
+                      message: isDeleted ? `Documento "${targetTitle}" excluído com sucesso do workspace.` : `Falha ao remover "${targetTitle}" do disco.`,
+                      deleted_at: new Date().toISOString(),
+                      read_back_verified: isDeleted
+                    }
+                  }
+                });
+              } else {
+                syncWorkspaceWithDisk();
+                const availableTitles = Array.from(new Set(Array.from(workspaceDocuments.values()).map(d => d.title)));
+                functionResponseParts.push({
+                  functionResponse: {
+                    id: fc.id,
+                    name: fc.name,
+                    response: {
+                      status: "failed",
+                      operation: "workspace.delete_artifact",
+                      name: inputTitle,
+                      error: `Documento "${inputTitle}" não encontrado no workspace. Documentos disponíveis: ${availableTitles.join(', ') || 'Nenhum'}`,
+                      failed_at: new Date().toISOString(),
+                      read_back_verified: false
+                    }
+                  }
                 });
               }
-
-              functionResponseParts.push({
-                functionResponse: {
-                  id: fc.id,
-                  name: fc.name,
-                  response: {
-                    status: existed ? "succeeded" : "failed",
-                    operation: "workspace.delete_artifact",
-                    name: title,
-                    message: existed ? `Documento "${title}" excluído com sucesso do workspace.` : `Documento "${title}" não encontrado no workspace.`,
-                    deleted_at: new Date().toISOString()
-                  }
+            } else if (fc.name === "list_documents") {
+              syncWorkspaceWithDisk();
+              const uniqueDocsMap = new Map<string, any>();
+              
+              workspaceDocuments.forEach((doc) => {
+                if (!uniqueDocsMap.has(doc.title)) {
+                  uniqueDocsMap.set(doc.title, doc);
                 }
               });
-            } else if (fc.name === "list_documents") {
-              const docsList = Array.from(workspaceDocuments.values()).map(d => {
-                const sha256 = crypto.createHash('sha256').update(d.content, 'utf8').digest('hex');
-                const bytes = Buffer.byteLength(d.content, 'utf8');
+
+              const docsList = Array.from(uniqueDocsMap.values()).map(d => {
+                const bytes = d.size ?? Buffer.byteLength(d.content, 'utf8');
+                const sha256 = d.sha256 ?? crypto.createHash('sha256').update(d.content, 'utf8').digest('hex');
                 const mime_type = getMimeType(d.format, d.title);
                 return {
                   name: d.title,
+                  path: `/workspace/${d.title}`,
                   format: d.format,
                   mime_type,
                   size_bytes: bytes,
@@ -2892,6 +3180,7 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                   download_url: `/api/download/${encodeURIComponent(d.title)}`
                 };
               });
+
               functionResponseParts.push({
                 functionResponse: {
                   id: fc.id,
@@ -3142,6 +3431,7 @@ function getAttachmentStatusMessage(attachments: any[]): string {
               const cmd = (fc.args as any)?.command || 'ls';
               const code = typeof (fc as any)._exitCode === 'number' ? (fc as any)._exitCode : 0;
               const termStatus = code === 0 ? "succeeded" : (code === 124 ? "timed_out" : "failed");
+              const runId = (fc as any)._runId || `run_exec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
               let fileTags = "";
               const modifiedList = (fc as any)._filesModified || [];
               if (Array.isArray(modifiedList) && modifiedList.length > 0) {
@@ -3150,34 +3440,46 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                   if (cleanPath) {
                     const fileContent = readSandboxFile(cleanPath);
                     if (fileContent !== null) {
+                      const details = getSandboxFileDetails(cleanPath);
                       const ext = cleanPath.split('.').pop()?.toLowerCase() || 'txt';
-                      const docJson = JSON.stringify({ title: cleanPath, format: ext, content: fileContent });
-                      fileTags += `<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${cleanPath}" />\n`;
+                      const diskSize = details?.size ?? Buffer.byteLength(fileContent, 'utf8');
+                      const diskSha256 = details?.sha256 ?? crypto.createHash('sha256').update(fileContent, 'utf8').digest('hex');
+                      const docJson = JSON.stringify({ title: cleanPath, format: ext, content: fileContent, size: diskSize, sha256: diskSha256 });
+                      fileTags += `<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${cleanPath}" size="${diskSize}" hash="${diskSha256}" runId="${runId}" />\n`;
                     }
                   }
                 }
               }
-              finalTagText = `\n\n${fileTags}<wsm_terminal_exec command="${cmd.replace(/"/g, '&quot;')}" status="${termStatus}" exitCode="${code}" />\n\n`;
+              finalTagText = `\n\n${fileTags}<wsm_terminal_exec command="${cmd.replace(/"/g, '&quot;')}" status="${termStatus}" exitCode="${code}" runId="${runId}" />\n\n`;
             } else if (fc.name === "run_code_sandbox") {
               const lang = (fc.args as any)?.language || 'javascript';
               const fn = (fc.args as any)?.filename || ((lang === 'python' || lang === 'py') ? 'script.py' : 'index.js');
               const codeStr = (fc.args as any)?.code || '';
               const code = typeof (fc as any)._exitCode === 'number' ? (fc as any)._exitCode : 0;
               const codeStatus = code === 0 ? "succeeded" : (code === 124 ? "timed_out" : "failed");
+              const runId = (fc as any)._runId || `run_code_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
               const ext = fn.split('.').pop() || ((lang === 'python' || lang === 'py') ? 'py' : 'js');
-              const docJson = JSON.stringify({ title: fn, format: ext, content: codeStr });
+              const details = getSandboxFileDetails(fn);
+              const diskSize = details?.size ?? Buffer.byteLength(codeStr, 'utf8');
+              const diskSha256 = details?.sha256 ?? crypto.createHash('sha256').update(codeStr, 'utf8').digest('hex');
+              const docJson = JSON.stringify({ title: fn, format: ext, content: codeStr, size: diskSize, sha256: diskSha256 });
               const execCmd = (lang === 'python' || lang === 'py') ? 'python3 ' + fn : 'node ' + fn;
               if (code === 0) {
-                finalTagText = `\n\n<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${fn}" />\n<wsm_terminal_exec command="${execCmd}" status="${codeStatus}" exitCode="${code}" />\n\n`;
+                finalTagText = `\n\n<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${fn}" size="${diskSize}" hash="${diskSha256}" runId="${runId}" />\n<wsm_terminal_exec command="${execCmd}" status="${codeStatus}" exitCode="${code}" runId="${runId}" />\n\n`;
               } else {
-                finalTagText = `\n\n<wsm_terminal_exec command="${execCmd}" status="${codeStatus}" exitCode="${code}" />\n\n`;
+                finalTagText = `\n\n<wsm_terminal_exec command="${execCmd}" status="${codeStatus}" exitCode="${code}" runId="${runId}" />\n\n`;
               }
             } else if (fc.name === "write_terminal_file") {
               const pathStr = (fc.args as any)?.path || 'arquivo.py';
               const contentStr = (fc.args as any)?.content || '';
-              const ext = pathStr.split('.').pop() || 'txt';
-              const docJson = JSON.stringify({ title: pathStr, format: ext, content: contentStr });
-              finalTagText = `\n\n<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${pathStr}" />\n\n`;
+              const runId = (fc as any)._runId || `run_write_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+              const cleanPath = pathStr.replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '').replace(/^\/+/, '');
+              const ext = cleanPath.split('.').pop() || 'txt';
+              const details = getSandboxFileDetails(cleanPath);
+              const diskSize = details?.size ?? Buffer.byteLength(contentStr, 'utf8');
+              const diskSha256 = details?.sha256 ?? crypto.createHash('sha256').update(contentStr, 'utf8').digest('hex');
+              const docJson = JSON.stringify({ title: cleanPath, format: ext, content: contentStr, size: diskSize, sha256: diskSha256 });
+              finalTagText = `\n\n<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${cleanPath}" size="${diskSize}" hash="${diskSha256}" runId="${runId}" />\n\n`;
             } else if (fc.name === "read_terminal_file") {
               finalTagText = `\n\n<wsm_terminal_file action="read" status="done" path="${(fc.args as any)?.path || 'arquivo'}" />\n\n`;
             }

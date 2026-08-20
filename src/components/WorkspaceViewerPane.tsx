@@ -206,26 +206,25 @@ export default function WorkspaceViewerPane({
   const allWorkspaceFiles = useMemo(() => {
     const combinedMap = new Map<string, WorkspaceFile>();
 
-    // 1. Add parsed AI files if not deleted
-    parsedAiFiles.forEach(file => {
-      if (!deletedFileTitles.has(file.title)) {
-        combinedMap.set(file.title, file);
+    const processFile = (file: WorkspaceFile) => {
+      if (deletedFileTitles.has(file.title) || terminalSandbox.isDeleted(file.title)) {
+        return;
       }
-    });
+      const realContent = terminalSandbox.readFile(file.title) ?? file.content;
+      combinedMap.set(file.title, {
+        ...file,
+        content: realContent,
+      });
+    };
+
+    // 1. Add parsed AI files if not deleted
+    parsedAiFiles.forEach(processFile);
 
     // 2. Add sandbox files (from terminal executions/scripts)
-    sandboxFiles.forEach(file => {
-      if (!deletedFileTitles.has(file.title)) {
-        combinedMap.set(file.title, file);
-      }
-    });
+    sandboxFiles.forEach(processFile);
 
     // 3. Add custom files (overwrites or adds new)
-    customFiles.forEach(file => {
-      if (!deletedFileTitles.has(file.title)) {
-        combinedMap.set(file.title, file);
-      }
-    });
+    customFiles.forEach(processFile);
 
     return Array.from(combinedMap.values());
   }, [parsedAiFiles, sandboxFiles, customFiles, deletedFileTitles]);
@@ -630,6 +629,11 @@ export default function WorkspaceViewerPane({
                   <span className="px-2 py-0.5 rounded-md text-[10px] font-mono uppercase bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-semibold border border-gray-200/80 dark:border-gray-700">
                     {activeFile.format}
                   </span>
+                  {activeFile.format.toLowerCase() === 'py' && (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800" title="Código Python armazenado no Workspace (Runtimes de Execução do Sandbox: Node.js / Bash)">
+                      Código Fonte Python (Execução Sandbox: Node.js / Bash)
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">

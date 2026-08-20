@@ -75,11 +75,11 @@ googleProvider.setCustomParameters({
   prompt: 'select_account'
 });
 
-export async function getAuthHeader(): Promise<Record<string, string>> {
+export async function getAuthHeader(forceRefresh: boolean = false): Promise<Record<string, string>> {
   try {
     const user = auth.currentUser;
     if (user) {
-      const token = await user.getIdToken();
+      const token = await user.getIdToken(forceRefresh);
       if (token) {
         return { 'Authorization': `Bearer ${token}` };
       }

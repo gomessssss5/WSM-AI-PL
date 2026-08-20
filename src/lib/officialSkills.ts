@@ -160,7 +160,7 @@ Antes de responder com o código final, verifique:
     permissions: ['read_workspace', 'write_code', 'run_tests', 'execute_linter'],
     allowed_tools: ['sandbox_runner', 'pytest', 'tsc', 'eslint', 'diff_generator'],
     input_schema: '{"prompt": "string", "language": "string", "isolated_sandbox": "boolean"}',
-    output_schema: '{"files": "Record<string, string>", "test_suite": "string", "hash": "sha256"}',
+    output_schema: '{"files": "Record<string, string>", "test_suite": "string", "execution_status": "succeeded | failed | blocked"}',
     estimated_time: '< 15s',
     estimated_cost: '0.005 créditos',
     compatibility: 'Python 3.10+, TS 5.0+, Node 18+, Go 1.20+',
@@ -213,6 +213,10 @@ Regra de ouro: o usuário **não tem tempo** para preencher lacunas. Se você us
   1. Qual versão do runtime é necessária (Node 18+, Python 3.10+).
   2. O comando exato para instalar dependências (\`npm install express zod cors\`).
   3. O comando para rodar (\`npm run dev\` ou \`node index.js\`).
+- **PROIBIÇÃO ABSOLUTA DE HASHES FICTÍCIOS E FALSOS TESTES APROVADOS**:
+  - NUNCA invente ou escreva hashes SHA-256 ou tamanhos de arquivo no texto da resposta. Hashes e metadados de arquivos são calculados EXCLUSIVAMENTE pelo backend do sistema a partir dos bytes gravados no disco.
+  - SÓ declare que uma suíte de testes passou ou foi 'aprovada' se a ferramenta de terminal foi REALMENTE executada e retornou código de saída 0 (exit_code === 0) com resultados confirmados no stdout.
+  - Se a ferramenta de execução foi bloqueada ou não foi executada, declare 'Não executado / Bloqueado' e NUNCA simule um relatório de teste aprovado.
 
 ## 7. Checklist Final — Autocorreção
 

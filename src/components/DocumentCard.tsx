@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { WsmDocument } from '../types';
-import { Download, Loader2, FileSpreadsheet, FileCode, FileText, AlignLeft, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, ShieldCheck } from 'lucide-react';
+import { Download, Loader2, FileSpreadsheet, FileCode, FileText, AlignLeft, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, ShieldCheck, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { generatePdfBlob } from '../utils/pdfGenerator';
 import { generateExcelBlob } from '../utils/excelGenerator';
 import { logAuditEvent } from '../utils/auditLogger';
+import { terminalSandbox } from '../lib/terminalSandbox';
 
 interface DocumentCardProps {
   document: WsmDocument;
@@ -16,6 +17,37 @@ interface DocumentCardProps {
 export default function DocumentCard({ document, onOpenDocument, attachedImages }: DocumentCardProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [expanded, setExpanded] = useState(false);
+
+  const [liveDocState, setLiveDocState] = useState<{
+    content: string;
+    isDeleted: boolean;
+    size: number;
+  }>(() => {
+    const isDel = terminalSandbox.isDeleted(document.title);
+    const liveContent = terminalSandbox.readFile(document.title) ?? document.content ?? '';
+    const bytes = new TextEncoder().encode(liveContent).length;
+    return {
+      content: liveContent,
+      isDeleted: isDel,
+      size: bytes,
+    };
+  });
+
+  useEffect(() => {
+    const syncLive = () => {
+      const isDel = terminalSandbox.isDeleted(document.title);
+      const liveContent = terminalSandbox.readFile(document.title) ?? document.content ?? '';
+      const bytes = new TextEncoder().encode(liveContent).length;
+      setLiveDocState({
+        content: liveContent,
+        isDeleted: isDel,
+        size: bytes,
+      });
+    };
+
+    syncLive();
+    return terminalSandbox.subscribe(syncLive);
+  }, [document.title, document.content]);
 
   // Format determined by AI: 'pdf' (default), 'md', 'xlsx', 'txt', 'html', 'py', 'ts', 'js', etc.
   const rawFormat = (document.format || (document as any).type || 'pdf').toString().toLowerCase();
@@ -62,26 +94,15 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
   };
 
   const getExactFileSize = (): string => {
-    if (typeof document.size === 'number' && document.size >= 0) {
-      return formatBytes(document.size);
-    }
-    if (typeof (document as any).sizeBytes === 'number' && (document as any).sizeBytes >= 0) {
-      return formatBytes((document as any).sizeBytes);
-    }
-    if (typeof val?.sizeBytes === 'number' && val.sizeBytes >= 0) {
-      return formatBytes(val.sizeBytes);
-    }
-    if (!document.content) return '0 B';
-    const bytes = new TextEncoder().encode(document.content).length;
-    return formatBytes(bytes);
+    if (liveDocState.isDeleted) return 'Excluído';
+    return formatBytes(liveDocState.size);
   };
 
   const handleDownload = async (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
 
-    const exactBytes = typeof document.size === 'number' && document.size >= 0 
-      ? document.size 
-      : (typeof val?.sizeBytes === 'number' ? val.sizeBytes : new TextEncoder().encode(document.content || '').length);
+    const currentContent = liveDocState.content;
+    const exactBytes = liveDocState.size;
 
     // Log audit event for download
     logAuditEvent({
@@ -96,7 +117,7 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
     });
 
     if (format === 'csv') {
-      const blob = new Blob([document.content || ''], { type: 'text/csv;charset=utf-8' });
+      const blob = new Blob([currentContent || ''], { type: 'text/csv;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const link = window.document.createElement('a');
       link.href = url;
@@ -106,7 +127,7 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
       link.click();
       URL.revokeObjectURL(url);
     } else if (format === 'md' || format === 'txt' || isCode) {
-      const blob = new Blob([document.content || ''], { type: 'text/plain;charset=utf-8' });
+      const blob = new Blob([currentContent || ''], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const link = window.document.createElement('a');
       link.href = url;
@@ -118,7 +139,7 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
     } else if (format === 'xlsx') {
       try {
         setIsGenerating(true);
-        const excelBlob = await generateExcelBlob(document.title || 'Planilha', document.content || '');
+        const excelBlob = await generateExcelBlob(document.title || 'Planilha', currentContent || '');
         const url = URL.createObjectURL(excelBlob);
         const link = window.document.createElement('a');
         link.href = url;
@@ -135,7 +156,7 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
     } else {
       try {
         setIsGenerating(true);
-        const pdfBlob = await generatePdfBlob(document.title || 'Documento', document.content || '', attachedImages || (document as any).images || (document as any).attachedImages);
+        const pdfBlob = await generatePdfBlob(document.title || 'Documento', currentContent || '', attachedImages || (document as any).images || (document as any).attachedImages);
         const url = URL.createObjectURL(pdfBlob);
         const link = window.document.createElement('a');
         link.href = url;
@@ -197,7 +218,7 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
               <span className="font-semibold text-[14px] text-gray-900 dark:text-gray-100 truncate tracking-tight leading-snug">
                 {document.title || 'Documento'}
               </span>
-              {((document as any).isMock || (document as any).status === 'simulated' || (document.title || '').toLowerCase().includes('mock') || (document.title || '').toLowerCase().includes('simula')) && (
+              {((document as any).isMock || (document as any).status === 'simulated' || (document as any).isSimulated) && (
                 <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-700">
                   MOCK / SIMULADO
                 </span>

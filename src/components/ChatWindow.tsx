@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Paperclip, Globe, Monitor, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share, Columns, Pause, Cpu, Bot, PanelRight, Activity, Terminal, ScrollText } from 'lucide-react';
+import { Paperclip, Globe, Monitor, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share, Columns, Pause, Cpu, Bot, PanelRight, Activity, Terminal, ScrollText, Info, ShieldCheck } from 'lucide-react';
 import BrowserPreviewPane from './BrowserPreviewPane';
 import DocumentViewerPane from './DocumentViewerPane';
 import WorkspaceViewerPane from './WorkspaceViewerPane';
@@ -33,6 +33,7 @@ import { SearchImageCarousel } from './SearchImageCarousel';
 import { logAuditEvent } from '../utils/auditLogger';
 import { extractStructuredEvents } from '../utils/eventParser';
 import { StructuredEventsLog } from './StructuredEventsLog';
+import { MessageErrorBoundary } from './MessageErrorBoundary';
 import { ArtifactPersistenceCard } from './ArtifactPersistenceCard';
 import { ExecutionRuntimeViewer } from './ExecutionRuntimeViewer';
 import { RightRunSidebar } from './RightRunSidebar';
@@ -988,6 +989,10 @@ export default function ChatWindow({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    if (isTemporary) {
+      setToastMessage('Conversa temporária exportada localmente em Markdown. Nenhuma mensagem é mantida no banco de dados do servidor.');
+      setTimeout(() => setToastMessage(null), 4000);
+    }
   };
 
   const handleSendReport = (text: string) => {
@@ -1887,9 +1892,12 @@ export default function ChatWindow({
           </div>
 
           {isTemporary && (
-            <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-extrabold rounded-full tracking-tight shadow-3xs select-none animate-pulse shrink-0">
+            <span 
+              className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-extrabold rounded-full tracking-tight shadow-3xs select-none animate-pulse shrink-0 cursor-help"
+              title="Sessão sem salvamento automático no banco de dados do servidor ou no histórico de conversas"
+            >
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-              Chat Temporário
+              Chat Temporário (Sem Histórico)
             </span>
           )}
         </div>
@@ -1984,10 +1992,17 @@ export default function ChatWindow({
                       setIsMenuOpen(false);
                       handleExportConversation();
                     }}
-                    className="w-full px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 flex items-center gap-2.5 transition-colors cursor-pointer"
+                    className="w-full px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 flex items-center justify-between gap-2.5 transition-colors cursor-pointer"
                   >
-                    <Download className="w-4 h-4 text-gray-400" />
-                    <span>Exportar conversa (Markdown)</span>
+                    <div className="flex items-center gap-2.5">
+                      <Download className="w-4 h-4 text-gray-400" />
+                      <span>Exportar conversa (Markdown)</span>
+                    </div>
+                    {isTemporary && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 shrink-0 border border-amber-200/80 dark:border-amber-800/80">
+                        Ação Local
+                      </span>
+                    )}
                   </button>
 
                   <button
@@ -2017,10 +2032,17 @@ export default function ChatWindow({
                       setIsShareModalOpen(true);
                       if (onShareSession) onShareSession();
                     }}
-                    className="w-full px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 flex items-center gap-2.5 transition-colors cursor-pointer"
+                    className="w-full px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 flex items-center justify-between gap-2.5 transition-colors cursor-pointer"
                   >
-                    <Share className="w-4 h-4 text-gray-400" />
-                    <span>Compartilhar chat</span>
+                    <div className="flex items-center gap-2.5">
+                      <Share className="w-4 h-4 text-gray-400" />
+                      <span>Compartilhar chat</span>
+                    </div>
+                    {isTemporary && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 shrink-0 border border-amber-200/80 dark:border-amber-800/80">
+                        Da Sessão
+                      </span>
+                    )}
                   </button>
 
                   <div className="h-px bg-gray-100 dark:bg-gray-800 my-1" />
@@ -2071,17 +2093,26 @@ export default function ChatWindow({
 
               {/* Central Title */}
               <div className="space-y-2">
-                <h2 className="font-sans font-extrabold text-gray-900 tracking-tight text-3xl md:text-4xl">
+                <h2 className="font-sans font-extrabold text-gray-900 dark:text-white tracking-tight text-3xl md:text-4xl">
                   Pergunte o que quiser
                 </h2>
-                <p className="font-sans font-medium text-amber-700/90 tracking-tight text-sm md:text-base flex items-center justify-center gap-1.5">
-                  <Lock className="w-4 h-4 text-amber-600 inline shrink-0" />
-                  com 100% de privacidade
+                <p className="font-sans font-bold text-amber-800 dark:text-amber-300 tracking-tight text-sm md:text-base flex items-center justify-center gap-1.5">
+                  <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400 inline shrink-0" />
+                  Sessão Sem Persistência no Servidor
                 </p>
               </div>
 
-              <div className="text-[11.5px] text-gray-400 font-medium max-w-xs mt-1">
-                Este chat é temporário. Nenhuma mensagem ou anexo será salvo no banco de dados ou histórico.
+              <div className="text-[11.5px] text-gray-600 dark:text-gray-300 font-medium max-w-sm mt-1 leading-relaxed bg-amber-50/60 dark:bg-amber-950/30 p-3.5 rounded-2xl border border-amber-200/80 dark:border-amber-800/60 text-left">
+                <p className="font-bold text-amber-900 dark:text-amber-200 mb-1 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  Garantia Técnica de Privacidade:
+                </p>
+                <p className="text-gray-700 dark:text-gray-300">
+                  Nenhuma mensagem ou anexo é salvo no banco de dados ou histórico de conversas do servidor.
+                </p>
+                <div className="mt-2 pt-2 border-t border-amber-200/50 dark:border-amber-800/40 text-[10.5px] text-gray-500 dark:text-gray-400">
+                  💡 <strong>Exportações e Compartilhamentos:</strong> As opções do menu (Exportar Markdown e Compartilhar) funcionam apenas por ação manual e deliberada do próprio usuário a partir dos dados locais da sessão.
+                </div>
               </div>
             </motion.div>
           ) : null
@@ -2100,14 +2131,14 @@ export default function ChatWindow({
             if (!isUser && !cleanedMsgText && !hasVisualContent && !isThinking) return null;
             if (!isUser && (rawText.trim().startsWith('[SISTEMA:') || /^\[Lendo Skill:.*?\]$/is.test(rawText.trim())) && !hasVisualContent) return null;
             return (
-              <motion.div
-                key={message.id}
-                id={`msg-container-${message.id}`}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                className={`flex gap-3 group w-full min-w-0 ${isUser ? 'justify-end' : 'justify-start'}`}
-              >
+              <MessageErrorBoundary key={message.id} messageId={message.id}>
+                <motion.div
+                  id={`msg-container-${message.id}`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                  className={`flex gap-3 group w-full min-w-0 ${isUser ? 'justify-end' : 'justify-start'}`}
+                >
                 <div className={`flex flex-col min-w-0 ${isUser ? 'items-end max-w-[85%]' : 'items-start flex-1 min-w-0 max-w-full'}`}>
                   {!isUser && (
                     <div className="wsm-header">
@@ -2615,7 +2646,8 @@ export default function ChatWindow({
                   )}
                 </div>
               </motion.div>
-            );
+            </MessageErrorBoundary>
+          );
           })}
 
           {/* Spacing at the bottom of the container */}
@@ -3795,6 +3827,18 @@ export default function ChatWindow({
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {isTemporary && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 rounded-xl text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
+                <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <span className="font-bold block text-amber-950 dark:text-amber-100">Aviso do Modo Temporário:</span>
+                  <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-normal">
+                    Esta conversa não está salva no banco de dados do servidor. O link de compartilhamento e exportações são gerados ativamente por você a partir do estado local da sua sessão no navegador.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">Link público da conversa:</label>

@@ -142,7 +142,7 @@ export default function AgenticSecurityModal({ isOpen, onClose, userId }: Agenti
   };
 
   const isMockLog = (log: AgentAuditLog) => {
-    return log.environment === 'mock' || log.environment === 'dry_run' || log.toolName.includes('MOCK') || log.details.includes('MOCK') || log.details.toLowerCase().includes('simula') || log.details.toLowerCase().includes('sandbox');
+    return log.environment === 'mock' || log.environment === 'dry_run' || log.toolName.includes('MOCK') || (log.details.includes('MOCK') && !log.details.toLowerCase().includes('sandbox')) || (log.details.toLowerCase().includes('simula') && !log.details.toLowerCase().includes('sandbox'));
   };
 
   const isDemoLog = (log: AgentAuditLog) => {

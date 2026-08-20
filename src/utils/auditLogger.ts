@@ -39,13 +39,13 @@ export function logAuditEvent(params: {
   const utcString = now.toISOString();
   const localString = now.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'medium' });
 
-  // Auto-detect environment if not explicitly set
+  // Auto-detect environment if not explicitly set (Sandbox is a REAL container execution environment)
   let env: 'real' | 'mock' | 'dry_run' | 'demonstration' = params.environment || 'real';
   if (!params.environment) {
     const textToCheck = `${params.toolName} ${params.details}`.toLowerCase();
     if (params.status === 'demonstracao') {
       env = 'demonstration';
-    } else if (textToCheck.includes('mock') || textToCheck.includes('simula') || textToCheck.includes('dry_run') || textToCheck.includes('sandbox')) {
+    } else if (textToCheck.includes('mock') || textToCheck.includes('simula') || textToCheck.includes('dry_run') || textToCheck.includes('modo_demo')) {
       env = 'mock';
     } else {
       env = 'real';

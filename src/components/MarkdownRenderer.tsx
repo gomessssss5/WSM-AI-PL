@@ -1018,9 +1018,9 @@ export default function MarkdownRenderer({
       return id;
     });
 
-    // 4. Process Bold/Italic using splits
-    // Split on **bold**
-    const boldSplit = currentText.split(/\*\*(.*?)\*\*/g);
+    // 4. Process Bold/Italic/Strikethrough using splits
+    // Split on **bold** or __bold__
+    const boldSplit = currentText.split(/(?:\*\*|__)(.*?)(?:\*\*|__)/g);
     
     boldSplit.forEach((boldChunk, bIdx) => {
       const isBold = bIdx % 2 === 1;
@@ -1033,263 +1033,296 @@ export default function MarkdownRenderer({
         const isItalic = iIdx % 3 !== 0 && italicChunk !== undefined;
         if (italicChunk === undefined) return;
 
-        // Render function to restore math, code, and link tokens
-        const restoreTokens = (chunk: string): React.ReactNode[] => {
-          if (!chunk) return [];
-          
-          // Split on tokens
-          const tokenRegex = /(:::MATHTOKEN-\d+:::|:::CODETOKEN-\d+:::|:::LINKTOKEN-\d+:::|:::AGENTICTOKEN-\d+:::|:::SLASHTOKEN-\d+:::)/g;
-          const parts = chunk.split(tokenRegex);
+        // Split on ~~strikethrough~~
+        const strikeSplit = italicChunk.split(/~~(.*?)~~/g);
 
-          return parts.map((part, pIdx) => {
-            if (part.startsWith(':::SLASHTOKEN-')) {
-              const token = slashTokens.find(t => t.id === part);
-              if (token) {
-                return (
-                  <strong
-                    key={`slash-${pIdx}-${keyIndex++}`}
-                    className="text-black font-bold select-text inline-block"
-                  >
-                    {token.text}
-                  </strong>
-                );
-              }
-            } else if (part.startsWith(':::AGENTICTOKEN-')) {
-              const token = agenticTokens.find(t => t.id === part);
-              if (token) {
-                if (token.type.startsWith('skill_')) {
-                  return (
-                    <AgenticSkillTag
-                      key={`skill-tag-${pIdx}-${keyIndex++}`}
-                      text={token.text}
-                      type={token.type}
-                    />
-                  );
-                }
+        strikeSplit.forEach((strikeChunk, sIdx) => {
+          const isStrike = sIdx % 2 === 1;
+          if (strikeChunk === undefined) return;
 
-                if (token.type === 'debug') {
-                  return (
-                    <AgenticDebugTag
-                      key={`debug-tag-${pIdx}-${keyIndex++}`}
-                      text={token.text}
-                      fullContent={content}
-                      isTyping={isTyping}
-                    />
-                  );
-                }
+          // Render function to restore math, code, and link tokens
+          const restoreTokens = (chunk: string): React.ReactNode[] => {
+            if (!chunk) return [];
+            
+            // Split on tokens
+            const tokenRegex = /(:::MATHTOKEN-\d+:::|:::CODETOKEN-\d+:::|:::LINKTOKEN-\d+:::|:::AGENTICTOKEN-\d+:::|:::SLASHTOKEN-\d+:::)/g;
+            const parts = chunk.split(tokenRegex);
 
-                if (token.type === 'paren_status') {
+            return parts.map((part, pIdx) => {
+              if (part.startsWith(':::SLASHTOKEN-')) {
+                const token = slashTokens.find(t => t.id === part);
+                if (token) {
                   return (
-                    <span
-                      key={`paren-status-${pIdx}-${keyIndex++}`}
-                      className="inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-gray-900 bg-gray-100 border-gray-300 cursor-default shadow-3xs mx-0 my-3"
+                    <strong
+                      key={`slash-${pIdx}-${keyIndex++}`}
+                      className="text-black font-bold select-text inline-block"
                     >
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-1000 animate-pulse shrink-0" />
-                      <span><strong className="font-semibold">{token.text}</strong></span>
-                    </span>
+                      {token.text}
+                    </strong>
                   );
                 }
-
-                let Icon = Globe;
-                let displayType = 'Pesquisou na web';
-                let isActive = false;
-                
-                if (token.type === 'calc') {
-                  if (!isTyping) return null;
-                  Icon = Calculator;
-                  displayType = 'Calculando...';
-                  isActive = true;
-                } else if (token.type === 'clock') {
-                  if (!isTyping) return null;
-                  Icon = Clock;
-                  displayType = 'Verificando...';
-                  isActive = true;
-                } else if (token.type === 'skill_create' || token.type === 'skill_edit' || token.type === 'skill_delete') {
-                  Icon = CheckCircle2;
-                  let rawText = token.text.replace(/\[|\]/g, '');
-                  displayType = rawText.charAt(0).toUpperCase() + rawText.slice(1);
-                } else if (token.type === 'task_update') {
-                  Icon = CheckCircle2;
-                  let rawText = token.text.replace(/\[|\]/g, '');
-                  displayType = rawText.charAt(0).toUpperCase() + rawText.slice(1);
-                } else if (token.type === 'pw_open') {
-                  Icon = Globe;
-                  let rawText = token.text.replace(/\[|\]/g, '');
-                  displayType = rawText;
-                  isActive = isTyping;
-                } else if (token.type === 'pw_click') {
-                  Icon = MousePointer2;
-                  let rawText = token.text.replace(/\[|\]/g, '');
-                  displayType = rawText;
-                  isActive = isTyping;
-                } else if (token.type === 'pw_type') {
-                  Icon = Keyboard;
-                  let rawText = token.text.replace(/\[|\]/g, '');
-                  displayType = rawText;
-                  isActive = isTyping;
-                } else if (token.type === 'pw_scroll') {
-                  Icon = ArrowDownUp;
-                  let rawText = token.text.replace(/\[|\]/g, '');
-                  displayType = rawText;
-                  isActive = isTyping;
-                } else if (token.type === 'pw_read') {
-                  Icon = ScanEye;
-                  let rawText = token.text.replace(/\[|\]/g, '');
-                  displayType = rawText;
-                  isActive = isTyping && token.text.includes('...');
-                } else if (token.type === 'preparing') {
-                  Icon = Sparkles;
-                  let rawText = token.text.replace(/\[|\]/g, '');
-                  displayType = rawText;
-                  isActive = isTyping && token.text.includes('...');
-                } else if (token.type === 'analyzing') {
-                  Icon = Cpu;
-                  let rawText = token.text.replace(/\[|\]/g, '');
-                  displayType = rawText;
-                  isActive = isTyping && token.text.includes('...');
-                } else if (token.type === 'pw_wait') {
-                  Icon = Clock;
-                  let rawText = token.text.replace(/\[|\]/g, '');
-                  displayType = rawText;
-                  isActive = isTyping && token.text.includes('...');
-                } else if (token.type === 'terminal_exec') {
-                  Icon = Terminal;
-                  let rawText = token.text.replace(/\[|\]/g, '');
-                  displayType = rawText;
-                  isActive = isTyping && (token.text.includes('...') || token.text.toLowerCase().startsWith('executando') || token.text.toLowerCase().startsWith('rodando'));
-                } else if (token.type === 'terminal_file') {
-                  Icon = FileCode;
-                  let rawText = token.text.replace(/\[|\]/g, '');
-                  displayType = rawText;
-                  isActive = isTyping && (token.text.includes('...') || token.text.toLowerCase().startsWith('criando') || token.text.toLowerCase().startsWith('salvando'));
-                } else if (token.type === 'doc_create') {
-                  Icon = FilePlus;
-                  let rawText = token.text.replace(/\[|\]/g, '');
-                  displayType = rawText;
-                  isActive = isTyping && token.text.endsWith('...');
-                } else if (token.type === 'doc_read') {
-                  Icon = FolderOpen;
-                  let rawText = token.text.replace(/\[|\]/g, '');
-                  displayType = rawText;
-                  isActive = isTyping && token.text.endsWith('...');
-                } else if (token.type === 'doc_edit') {
-                  Icon = Edit3;
-                  let rawText = token.text.replace(/\[|\]/g, '');
-                  displayType = rawText;
-                  isActive = isTyping && token.text.endsWith('...');
-                } else if (token.type === 'doc_delete') {
-                  Icon = Trash2;
-                  let rawText = token.text.replace(/\[|\]/g, '');
-                  displayType = rawText;
-                  isActive = isTyping && token.text.endsWith('...');
-                } else if (token.type === 'doc_list') {
-                  Icon = FileText;
-                  let rawText = token.text.replace(/\[|\]/g, '');
-                  displayType = rawText;
-                  isActive = isTyping && token.text.endsWith('...');
-                } else {
-                  let rawText = token.text.replace(/\[|\]/g, '');
-                  displayType = rawText || ((isTyping && token.text.includes('...')) ? 'Pesquisando na web...' : 'Pesquisou na web');
-                  isActive = isTyping && token.text.includes('...');
-                }
-
-                if (token.type === 'web' || displayType.startsWith('Pesquis')) {
-                  return (
-                    <AgenticSearchTag
-                      key={`search-tag-${pIdx}-${keyIndex++}`}
-                      text={token.text}
-                      isActive={isActive}
-                      fullContent={content}
-                      searchSources={searchSources}
-                      searchSteps={searchSteps}
-                      isTyping={isTyping}
-                    />
-                  );
-                }
-
-                if (token.type === 'terminal_exec_failed') {
-                  return (
-                    <div key={`agentic-${pIdx}-${keyIndex++}`} className="flex items-center gap-2.5 my-1.5 flex-wrap">
-                      <span
-                        onClick={() => window.dispatchEvent(new CustomEvent('open_terminal'))}
-                        className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-red-600 dark:text-red-400 select-none cursor-pointer hover:underline transition-colors"
-                        title="Clique para ver detalhes no Terminal Sandbox"
-                      >
-                        <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
-                        <span>{displayType}</span>
-                        <ChevronRight className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0" />
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => window.dispatchEvent(new CustomEvent('open_terminal'))}
-                        className="px-2.5 py-1 text-[12px] font-medium bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/60 dark:text-red-300 dark:hover:bg-red-900/60 rounded-md border border-red-200 dark:border-red-800/80 transition-colors cursor-pointer shadow-3xs"
-                      >
-                        Ver detalhes
-                      </button>
-                    </div>
-                  );
-                }
-
-                if (token.type === 'terminal_file') {
-                  const rawFilename = token.text.replace(/^(Criou arquivo|Criando arquivo|Salvou arquivo|Salvando arquivo)\s*/i, '').trim();
-                  const cleanFilename = rawFilename.replace('/workspace/', '').replace(/^\//, '');
-
-                  if (isActive) {
+              } else if (part.startsWith(':::AGENTICTOKEN-')) {
+                const token = agenticTokens.find(t => t.id === part);
+                if (token) {
+                  if (token.type.startsWith('skill_')) {
                     return (
-                      <div
-                        key={`agentic-${pIdx}-${keyIndex++}`}
-                        onClick={() => window.dispatchEvent(new CustomEvent('open_terminal'))}
-                        className="inline-flex items-center gap-1.5 text-[14px] font-medium select-none my-1 searching cursor-pointer hover:opacity-90 transition-opacity"
-                        title="Clique para abrir o Terminal Sandbox"
+                      <AgenticSkillTag
+                        key={`skill-tag-${pIdx}-${keyIndex++}`}
+                        text={token.text}
+                        type={token.type}
+                      />
+                    );
+                  }
+
+                  if (token.type === 'debug') {
+                    return (
+                      <AgenticDebugTag
+                        key={`debug-tag-${pIdx}-${keyIndex++}`}
+                        text={token.text}
+                        fullContent={content}
+                        isTyping={isTyping}
+                      />
+                    );
+                  }
+
+                  if (token.type === 'paren_status') {
+                    return (
+                      <span
+                        key={`paren-status-${pIdx}-${keyIndex++}`}
+                        className="inline-flex items-center gap-1.5 text-[12px] font-medium py-1 px-3 rounded-full border transition-all select-none text-gray-900 bg-gray-100 border-gray-300 cursor-default shadow-3xs mx-0 my-3"
                       >
-                        <FileText className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0" />
-                        <span className="shimmer-text">{displayType}</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-1000 animate-pulse shrink-0" />
+                        <span><strong className="font-semibold">{token.text}</strong></span>
+                      </span>
+                    );
+                  }
+
+                  let Icon = Globe;
+                  let displayType = 'Pesquisou na web';
+                  let isActive = false;
+                  
+                  if (token.type === 'calc') {
+                    if (!isTyping) return null;
+                    Icon = Calculator;
+                    displayType = 'Calculando...';
+                    isActive = true;
+                  } else if (token.type === 'clock') {
+                    if (!isTyping) return null;
+                    Icon = Clock;
+                    displayType = 'Verificando...';
+                    isActive = true;
+                  } else if (token.type === 'skill_create' || token.type === 'skill_edit' || token.type === 'skill_delete') {
+                    Icon = CheckCircle2;
+                    let rawText = token.text.replace(/\[|\]/g, '');
+                    displayType = rawText.charAt(0).toUpperCase() + rawText.slice(1);
+                  } else if (token.type === 'task_update') {
+                    Icon = CheckCircle2;
+                    let rawText = token.text.replace(/\[|\]/g, '');
+                    displayType = rawText.charAt(0).toUpperCase() + rawText.slice(1);
+                  } else if (token.type === 'pw_open') {
+                    Icon = Globe;
+                    let rawText = token.text.replace(/\[|\]/g, '');
+                    displayType = rawText;
+                    isActive = isTyping;
+                  } else if (token.type === 'pw_click') {
+                    Icon = MousePointer2;
+                    let rawText = token.text.replace(/\[|\]/g, '');
+                    displayType = rawText;
+                    isActive = isTyping;
+                  } else if (token.type === 'pw_type') {
+                    Icon = Keyboard;
+                    let rawText = token.text.replace(/\[|\]/g, '');
+                    displayType = rawText;
+                    isActive = isTyping;
+                  } else if (token.type === 'pw_scroll') {
+                    Icon = ArrowDownUp;
+                    let rawText = token.text.replace(/\[|\]/g, '');
+                    displayType = rawText;
+                    isActive = isTyping;
+                  } else if (token.type === 'pw_read') {
+                    Icon = ScanEye;
+                    let rawText = token.text.replace(/\[|\]/g, '');
+                    displayType = rawText;
+                    isActive = isTyping && token.text.includes('...');
+                  } else if (token.type === 'preparing') {
+                    Icon = Sparkles;
+                    let rawText = token.text.replace(/\[|\]/g, '');
+                    displayType = rawText;
+                    isActive = isTyping && token.text.includes('...');
+                  } else if (token.type === 'analyzing') {
+                    Icon = Cpu;
+                    let rawText = token.text.replace(/\[|\]/g, '');
+                    displayType = rawText;
+                    isActive = isTyping && token.text.includes('...');
+                  } else if (token.type === 'pw_wait') {
+                    Icon = Clock;
+                    let rawText = token.text.replace(/\[|\]/g, '');
+                    displayType = rawText;
+                    isActive = isTyping && token.text.includes('...');
+                  } else if (token.type === 'terminal_exec') {
+                    Icon = Terminal;
+                    let rawText = token.text.replace(/\[|\]/g, '');
+                    displayType = rawText;
+                    isActive = isTyping && (token.text.includes('...') || token.text.toLowerCase().startsWith('executando') || token.text.toLowerCase().startsWith('rodando'));
+                  } else if (token.type === 'terminal_file') {
+                    Icon = FileCode;
+                    let rawText = token.text.replace(/\[|\]/g, '');
+                    displayType = rawText;
+                    isActive = isTyping && (token.text.includes('...') || token.text.toLowerCase().startsWith('criando') || token.text.toLowerCase().startsWith('salvando'));
+                  } else if (token.type === 'doc_create') {
+                    Icon = FilePlus;
+                    let rawText = token.text.replace(/\[|\]/g, '');
+                    displayType = rawText;
+                    isActive = isTyping && token.text.endsWith('...');
+                  } else if (token.type === 'doc_read') {
+                    Icon = FolderOpen;
+                    let rawText = token.text.replace(/\[|\]/g, '');
+                    displayType = rawText;
+                    isActive = isTyping && token.text.endsWith('...');
+                  } else if (token.type === 'doc_edit') {
+                    Icon = Edit3;
+                    let rawText = token.text.replace(/\[|\]/g, '');
+                    displayType = rawText;
+                    isActive = isTyping && token.text.endsWith('...');
+                  } else if (token.type === 'doc_delete') {
+                    Icon = Trash2;
+                    let rawText = token.text.replace(/\[|\]/g, '');
+                    displayType = rawText;
+                    isActive = isTyping && token.text.endsWith('...');
+                  } else if (token.type === 'doc_list') {
+                    Icon = FileText;
+                    let rawText = token.text.replace(/\[|\]/g, '');
+                    displayType = rawText;
+                    isActive = isTyping && token.text.endsWith('...');
+                  } else {
+                    let rawText = token.text.replace(/\[|\]/g, '');
+                    displayType = rawText || ((isTyping && token.text.includes('...')) ? 'Pesquisando na web...' : 'Pesquisou na web');
+                    isActive = isTyping && token.text.includes('...');
+                  }
+
+                  if (token.type === 'web' || displayType.startsWith('Pesquis')) {
+                    return (
+                      <AgenticSearchTag
+                        key={`search-tag-${pIdx}-${keyIndex++}`}
+                        text={token.text}
+                        isActive={isActive}
+                        fullContent={content}
+                        searchSources={searchSources}
+                        searchSteps={searchSteps}
+                        isTyping={isTyping}
+                      />
+                    );
+                  }
+
+                  if (token.type === 'terminal_exec_failed') {
+                    return (
+                      <div key={`agentic-${pIdx}-${keyIndex++}`} className="flex items-center gap-2.5 my-1.5 flex-wrap">
+                        <span
+                          onClick={() => window.dispatchEvent(new CustomEvent('open_terminal'))}
+                          className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-red-600 dark:text-red-400 select-none cursor-pointer hover:underline transition-colors"
+                          title="Clique para ver detalhes no Terminal Sandbox"
+                        >
+                          <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
+                          <span>{displayType}</span>
+                          <ChevronRight className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0" />
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => window.dispatchEvent(new CustomEvent('open_terminal'))}
+                          className="px-2.5 py-1 text-[12px] font-medium bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/60 dark:text-red-300 dark:hover:bg-red-900/60 rounded-md border border-red-200 dark:border-red-800/80 transition-colors cursor-pointer shadow-3xs"
+                        >
+                          Ver detalhes
+                        </button>
                       </div>
                     );
                   }
 
-                  return (
-                    <div key={`agentic-${pIdx}-${keyIndex++}`} className="inline-flex items-center gap-2 my-1 flex-wrap">
+                  if (token.type === 'terminal_file') {
+                    const rawFilename = token.text.replace(/^(Criou arquivo|Criando arquivo|Salvou arquivo|Salvando arquivo)\s*/i, '').trim();
+                    const cleanFilename = rawFilename.replace('/workspace/', '').replace(/^\//, '');
+
+                    if (isActive) {
+                      return (
+                        <div
+                          key={`agentic-${pIdx}-${keyIndex++}`}
+                          onClick={() => window.dispatchEvent(new CustomEvent('open_terminal'))}
+                          className="inline-flex items-center gap-1.5 text-[14px] font-medium select-none my-1 searching cursor-pointer hover:opacity-90 transition-opacity"
+                          title="Clique para abrir o Terminal Sandbox"
+                        >
+                          <FileText className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0" />
+                          <span className="shimmer-text">{displayType}</span>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={`agentic-${pIdx}-${keyIndex++}`} className="inline-flex items-center gap-2 my-1 flex-wrap">
+                        <span
+                          onClick={() => window.dispatchEvent(new CustomEvent('open_terminal'))}
+                          className="inline-flex items-center gap-1.5 text-[14px] font-medium text-[#6b7076] dark:text-gray-400 select-none cursor-pointer hover:text-gray-900 dark:hover:text-gray-100 transition-colors group"
+                          title="Clique para abrir o Terminal Sandbox"
+                        >
+                          <FileText className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0 group-hover:text-emerald-500 transition-colors" />
+                          <span>{displayType}</span>
+                          <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                        </span>
+                        {cleanFilename && (
+                          <a
+                            href={`/api/download/${encodeURIComponent(cleanFilename)}`}
+                            download={cleanFilename}
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const success = await downloadWorkspaceFile(cleanFilename);
+                              if (!success) {
+                                alert(`O arquivo '${cleanFilename}' não está disponível para download no workspace. Execute o comando para recriá-lo se necessário.`);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-900/60 rounded border border-emerald-200 dark:border-emerald-800 transition-colors cursor-pointer"
+                            title={`Baixar ${cleanFilename}`}
+                          >
+                            <Download className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                            <span>Baixar</span>
+                          </a>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  if (token.type === 'terminal_exec') {
+                    if (isActive) {
+                      return (
+                        <div
+                          key={`agentic-${pIdx}-${keyIndex++}`}
+                          onClick={() => window.dispatchEvent(new CustomEvent('open_terminal'))}
+                          className="inline-flex items-center gap-1.5 text-[14px] font-medium select-none my-1 searching cursor-pointer hover:opacity-90 transition-opacity"
+                          title="Clique para abrir o Terminal Sandbox"
+                        >
+                          <Icon className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0" />
+                          <span className="shimmer-text">{displayType}</span>
+                        </div>
+                      );
+                    }
+
+                    return (
                       <span
+                        key={`agentic-${pIdx}-${keyIndex++}`}
                         onClick={() => window.dispatchEvent(new CustomEvent('open_terminal'))}
-                        className="inline-flex items-center gap-1.5 text-[14px] font-medium text-[#6b7076] dark:text-gray-400 select-none cursor-pointer hover:text-gray-900 dark:hover:text-gray-100 transition-colors group"
+                        className="inline-flex items-center gap-1.5 text-[14px] font-medium text-[#6b7076] dark:text-gray-400 select-none my-1 cursor-pointer hover:text-gray-900 dark:hover:text-gray-100 transition-colors group"
                         title="Clique para abrir o Terminal Sandbox"
                       >
-                        <FileText className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0 group-hover:text-emerald-500 transition-colors" />
+                        <Icon className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0 group-hover:text-emerald-500 transition-colors" />
                         <span>{displayType}</span>
                         <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
                       </span>
-                      {cleanFilename && (
-                        <a
-                          href={`/api/download/${encodeURIComponent(cleanFilename)}`}
-                          download={cleanFilename}
-                          onClick={async (e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const success = await downloadWorkspaceFile(cleanFilename);
-                            if (!success) {
-                              alert(`O arquivo '${cleanFilename}' não está disponível para download no workspace. Execute o comando para recriá-lo se necessário.`);
-                            }
-                          }}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-900/60 rounded border border-emerald-200 dark:border-emerald-800 transition-colors cursor-pointer"
-                          title={`Baixar ${cleanFilename}`}
-                        >
-                          <Download className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                          <span>Baixar</span>
-                        </a>
-                      )}
-                    </div>
-                  );
-                }
+                    );
+                  }
 
-                if (token.type === 'terminal_exec') {
                   if (isActive) {
                     return (
                       <div
                         key={`agentic-${pIdx}-${keyIndex++}`}
-                        onClick={() => window.dispatchEvent(new CustomEvent('open_terminal'))}
-                        className="inline-flex items-center gap-1.5 text-[14px] font-medium select-none my-1 searching cursor-pointer hover:opacity-90 transition-opacity"
-                        title="Clique para abrir o Terminal Sandbox"
+                        className="inline-flex items-center gap-1.5 text-[14px] font-medium select-none my-1 searching"
                       >
                         <Icon className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0" />
                         <span className="shimmer-text">{displayType}</span>
@@ -1300,184 +1333,168 @@ export default function MarkdownRenderer({
                   return (
                     <span
                       key={`agentic-${pIdx}-${keyIndex++}`}
-                      onClick={() => window.dispatchEvent(new CustomEvent('open_terminal'))}
-                      className="inline-flex items-center gap-1.5 text-[14px] font-medium text-[#6b7076] dark:text-gray-400 select-none my-1 cursor-pointer hover:text-gray-900 dark:hover:text-gray-100 transition-colors group"
-                      title="Clique para abrir o Terminal Sandbox"
+                      className="inline-block text-[14px] font-medium text-[#6b7076] dark:text-gray-400 select-none my-1"
                     >
-                      <Icon className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0 group-hover:text-emerald-500 transition-colors" />
                       <span>{displayType}</span>
-                      <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
                     </span>
                   );
                 }
-
-                if (isActive) {
+              } else if (part.startsWith(':::MATHTOKEN-')) {
+                const token = mathTokens.find(t => t.id === part);
+                if (token) {
+                  const html = renderMathToHtml(token.tex, false);
                   return (
-                    <div
-                      key={`agentic-${pIdx}-${keyIndex++}`}
-                      className="inline-flex items-center gap-1.5 text-[14px] font-medium select-none my-1 searching"
+                    <span
+                      key={`math-${pIdx}-${keyIndex++}`}
+                      className="inline-block px-1 select-text"
+                      dangerouslySetInnerHTML={{ __html: html }}
+                    />
+                  );
+                }
+              } else if (part.startsWith(':::CODETOKEN-')) {
+                const token = codeTokens.find(t => t.id === part);
+                if (token) {
+                  return (
+                    <code
+                      key={`code-${pIdx}-${keyIndex++}`}
+                      className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-850 text-gray-800 dark:text-gray-200 font-mono text-[12px] rounded border border-gray-200 dark:border-gray-850 select-text"
                     >
-                      <Icon className="w-4 h-4 text-[#8e9099] dark:text-gray-400 shrink-0" />
-                      <span className="shimmer-text">{displayType}</span>
-                    </div>
+                      {token.code}
+                    </code>
                   );
                 }
+              } else if (part.startsWith(':::LINKTOKEN-')) {
+                const token = linkTokens.find(t => t.id === part);
+                if (token) {
+                  const lowerUrl = token.url.toLowerCase().trim();
+                  if (lowerUrl.startsWith('javascript:') || lowerUrl.startsWith('vbscript:') || lowerUrl.startsWith('data:text/html')) {
+                    return (
+                      <span key={`link-${pIdx}-${keyIndex++}`} className="text-gray-600 font-medium select-text">
+                        {token.text} <span className="text-xs text-red-500 font-mono">[javascript removido]</span>
+                      </span>
+                    );
+                  }
 
-                return (
-                  <span
-                    key={`agentic-${pIdx}-${keyIndex++}`}
-                    className="inline-block text-[14px] font-medium text-[#6b7076] dark:text-gray-400 select-none my-1"
-                  >
-                    <span>{displayType}</span>
-                  </span>
-                );
-              }
-            } else if (part.startsWith(':::MATHTOKEN-')) {
-              const token = mathTokens.find(t => t.id === part);
-              if (token) {
-                const html = renderMathToHtml(token.tex, false);
-                return (
-                  <span
-                    key={`math-${pIdx}-${keyIndex++}`}
-                    className="inline-block px-1 select-text"
-                    dangerouslySetInnerHTML={{ __html: html }}
-                  />
-                );
-              }
-            } else if (part.startsWith(':::CODETOKEN-')) {
-              const token = codeTokens.find(t => t.id === part);
-              if (token) {
-                return (
-                  <code
-                    key={`code-${pIdx}-${keyIndex++}`}
-                    className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-850 text-gray-800 dark:text-gray-200 font-mono text-[12px] rounded border border-gray-200 dark:border-gray-850 select-text"
-                  >
-                    {token.code}
-                  </code>
-                );
-              }
-            } else if (part.startsWith(':::LINKTOKEN-')) {
-              const token = linkTokens.find(t => t.id === part);
-              if (token) {
-                const lowerUrl = token.url.toLowerCase().trim();
-                if (lowerUrl.startsWith('javascript:') || lowerUrl.startsWith('vbscript:') || lowerUrl.startsWith('data:text/html')) {
-                  return (
-                    <span key={`link-${pIdx}-${keyIndex++}`} className="text-gray-600 font-medium select-text">
-                      {token.text} <span className="text-xs text-red-500 font-mono">[javascript removido]</span>
-                    </span>
-                  );
-                }
+                  const isWorkspaceLink = lowerUrl.startsWith('/workspace/') || 
+                    lowerUrl.startsWith('/api/download/') || 
+                    lowerUrl.startsWith('/api/workspace/download/') || 
+                    lowerUrl.includes('/workspace/') ||
+                    /\.(md|csv|xlsx|xls|pdf|json|txt|py|js|ts|zip)$/i.test(lowerUrl.split('?')[0]);
 
-                const isWorkspaceLink = lowerUrl.startsWith('/workspace/') || 
-                  lowerUrl.startsWith('/api/download/') || 
-                  lowerUrl.startsWith('/api/workspace/download/') || 
-                  lowerUrl.includes('/workspace/') ||
-                  /\.(md|csv|xlsx|xls|pdf|json|txt|py|js|ts|zip)$/i.test(lowerUrl.split('?')[0]);
+                  if (isWorkspaceLink) {
+                    const rawFilename = token.url.split('/').pop()?.split('?')[0] || token.text || 'arquivo';
+                    const filename = decodeURIComponent(rawFilename).replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '');
+                    const extMatch = filename.match(/\.([a-z0-9]+)$/i);
+                    const ext = extMatch ? extMatch[1].toUpperCase() : 'DOC';
+                    const downloadUrl = `/api/download/${encodeURIComponent(filename)}`;
 
-                if (isWorkspaceLink) {
-                  const rawFilename = token.url.split('/').pop()?.split('?')[0] || token.text || 'arquivo';
-                  const filename = decodeURIComponent(rawFilename).replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '');
-                  const extMatch = filename.match(/\.([a-z0-9]+)$/i);
-                  const ext = extMatch ? extMatch[1].toUpperCase() : 'DOC';
-                  const downloadUrl = `/api/download/${encodeURIComponent(filename)}`;
+                    return (
+                      <a
+                        key={`link-${pIdx}-${keyIndex++}`}
+                        href={downloadUrl}
+                        download={filename}
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const success = await downloadWorkspaceFile(filename);
+                          if (!success) {
+                            alert(`O arquivo '${filename}' não está disponível para download no workspace.`);
+                          }
+                        }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 my-1 mx-0.5 bg-blue-50/90 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 border border-blue-200/80 dark:border-blue-800/80 rounded-lg text-[13px] font-medium text-blue-900 dark:text-blue-100 transition-all select-none cursor-pointer align-middle no-underline shadow-3xs group"
+                        title={`Baixar ${filename}`}
+                      >
+                        <Download className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0 group-hover:scale-110 transition-transform" />
+                        <span className="font-semibold text-blue-800 dark:text-blue-200">{token.text.includes('.') ? token.text : filename}</span>
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-200/80 dark:bg-blue-800/80 text-blue-800 dark:text-blue-200 rounded font-mono uppercase leading-none">
+                          {ext}
+                        </span>
+                      </a>
+                    );
+                  }
+
+                  let domain = '';
+                  try {
+                    domain = new URL(token.url).hostname.replace(/^www\./, '');
+                  } catch {
+                    domain = token.text;
+                  }
+
+                  let displayText = token.text.trim();
+                  // Clean up raw URLs to domain
+                  if (displayText.startsWith('http://') || displayText.startsWith('https://')) {
+                    displayText = domain;
+                  }
+
+                  const isInvalid2 = !domain || domain.includes(" ") || !domain.includes(".") || domain.length < 3; const faviconUrl = isInvalid2 ? "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><line x1='2' y1='12' x2='22' y2='12'/></svg>" : `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`;
 
                   return (
                     <a
                       key={`link-${pIdx}-${keyIndex++}`}
-                      href={downloadUrl}
-                      download={filename}
-                      onClick={async (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const success = await downloadWorkspaceFile(filename);
-                        if (!success) {
-                          alert(`O arquivo '${filename}' não está disponível para download no workspace.`);
-                        }
-                      }}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 my-1 mx-0.5 bg-blue-50/90 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 border border-blue-200/80 dark:border-blue-800/80 rounded-lg text-[13px] font-medium text-blue-900 dark:text-blue-100 transition-all select-none cursor-pointer align-middle no-underline shadow-3xs group"
-                      title={`Baixar ${filename}`}
+                      href={token.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 my-0.5 mx-1 bg-gray-100/90 hover:bg-gray-200/90 dark:bg-zinc-800/90 dark:hover:bg-zinc-700/90 border border-gray-200/80 dark:border-zinc-700/80 rounded-full text-[12px] font-medium text-gray-700 dark:text-gray-300 transition-all select-none cursor-pointer align-baseline max-w-full truncate no-underline shadow-2xs"
+                      title={displayText}
                     >
-                      <Download className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0 group-hover:scale-110 transition-transform" />
-                      <span className="font-semibold text-blue-800 dark:text-blue-200">{token.text.includes('.') ? token.text : filename}</span>
-                      <span className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-200/80 dark:bg-blue-800/80 text-blue-800 dark:text-blue-200 rounded font-mono uppercase leading-none">
-                        {ext}
-                      </span>
+                      <img
+                        src={faviconUrl}
+                        alt=""
+                        className="w-3.5 h-3.5 rounded-full object-contain bg-white shrink-0"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%23666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>';
+                        }}
+                      />
+                      <span className="truncate">{displayText}</span>
                     </a>
                   );
                 }
-
-                let domain = '';
-                try {
-                  domain = new URL(token.url).hostname.replace(/^www\./, '');
-                } catch {
-                  domain = token.text;
-                }
-
-                let displayText = token.text.trim();
-                // Clean up raw URLs to domain
-                if (displayText.startsWith('http://') || displayText.startsWith('https://')) {
-                  displayText = domain;
-                }
-
-                const isInvalid2 = !domain || domain.includes(" ") || !domain.includes(".") || domain.length < 3; const faviconUrl = isInvalid2 ? "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><line x1='2' y1='12' x2='22' y2='12'/></svg>" : `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`;
-
-                return (
-                  <a
-                    key={`link-${pIdx}-${keyIndex++}`}
-                    href={token.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 px-2.5 py-0.5 my-0.5 mx-1 bg-gray-100/90 hover:bg-gray-200/90 dark:bg-zinc-800/90 dark:hover:bg-zinc-700/90 border border-gray-200/80 dark:border-zinc-700/80 rounded-full text-[12px] font-medium text-gray-700 dark:text-gray-300 transition-all select-none cursor-pointer align-baseline max-w-full truncate no-underline shadow-2xs"
-                    title={displayText}
-                  >
-                    <img
-                      src={faviconUrl}
-                      alt=""
-                      className="w-3.5 h-3.5 rounded-full object-contain bg-white shrink-0"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%23666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>';
-                      }}
-                    />
-                    <span className="truncate">{displayText}</span>
-                  </a>
-                );
+                return null;
               }
-              return null;
-            }
 
-            if (part.startsWith(':::') && part.endsWith(':::')) {
-              return null;
-            }
+              if (part.startsWith(':::') && part.endsWith(':::')) {
+                return null;
+              }
 
-            const cleanPart = part.replace(/:::[A-Z]+-\d+:::/g, '');
-            if (!cleanPart) return null;
-            return <React.Fragment key={`text-${pIdx}-${keyIndex++}`}>{cleanPart}</React.Fragment>;
-          });
-        };
+              const cleanPart = part.replace(/:::[A-Z]+-\d+:::/g, '');
+              if (!cleanPart) return null;
+              return <React.Fragment key={`text-${pIdx}-${keyIndex++}`}>{cleanPart}</React.Fragment>;
+            });
+          };
 
-        const contentNodes = restoreTokens(italicChunk);
+          const rawContentNodes = restoreTokens(strikeChunk);
 
-        if (isBold && isItalic) {
-          elements.push(
-            <strong key={`bi-${bIdx}-${iIdx}`} className="font-bold italic text-gray-900 dark:text-gray-100">
-              {contentNodes}
-            </strong>
-          );
-        } else if (isBold) {
-          elements.push(
-            <strong key={`b-${bIdx}-${iIdx}`} className="font-bold text-gray-900 dark:text-gray-100">
-              {contentNodes}
-            </strong>
-          );
-        } else if (isItalic) {
-          elements.push(
-            <em key={`i-${bIdx}-${iIdx}`} className="italic text-gray-800 dark:text-gray-200">
-              {contentNodes}
-            </em>
-          );
-        } else {
-          elements.push(...contentNodes);
-        }
+          let node: React.ReactNode[] = rawContentNodes;
+          if (isStrike) {
+            node = [
+              <del key={`s-${bIdx}-${iIdx}-${sIdx}`} className="line-through text-gray-500 dark:text-gray-400 decoration-gray-400 dark:decoration-gray-500">
+                {rawContentNodes}
+              </del>
+            ];
+          }
+
+          if (isBold && isItalic) {
+            elements.push(
+              <strong key={`bi-${bIdx}-${iIdx}-${sIdx}`} className="font-bold italic text-gray-900 dark:text-gray-100">
+                {node}
+              </strong>
+            );
+          } else if (isBold) {
+            elements.push(
+              <strong key={`b-${bIdx}-${iIdx}-${sIdx}`} className="font-bold text-gray-900 dark:text-gray-100">
+                {node}
+              </strong>
+            );
+          } else if (isItalic) {
+            elements.push(
+              <em key={`i-${bIdx}-${iIdx}-${sIdx}`} className="italic text-gray-800 dark:text-gray-200">
+                {node}
+              </em>
+            );
+          } else {
+            elements.push(...node);
+          }
+        });
       });
     });
 
@@ -1708,29 +1725,47 @@ export default function MarkdownRenderer({
         continue;
       }
 
-      // 4. Headers: #, ##, ###
+      // 4. Headers: #, ##, ###, ####, #####, ######
       if (trimmed.startsWith('#')) {
-        const level = trimmed.match(/^#+/)?.[0].length || 1;
+        const level = Math.min(trimmed.match(/^#+/)?.[0].length || 1, 6);
         const text = trimmed.replace(/^#+\s*/, '');
         const inlineContent = renderInlineContent(text);
 
         if (level === 1) {
           blocks.push(
-            <h1 key={`h1-${i}`} className="text-2xl font-extrabold text-gray-900 tracking-tight mt-6 mb-3 border-b border-gray-150 pb-2.5">
+            <h1 key={`h1-${i}`} className="text-2xl font-extrabold text-gray-900 dark:text-gray-100 tracking-tight mt-6 mb-3 border-b border-gray-200 dark:border-zinc-800 pb-2.5">
               {inlineContent}
             </h1>
           );
         } else if (level === 2) {
           blocks.push(
-            <h2 key={`h2-${i}`} className="text-lg font-bold text-gray-800 tracking-tight mt-5 mb-2 flex items-center gap-2 border-l-3 border-black dark:border-white pl-2.5">
+            <h2 key={`h2-${i}`} className="text-xl font-bold text-gray-900 dark:text-gray-100 tracking-tight mt-5 mb-2.5 border-l-4 border-black dark:border-white pl-3 py-0.5">
               {inlineContent}
             </h2>
           );
-        } else {
+        } else if (level === 3) {
           blocks.push(
-            <h3 key={`h3-${i}`} className="text-base font-bold text-gray-800 tracking-tight mt-4 mb-1.5">
+            <h3 key={`h3-${i}`} className="text-lg font-bold text-gray-800 dark:text-gray-200 tracking-tight mt-4 mb-2">
               {inlineContent}
             </h3>
+          );
+        } else if (level === 4) {
+          blocks.push(
+            <h4 key={`h4-${i}`} className="text-base font-bold text-gray-800 dark:text-gray-200 tracking-tight mt-3.5 mb-1.5">
+              {inlineContent}
+            </h4>
+          );
+        } else if (level === 5) {
+          blocks.push(
+            <h5 key={`h5-${i}`} className="text-sm font-bold text-gray-800 dark:text-gray-300 uppercase tracking-wider mt-3 mb-1">
+              {inlineContent}
+            </h5>
+          );
+        } else {
+          blocks.push(
+            <h6 key={`h6-${i}`} className="text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-widest mt-2.5 mb-1">
+              {inlineContent}
+            </h6>
           );
         }
         i++;
@@ -1745,7 +1780,7 @@ export default function MarkdownRenderer({
           i++;
         }
         blocks.push(
-          <blockquote key={`quote-${i}`} className="my-4 border-l-4 border-black dark:border-white bg-gray-50/70 py-3 pl-4 pr-3 rounded-r-xl italic text-gray-600 text-[13.5px] leading-relaxed shadow-3xs">
+          <blockquote key={`quote-${i}`} className="my-4 border-l-4 border-black dark:border-white bg-gray-50/70 dark:bg-zinc-900/60 py-3 pl-4 pr-3.5 rounded-r-xl italic text-gray-700 dark:text-gray-300 text-[13.5px] leading-relaxed shadow-3xs">
             {renderInlineContent(quoteContent.trim())}
           </blockquote>
         );
@@ -1778,23 +1813,23 @@ export default function MarkdownRenderer({
           const rows = tableLines.slice(startIndex).map(parseRow);
 
           blocks.push(
-            <div key={`table-${i}`} className="my-5 overflow-x-auto rounded-xl border border-[#eae6e1] shadow-2xs bg-white w-full max-w-full">
-              <table className="min-w-full divide-y divide-gray-150">
-                <thead className="bg-[#fcfbfa]">
+            <div key={`table-${i}`} className="my-5 overflow-x-auto rounded-xl border border-gray-200 dark:border-zinc-800 shadow-2xs bg-white dark:bg-zinc-900 w-full max-w-full">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-zinc-800">
+                <thead className="bg-[#fcfbfa] dark:bg-zinc-800/80">
                   <tr>
                     {headers.map((header, hIdx) => (
                       <th
                         key={hIdx}
-                        className="px-4 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider"
+                        className="px-4 py-3 text-left text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider"
                       >
                         {renderInlineContent(header)}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 text-[13px] text-gray-700 bg-white">
+                <tbody className="divide-y divide-gray-100 dark:divide-zinc-800/80 text-[13px] text-gray-700 dark:text-gray-200 bg-white dark:bg-zinc-900">
                   {rows.map((row, rIdx) => (
-                    <tr key={rIdx} className="hover:bg-gray-50/50 transition-colors">
+                    <tr key={rIdx} className="hover:bg-gray-50/50 dark:hover:bg-zinc-800/50 transition-colors">
                       {row.map((cell, cIdx) => (
                         <td key={cIdx} className="px-4 py-2.5 font-medium leading-relaxed">
                           {renderInlineContent(cell)}

@@ -81,9 +81,7 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
     const isMock = Boolean(
       act.isMock || 
       act.status === 'simulated' || 
-      act.isSimulated ||
-      fileName.includes('mock') ||
-      fileName.includes('simula')
+      act.isSimulated
     );
     const isFailed = act.status === 'failed';
     const isRunning = act.status === 'writing' || act.status === 'working';

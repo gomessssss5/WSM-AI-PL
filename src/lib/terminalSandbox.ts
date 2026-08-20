@@ -54,6 +54,7 @@ export interface SandboxResourceUsage {
 
 class TerminalSandboxEngine {
   private fileSystem: Map<string, string> = new Map();
+  private deletedFiles: Set<string> = new Set();
   private commandHistory: TerminalCommandLog[] = [];
   private listeners: ((event: { type: 'stdout' | 'stderr' | 'exit' | 'start' | 'fs_change'; data?: any }) => void)[] = [];
   private nextPid = 1001;
@@ -245,6 +246,7 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
   // Filesystem methods
   public writeFile(path: string, content: string): boolean {
     const normalized = this.normalizePath(path);
+    const baseName = normalized.replace('/workspace/', '').replace(/^\/+/, '');
     
     // Check disk usage quota
     const currentUsage = this.getDiskUsageBytes();
@@ -255,6 +257,8 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
       throw new Error(`Quota de disco excedida! Limite de ${this.diskLimitBytes / (1024 * 1024)}MB atingido.`);
     }
 
+    this.deletedFiles.delete(normalized);
+    this.deletedFiles.delete(baseName);
     this.fileSystem.set(normalized, content);
     this.emit('fs_change', { action: 'write', path: normalized });
     return true;
@@ -262,22 +266,34 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
 
   public readFile(path: string): string | null {
     const normalized = this.normalizePath(path);
+    const baseName = normalized.replace('/workspace/', '').replace(/^\/+/, '');
+    if (this.deletedFiles.has(normalized) || this.deletedFiles.has(baseName)) return null;
     if (!this.fileSystem.has(normalized)) return null;
     return this.fileSystem.get(normalized) ?? null;
   }
 
   public fileExists(path: string): boolean {
     const normalized = this.normalizePath(path);
+    const baseName = normalized.replace('/workspace/', '').replace(/^\/+/, '');
+    if (this.deletedFiles.has(normalized) || this.deletedFiles.has(baseName)) return false;
     return this.fileSystem.has(normalized);
+  }
+
+  public isDeleted(path: string): boolean {
+    if (!path) return false;
+    const normalized = this.normalizePath(path);
+    const baseName = normalized.replace('/workspace/', '').replace(/^\/+/, '');
+    return this.deletedFiles.has(normalized) || this.deletedFiles.has(baseName);
   }
 
   public deleteFile(path: string): boolean {
     const normalized = this.normalizePath(path);
+    const baseName = normalized.replace('/workspace/', '').replace(/^\/+/, '');
+    this.deletedFiles.add(normalized);
+    this.deletedFiles.add(baseName);
     const res = this.fileSystem.delete(normalized);
-    if (res) {
-      this.emit('fs_change', { action: 'delete', path: normalized });
-    }
-    return res;
+    this.emit('fs_change', { action: 'delete', path: normalized });
+    return true;
   }
 
   public listFiles(dirPath = '/workspace'): SandboxFileEntry[] {

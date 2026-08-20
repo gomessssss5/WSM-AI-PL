@@ -99,12 +99,12 @@ const mapSessionToDoc = (session: ChatSession): any => {
     isScheduled: !!session.isScheduled,
     ...(session.model && { model: session.model }),
     ...(session.chatMemoryDoc && { chatMemoryDoc: session.chatMemoryDoc }),
-    timestamp: Timestamp.fromDate(session.timestamp instanceof Date ? session.timestamp : new Date(session.timestamp)),
-    messages: session.messages.map((msg) => ({
+    timestamp: Timestamp.fromDate(safeToDate(session.timestamp)),
+    messages: (session.messages || []).map((msg) => ({
       id: msg.id,
       sender: msg.sender,
       text: msg.text,
-      timestamp: Timestamp.fromDate(msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp)),
+      timestamp: Timestamp.fromDate(safeToDate(msg.timestamp)),
       ...(msg.imageUrl && { imageUrl: msg.imageUrl }),
       ...(msg.codeBlock && { codeBlock: msg.codeBlock }),
       ...(msg.translationData && { translationData: msg.translationData }),

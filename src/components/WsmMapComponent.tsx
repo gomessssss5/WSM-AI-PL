@@ -207,11 +207,14 @@ export default function WsmMapComponent({
         : 'relative w-full max-w-full my-5 border border-gray-200 dark:border-neutral-800 rounded-2xl shadow-sm'
     }`}>
       {/* Search Header Bar */}
-      <div className="bg-gray-50 dark:bg-neutral-800/80 px-4 py-2.5 border-b border-gray-200 dark:border-neutral-800 flex items-center justify-between text-xs text-gray-600 dark:text-neutral-300 font-medium select-none shrink-0 gap-2">
+      <div className="bg-gray-50 dark:bg-neutral-800/80 px-4 py-2.5 border-b border-gray-200 dark:border-neutral-800 flex items-center justify-between text-xs text-gray-600 dark:text-neutral-300 font-medium select-none shrink-0 gap-2 flex-wrap">
         <div className="flex items-center gap-1.5 truncate">
           <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
           <span className="truncate font-semibold text-gray-800 dark:text-neutral-200">
             {displayTitle} <span className="font-normal opacity-60">({lat.toFixed(4)}, {lon.toFixed(4)})</span>
+          </span>
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800 ml-1" title="Servidor de mapas e tiles externos: OpenStreetMap / Leaflet">
+            🌐 Tiles: OpenStreetMap
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -230,25 +233,29 @@ export default function WsmMapComponent({
               <span className="text-gray-300 dark:text-neutral-700">|</span>
             </>
           )}
-          <a
-            href={googleMapsUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="hover:text-purple-600 dark:hover:text-purple-400 transition-colors inline-flex items-center gap-1 text-[11px] font-medium"
-            title="Abrir no Google Maps"
-          >
-            Google Maps <ExternalLink className="w-3 h-3" />
-          </a>
-          <span className="text-gray-300 dark:text-neutral-700">|</span>
-          <a
-            href={osmExternalUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="hover:text-purple-600 dark:hover:text-purple-400 transition-colors inline-flex items-center gap-1 text-[11px] font-medium"
-            title="Abrir no OpenStreetMap"
-          >
-            OpenStreetMap <ExternalLink className="w-3 h-3" />
-          </a>
+          {!disableExtras && (
+            <>
+              <a
+                href={googleMapsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-purple-600 dark:hover:text-purple-400 transition-colors inline-flex items-center gap-1 text-[11px] font-medium"
+                title="Abrir no Google Maps"
+              >
+                Google Maps <ExternalLink className="w-3 h-3" />
+              </a>
+              <span className="text-gray-300 dark:text-neutral-700">|</span>
+              <a
+                href={osmExternalUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-purple-600 dark:hover:text-purple-400 transition-colors inline-flex items-center gap-1 text-[11px] font-medium"
+                title="Abrir no OpenStreetMap"
+              >
+                OpenStreetMap <ExternalLink className="w-3 h-3" />
+              </a>
+            </>
+          )}
           <button
             onClick={() => setIsFullscreen(!isModal)}
             title={isModal ? 'Fechar Tela Cheia' : 'Abrir Tela Cheia'}

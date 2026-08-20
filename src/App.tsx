@@ -230,6 +230,7 @@ export default function App() {
               riskLevel: 'medium',
               details: `Processo [PID: ${pid}] iniciado no sandbox: "${command}"`,
               status: 'executed',
+              environment: 'real',
               normalized_input: command,
               permissions_used: ['execute_tool', 'terminal_sandbox']
             });
@@ -244,7 +245,8 @@ export default function App() {
             toolName: 'Terminal Sandbox (Concluído)',
             riskLevel: isError ? 'high' : 'low',
             details: `Processo [PID: ${pid}] finalizado com código ${exitCode} em ${durationMs || 0}ms. Comando: "${command}"`,
-            status: isError ? 'blocked' : 'executed',
+            status: isError ? 'failed' : 'executed',
+            environment: 'real',
             normalized_input: command,
             output: isError ? `Erro de execução no terminal: Exit ${exitCode}` : 'Execução do processo concluída com sucesso.',
             permissions_used: ['execute_tool', 'terminal_sandbox']
@@ -262,6 +264,7 @@ export default function App() {
                   ? `Arquivo gravado/atualizado no Workspace Sandbox: "${name}"`
                   : `Arquivo removido do Workspace Sandbox: "${name}"`,
                 status: 'executed',
+                environment: 'real',
                 normalized_input: `Caminho: ${path}`,
                 permissions_used: ['write_workspace']
               });

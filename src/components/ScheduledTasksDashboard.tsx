@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, Plus, List, X, MoreHorizontal, Settings, RefreshCw, RefreshCcw, Pencil, Play, Loader2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, Plus, List, X, MoreHorizontal, Settings, RefreshCw, RefreshCcw, Pencil, Play, Loader2, ShieldAlert } from 'lucide-react';
 import { ScheduledTask, TaskExecution, ChatSession } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { calculateNextRunAt } from '../lib/scheduledTasks';
@@ -125,8 +125,8 @@ export default function ScheduledTasksDashboard({
         });
       }, 500);
 
-      const authHeaders = await getAuthHeader();
-      const res = await fetch('/api/scheduled-tasks/execute-now', {
+      let authHeaders = await getAuthHeader(false);
+      let res = await fetch('/api/scheduled-tasks/execute-now', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
         signal: controller.signal,
@@ -136,6 +136,22 @@ export default function ScheduledTasksDashboard({
           taskData: task
         })
       });
+
+      // Automatically retry once with forced token refresh if 401 or 419 encountered
+      if (res.status === 401 || res.status === 419) {
+        console.warn('[ScheduledTasks] 401/419 encountered. Retrying with forced token refresh...');
+        authHeaders = await getAuthHeader(true);
+        res = await fetch('/api/scheduled-tasks/execute-now', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          signal: controller.signal,
+          body: JSON.stringify({
+            userId: currentUserId || 'guest',
+            taskId: task.id,
+            taskData: task
+          })
+        });
+      }
 
       clearTimeout(timeoutId);
 
@@ -848,40 +864,56 @@ export default function ScheduledTasksDashboard({
                         </div>
                         
                         <div className="flex items-center gap-2 flex-wrap">
-                          <button 
-                            type="button"
-                            onClick={() => handleExecuteNow(task)} 
-                            disabled={runningTaskId === task.id}
-                            className="flex items-center gap-1.5 bg-[#18181b] hover:bg-black text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
-                            title="Executar tarefa imediatamente em Modo Teste com auditoria"
-                          >
-                            {executionStates[task.id] === 'iniciando' ? (
-                              <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                <span>Iniciando...</span>
-                              </>
-                            ) : executionStates[task.id] === 'executando' ? (
-                              <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
-                                <span>Executando Teste...</span>
-                              </>
-                            ) : executionStates[task.id] === 'concluido' ? (
-                              <>
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                                <span className="text-emerald-400">Concluído!</span>
-                              </>
-                            ) : executionStates[task.id] === 'falhou' ? (
-                              <>
-                                <X className="w-3.5 h-3.5 text-red-400" />
-                                <span className="text-red-400">Falhou!</span>
-                              </>
-                            ) : (
-                              <>
-                                <Play className="w-3 h-3 fill-current text-amber-400" />
-                                <span>Modo Teste (Executar Agora)</span>
-                              </>
-                            )}
-                          </button>
+                          {(task as any).lastStatus === 'needs_auth' ? (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                await getAuthHeader(true);
+                                handleExecuteNow(task);
+                              }}
+                              disabled={runningTaskId === task.id}
+                              className="flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+                              title="Reautenticar sessão do usuário e tentar rodar a tarefa novamente"
+                            >
+                              <ShieldAlert className="w-3.5 h-3.5" />
+                              <span>Reautenticar e Rodar</span>
+                            </button>
+                          ) : (
+                            <button 
+                              type="button"
+                              onClick={() => handleExecuteNow(task)} 
+                              disabled={runningTaskId === task.id}
+                              className="flex items-center gap-1.5 bg-[#18181b] hover:bg-black text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+                              title="Executar tarefa imediatamente em Modo Teste com auditoria"
+                            >
+                              {executionStates[task.id] === 'iniciando' ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Iniciando...</span>
+                                </>
+                              ) : executionStates[task.id] === 'executando' ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                                  <span>Executando Teste...</span>
+                                </>
+                              ) : executionStates[task.id] === 'concluido' ? (
+                                <>
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span className="text-emerald-400">Concluído!</span>
+                                </>
+                              ) : executionStates[task.id] === 'falhou' ? (
+                                <>
+                                  <X className="w-3.5 h-3.5 text-red-400" />
+                                  <span className="text-red-400">Falhou!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="w-3 h-3 fill-current text-amber-400" />
+                                  <span>Modo Teste (Executar Agora)</span>
+                                </>
+                              )}
+                            </button>
+                          )}
 
                           {task.isActive ? (
                             <button

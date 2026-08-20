@@ -184,21 +184,6 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
     }
   ];
 
-  try {
-    await db.collection('users').doc(userId).collection('sessions').doc(newSessionId).set({
-      id: newSessionId,
-      title: `[Execução Agendada] ${taskData.title}`,
-      createdAt: Timestamp.fromDate(now),
-      updatedAt: Timestamp.fromDate(now),
-      timestamp: Timestamp.fromDate(now),
-      messages: initialMessages,
-      isUnread: true,
-      isTemporary: false
-    });
-  } catch (e) {
-    console.warn('[ScheduledTasks] Warning creating session doc:', e);
-  }
-
   let skills: any[] = [];
   try {
     const skillsSnapshot = await db.collection('users').doc(userId).collection('skills').get();
@@ -228,7 +213,7 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${taskData.executionSecret || 'OmnixInternalSchedulerBypassToken_2026'}`,
+          "Authorization": "Bearer OmnixInternalSchedulerBypassToken_2026",
           "x-internal-secret": "OmnixInternalSchedulerBypassToken_2026",
           "x-task-execution-secret": taskData.executionSecret || "",
           "x-scheduled-task-id": taskId,
@@ -315,33 +300,67 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
     }
   }
 
+  const finishedAt = new Date();
+  const durationMs = finishedAt.getTime() - startedAt.getTime();
   const finalOutput = aiFinalSynthesis || aiText || "Tarefa processada em segundo plano.";
   const searchSources: any[] = [];
 
-  // Update session with AI message
-  try {
-    initialMessages.push({
-      id: crypto.randomUUID(),
-      sender: 'ai',
-      text: finalOutput,
-      finalSynthesis: aiFinalSynthesis,
-      timestamp: Timestamp.fromDate(new Date()),
-      isSearchMessage: searchSources.length > 0,
-      searchSources: searchSources
-    } as any);
+  let createdSessionObj: any = null;
 
-    await db.collection('users').doc(userId).collection('sessions').doc(newSessionId).update({
-      messages: initialMessages,
-      updatedAt: Timestamp.fromDate(new Date()),
-      timestamp: Timestamp.fromDate(new Date())
-    });
-  } catch (e) {
-    console.warn('[ScheduledTasks] Warning updating session with AI message:', e);
+  // ONLY create result conversation if execution succeeded and produced valid output
+  if (executionStatus === 'success') {
+    try {
+      const userMsg = {
+        id: crypto.randomUUID(),
+        sender: 'user',
+        text: taskData.prompt,
+        timestamp: Timestamp.fromDate(now)
+      };
+
+      const aiMsg = {
+        id: crypto.randomUUID(),
+        sender: 'ai',
+        text: finalOutput,
+        finalSynthesis: aiFinalSynthesis || '',
+        timestamp: Timestamp.fromDate(finishedAt),
+        isSearchMessage: searchSources.length > 0,
+        searchSources: searchSources
+      };
+
+      const sessionMessages = [userMsg, aiMsg];
+
+      await db.collection('users').doc(userId).collection('sessions').doc(newSessionId).set({
+        id: newSessionId,
+        title: `[Execução Agendada] ${taskData.title}`,
+        createdAt: Timestamp.fromDate(now),
+        updatedAt: Timestamp.fromDate(finishedAt),
+        timestamp: Timestamp.fromDate(finishedAt),
+        messages: sessionMessages,
+        isUnread: true,
+        isTemporary: false,
+        isScheduled: true
+      });
+
+      createdSessionObj = {
+        id: newSessionId,
+        title: `[Execução Agendada] ${taskData.title}`,
+        createdAt: now,
+        updatedAt: finishedAt,
+        timestamp: finishedAt,
+        messages: [
+          { ...userMsg, timestamp: now },
+          { ...aiMsg, timestamp: finishedAt }
+        ],
+        isUnread: true,
+        isTemporary: false,
+        isScheduled: true
+      };
+    } catch (e) {
+      console.warn('[ScheduledTasks] Warning creating session doc:', e);
+    }
   }
 
   // Record task execution log with complete agentic provenance
-  const finishedAt = new Date();
-  const durationMs = finishedAt.getTime() - startedAt.getTime();
 
   // Extract generated files from AI response
   const generatedFiles: string[] = [];
@@ -397,18 +416,6 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
     console.warn('[ScheduledTasks] Warning recording task execution log:', e);
   }
 
-  const createdSessionObj = {
-    id: newSessionId,
-    title: `[Execução Agendada] ${taskData.title}`,
-    createdAt: startedAt,
-    updatedAt: finishedAt,
-    timestamp: finishedAt,
-    messages: initialMessages,
-    isUnread: true,
-    isTemporary: false,
-    isScheduled: true
-  };
-
   const createdExecutionObj = {
     id: executionId,
     runId: runId,
@@ -419,8 +426,8 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
     finishedAt: finishedAt,
     durationMs: durationMs,
     triggerType: taskData.triggerType || 'manual',
-    sessionId: newSessionId,
-    status: executionStatus === 'success' ? 'succeeded' : 'failed',
+    sessionId: executionStatus === 'success' ? newSessionId : undefined,
+    status: executionStatus === 'success' ? 'succeeded' : executionStatus === 'needs_auth' ? 'needs_auth' : 'failed',
     attempts: attempts,
     maxRetries: maxRetries,
     outputSummary: finalOutput.slice(0, 400),
@@ -430,9 +437,9 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
 
   return {
     success: executionStatus === 'success',
-    aiResponse: finalOutput,
+    aiResponse: executionStatus === 'success' ? finalOutput : undefined,
     error: executionError,
-    sessionId: newSessionId,
+    sessionId: executionStatus === 'success' ? newSessionId : undefined,
     session: createdSessionObj,
     execution: createdExecutionObj
   };

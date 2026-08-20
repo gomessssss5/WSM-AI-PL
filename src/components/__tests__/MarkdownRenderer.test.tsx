@@ -101,4 +101,38 @@ console.log(greeting);
 
     expect(html).toMatchSnapshot();
   });
+
+  it('should render strikethrough, bold, italic, blockquotes, headers, and links correctly', () => {
+    const markdown = `
+# Título Principal H1
+## Subtítulo H2
+### Seção H3
+
+Este é um texto com **negrito**, *itálico*, ~~tachado~~ e [Link Google](https://google.com).
+
+> Esta é uma citação de teste.
+
+- [x] Item de tarefa concluído
+- [ ] Item de tarefa pendente
+    `.trim();
+
+    const html = renderToString(<MarkdownRenderer content={markdown} />);
+
+    // Verify Headings
+    expect(html).toContain('Título Principal H1');
+    expect(html).toContain('Subtítulo H2');
+    expect(html).toContain('Seção H3');
+
+    // Verify Formatting
+    expect(html).toContain('negrito');
+    expect(html).toContain('itálico');
+    expect(html).toContain('tachado');
+    expect(html).toContain('line-through');
+
+    // Verify Link & Blockquote
+    expect(html).toContain('https://google.com');
+    expect(html).toContain('Esta é uma citação de teste.');
+
+    expect(html).toMatchSnapshot();
+  });
 });

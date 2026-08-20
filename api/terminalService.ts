@@ -475,16 +475,17 @@ export async function executeSandboxCommand(command: string, timeoutSec = 15): P
           }
         }
 
-        // Anti-masking rule: If python3 was explicitly executed and failed with command not found, do not allow exitCode 0
+        // Anti-masking rule & Runtime Guidance for Python execution
         if (
-          (adjustedCommand.includes('python3') || adjustedCommand.includes('python ')) &&
-          (finalStderr.includes('command not found') || finalStderr.includes('not found') || finalStdout.includes('command not found') || (finalStdout.includes('Python não instalado') && !finalStdout.includes('Python 3.')))
+          (adjustedCommand.includes('python3') || adjustedCommand.includes('python ') || adjustedCommand === 'python3' || adjustedCommand === 'python') &&
+          (finalStderr.includes('command not found') || finalStderr.includes('not found') || finalStdout.includes('command not found') || exitCode === 127)
         ) {
-          if (exitCode === 0) {
-            exitCode = 127;
-            if (!finalStderr) {
-              finalStderr = '/bin/sh: line 1: python3: command not found (Runtime Python 3 não instalado no ambiente)';
-            }
+          exitCode = 127;
+          if (!finalStderr.includes('Informação de Runtime do Sandbox')) {
+            finalStderr = (finalStderr ? finalStderr.trim() + '\n' : '/bin/sh: line 1: python3: command not found\n') +
+              '💡 [Informação de Runtime do Sandbox]: O executável \'python3\' não está instalado no container Linux do Sandbox. ' +
+              'Runtimes de execução ativos no Sandbox: Node.js (v20+ / JavaScript / TypeScript) e Bash/Shell. ' +
+              'Os arquivos .py são armazenados no Workspace como código-fonte.';
           }
         }
 

@@ -389,6 +389,20 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
         </div>
       </div>
 
+      {/* Runtime Environment Info Bar */}
+      <div className="px-3 py-1.5 bg-gray-50 dark:bg-zinc-900 border-b border-gray-200/60 dark:border-zinc-800 text-[11px] text-gray-600 dark:text-gray-400 font-mono flex items-center justify-between gap-2 overflow-x-auto shrink-0 select-none">
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="inline-flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+            <Cpu className="w-3 h-3" />
+            Execução Real (Sandbox Container)
+          </span>
+          <span>Runtimes Ativos: Node.js (v20+), Bash (Shell Linux)</span>
+        </div>
+        <span className="text-[10px] text-gray-500 dark:text-gray-500 truncate">
+          Arquivos .py são salvos no Workspace como código-fonte
+        </span>
+      </div>
+
       {/* Main Terminal Canvas */}
       <div className="flex-1 relative overflow-hidden bg-[#f6f6f7] dark:bg-zinc-950 flex flex-col">
         <div className="w-full h-full p-3 overflow-hidden flex flex-col">
