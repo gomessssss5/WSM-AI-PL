@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, Plus, List, X, MoreHorizontal, Settings, RefreshCw, RefreshCcw, Pencil, Play, Loader2, ShieldAlert } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, Plus, List, X, MoreHorizontal, Settings, RefreshCw, RefreshCcw, Pencil, Play, Loader2, ShieldAlert, AlertTriangle, Key } from 'lucide-react';
 import { ScheduledTask, TaskExecution, ChatSession } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { calculateNextRunAt } from '../lib/scheduledTasks';
@@ -67,9 +67,70 @@ export default function ScheduledTasksDashboard({
   const [maxRetries, setMaxRetries] = useState(3);
   const [backoffSeconds, setBackoffSeconds] = useState(10);
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
+  const [authErrorBanner, setAuthErrorBanner] = useState<string | null>(null);
+  const [isReauthenticating, setIsReauthenticating] = useState(false);
+
+  const handleReauthenticate = async (taskToRetry?: ScheduledTask) => {
+    setIsReauthenticating(true);
+    try {
+      const headers = await getAuthHeader(true);
+      if (headers && headers['Authorization']) {
+        setAuthErrorBanner(null);
+        if (taskToRetry) {
+          handleExecuteNow(taskToRetry);
+        }
+      } else {
+        setAuthErrorBanner("Falha ao renovar token de autorização. Por favor, faça login novamente no sistema.");
+      }
+    } catch (err: any) {
+      setAuthErrorBanner(`Falha ao reautenticar: ${err?.message || err}`);
+    } finally {
+      setIsReauthenticating(false);
+    }
+  };
 
   const handleExecuteNow = async (task: ScheduledTask) => {
     if (runningTaskId) return;
+
+    // Step 0: Pre-validate user session credential before launching job
+    let authHeaders = await getAuthHeader(false);
+    let isTokenOk = Boolean(authHeaders && authHeaders['Authorization']);
+    if (isTokenOk) {
+      try {
+        const refreshed = await getAuthHeader(true);
+        if (refreshed && refreshed['Authorization']) {
+          authHeaders = refreshed;
+        } else {
+          isTokenOk = false;
+        }
+      } catch {
+        isTokenOk = false;
+      }
+    }
+
+    if (!isTokenOk) {
+      const errMsg = "[HTTP 401 Unauthorized]: Falha de autenticação. Token de sessão do usuário expirado ou inválido. Reautenticação necessária.";
+      setAuthErrorBanner(errMsg);
+      setExecutionStates(prev => ({ ...prev, [task.id]: 'falhou' }));
+      if (onSaveTask) {
+        onSaveTask({
+          ...task,
+          lastStatus: 'needs_auth',
+          lastExecutionStatus: 'failed',
+          lastErrorDetails: errMsg
+        } as any);
+      }
+      logAuditEvent({
+        toolName: 'scheduler.trigger_now_blocked',
+        riskLevel: 'high',
+        details: `Disparo da tarefa "${task.title}" bloqueado antes da execução: Token de sessão do usuário expirado.`,
+        status: 'blocked',
+        user_id: currentUserId,
+        task_id: task.id
+      });
+      return; // DO NOT SEND REQ OR CREATE DUMMY RESULT CONVERSATION
+    }
+
     setRunningTaskId(task.id);
     setExecutionStates(prev => ({ ...prev, [task.id]: 'iniciando' }));
 
@@ -556,6 +617,43 @@ export default function ScheduledTasksDashboard({
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-6 sm:p-10">
+          {authErrorBanner && (
+            <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-900 text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block text-red-950">Falha de Autenticação nas Automações:</span>
+                  <p className="text-xs text-red-800">{authErrorBanner}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                <button
+                  onClick={() => handleReauthenticate()}
+                  disabled={isReauthenticating}
+                  className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white font-semibold text-xs rounded-lg shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isReauthenticating ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Verificando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Key className="w-3.5 h-3.5" />
+                      <span>Reautenticar e Tentar Novamente</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => setAuthErrorBanner(null)}
+                  className="text-red-700 hover:text-red-950 p-1.5 rounded-md hover:bg-red-100 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {sessionNotice && (
             <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm flex items-center justify-between shadow-xs">
               <div className="flex items-center gap-2.5">

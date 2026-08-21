@@ -788,7 +788,7 @@ export default function MarkdownRenderer({
     interface MathToken { id: string; tex: string; }
     interface CodeToken { id: string; code: string; }
     interface LinkToken { id: string; text: string; url: string; }
-    interface AgenticToken { id: string; type: 'web' | 'calc' | 'clock' | string; text: string; }
+    interface AgenticToken { id: string; type: 'web' | 'calc' | 'clock' | string; text: string; metadata?: any; }
 
     const mathTokens: MathToken[] = [];
     const codeTokens: CodeToken[] = [];
@@ -941,6 +941,12 @@ export default function MarkdownRenderer({
         const cmdMatch = match.match(/command="([^"]*)"/i) || match.match(/cmd="([^"]*)"/i);
         const statusMatch = match.match(/status="([^"]*)"/i);
         const exitMatch = match.match(/exitCode="([^"]*)"/i);
+        const stdoutMatch = match.match(/stdout_b64="([^"]*)"/i);
+        const stderrMatch = match.match(/stderr_b64="([^"]*)"/i);
+        const runIdMatch = match.match(/runId="([^"]*)"/i);
+        const stdoutB64 = stdoutMatch ? stdoutMatch[1] : '';
+        const stderrB64 = stderrMatch ? stderrMatch[1] : '';
+        const runId = runIdMatch ? runIdMatch[1] : '';
         const cmd = cmdMatch ? cmdMatch[1] : 'script';
         const status = statusMatch ? statusMatch[1].toLowerCase() : 'done';
         const exitCode = exitMatch ? exitMatch[1] : undefined;
@@ -950,7 +956,8 @@ export default function MarkdownRenderer({
           agenticTokens.push({
             id,
             type: 'terminal_exec_failed',
-            text: `Falha no terminal (${cmd}${exitCode ? ' - Exit ' + exitCode : ''})`
+            text: `Falha no terminal (${cmd}${exitCode ? ' - Exit ' + exitCode : ''})`,
+            metadata: { stdoutB64, stderrB64, runId }
           });
         } else {
           agenticTokens.push({ id, type: 'terminal_exec', text: `Executou no terminal: ${cmd}` });

@@ -16,6 +16,7 @@ import SharedChatView from "./components/SharedChatView";
 import AdminDashboard from './components/AdminDashboard';
 import AdminAuthModal from './components/AdminAuthModal';
 import BenchmarkPage from './components/BenchmarkPage';
+import NexusHome from './components/NexusHome';
 import { Skill, subscribeSkills, saveSkill, deleteSkillFromDb } from './lib/skills';
 import { OFFICIAL_SKILLS } from './lib/officialSkills';
 import { getLayeredMemories } from './utils/layeredMemory';
@@ -59,6 +60,15 @@ export default function App() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isImagesView, setIsImagesView] = useState(false);
   const [isScheduledTasksView, setIsScheduledTasksView] = useState(false);
+  const [isNexusHomeView, setIsNexusHomeView] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('page') === 'chat' || params.get('session') || params.get('view') === 'chat') {
+        return false;
+      }
+    }
+    return true;
+  });
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
   const [taskExecutions, setTaskExecutions] = useState<TaskExecution[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -757,6 +767,16 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       setAuthLoading(false);
+      if (user) {
+        setIsNexusHomeView(false);
+        try {
+          const url = new URL(window.location.href);
+          if (url.searchParams.get('page') === 'home') {
+            url.searchParams.set('page', 'chat');
+            window.history.replaceState({}, '', url.toString());
+          }
+        } catch (e) {}
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -1001,6 +1021,7 @@ export default function App() {
 
     setIsImagesView(false);
     setIsScheduledTasksView(false);
+    setIsNexusHomeView(false);
     setActiveSessionId(id);
   };
 
@@ -1013,6 +1034,7 @@ export default function App() {
     setSessions((prev) => prev.filter((s) => !s.isTemporary));
     setIsImagesView(false);
     setIsScheduledTasksView(false);
+    setIsNexusHomeView(false);
     setActiveSessionId(null);
   };
 
@@ -1039,6 +1061,7 @@ export default function App() {
     
     setIsImagesView(false);
     setIsScheduledTasksView(false);
+    setIsNexusHomeView(false);
     setIsMobileHistoryOpen(false);
   };
 
@@ -1047,13 +1070,23 @@ export default function App() {
     setSessions((prev) => prev.filter((s) => !s.isTemporary));
     setIsImagesView(!isImagesView);
     setIsScheduledTasksView(false);
+    setIsNexusHomeView(false);
   };
 
   const handleOpenTasksView = () => {
     setSessions((prev) => prev.filter((s) => !s.isTemporary));
     setIsImagesView(false);
+    setIsNexusHomeView(false);
     setActiveSessionId(null);
     setIsScheduledTasksView(true);
+  };
+
+  const handleOpenNexusHome = () => {
+    setSessions((prev) => prev.filter((s) => !s.isTemporary));
+    setIsImagesView(false);
+    setIsScheduledTasksView(false);
+    setActiveSessionId(null);
+    setIsNexusHomeView(true);
   };
 
   // Delete an existing session from Firestore
@@ -2413,6 +2446,24 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
     );
   }
 
+  // If in Home page view, render NexusHome directly in full-screen without sidebar
+  if (isNexusHomeView) {
+    return (
+      <NexusHome 
+        onEnterAI={() => {
+          setIsNexusHomeView(false);
+          setIsImagesView(false);
+          setIsScheduledTasksView(false);
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.set('page', 'chat');
+            window.history.replaceState({}, '', url.toString());
+          } catch (e) {}
+        }} 
+      />
+    );
+  }
+
   // If no user is authenticated, force them to Login
   if (!currentUser) {
     return (
@@ -2431,6 +2482,8 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
         onNewChat={() => { handleNewChat(); setIsMobileHistoryOpen(false); }}
         onToggleImagesView={() => { handleToggleImagesView(); setIsMobileHistoryOpen(false); }}
         isImagesView={isImagesView}
+        onOpenNexusHome={handleOpenNexusHome}
+        isNexusHomeView={isNexusHomeView}
         userEmail={currentUser.email}
         userName={currentUser.displayName}
         userProfile={userProfile}
@@ -2462,6 +2515,7 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
               isAdminView ? 'admin' :
               isScheduledTasksView ? 'scheduled' :
               isImagesView ? 'images' :
+              isNexusHomeView ? 'nexus-home' :
               activeSession ? activeSession.id : 'home'
             }
             initial={{ opacity: 0, y: 6, scale: 0.996 }}

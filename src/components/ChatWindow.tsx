@@ -412,7 +412,18 @@ export default function ChatWindow({
       openTerminalPanel(true);
     };
     window.addEventListener('open_terminal', handleOpenTerminalEvent);
-    return () => window.removeEventListener('open_terminal', handleOpenTerminalEvent);
+
+    const handleTerminalRetry = (e: any) => {
+      if (e.detail?.runId) {
+        onSendMessage("A execução do comando falhou (Exit 1). O erro (MODULE_NOT_FOUND ou outro) indica que você referenciou um caminho de arquivo incorreto (provavelmente /workspace/...) ou que o script testado quebrou. IMPORTANTE: Não use o caminho absoluto '/workspace/' nos require() ou import do seu código porque, no momento da execução, o runtime do Node.js isolado no sandbox não encontra esse mapeamento virtual, use caminhos relativos (./). Por favor, corrija o código necessário e tente executar novamente.", false);
+      }
+    };
+    window.addEventListener('terminal_retry', handleTerminalRetry);
+
+    return () => {
+      window.removeEventListener('open_terminal', handleOpenTerminalEvent);
+      window.removeEventListener('terminal_retry', handleTerminalRetry);
+    };
   }, []);
 
   // Auto-open Terminal Sandbox pane when terminal execution starts and keep track of terminal usage
@@ -2932,7 +2943,7 @@ export default function ChatWindow({
                     : 'rounded-[28px] md:rounded-[26px] shadow-lg md:shadow-[0_1px_8px_rgba(0,0,0,0.01)]'
                 }`}
               >
-          {/* Hidden File Input (Using absolute positioning to ensure automation tools can find it) */}
+          {/* Hidden File Input */}
           <input 
             id="omnix-chat-file-input"
             type="file" 
@@ -2946,9 +2957,7 @@ export default function ChatWindow({
             }} 
             accept=".txt,.pdf,.doc,.docx,.csv,.xlsx,.json,.md,.png,.jpg,.jpeg,.gif,.webp,*/*"
             multiple 
-            className="absolute w-0 h-0 opacity-0 overflow-hidden pointer-events-none" 
-            tabIndex={-1}
-            aria-hidden="true"
+            className="hidden" 
           />
 
           {/* Slash Menu */}
@@ -3160,10 +3169,7 @@ export default function ChatWindow({
                           <label
                             htmlFor="omnix-chat-file-input"
                             id="omnix-chat-file-upload-label"
-                            onClick={() => {
-                              setIsAttachMenuOpen(false);
-                              handleAttachFileDirectly();
-                            }}
+                            onClick={() => setIsAttachMenuOpen(false)}
                             className="w-full text-left px-3 py-2 rounded-lg flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer"
                           >
                             <div className="flex items-center gap-2">

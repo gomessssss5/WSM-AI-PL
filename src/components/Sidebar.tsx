@@ -11,6 +11,8 @@ interface SidebarProps {
   onNewChat: () => void;
   onToggleImagesView?: () => void;
   isImagesView?: boolean;
+  onOpenNexusHome?: () => void;
+  isNexusHomeView?: boolean;
   userEmail?: string | null;
   userName?: string | null;
   userProfile?: any;
@@ -34,6 +36,8 @@ export default function Sidebar(props: SidebarProps) {
     onNewChat,
     onToggleImagesView,
     isImagesView,
+    onOpenNexusHome,
+    isNexusHomeView,
     userEmail,
     userName,
     userProfile,
