@@ -975,7 +975,7 @@ export default function MainHome({
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={`w-full ${isListening ? 'bg-[#f5f6f8]/80' : 'bg-white/60 dark:bg-gray-900/60 backdrop-blur-md'} border border-[#eae6e1]/80 rounded-[28px] md:rounded-[26px] shadow-lg md:shadow-[0_4px_16px_rgba(0,0,0,0.03)] p-3 md:p-2.5 focus-within:border-gray-400 transition-all duration-200`}
+            className={`w-full ${isListening ? 'bg-[#f5f6f8]/80' : 'bg-white/55 dark:bg-gray-900/55 backdrop-blur-xl backdrop-saturate-150'} border border-white/80 dark:border-white/10 ring-1 ring-black/[0.04] dark:ring-white/[0.05] rounded-[28px] md:rounded-[26px] shadow-[0_8px_32px_0_rgba(0,0,0,0.05)] hover:shadow-[0_8px_32px_0_rgba(0,0,0,0.08)] focus-within:shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] focus-within:border-gray-400/80 p-3 md:p-2.5 transition-all duration-200`}
           >
           {/* Hidden File Input */}
           <input 

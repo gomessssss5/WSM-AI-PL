@@ -2078,11 +2078,13 @@ export default function ChatWindow({
         </div>
       </header>
 
-      {/* Message List */}
-      <div 
-        ref={messagesContainerRef} 
-        className={`flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 w-full max-w-full min-w-0 ${messages.length === 0 ? 'flex flex-col justify-center items-center' : 'space-y-4'}`}
-      >
+      {/* Messages Scroll Area + Floating Input Container */}
+      <div className="relative flex-1 min-h-0 w-full overflow-hidden">
+        {/* Message List */}
+        <div 
+          ref={messagesContainerRef} 
+          className={`h-full overflow-y-auto overflow-x-hidden px-4 pt-4 pb-36 md:pb-32 w-full max-w-full min-w-0 ${messages.length === 0 ? 'flex flex-col justify-center items-center' : 'space-y-4'}`}
+        >
         {messages.length === 0 ? (
           isTemporary ? (
             <motion.div 
@@ -2696,7 +2698,7 @@ export default function ChatWindow({
       </div>
 
       {/* Floating Input Area */}
-      <footer className="p-0 md:p-3 bg-transparent border-none relative z-10 flex flex-col items-center pb-4 md:pb-3">
+      <footer className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none p-2 sm:p-3 md:pb-3 flex flex-col items-center justify-end">
         <AnimatePresence>
         {activeForm && (
           <motion.div 
@@ -2753,7 +2755,7 @@ export default function ChatWindow({
             : null;
 
           return (
-            <div className={`w-[calc(100%-2rem)] md:w-full md:max-w-2xl mx-auto absolute bottom-3 left-4 md:relative md:bottom-auto md:left-auto z-50 flex flex-col mb-0 ${
+            <div className={`w-full max-w-2xl px-3 sm:px-4 md:px-0 mx-auto pointer-events-auto z-50 flex flex-col mb-0 ${
               taskProgress ? 'shadow-lg md:shadow-[0_1px_8px_rgba(0,0,0,0.01)] rounded-2xl' : ''
             }`}>
               <AnimatePresence>
@@ -2961,12 +2963,12 @@ export default function ChatWindow({
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                className={`w-full ${isListening ? 'bg-[#f5f6f8]/80' : 'bg-white/60 dark:bg-gray-900/60 backdrop-blur-md'} border border-[#eae6e1]/80 p-3 md:p-2.5 focus-within:border-gray-400 transition-all duration-200 z-50 ${
+                className={`w-full ${isListening ? 'bg-[#f5f6f8]/80' : 'bg-white/60 dark:bg-gray-900/60 backdrop-blur-2xl backdrop-saturate-150'} border border-white/80 dark:border-white/10 ring-1 ring-black/[0.04] dark:ring-white/[0.05] p-3 md:p-2.5 focus-within:border-gray-400/80 transition-all duration-200 z-50 ${
                   hasUsedComputer
-                    ? 'rounded-b-[28px] md:rounded-b-[26px] rounded-t-none border-t border-t-gray-100 dark:border-t-gray-800/80 shadow-lg md:shadow-[0_1px_8px_rgba(0,0,0,0.01)]'
+                    ? 'rounded-b-[28px] md:rounded-b-[26px] rounded-t-none border-t border-t-gray-100 dark:border-t-gray-800/80 shadow-[0_8px_32px_0_rgba(0,0,0,0.05)]'
                     : taskProgress 
-                    ? 'rounded-b-[28px] md:rounded-b-[24px] border-t-0 shadow-lg md:shadow-[0_1px_8px_rgba(0,0,0,0.01)]' 
-                    : 'rounded-[28px] md:rounded-[26px] shadow-lg md:shadow-[0_1px_8px_rgba(0,0,0,0.01)]'
+                    ? 'rounded-b-[28px] md:rounded-b-[24px] border-t-0 shadow-[0_8px_32px_0_rgba(0,0,0,0.05)]' 
+                    : 'rounded-[28px] md:rounded-[26px] shadow-[0_8px_32px_0_rgba(0,0,0,0.05)] hover:shadow-[0_8px_32px_0_rgba(0,0,0,0.08)] focus-within:shadow-[0_8px_32px_0_rgba(0,0,0,0.1)]'
                 }`}
               >
           {/* Hidden File Input */}
@@ -3389,10 +3391,11 @@ export default function ChatWindow({
       </div>
     );
   })()}
-        <div className="hidden md:block text-[9px] text-center text-gray-400 font-medium pt-1.5 select-none">
+        <div className="hidden md:block text-[9px] text-center text-gray-400 font-medium pt-1.5 select-none pointer-events-auto">
           {selectedModel} pode cometer erros. Verifique informações importantes.
         </div>
       </footer>
+      </div>
 
       {/* Sliding Lateral Sources Drawer */}
       {drawerSources && (() => {
