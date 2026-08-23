@@ -127,15 +127,31 @@ export async function openUrl(rawUrl: string) {
       const html = await res.text();
       const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/i);
       const title = titleMatch ? titleMatch[1].trim() : 'Página sem título';
+      
+      const h1Matches = [...html.matchAll(/<h1[^>]*>([\s\S]*?)<\/h1>/gi)].map(m => m[1].replace(/<[^>]+>/g, '').trim()).filter(Boolean);
+      const pMatches = [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)].map(m => m[1].replace(/<[^>]+>/g, '').trim()).filter(Boolean);
+      const h2Matches = [...html.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/gi)].map(m => m[1].replace(/<[^>]+>/g, '').trim()).filter(Boolean);
+
+      const headings = [
+        ...h1Matches.map(t => ({ tag: 'h1', text: t })),
+        ...h2Matches.map(t => ({ tag: 'h2', text: t }))
+      ];
+
       const cleanText = html.replace(/<script[\s\S]*?<\/script>/gi, '')
                             .replace(/<style[\s\S]*?<\/style>/gi, '')
                             .replace(/<[^>]+>/g, ' ')
                             .replace(/\s+/g, ' ')
                             .trim();
+      const contentHash = crypto.createHash('sha256').update(cleanText || url, 'utf8').digest('hex').substring(0, 16);
+
       return {
         url,
         title,
+        h1: h1Matches[0] || title,
+        headings,
+        paragraphs: pMatches.slice(0, 10),
         text: cleanText.slice(0, 4000) || `Conteúdo lido com sucesso de ${url}.`,
+        content_hash: contentHash,
         screenshot: null
       };
     }
@@ -261,6 +277,8 @@ export async function scrollPage(direction: 'down' | 'up' = 'down', amount: numb
   return await getPageState();
 }
 
+import crypto from 'crypto';
+
 export async function getPageState() {
   if (!page || page.isClosed()) return { error: "Nenhuma página ativa no momento." };
   try {
@@ -300,20 +318,44 @@ export async function getPageState() {
           cssSelector: cssSelector || undefined
         };
       }).filter(Boolean);
+
+      // Extract semantic structure: headings and paragraphs
+      const headingsList: Array<{ tag: string; text: string }> = [];
+      document.querySelectorAll('h1, h2, h3, h4').forEach(h => {
+        const t = (h.textContent || '').trim().replace(/\s+/g, ' ');
+        if (t) headingsList.push({ tag: h.tagName.toLowerCase(), text: t });
+      });
+
+      const paragraphsList: string[] = [];
+      document.querySelectorAll('p, article, section p').forEach(p => {
+        const t = (p.textContent || '').trim().replace(/\s+/g, ' ');
+        if (t && t.length > 5) paragraphsList.push(t);
+      });
+
+      const h1List = headingsList.filter(h => h.tag === 'h1').map(h => h.text);
       
       let bodyText = document.body.innerText || "";
       bodyText = bodyText.replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n\n').trim();
       return {
         bodyText: bodyText.substring(0, 4000),
-        elements: elementsList.slice(0, 40)
+        elements: elementsList.slice(0, 40),
+        headings: headingsList.slice(0, 15),
+        h1: h1List[0] || (headingsList[0]?.text ?? ''),
+        paragraphs: paragraphsList.slice(0, 10)
       };
-    }).catch(() => ({ bodyText: '', elements: [] }));
+    }).catch(() => ({ bodyText: '', elements: [], headings: [], h1: '', paragraphs: [] }));
 
+    const contentHash = crypto.createHash('sha256').update(pageData.bodyText || url, 'utf8').digest('hex').substring(0, 16);
     const screenshot = await getScreenshot();
+
     return { 
       url, 
       title, 
+      h1: pageData.h1 || title,
+      headings: pageData.headings,
+      paragraphs: pageData.paragraphs,
       text: pageData.bodyText,
+      content_hash: contentHash,
       interactable_elements: pageData.elements,
       screenshot 
     };

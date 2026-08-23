@@ -738,10 +738,11 @@ export default function MarkdownRenderer({
   const cleanStepTags = (text: string) => {
     if (!text) return "";
     let clean = text;
-    // Remove agentic step tags
+    // Remove agentic step tags and flow control tags
     clean = clean.replace(/\[nova tarefa:[\s\S]*?\]/gi, "");
     clean = clean.replace(/\[tarefa removida:[\s\S]*?\]/gi, "");
     clean = clean.replace(/\[passo concluído\]/gi, "");
+    clean = clean.replace(/<\/?(?:finish|agent)\b[^>]*\/?>/gi, "");
     return clean;
   };
 
@@ -751,11 +752,15 @@ export default function MarkdownRenderer({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // Helper to safely render KaTeX to HTML string
+  // Helper to safely render KaTeX to HTML string with enhanced physics/math formatting
   const renderMathToHtml = (tex: string, displayMode: boolean): string => {
     try {
+      // Clean backticks, single/double quotes and smart quotes
+      let cleanTex = tex.replace(/^[`'""“”‘’]+|[`'""“”‘’]+$/g, '').trim();
+      cleanTex = cleanTex.replace(/[`“”‘’]/g, '');
+
       // Fix unescaped JS control sequences in TeX strings from JSON/string serialization
-      let cleanTex = tex
+      cleanTex = cleanTex
         .replace(/\x09ext/g, '\\text')
         .replace(/\x09extbf/g, '\\textbf')
         .replace(/\x09extit/g, '\\textit')
@@ -764,16 +769,214 @@ export default function MarkdownRenderer({
         .replace(/\x0dight/g, '\\right')
         .replace(/\x0eft/g, '\\left');
 
-      return katex.renderToString(cleanTex, {
+      // Replace utf superscripts and mathematical unicode symbols
+      cleanTex = cleanTex
+        .replace(/²/g, '^2')
+        .replace(/³/g, '^3')
+        .replace(/×/g, '\\times ')
+        .replace(/÷/g, '\\div ')
+        .replace(/·/g, '\\cdot ')
+        .replace(/±/g, '\\pm ')
+        .replace(/≠/g, '\\neq ')
+        .replace(/≤/g, '\\le ')
+        .replace(/≥/g, '\\ge ')
+        .replace(/≈/g, '\\approx ');
+
+      // Decimal commas in numbers (e.g. 2,0 kg -> 2{,}0 kg so LaTeX doesn't treat comma as punctuation separator)
+      cleanTex = cleanTex.replace(/(\d+),(\d+)/g, '$1{,}$2');
+
+      // 1. Chained subscripts like v_A_inicial or v_B_final or x_1_max -> v_{A,\text{inicial}}
+      let prevTex = '';
+      while (prevTex !== cleanTex && /\b([A-Za-z])_([A-Za-z0-9]+)_([A-Za-z0-9]+)\b/.test(cleanTex)) {
+        prevTex = cleanTex;
+        cleanTex = cleanTex.replace(/\b([A-Za-z])_([A-Za-z0-9]+)_([A-Za-z0-9]+)\b/g, (_m, base, s1, s2) => {
+          const sub1 = s1.length > 1 && !/^\d+$/.test(s1) ? `\\text{${s1}}` : s1;
+          const sub2 = s2.length > 1 && !/^\d+$/.test(s2) ? `\\text{${s2}}` : s2;
+          return `${base}_{${sub1},${sub2}}`;
+        });
+      }
+
+      // Fix double subscripts like E_{c}_final or E_{c}_{final} -> E_{c,\text{final}}
+      cleanTex = cleanTex.replace(/_\{([^{}]+)\}_\{([^{}]+)\}/g, '_{$1,$2}');
+      cleanTex = cleanTex.replace(/_\{([^{}]+)\}_([a-zA-Z0-9]+)/g, (_m, s1, s2) => {
+        const sub2 = s2.length > 1 && !/^\d+$/.test(s2) ? `\\text{${s2}}` : s2;
+        return `_{${s1},${sub2}}`;
+      });
+
+      // Fix double superscripts like m^\frac{2}{s}^2 or a^2^3 -> {m^\frac{2}{s}}^2 or a^{2,3}
+      cleanTex = cleanTex.replace(/\^(\\[a-zA-Z]+(?:\{[^{}]*\})+)\^([0-9a-zA-Z]+|\{[^{}]*\})/g, '{$1}^{$2}');
+      cleanTex = cleanTex.replace(/\^([0-9a-zA-Z]+)\^([0-9a-zA-Z]+)/g, '^{$1,$2}');
+
+      // 2. Format multi-letter subscripts if missing braces or text (e.g. P_inicial -> P_{\text{inicial}}, m_b -> m_b)
+      cleanTex = cleanTex.replace(/\b([A-Za-z])_([a-zA-Z]{2,})\b/g, '$1_{\\text{$2}}');
+
+      // 3. Replace plain multiplication asterisk * with \cdot if not inside a \text or command
+      cleanTex = cleanTex.replace(/(\S)\s*\*\s*(\S)/g, '$1 \\cdot $2');
+
+      // 4. Format standard physics units when attached to numbers or exponents (kg, J, N, m/s, m/s^2, m^2/s^2)
+      cleanTex = cleanTex.replace(/(\d+)\s*(kg|g|mg|km|cm|mm|s|ms|min|h|J|kJ|cal|kcal|N|kN|W|kW|V|A|Hz|kHz|Pa|kPa|atm|mol|rad)\b/g, '$1\\text{ $2}');
+
+      const html = katex.renderToString(cleanTex, {
         displayMode,
         throwOnError: false,
         trust: true,
         output: 'html',
+        strict: false,
       });
+
+      // If KaTeX encountered an error span, try aggressive auto-fix or clean fallback
+      if (html.includes('class="katex-error"')) {
+        // Attempt secondary cleanup: fix any remaining double superscripts/subscripts and retry
+        let fixedTex = cleanTex
+          .replace(/\^([^^]+)\^([^^]+)/g, '^{$1,$2}')
+          .replace(/_([^_]+)_([^_]+)/g, '_{$1,$2}');
+        
+        try {
+          const retryHtml = katex.renderToString(fixedTex, {
+            displayMode,
+            throwOnError: false,
+            trust: true,
+            output: 'html',
+            strict: false,
+          });
+          if (!retryHtml.includes('class="katex-error"')) {
+            return retryHtml;
+          }
+        } catch {
+          // continue to clean fallback
+        }
+
+        // Clean fallback: render clean typography WITHOUT raw backslashes or escaped braces
+        const readableTex = cleanTex
+          .replace(/\\text\{([^}]+)\}/g, '$1')
+          .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1/$2)')
+          .replace(/\\cdot/g, ' · ')
+          .replace(/\\pm/g, '±')
+          .replace(/\\times/g, '×')
+          .replace(/\\div/g, '÷')
+          .replace(/\\Delta/g, 'Δ')
+          .replace(/\\([a-zA-Z]+)/g, '')
+          .replace(/[{}]/g, '')
+          .replace(/\^2/g, '²')
+          .replace(/\^3/g, '³')
+          .replace(/_/g, '');
+
+        return `<span class="font-serif text-[1.05em] text-gray-900 dark:text-gray-100 select-text">${readableTex}</span>`;
+      }
+
+      return html;
     } catch (err) {
       console.error('KaTeX rendering error:', err);
-      return `<span class="text-red-500 font-mono text-xs">[Math Error: ${tex}]</span>`;
+      return `<span class="font-serif text-[1.05em] text-gray-900 dark:text-gray-100 select-text">${tex}</span>`;
     }
+  };
+
+  // Detects standalone mathematical/physics formulas (e.g. P_inicial = (m_b + m_c) * 0 = 0, 0 = m_b * v_b + m_c * v_c, v_c = -v_b / 8)
+  const isStandaloneMathEquation = (line: string): boolean => {
+    let trimmed = line.trim();
+    if (!trimmed) return false;
+    if (trimmed.startsWith('$$') || trimmed.startsWith('\\[')) return false;
+    if (trimmed.startsWith('$') && trimmed.endsWith('$') && trimmed.length > 2) return false;
+    if (/^[#*>-]/.test(trimmed) || trimmed.startsWith('|') || trimmed.startsWith('<') || trimmed.startsWith(':::')) return false;
+
+    // Strip wrapping backticks if present
+    trimmed = trimmed.replace(/^[`'""“”‘’]+|[`'""“”‘’]+$/g, '').trim();
+    if (!trimmed) return false;
+
+    // Exclude conversational sentences or phrases with multiple common words
+    const words = trimmed.toLowerCase().split(/\s+/);
+    const commonStopWords = new Set([
+      'a', 'o', 'as', 'os', 'um', 'uma', 'uns', 'umas', 'de', 'do', 'da', 'dos', 'das',
+      'em', 'no', 'na', 'nos', 'nas', 'por', 'pelo', 'pela', 'pelos', 'pelas', 'com',
+      'para', 'pra', 'que', 'se', 'como', 'onde', 'quando', 'porque', 'porquê', 'entao', 'então',
+      'assim', 'logo', 'portanto', 'temos', 'obtemos', 'obtem-se', 'obtem', 'obtém', 'sendo',
+      'igual', 'mais', 'menos', 'vezes', 'dividido', 'resposta', 'passo', 'etapa',
+      'olha', 'veja', 'note', 'observe', 'substituindo', 'calculando', 'resolvendo',
+      'the', 'is', 'are', 'was', 'were', 'where', 'then', 'thus', 'therefore', 'we', 'have', 'get'
+    ]);
+
+    let stopWordCount = 0;
+    for (const w of words) {
+      const cleanWord = w.replace(/[^a-záàâãéèêíïóôõöúçñ]/gi, '');
+      if (cleanWord.length > 2 && commonStopWords.has(cleanWord.toLowerCase())) {
+        stopWordCount++;
+      }
+    }
+    if (stopWordCount >= 2) return false;
+
+    // Check mathematical signals:
+    const hasSubscripts = /\b[A-Za-z]+_[a-zA-Z0-9]+\b/.test(trimmed);
+    const hasSuperscripts = /\^[0-9a-zA-Z]+|\b[a-zA-Z0-9]+²|\b[a-zA-Z0-9]+³/.test(trimmed);
+    const hasLatexCommands = /\\(frac|sqrt|cdot|times|div|pm|mp|sum|int|prod|lim|alpha|beta|gamma|delta|Delta|theta|lambda|pi|sigma|omega|vec|text)\b/.test(trimmed);
+    const hasMathEquationStructure = /^[\s\w\(\)\*\/+\-.,_^{}\\]+\s*(=|≈|≠|≤|≥|<|>|→|⇒)\s*[\s\w\(\)\*\/+\-.,_^{}\\]+$/.test(trimmed);
+    const hasMathOperators = /[\*\/^]/.test(trimmed) && /[a-zA-Z]/.test(trimmed) && /[0-9=+\-]/.test(trimmed);
+
+    if ((hasSubscripts || hasSuperscripts || hasLatexCommands || hasMathOperators) && hasMathEquationStructure) {
+      return true;
+    }
+
+    if (hasSubscripts && trimmed.includes('=')) {
+      return true;
+    }
+
+    return false;
+  };
+
+  // Automatically converts raw physics/math formula notation into standard LaTeX
+  const convertRawMathToLatex = (raw: string): string => {
+    let tex = raw.trim();
+
+    // 0. Clean wrapping backticks, quotes, etc.
+    tex = tex.replace(/^[`'""“”‘’]+|[`'""“”‘’]+$/g, '').trim();
+    tex = tex.replace(/[`“”‘’]/g, '');
+
+    // 1. Replace UTF superscript ² and ³ with ^2 and ^3
+    tex = tex.replace(/²/g, '^2').replace(/³/g, '^3');
+
+    // 2. Chained subscripts like v_A_inicial or v_B_final or x_1_max -> v_{A,\text{inicial}}
+    let prevTex = '';
+    while (prevTex !== tex && /\b([A-Za-z])_([A-Za-z0-9]+)_([A-Za-z0-9]+)\b/.test(tex)) {
+      prevTex = tex;
+      tex = tex.replace(/\b([A-Za-z])_([A-Za-z0-9]+)_([A-Za-z0-9]+)\b/g, (_match, base, s1, s2) => {
+        const sub1 = s1.length > 1 && !/^\d+$/.test(s1) ? `\\text{${s1}}` : s1;
+        const sub2 = s2.length > 1 && !/^\d+$/.test(s2) ? `\\text{${s2}}` : s2;
+        return `${base}_{${sub1},${sub2}}`;
+      });
+    }
+
+    // 3. Format single subscripts like P_inicial -> P_{\text{inicial}}, m_b -> m_b, v_0 -> v_0
+    tex = tex.replace(/\b([A-Za-z])_([a-zA-Z0-9]+)\b/g, (match, base, sub) => {
+      if (sub.length === 1) {
+        return `${base}_${sub}`;
+      }
+      if (/^\d+$/.test(sub)) {
+        return `${base}_{${sub}}`;
+      }
+      return `${base}_{\\text{${sub}}}`;
+    });
+
+    // 4. Multiplication asterisk * between numbers/variables -> \cdot
+    tex = tex.replace(/(\S)\s*\*\s*(\S)/g, '$1 \\cdot $2');
+
+    // 5. Fractions like -v_b / 8 or (a + b) / (c + d) -> \frac{...}{...} (handling exponents and units cleanly)
+    tex = tex.replace(/-\s*\(([^()]+)\)\s*\/\s*(\d+|\w+(?:\^\w+)?)/g, '-\\frac{$1}{$2}');
+    tex = tex.replace(/\(([^()]+)\)\s*\/\s*\(([^()]+)\)/g, '\\frac{$1}{$2}');
+    tex = tex.replace(/-\s*([a-zA-Z0-9_{}\\\^]+)\s*\/\s*([a-zA-Z0-9_{}\\\^]+)/g, (match, num, den) => {
+      if (num.includes('frac') || den.includes('frac')) return match;
+      return `-\\frac{${num}}{${den}}`;
+    });
+    tex = tex.replace(/([a-zA-Z0-9_{}\\\^]+)\s*\/\s*([a-zA-Z0-9_{}\\\^]+)/g, (match, num, den) => {
+      if (num.includes('frac') || den.includes('frac')) return match;
+      return `\\frac{${num}}{${den}}`;
+    });
+
+    // 6. Greek delta
+    tex = tex.replace(/\bDelta\s*([a-zA-Z])/g, '\\Delta $1');
+
+    // 7. Plus/minus
+    tex = tex.replace(/\+\/-/g, '\\pm ');
+
+    return tex;
   };
 
   // Parses inline elements (bold, italic, inline code, inline math, links)
@@ -1003,11 +1206,21 @@ export default function MarkdownRenderer({
 
       // Ignore currency expressions (e.g. "R$ 50,00 e R$ 10,00", "$10 e $20", etc.)
       if (p1 !== undefined) {
-        if (/\b(e|ou|and|or|de|com|por|em|para|desconto|preço|preco|custo|valor|totais|total|reais|dólares|dolares)\b/i.test(tex)) {
-          return match;
-        }
-        if (/^\d[\d.,]*\b[\s\S]*\b\d[\d.,]*$/.test(tex) && !/[=+\-*\/\\^_<>≤≥≠≈±÷×]/.test(tex)) {
-          return match;
+        // Single letter variables or standard LaTeX identifiers (e.g. $E$, $e$, $x$, $v_0$) are ALWAYS math
+        const isSingleVarOrSymbol = /^[a-zA-Z]$/.test(tex) || /^[a-zA-Z]_[a-zA-Z0-9{},\\text]+$/.test(tex) || /^\\[a-zA-Z]+$/.test(tex);
+        if (!isSingleVarOrSymbol) {
+          // Currency/prose typically starts with digits (e.g. "$10 e $20" -> "10 e ") or contains prose words
+          const startsWithDigitOrSpaceDigit = /^\s*\d/.test(tex);
+          const hasProseWords = /\b(ou|and|or|de|com|por|em|para|desconto|preço|preco|custo|valor|totais|total|reais|dólares|dolares)\b/i.test(tex) || /\be\b/.test(tex); // Note: exact 'e' without /i on letter E
+          if (startsWithDigitOrSpaceDigit && hasProseWords) {
+            // If it contains genuine math symbols or commands, it is NOT currency
+            if (!/[=+\-*\/\\^_<>≤≥≠≈±÷×]/.test(tex) && !/\\(frac|sqrt|cdot|times|text)/.test(tex)) {
+              return match;
+            }
+          }
+          if (/^\d[\d.,]*\b[\s\S]*\b\d[\d.,]*$/.test(tex) && !/[=+\-*\/\\^_<>≤≥≠≈±÷×]/.test(tex)) {
+            return match;
+          }
         }
       }
 
@@ -1019,7 +1232,20 @@ export default function MarkdownRenderer({
     // 2. Extract inline code: `code`
     const inlineCodeRegex = /`(.*?)`/g;
     currentText = currentText.replace(inlineCodeRegex, (match, code) => {
-      if (!code.trim()) return match;
+      const trimmedCode = code.trim();
+      if (!trimmedCode) return match;
+
+      // Check if this inline code is actually a math/physics formula (e.g. `P_inicial = P_final` or `m_A \cdot v_A_inicial + ...` or `v_c = -v_b / 8` or `E = mc^2`)
+      const isMath = /\\(cdot|frac|sqrt|times|div|Delta|pm|vec|text)\b/.test(trimmedCode) ||
+                     (/\b[A-Za-z]_[a-zA-Z0-9]+\b/.test(trimmedCode) && /[=+\-*\/]/.test(trimmedCode)) ||
+                     (/^([A-Za-z0-9_\^\\{}\s]+)\s*(=|≈|≠|≤|≥)\s*([A-Za-z0-9_\^\\{}\s]+)/.test(trimmedCode) && /[A-Za-z]/.test(trimmedCode) && !/\b(const|let|var|return|function|import|export|if|else)\b/.test(trimmedCode));
+
+      if (isMath) {
+        const id = `:::MATHTOKEN-${mathTokens.length}:::`;
+        mathTokens.push({ id, tex: convertRawMathToLatex(trimmedCode) });
+        return id;
+      }
+
       const id = `:::CODETOKEN-${codeTokens.length}:::`;
       codeTokens.push({ id, code });
       return id;
@@ -1699,7 +1925,7 @@ export default function MarkdownRenderer({
           blocks.push(
             <div
               key={`mathb-${i}`}
-              className="my-5 p-4 bg-gray-50/50 border border-[#eae6e1]/40 rounded-xl overflow-x-auto text-center select-text shadow-2xs"
+              className="my-3.5 py-1 px-1 overflow-x-auto text-center select-text text-gray-900 dark:text-gray-100"
               dangerouslySetInnerHTML={{ __html: html }}
             />
           );
@@ -1725,10 +1951,25 @@ export default function MarkdownRenderer({
         blocks.push(
           <div
             key={`mathb-${i}`}
-            className="my-5 p-4 bg-gray-50/50 border border-[#eae6e1]/40 rounded-xl overflow-x-auto text-center select-text shadow-2xs animate-fade-in"
+            className="my-3.5 py-1 px-1 overflow-x-auto text-center select-text text-gray-900 dark:text-gray-100 animate-fade-in"
             dangerouslySetInnerHTML={{ __html: html }}
           />
         );
+        continue;
+      }
+
+      // 3.1 Automatic Standalone Math & Physics Equation detection (e.g. P_inicial = (m_b + m_c) * 0 = 0)
+      if (isStandaloneMathEquation(trimmed)) {
+        const mathTex = convertRawMathToLatex(trimmed);
+        const html = renderMathToHtml(mathTex, true);
+        blocks.push(
+          <div
+            key={`autmathb-${i}`}
+            className="my-3.5 py-1 px-1 overflow-x-auto text-center select-text text-gray-900 dark:text-gray-100 animate-fade-in"
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        );
+        i++;
         continue;
       }
 

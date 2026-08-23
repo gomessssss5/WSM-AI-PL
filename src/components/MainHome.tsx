@@ -830,15 +830,21 @@ export default function MainHome({
 
   const handleSubmit = (e?: React.FormEvent | React.MouseEvent | React.TouchEvent) => {
     e?.preventDefault();
-    if (!inputValue.trim() && attachments.length === 0 && activeSkills.length === 0) return;
-    if (inputValue.length > 100000) return;
+    const textarea = document.getElementById('chat-input-textarea') as HTMLTextAreaElement;
+    const currentText = textarea && textarea.value.length >= inputValue.length ? textarea.value : inputValue;
+
+    if (!currentText.trim() && attachments.length === 0 && activeSkills.length === 0) return;
+    if (currentText.length > 100000) return;
     
     if (onDeleteDraft) onDeleteDraft();
 
     const skillsToPass = activeSkills.length > 0 ? [...activeSkills] : undefined;
     const modeToPass = activeSkills.length > 0 ? skillMode : undefined;
 
-    onSendMessage(inputValue, isSearchEnabled, undefined, attachments, false, isComputerEnabled, skillsToPass, modeToPass);
+    onSendMessage(currentText, isSearchEnabled, undefined, attachments, false, isComputerEnabled, skillsToPass, modeToPass);
+    if (textarea) {
+      textarea.value = '';
+    }
     setInputValue('');
     setAttachments([]);
     setUploadError(null);

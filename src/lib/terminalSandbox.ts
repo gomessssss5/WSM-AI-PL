@@ -495,29 +495,10 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
 
     // Execute logic asynchronously
     const executeInternal = async (): Promise<number> => {
-      const fullCmd = [rawCommand, ...args].join(' ').trim();
+      const fullCmd = args.length > 0 ? [rawCommand, ...args].join(' ').trim() : rawCommand.trim();
 
-      // Handle piping or multiple commands separated by && or ;
-      if (fullCmd.includes('&&') || (fullCmd.includes(';') && !fullCmd.startsWith('node -e') && !fullCmd.startsWith('python -c'))) {
-        const parts = fullCmd.includes('&&') ? fullCmd.split('&&') : fullCmd.split(';');
-        for (const sub of parts) {
-          if (isTerminated) break;
-          const subTrim = sub.trim();
-          if (!subTrim) continue;
-          const subTokens = this.parseCommandLine(subTrim);
-          const subCmd = subTokens[0];
-          const subArgs = subTokens.slice(1);
-          const code = await this.executeSingleCommand(subCmd, subArgs, pushStdout, pushStderr);
-          if (code !== 0) return code;
-        }
-        return 0;
-      }
-
-      const tokens = this.parseCommandLine(fullCmd);
-      const cmd = tokens[0] || rawCommand;
-      const cmdArgs = tokens.length > 1 ? tokens.slice(1) : args;
-
-      return await this.executeSingleCommand(cmd, cmdArgs, pushStdout, pushStderr);
+      // Attempt full literal execution on backend container first (preserves quotes, redirections >&2, pipes, subshells)
+      return await this.executeSingleCommand(fullCmd, [], pushStdout, pushStderr, fullCmd);
     };
 
     // Race execution against CPU timeout
@@ -626,13 +607,17 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
     cmd: string, 
     args: string[], 
     stdout: (t: string) => void, 
-    stderr: (t: string) => void
+    stderr: (t: string) => void,
+    literalFullCommand?: string
   ): Promise<number> {
-    const cleanCmd = cmd.toLowerCase().trim();
+    const fullCmdLine = literalFullCommand || (args.length > 0 ? `${cmd} ${args.join(' ')}` : cmd);
+    const tokens = this.parseCommandLine(fullCmdLine);
+    const primaryCmd = tokens[0] || cmd;
+    const cleanCmd = primaryCmd.toLowerCase().trim();
+    const cmdArgs = tokens.length > 1 ? tokens.slice(1) : args;
 
     // Try executing directly on the backend Linux container first for 100% fidelity
     try {
-      const fullCmdLine = args.length > 0 ? `${cmd} ${args.join(' ')}` : cmd;
       const authHeaders = await getAuthHeader();
       
       // Sync local files to server sandbox

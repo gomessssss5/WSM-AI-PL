@@ -438,16 +438,21 @@ export interface ScheduledTask {
 
 export interface TaskExecution {
   id: string;
-  runId: string; // Unique idempotent execution UUID
+  runId?: string; // Unique idempotent execution UUID
   taskId: string;
   taskTitle: string;
+  createdAt?: Date;
+  scheduledFor?: Date;
   executedAt: Date;
   startedAt?: Date;
   finishedAt?: Date;
+  completedAt?: Date;
+  cancelledAt?: Date;
+  timezone?: string;
   durationMs?: number;
   triggerType?: 'manual' | 'scheduled' | 'retry' | 'event';
   sessionId: string;
-  status: 'queued' | 'planning' | 'waiting_approval' | 'running' | 'waiting_user' | 'partial' | 'succeeded' | 'failed' | 'canceled' | 'expired';
+  status: 'queued' | 'planning' | 'waiting_approval' | 'running' | 'waiting_user' | 'partial' | 'succeeded' | 'failed' | 'canceled' | 'cancelada' | 'cancelled' | 'expired';
   attempts?: number;
   maxRetries?: number;
   outputSummary?: string;

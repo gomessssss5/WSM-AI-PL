@@ -1156,10 +1156,12 @@ export default function ScheduledTasksDashboard({
               ) : (
                 executions.map(exec => {
                   const relatedSession = sessions.find(s => s.id === exec.sessionId);
-                  const isSuccess = exec.status === 'succeeded';
-                  const isFailed = exec.status === 'failed' || exec.status === 'error' as any;
-                  const isRunning = exec.status === 'running' || exec.status === 'planning' || exec.status === 'waiting_approval' || exec.status === 'waiting_user';
-                  const summaryText = exec.outputSummary || (relatedSession?.messages?.find(m => m.sender === 'ai')?.text) || 'Execução processada pelo agente em segundo plano.';
+                  const isSuccess = exec.status === 'succeeded' || exec.status === 'concluido' as any;
+                  const isFailed = exec.status === 'failed' || exec.status === 'error' as any || exec.status === 'falhou' as any;
+                  const isRunning = exec.status === 'running' || exec.status === 'planning' || exec.status === 'waiting_approval' || exec.status === 'waiting_user' || exec.status === 'iniciada' as any;
+                  const isCancelled = exec.status === 'cancelada' || exec.status === 'cancelled' || exec.status === 'canceled' || exec.taskTitle?.startsWith('[CANCELADA]');
+                  const summaryText = exec.outputSummary || (relatedSession?.messages?.find(m => m.sender === 'ai')?.text) || (isCancelled ? 'Tarefa desativada e cancelada pelo usuário antes da execução agendada.' : 'Execução processada pelo agente em segundo plano.');
+                  const effectiveTimezone = exec.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
                   return (
                     <motion.div 
@@ -1170,7 +1172,11 @@ export default function ScheduledTasksDashboard({
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-start gap-3">
-                          {isSuccess ? (
+                          {isCancelled ? (
+                            <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+                              <X className="w-5 h-5 text-amber-600" />
+                            </div>
+                          ) : isSuccess ? (
                             <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
                               <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                             </div>
@@ -1191,12 +1197,13 @@ export default function ScheduledTasksDashboard({
                             <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="font-bold text-gray-900 text-base">{exec.taskTitle}</h3>
                               <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                isCancelled ? 'bg-amber-100 text-amber-800 border border-amber-300' :
                                 isSuccess ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 
                                 isFailed ? 'bg-red-100 text-red-800 border border-red-200' :
                                 isRunning ? 'bg-blue-100 text-blue-800 border border-blue-200' :
                                 'bg-gray-100 text-gray-800 border border-gray-200'
                               }`}>
-                                {exec.status}
+                                {isCancelled ? 'CANCELADA' : exec.status}
                               </span>
                               {exec.runId && (
                                 <span className="font-mono text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded border border-gray-200">
@@ -1205,12 +1212,28 @@ export default function ScheduledTasksDashboard({
                               )}
                               {exec.triggerType && (
                                 <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium border border-blue-100">
-                                  {exec.triggerType === 'manual' ? 'Disparo Manual' : 'Agendamento Automático'}
+                                  {exec.triggerType === 'manual' ? 'Disparo Manual (Modo Teste)' : 'Agendamento Automático'}
                                 </span>
                               )}
                             </div>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Executado em {formatShortDate(exec.executedAt)} às {formatShortTime(exec.executedAt)}
+                            <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5 flex-wrap font-medium">
+                              {isCancelled ? (
+                                <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                  🛑 Cancelada em {formatShortDate(exec.cancelledAt || exec.executedAt)} às {formatShortTime(exec.cancelledAt || exec.executedAt)} ({effectiveTimezone})
+                                </span>
+                              ) : isSuccess ? (
+                                <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                  ✅ Concluída em {formatShortDate(exec.completedAt || exec.finishedAt || exec.executedAt)} às {formatShortTime(exec.completedAt || exec.finishedAt || exec.executedAt)} ({effectiveTimezone})
+                                </span>
+                              ) : isFailed ? (
+                                <span className="text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                                  ❌ Falhou em {formatShortDate(exec.finishedAt || exec.executedAt)} às {formatShortTime(exec.finishedAt || exec.executedAt)} ({effectiveTimezone})
+                                </span>
+                              ) : (
+                                <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                  ⏱️ Iniciada em {formatShortDate(exec.startedAt || exec.executedAt)} às {formatShortTime(exec.startedAt || exec.executedAt)} ({effectiveTimezone})
+                                </span>
+                              )}
                             </p>
                           </div>
                         </div>
@@ -1219,12 +1242,12 @@ export default function ScheduledTasksDashboard({
                           type="button"
                           onClick={() => {
                             if (!exec.sessionId) {
-                              setSessionNotice('Nenhuma conversa foi gerada para esta execução.');
+                              setSessionNotice('Nenhuma conversa foi vinculada a esta execução.');
                               return;
                             }
                             const sessionExists = sessions.some(s => s.id === exec.sessionId);
                             if (!sessionExists) {
-                              setSessionNotice('A conversa associada a esta execução não está disponível no seu histórico.');
+                              setSessionNotice('Dados expirados: A conversa associada a esta execução foi limpa pela política de retenção do histórico.');
                               return;
                             }
                             setSessionNotice(null);
@@ -1236,39 +1259,55 @@ export default function ScheduledTasksDashboard({
                         </button>
                       </div>
 
-                      {/* Telemetry Breakdown Grid */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 bg-[#fcfbf9] border border-[#eae6e1] rounded-xl p-3 text-[11px] font-mono text-gray-600">
+                      {/* Explicit Granular Timestamps & Telemetry Grid */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 bg-[#fcfbf9] border border-[#eae6e1] rounded-xl p-3 text-[11px] font-mono text-gray-600">
                         <div>
-                          <span className="text-[9.5px] uppercase font-bold text-gray-400 block">Duração (ms)</span>
-                          <span className="font-bold text-gray-800">{exec.durationMs ? `${exec.durationMs} ms` : 'Rápida (<1s)'}</span>
-                        </div>
-                        <div>
-                          <span className="text-[9.5px] uppercase font-bold text-gray-400 block">Modo Execução</span>
-                          <span className="font-semibold text-gray-800">{exec.triggerType === 'manual' ? 'Modo Teste' : 'Agendado'}</span>
-                        </div>
-                        <div>
-                          <span className="text-[9.5px] uppercase font-bold text-gray-400 block">Ferramentas</span>
-                          <span className="font-medium text-gray-800 truncate block" title={exec.toolsInvoked?.join(', ') || 'Omnix Agent Tooling'}>
-                            {exec.toolsInvoked?.length ? exec.toolsInvoked.join(', ') : 'Omnix Tooling'}
+                          <span className="text-[9.5px] uppercase font-bold text-gray-400 block">Criada em</span>
+                          <span className="font-semibold text-gray-800 truncate block">
+                            {exec.createdAt ? `${formatShortDate(exec.createdAt)} ${formatShortTime(exec.createdAt)}` : 'N/D'}
                           </span>
                         </div>
                         <div>
-                          <span className="text-[9.5px] uppercase font-bold text-gray-400 block">Artefatos</span>
-                          <span className="font-medium text-gray-800 truncate block">
-                            {exec.generatedFiles?.length ? `${exec.generatedFiles.length} arquivo(s)` : 'Sem artefatos'}
+                          <span className="text-[9.5px] uppercase font-bold text-gray-400 block">Agendada para</span>
+                          <span className="font-semibold text-gray-800 truncate block">
+                            {exec.scheduledFor ? `${formatShortDate(exec.scheduledFor)} ${formatShortTime(exec.scheduledFor)}` : 'N/D'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[9.5px] uppercase font-bold text-gray-400 block">Iniciada em</span>
+                          <span className="font-semibold text-gray-800 truncate block">
+                            {exec.startedAt ? `${formatShortDate(exec.startedAt)} ${formatShortTime(exec.startedAt)}` : (isCancelled ? 'Não iniciada' : `${formatShortDate(exec.executedAt)} ${formatShortTime(exec.executedAt)}`)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[9.5px] uppercase font-bold text-gray-400 block">Status Final</span>
+                          <span className={`font-bold block truncate ${isCancelled ? 'text-amber-700' : isSuccess ? 'text-emerald-700' : isFailed ? 'text-red-700' : 'text-blue-700'}`}>
+                            {isCancelled ? 'Cancelada' : isSuccess ? 'Concluída' : isFailed ? 'Falhou' : 'Em execução'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[9.5px] uppercase font-bold text-gray-400 block">Fuso Horário</span>
+                          <span className="font-medium text-gray-800 truncate block" title={effectiveTimezone}>
+                            {effectiveTimezone}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[9.5px] uppercase font-bold text-gray-400 block">Duração</span>
+                          <span className="font-bold text-gray-800 block">
+                            {isCancelled ? '0s (cancelada)' : exec.durationMs ? `${(exec.durationMs / 1000).toFixed(1)}s` : 'Rápida (<1s)'}
                           </span>
                         </div>
                       </div>
 
                       {/* Summary output snippet */}
                       <div className="bg-[#f9f8f6] border border-[#eae6e1] rounded-xl p-3 text-xs text-gray-700 leading-relaxed font-normal">
-                        <p className="font-bold text-gray-900 text-[11px] mb-1 uppercase tracking-wider">Resultado da Execução Agêntica:</p>
+                        <p className="font-bold text-gray-900 text-[11px] mb-1 uppercase tracking-wider">Resultado / Registro de Auditoria:</p>
                         <p className="line-clamp-3 whitespace-pre-line">{summaryText}</p>
                       </div>
 
                       {exec.error && (
                         <p className="text-red-600 text-xs bg-red-50 p-2.5 rounded-xl border border-red-200 font-mono">
-                          ⚠️ Erro: {exec.error}
+                          ⚠️ Detalhes: {exec.error}
                         </p>
                       )}
                     </motion.div>

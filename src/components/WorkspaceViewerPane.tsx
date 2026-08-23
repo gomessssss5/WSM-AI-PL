@@ -42,6 +42,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { terminalSandbox } from '../lib/terminalSandbox';
+import { auth } from '../lib/firebase';
 
 export interface WorkspaceViewerPaneProps {
   messages: Message[];
@@ -262,13 +263,14 @@ export default function WorkspaceViewerPane({
 
       // Initialize first version if not present
       if (!fileVersionsMap[activeFile.title]) {
+        const currentEmail = auth.currentUser?.email || 'Usuário';
         setFileVersionsMap(prev => ({
           ...prev,
           [activeFile.title]: [{
             version: 1,
             content: activeFile.content,
             updatedAt: activeFile.updatedAt || new Date(),
-            author: activeFile.source === 'ai' ? 'Omnix 1.6' : 'wsmathenas@gmail.com',
+            author: activeFile.source === 'ai' ? 'Omnix 1.6' : currentEmail,
             summary: 'Versão inicial extraída do Workspace'
           }]
         }));
@@ -340,6 +342,7 @@ export default function WorkspaceViewerPane({
     if (!activeFile) return;
 
     const summaryText = editSummary.trim() || 'Edição manual do usuário';
+    const currentEmail = auth.currentUser?.email || 'Usuário';
 
     // 1. Save new version history
     const currentVersions = fileVersionsMap[activeFile.title] || [];
@@ -348,7 +351,7 @@ export default function WorkspaceViewerPane({
       version: nextVersionNum,
       content: editingContentBuffer,
       updatedAt: new Date(),
-      author: 'wsmathenas@gmail.com',
+      author: currentEmail,
       summary: summaryText
     };
 
@@ -380,6 +383,7 @@ export default function WorkspaceViewerPane({
     if (!activeFile) return;
     if (confirm(`Deseja mesmo reverter o arquivo "${activeFile.title}" para a versão v${version.version}?`)) {
       setEditingContentBuffer(version.content);
+      const currentEmail = auth.currentUser?.email || 'Usuário';
 
       // Save a new version tracking this revert
       const currentVersions = fileVersionsMap[activeFile.title] || [];
@@ -388,7 +392,7 @@ export default function WorkspaceViewerPane({
         version: nextVersionNum,
         content: version.content,
         updatedAt: new Date(),
-        author: 'wsmathenas@gmail.com',
+        author: currentEmail,
         summary: `Revertido automaticamente para a versão v${version.version}`
       };
 

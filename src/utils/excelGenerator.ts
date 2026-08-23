@@ -85,6 +85,11 @@ export function parseTableDataFromContent(content: string): TableData {
 
   const trimmed = cleanContentString(content);
 
+  // If content is raw binary or ZIP string, do NOT parse as text/CSV
+  if (trimmed.startsWith('PK\x03\x04') || trimmed.startsWith('UEsDBBQ') || /[\x00-\x08\x0B\x0C\x0E-\x1F]{3,}/.test(trimmed)) {
+    return { headers: ['Status'], rows: [['Planilha binária']] };
+  }
+
   // 1. Try parsing JSON structure
   const isLikelyJson = trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.includes('"sheets"') || trimmed.includes('"headers"') || trimmed.includes('"rows"');
   
@@ -253,12 +258,37 @@ export function parseMultiSheetData(content: string): SheetData[] {
   return [];
 }
 
-export async function generateExcelBlob(title: string, content: string): Promise<Blob> {
+export async function generateExcelBlob(title: string, content: string | Uint8Array | ArrayBuffer): Promise<Blob> {
+  // If content is already a valid XLSX Buffer/Uint8Array or binary ZIP string:
+  if (content instanceof Uint8Array || content instanceof ArrayBuffer) {
+    const u8 = content instanceof Uint8Array ? content : new Uint8Array(content);
+    if (u8.length > 4 && u8[0] === 0x50 && u8[1] === 0x4B && u8[2] === 0x03 && u8[3] === 0x04) {
+      return new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    }
+  }
+
+  if (typeof content === 'string' && (content.startsWith('PK\x03\x04') || content.startsWith('UEsDBBQ'))) {
+    try {
+      if (content.startsWith('UEsDBBQ')) {
+        const binStr = atob(content);
+        const len = binStr.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) bytes[i] = binStr.charCodeAt(i);
+        return new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      } else {
+        const len = content.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) bytes[i] = content.charCodeAt(i) & 0xff;
+        return new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      }
+    } catch {}
+  }
+
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Omnix AI';
   workbook.created = new Date();
 
-  const multiSheets = parseMultiSheetData(content);
+  const multiSheets = parseMultiSheetData(typeof content === 'string' ? content : '');
 
   const buildWorksheet = (worksheet: ExcelJS.Worksheet, headers: string[], rows: (string | number)[][]) => {
     // Set columns
@@ -366,7 +396,7 @@ export async function generateExcelBlob(title: string, content: string): Promise
       views: [{ showGridLines: true }]
     });
 
-    const { headers, rows } = parseTableDataFromContent(content);
+    const { headers, rows } = parseTableDataFromContent(typeof content === 'string' ? content : '');
     buildWorksheet(worksheet, headers, rows);
   }
 

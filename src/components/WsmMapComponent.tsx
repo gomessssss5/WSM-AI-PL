@@ -20,11 +20,12 @@ interface WsmMapComponentProps {
   disableExtras?: boolean;
 }
 
-interface WikiData {
+interface ExtraInfoData {
   title: string;
   extract: string;
   thumbnailUrl?: string;
   description?: string;
+  isWikipedia: boolean;
 }
 
 export default function WsmMapComponent({
@@ -37,32 +38,36 @@ export default function WsmMapComponent({
   markers = [],
   disableExtras = false,
 }: WsmMapComponentProps) {
-  const [wikiData, setWikiData] = useState<WikiData | null>(null);
+  const [infoData, setInfoData] = useState<ExtraInfoData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showExtras, setShowExtras] = useState(true);
 
   useEffect(() => {
-    // If disableExtras is requested, do not fetch Wikipedia
+    // If disableExtras is requested, do not fetch or display extra contextual cards
     if (disableExtras) {
-      setWikiData(null);
+      setInfoData(null);
       return;
     }
 
-    if (text) {
-      setWikiData({
+    // 1. If explicit text from prompt/context is provided without explicit wiki
+    if (text && !wiki) {
+      setInfoData({
         title: place || 'Localização',
         extract: text,
-        description: 'Informações sobre a localização',
+        description: 'Informações fornecidas diretamente no contexto da conversa.',
+        isWikipedia: false
       });
       return;
     }
 
-    const searchTerm = wiki || place;
+    // 2. Only fetch Wikipedia if 'wiki' is EXPLICITLY requested by the user/system
+    const searchWikiTerm = (wiki || '').trim();
 
-    if (!searchTerm) {
-      setWikiData(null);
+    if (!searchWikiTerm) {
+      // Coordinates and place came strictly from the prompt - do NOT query Wikipedia
+      setInfoData(null);
       return;
     }
 
@@ -70,27 +75,49 @@ export default function WsmMapComponent({
       setLoading(true);
       setError(false);
       try {
-        let url = `https://pt.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(searchTerm)}`;
+        let url = `https://pt.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(searchWikiTerm)}`;
         let response = await fetch(url);
         
         if (!response.ok) {
-          url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(searchTerm)}`;
+          url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(searchWikiTerm)}`;
           response = await fetch(url);
         }
 
         if (response.ok) {
           const data = await response.json();
-          setWikiData({
-            title: data.title || data.displaytitle || place,
-            extract: data.extract || '',
+          setInfoData({
+            title: data.title || data.displaytitle || place || searchWikiTerm,
+            extract: data.extract || text || '',
             thumbnailUrl: data.thumbnail?.source || undefined,
             description: data.description || '',
+            isWikipedia: true
           });
         } else {
+          // If Wikipedia fails and text exists, fallback to local text without Wikipedia source label
+          if (text) {
+            setInfoData({
+              title: place || 'Localização',
+              extract: text,
+              description: 'Informações do contexto',
+              isWikipedia: false
+            });
+          } else {
+            setInfoData(null);
+          }
           setError(true);
         }
       } catch (err) {
         console.error('Error fetching Wikipedia summary:', err);
+        if (text) {
+          setInfoData({
+            title: place || 'Localização',
+            extract: text,
+            description: 'Informações do contexto',
+            isWikipedia: false
+          });
+        } else {
+          setInfoData(null);
+        }
         setError(true);
       } finally {
         setLoading(false);
@@ -197,7 +224,7 @@ export default function WsmMapComponent({
       displayTitle = place || 'Mapa com Múltiplos Marcadores';
     }
   } else if (!displayTitle) {
-    displayTitle = wikiData?.title || (markers && markers.length === 1 ? markers[0].title : 'Localização');
+    displayTitle = infoData?.title || (markers && markers.length === 1 ? markers[0].title : 'Localização');
   }
 
   const renderMapContent = (isModal: boolean) => (
@@ -218,7 +245,7 @@ export default function WsmMapComponent({
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {(wikiData || (markers && markers.length > 1)) && !disableExtras && (
+          {(infoData || (markers && markers.length > 1)) && !disableExtras && (
             <>
               <button
                 onClick={() => setShowExtras(!showExtras)}
@@ -296,37 +323,52 @@ export default function WsmMapComponent({
                 <div className="h-16 bg-gray-200 dark:bg-neutral-800 rounded-lg my-2" />
                 <div className="h-3 bg-gray-200 dark:bg-neutral-800 rounded w-full" />
               </div>
-            ) : wikiData ? (
+            ) : infoData ? (
               <div className="flex flex-col justify-between h-full space-y-4">
                 <div>
                   {/* Header Info */}
                   <div className="pb-2.5 border-b border-gray-100 dark:border-neutral-800">
                     <h3 className="font-bold text-gray-900 dark:text-neutral-100 text-base leading-tight">
-                      {wikiData.title}
+                      {infoData.title}
                     </h3>
-                    <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-neutral-400 font-medium mt-1">
-                      <span>Fonte: Wikipédia</span>
+                    <div className="flex flex-col gap-1 mt-1.5">
+                      {infoData.isWikipedia ? (
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-neutral-400 font-medium">
+                            <span>Fonte: Wikipédia</span>
+                          </div>
+                          <span className="text-[10px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 px-1.5 py-0.5 rounded leading-tight">
+                            Referência extra, não usada no cálculo nem na validação de coordenadas.
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-neutral-400 font-medium">
+                          <span>Informações do contexto / prompt</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   {/* Sobre / Highlight Box */}
-                  <div className="mt-2.5">
-                    <div className="text-[10px] font-semibold tracking-wider text-gray-400 dark:text-neutral-500 uppercase mb-1">
-                      Sobre
+                  {infoData.extract && (
+                    <div className="mt-2.5">
+                      <div className="text-[10px] font-semibold tracking-wider text-gray-400 dark:text-neutral-500 uppercase mb-1">
+                        Sobre
+                      </div>
+                      <div className="bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 p-2.5 rounded-xl">
+                        <p className="text-xs text-emerald-950 dark:text-emerald-200 leading-relaxed font-medium">
+                          {infoData.extract}
+                        </p>
+                      </div>
                     </div>
-                    <div className="bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 p-2.5 rounded-xl">
-                      <p className="text-xs text-emerald-950 dark:text-emerald-200 leading-relaxed font-medium">
-                        {wikiData.extract}
-                      </p>
-                    </div>
-                  </div>
+                  )}
 
-                  {/* Thumbnail image if available */}
-                  {wikiData.thumbnailUrl && (
+                  {/* Thumbnail image if available from Wikipedia */}
+                  {infoData.thumbnailUrl && (
                     <div className="mt-2.5 rounded-xl overflow-hidden border border-gray-100 dark:border-neutral-800">
                       <img
-                        src={wikiData.thumbnailUrl}
-                        alt={wikiData.title}
+                        src={infoData.thumbnailUrl}
+                        alt={infoData.title}
                         className="w-full h-28 object-cover"
                         referrerPolicy="no-referrer"
                         onError={(e) => {
@@ -368,11 +410,11 @@ export default function WsmMapComponent({
                   )}
                 </div>
 
-                {/* Wikipedia Link Footer */}
-                {(wiki || place) && (
+                {/* Wikipedia Link Footer - ONLY when wiki attribute was explicitly specified */}
+                {infoData.isWikipedia && wiki && (
                   <div className="pt-2.5 border-t border-gray-100 dark:border-neutral-800 shrink-0">
                     <a
-                      href={`https://pt.wikipedia.org/wiki/${encodeURIComponent(wiki || place)}`}
+                      href={`https://pt.wikipedia.org/wiki/${encodeURIComponent(wiki)}`}
                       target="_blank"
                       rel="noreferrer"
                       className="w-full py-1.5 px-2.5 bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-800 dark:text-neutral-200 rounded-lg text-[11px] font-semibold transition-colors flex items-center justify-center gap-1"

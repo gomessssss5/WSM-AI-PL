@@ -1656,7 +1656,7 @@ export default function ChatWindow({
     if (isThinking) return;
     
     const textarea = document.getElementById('chat-input-textarea-floating') as HTMLTextAreaElement;
-    const currentText = textarea ? textarea.value : inputValue;
+    const currentText = textarea && textarea.value.length >= inputValue.length ? textarea.value : (inputValue || (textarea ? textarea.value : ''));
     
     if (currentText.trim().toLowerCase() === 'model_in_use') {
       setShowModelInUseCard(true);
@@ -2370,14 +2370,40 @@ export default function ChatWindow({
                                     if (docObjs && docObjs.length > 0) {
                                       return (
                                         <div className="flex flex-col gap-2 mt-3 w-full animate-in fade-in zoom-in duration-300">
-                                          {docObjs.map((doc, idx) => (
-                                            <DocumentCard 
-                                              key={idx} 
-                                              document={doc} 
-                                              attachedImages={allSessionImages}
-                                              onOpenDocument={(d) => openDocumentPanel({ doc: d, isFullscreen: false })} 
-                                            />
-                                          ))}
+                                          {docObjs.map((doc, idx) => {
+                                            let totalVersions = 0;
+                                            let versionNumber = 0;
+                                            const targetTitle = (doc.title || 'documento').trim().toLowerCase();
+                                            
+                                            messages.forEach((m, mIdx) => {
+                                              if (m.sender === 'ai' && m.text) {
+                                                const { docObjs: mDocs } = extractWsmDoc(extractWsmForm(cleanRaciocinioTags(m.text)).cleanText);
+                                                if (mDocs && mDocs.some(d => (d.title || 'documento').trim().toLowerCase() === targetTitle)) {
+                                                  totalVersions++;
+                                                  if (mIdx === index) {
+                                                    versionNumber = totalVersions;
+                                                  }
+                                                }
+                                              }
+                                            });
+
+                                            if (versionNumber === 0) versionNumber = totalVersions || 1;
+                                            const isLatest = versionNumber === totalVersions || totalVersions <= 1;
+
+                                            return (
+                                              <DocumentCard 
+                                                key={idx} 
+                                                document={doc} 
+                                                attachedImages={allSessionImages}
+                                                versionInfo={{
+                                                  versionNumber,
+                                                  totalVersions: Math.max(totalVersions, 1),
+                                                  isLatest
+                                                }}
+                                                onOpenDocument={(d) => openDocumentPanel({ doc: d, isFullscreen: false })} 
+                                              />
+                                            );
+                                          })}
                                         </div>
                                       );
                                     }

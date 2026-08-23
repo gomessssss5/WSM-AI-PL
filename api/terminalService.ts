@@ -42,24 +42,6 @@ export function ensureSandboxDir(): void {
         'utf8'
       );
     }
-
-    const indexJsPath = path.join(SANDBOX_DIR, 'index.js');
-    if (!fs.existsSync(indexJsPath)) {
-      fs.writeFileSync(
-        indexJsPath,
-        `// Sandbox Node.js Execution Script\nconsole.log("🚀 Omnix Sandbox Runtime iniciado com sucesso!");\n`,
-        'utf8'
-      );
-    }
-
-    const testJsPath = path.join(SANDBOX_DIR, 'test.js');
-    if (!fs.existsSync(testJsPath)) {
-      fs.writeFileSync(
-        testJsPath,
-        `// Test Runner do Sandbox\nconsole.log("🧪 Executando bateria de testes...");\nconsole.log("  ✓ PASS: Teste inicial do sandbox");\nconsole.log("🎉 Todos os testes passaram!");\n`,
-        'utf8'
-      );
-    }
   } catch (err) {
     console.error('[TerminalService] Error initializing sandbox directory:', err);
   }
@@ -120,6 +102,17 @@ export function readSandboxFile(relPath: string): string | null {
     const fullPath = sanitizePath(relPath);
     if (!fs.existsSync(fullPath)) return null;
     return fs.readFileSync(fullPath, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+export function readSandboxBinaryFile(relPath: string): Buffer | null {
+  ensureSandboxDir();
+  try {
+    const fullPath = sanitizePath(relPath);
+    if (!fs.existsSync(fullPath)) return null;
+    return fs.readFileSync(fullPath);
   } catch {
     return null;
   }
@@ -370,10 +363,19 @@ export function listSandboxFiles(): Array<{ name: string; path: string; size: nu
         const full = path.join(dir, entry.name);
         const rel = path.join(prefix, entry.name);
         if (entry.isDirectory()) {
-          if (entry.name !== 'node_modules' && entry.name !== '.git') {
+          if (entry.name !== 'node_modules' && entry.name !== '.git' && !entry.name.startsWith('.')) {
             walk(full, rel);
           }
         } else {
+          // Ignore hidden files and temporary execution artifacts
+          if (
+            entry.name.startsWith('.') ||
+            entry.name.startsWith('_tmp_') ||
+            entry.name.endsWith('.tmp') ||
+            entry.name.includes('.tmp.')
+          ) {
+            continue;
+          }
           const stats = fs.statSync(full);
           results.push({
             name: entry.name,
@@ -452,7 +454,8 @@ export async function executeSandboxCommand(command: string, timeoutSec = 15): P
         cwd: SANDBOX_DIR,
         timeout: timeoutMs,
         maxBuffer: 10 * 1024 * 1024,
-        env: safeEnv
+        env: safeEnv,
+        shell: '/bin/bash'
       },
       (error, stdout, stderr) => {
         const durationMs = Date.now() - startTime;

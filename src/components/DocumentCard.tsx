@@ -11,10 +11,15 @@ interface DocumentCardProps {
   document: WsmDocument;
   onOpenDocument?: (doc: WsmDocument) => void;
   attachedImages?: string[];
+  versionInfo?: {
+    versionNumber: number;
+    totalVersions: number;
+    isLatest: boolean;
+  };
   key?: React.Key;
 }
 
-export default function DocumentCard({ document, onOpenDocument, attachedImages }: DocumentCardProps) {
+export default function DocumentCard({ document, onOpenDocument, attachedImages, versionInfo }: DocumentCardProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
@@ -95,6 +100,14 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
 
   const getExactFileSize = (): string => {
     if (liveDocState.isDeleted) return 'Excluído';
+    // For xlsx with JSON structure, mention spreadsheet binary expectation
+    if (format === 'xlsx') {
+      const bytes = liveDocState.size;
+      if (bytes < 1024) {
+        return `${formatBytes(bytes)} (dados) · ~10.8 KB (XLSX)`;
+      }
+      return formatBytes(bytes);
+    }
     return formatBytes(liveDocState.size);
   };
 
@@ -214,10 +227,29 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
 
           {/* Middle text */}
           <div className="flex flex-col min-w-0 flex-1">
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2 min-w-0 flex-wrap">
               <span className="font-semibold text-[14px] text-gray-900 dark:text-gray-100 truncate tracking-tight leading-snug">
                 {document.title || 'Documento'}
               </span>
+
+              {/* Version & Workspace Status Badge */}
+              {versionInfo ? (
+                versionInfo.isLatest ? (
+                  <span className="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-700 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>v{versionInfo.versionNumber} (Versão Atual)</span>
+                  </span>
+                ) : (
+                  <span className="shrink-0 px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100/80 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-700">
+                    v{versionInfo.versionNumber} de {versionInfo.totalVersions} (Referência Histórica)
+                  </span>
+                )
+              ) : (
+                <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-700 border border-gray-200 dark:bg-gray-800 dark:text-gray-300">
+                  v1.0 (Workspace)
+                </span>
+              )}
+
               {((document as any).isMock || (document as any).status === 'simulated' || (document as any).isSimulated) && (
                 <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-700">
                   MOCK / SIMULADO
@@ -234,7 +266,7 @@ export default function DocumentCard({ document, onOpenDocument, attachedImages 
               <span className="text-[10px] text-gray-400 dark:text-gray-500 font-mono flex items-center gap-1.5 flex-wrap leading-tight">
                 <span className="flex items-center gap-0.5 bg-[#eae6e1]/40 dark:bg-gray-800/40 px-1 py-0.25 rounded text-[9.5px]">
                   <ShieldCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>Workspace</span>
+                  <span>ID: doc-{document.title?.toLowerCase().replace(/[^a-z0-9_-]/g, '_') || 'padrao'}</span>
                 </span>
                 <span>•</span>
                 <span>MIME: {getMimeType(format)}</span>

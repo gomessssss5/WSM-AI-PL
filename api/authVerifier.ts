@@ -180,8 +180,9 @@ export async function verifyFirebaseIdToken(token: string): Promise<DecodedAuthT
     throw new Error('Assinatura digital do token Firebase inválida.');
   }
 
+  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
   const email = payload.email || undefined;
-  const isAdmin = payload.admin === true || email === 'wsmathenas@gmail.com';
+  const isAdmin = payload.admin === true || (email && adminEmails.includes(email.toLowerCase()));
 
   return {
     uid: payload.sub,

@@ -92,11 +92,40 @@ export function triggerBlobDownload(filename: string, content: string | Uint8Arr
   else if (ext === 'png') mimeType = 'image/png';
   else if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
   else if (ext === 'pdf') mimeType = 'application/pdf';
+  else if (ext === 'xlsx') mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  else if (ext === 'xls') mimeType = 'application/vnd.ms-excel';
   else if (ext === 'zip') mimeType = 'application/zip';
 
-  const blob = typeof content === 'string'
-    ? new Blob([content], { type: mimeType })
-    : new Blob([content], { type: mimeType });
+  let blob: Blob;
+
+  if (content instanceof Uint8Array) {
+    blob = new Blob([content], { type: mimeType });
+  } else if (typeof content === 'string') {
+    // Check if string contains raw binary bytes (e.g. PK magic bytes or base64)
+    if (ext === 'xlsx' || ext === 'xls' || ext === 'zip' || ext === 'pdf' || ext === 'png' || ext === 'jpg') {
+      if (content.startsWith('UEsDBBQ') || content.startsWith('JVBERi0') || content.startsWith('iVBORw0')) {
+        try {
+          const binStr = atob(content);
+          const bytes = new Uint8Array(binStr.length);
+          for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+          blob = new Blob([bytes], { type: mimeType });
+        } catch {
+          blob = new Blob([content], { type: mimeType });
+        }
+      } else if (content.startsWith('PK\x03\x04') || /[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(content)) {
+        const bytes = new Uint8Array(content.length);
+        for (let i = 0; i < content.length; i++) bytes[i] = content.charCodeAt(i) & 0xff;
+        blob = new Blob([bytes], { type: mimeType });
+      } else {
+        blob = new Blob([content], { type: mimeType });
+      }
+    } else {
+      blob = new Blob([content], { type: mimeType });
+    }
+  } else {
+    blob = new Blob([String(content)], { type: mimeType });
+  }
+
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

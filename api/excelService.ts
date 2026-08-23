@@ -1,10 +1,24 @@
 import ExcelJS from 'exceljs';
-import fs from 'fs';
-import path from 'path';
+import crypto from 'crypto';
 
 export interface TableData {
   headers: string[];
   rows: (string | number)[][];
+}
+
+export interface XlsxValidationResult {
+  valid: boolean;
+  versionId: string;
+  sheetCount: number;
+  rowCount: number;
+  columnCount: number;
+  cellCount: number;
+  sheets: Array<{ name: string; rows: number; columns: number }>;
+  formulasCount: number;
+  sha256: string;
+  byteSize: number;
+  error?: string;
+  summary?: string;
 }
 
 function cleanContentString(content: string): string {
@@ -51,8 +65,34 @@ export function parseTableDataFromContent(content: string): TableData {
     } catch {}
   }
 
-  // 2. CSV parsing fallback
+  // 2. Try parsing Markdown Tables (| Col1 | Col2 |)
   const lines = trimmed.split('\n').map(l => l.trim()).filter(Boolean);
+  const tableLines = lines.filter(line => line.includes('|'));
+
+  if (tableLines.length >= 2) {
+    const rawHeaders = tableLines[0].split('|').map(s => s.trim()).filter(s => s !== '');
+    const dataLines = tableLines.slice(1).filter(l => !/^[|\s:-]+$/.test(l));
+
+    const rows: (string | number)[][] = dataLines.map(line => {
+      const cells = line.split('|').map(s => s.trim());
+      if (line.startsWith('|')) cells.shift();
+      if (line.endsWith('|')) cells.pop();
+      return cells.map(cell => {
+        const cleanCell = cell.replace(/[*_`]/g, '');
+        const num = Number(cleanCell.replace(',', '.'));
+        return !isNaN(num) && cleanCell !== '' ? num : cleanCell;
+      });
+    });
+
+    if (rawHeaders.length > 0) {
+      return {
+        headers: rawHeaders.map(h => h.replace(/[*_`]/g, '')),
+        rows
+      };
+    }
+  }
+
+  // 3. CSV parsing fallback
   if (lines.length > 0) {
     const delimiter = lines[0].includes(';') ? ';' : (lines[0].includes('\t') ? '\t' : ',');
     const splitRow = (rowStr: string): string[] => {
@@ -80,7 +120,7 @@ export function parseTableDataFromContent(content: string): TableData {
     for (let i = 1; i < lines.length; i++) {
       if (lines[i].startsWith('|---') || lines[i].startsWith('---')) continue;
       const cells = splitRow(lines[i]).map(c => {
-        const num = Number(c);
+        const num = Number(c.replace(',', '.'));
         return !isNaN(num) && c !== '' ? num : c;
       });
       if (cells.length > 0 && cells.some(c => c !== '')) {
@@ -96,15 +136,199 @@ export function parseTableDataFromContent(content: string): TableData {
   return { headers: ['Item', 'Valor'], rows: [['Exemplo', 100]] };
 }
 
-export async function generateExcelBuffer(title: string, content: string): Promise<Buffer> {
-  const tableData = parseTableDataFromContent(content);
+/**
+ * Validates an XLSX buffer semantically:
+ * - Verifies ZIP container magic header (PK\x03\x04)
+ * - Loads with ExcelJS to ensure true OpenXML spreadsheet integrity
+ * - Verifies sheet names, row counts, cell counts
+ * - Scans for corrupted binary fragments inside cells (e.g. PK, xl/styles.xml, docProps/)
+ * - Computes exact SHA-256 and byteSize
+ */
+export async function validateXlsxBuffer(buffer: Buffer, versionIndex = 1): Promise<XlsxValidationResult> {
+  const byteSize = buffer ? buffer.length : 0;
+  const sha256 = buffer && buffer.length > 0
+    ? crypto.createHash('sha256').update(buffer).digest('hex')
+    : 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+  const versionId = `v${versionIndex}_${sha256.substring(0, 8)}`;
+
+  if (!buffer || buffer.length < 100) {
+    return {
+      valid: false,
+      versionId,
+      sheetCount: 0,
+      rowCount: 0,
+      columnCount: 0,
+      cellCount: 0,
+      sheets: [],
+      formulasCount: 0,
+      sha256,
+      byteSize,
+      error: `Buffer XLSX vazio ou muito pequeno (${byteSize} bytes).`
+    };
+  }
+
+  // 1. Verify ZIP container magic bytes: 0x50 0x4B 0x03 0x04 (PK\x03\x04)
+  if (buffer[0] !== 0x50 || buffer[1] !== 0x4B || buffer[2] !== 0x03 || buffer[3] !== 0x04) {
+    return {
+      valid: false,
+      versionId,
+      sheetCount: 0,
+      rowCount: 0,
+      columnCount: 0,
+      cellCount: 0,
+      sheets: [],
+      formulasCount: 0,
+      sha256,
+      byteSize,
+      error: 'Arquivo não possui cabeçalho de contêiner ZIP válido (Magic Header PK ausente).'
+    };
+  }
+
+  // 2. Load with ExcelJS
+  try {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer as any);
+
+    const sheetsInfo: Array<{ name: string; rows: number; columns: number }> = [];
+    let totalRows = 0;
+    let totalColumns = 0;
+    let totalCells = 0;
+    let formulasCount = 0;
+    const corruptionErrors: string[] = [];
+
+    if (!workbook.worksheets || workbook.worksheets.length === 0) {
+      return {
+        valid: false,
+        versionId,
+        sheetCount: 0,
+        rowCount: 0,
+        columnCount: 0,
+        cellCount: 0,
+        sheets: [],
+        formulasCount: 0,
+        sha256,
+        byteSize,
+        error: 'O arquivo XLSX não contém nenhuma aba (worksheet) válida.'
+      };
+    }
+
+    workbook.eachSheet((worksheet, sheetId) => {
+      const sName = worksheet.name || `Aba ${sheetId}`;
+      const rCount = worksheet.rowCount || 0;
+      const cCount = worksheet.columnCount || 0;
+      sheetsInfo.push({ name: sName, rows: rCount, columns: cCount });
+      totalRows += rCount;
+      totalColumns = Math.max(totalColumns, cCount);
+
+      // Scan cells for binary corruption fragments
+      worksheet.eachRow((row, rowNumber) => {
+        row.eachCell((cell, colNumber) => {
+          totalCells++;
+          const val = cell.value;
+          if (val && typeof val === 'object' && 'formula' in val) {
+            formulasCount++;
+          }
+          if (typeof val === 'string') {
+            if (
+              val.includes('xl/styles.xml') ||
+              val.includes('[Content_Types].xml') ||
+              val.includes('docProps/app.xml') ||
+              val.includes('xl/worksheets/') ||
+              val.startsWith('PK\x03\x04') ||
+              (val.length > 50 && /[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(val))
+            ) {
+              corruptionErrors.push(`Célula [${rowNumber}, ${colNumber}] na aba "${sName}" contém fragmentos binários ou tags XML corrompidas: "${val.substring(0, 30)}..."`);
+            }
+          }
+        });
+      });
+    });
+
+    if (corruptionErrors.length > 0) {
+      return {
+        valid: false,
+        versionId,
+        sheetCount: sheetsInfo.length,
+        rowCount: totalRows,
+        columnCount: totalColumns,
+        cellCount: totalCells,
+        sheets: sheetsInfo,
+        formulasCount,
+        sha256,
+        byteSize,
+        error: `Corrupção semântica detectada no conteúdo das células: ${corruptionErrors.slice(0, 2).join('; ')}`
+      };
+    }
+
+    const summary = `${sheetsInfo.length} aba(s), ${totalRows} linha(s), ${totalColumns} coluna(s), ${totalCells} célula(s) validadas com integridade`;
+
+    return {
+      valid: true,
+      versionId,
+      sheetCount: sheetsInfo.length,
+      rowCount: totalRows,
+      columnCount: totalColumns,
+      cellCount: totalCells,
+      sheets: sheetsInfo,
+      formulasCount,
+      sha256,
+      byteSize,
+      summary
+    };
+  } catch (err: any) {
+    return {
+      valid: false,
+      versionId,
+      sheetCount: 0,
+      rowCount: 0,
+      columnCount: 0,
+      cellCount: 0,
+      sheets: [],
+      formulasCount: 0,
+      sha256,
+      byteSize,
+      error: `Falha ao carregar e decodificar planilha XLSX: ${err?.message || err}`
+    };
+  }
+}
+
+/**
+ * Generates and semantically validates an XLSX buffer.
+ */
+export async function generateExcelBuffer(title: string, content: string | Buffer | Uint8Array, versionIndex = 1): Promise<Buffer> {
+  // If content is already a valid XLSX Buffer or Uint8Array
+  if (content instanceof Buffer || content instanceof Uint8Array) {
+    const buf = Buffer.isBuffer(content) ? content : Buffer.from(content);
+    const val = await validateXlsxBuffer(buf, versionIndex);
+    if (val.valid) {
+      (buf as any).validation = val;
+      return buf;
+    }
+  }
+
+  // If content is a binary string starting with PK magic bytes
+  if (typeof content === 'string' && (content.startsWith('PK\x03\x04') || content.startsWith('UEsDBBQ'))) {
+    try {
+      const buf = content.startsWith('UEsDBBQ')
+        ? Buffer.from(content, 'base64')
+        : Buffer.from(content, 'binary');
+      const val = await validateXlsxBuffer(buf, versionIndex);
+      if (val.valid) {
+        (buf as any).validation = val;
+        return buf;
+      }
+    } catch {}
+  }
+
+  const tableData = parseTableDataFromContent(typeof content === 'string' ? content : '');
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Omnix AI';
   workbook.lastModifiedBy = 'Omnix AI';
   workbook.created = new Date();
   workbook.modified = new Date();
 
-  const sheetName = (title.replace(/\.xlsx$/i, '') || 'Planilha').slice(0, 31);
+  const cleanTitle = (title || 'Planilha').replace(/\.xlsx$/i, '').replace(/[*?:/\\[\\]]/g, '').trim();
+  const sheetName = (cleanTitle || 'Planilha').slice(0, 31);
   const worksheet = workbook.addWorksheet(sheetName, {
     views: [{ showGridLines: true }]
   });
@@ -129,7 +353,12 @@ export async function generateExcelBuffer(title: string, content: string): Promi
 
   // Add data rows
   tableData.rows.forEach((row, rowIdx) => {
-    const r = worksheet.addRow(row);
+    const r = worksheet.addRow(row.map(cellVal => {
+      if (typeof cellVal === 'string' && cellVal.startsWith('=')) {
+        return { formula: cellVal.substring(1).trim() };
+      }
+      return cellVal;
+    }));
     r.font = { name: 'Calibri', size: 10 };
     r.height = 20;
     r.alignment = { vertical: 'middle', horizontal: 'left' };
@@ -143,7 +372,7 @@ export async function generateExcelBuffer(title: string, content: string): Promi
       };
     }
 
-    // Number formatting
+    // Number & Formula formatting
     row.forEach((cellVal, colIdx) => {
       const cell = r.getCell(colIdx + 1);
       if (typeof cellVal === 'number') {
@@ -166,9 +395,25 @@ export async function generateExcelBuffer(title: string, content: string): Promi
         maxLength = cellValue.length;
       }
     });
-    column.width = Math.max(maxLength + 4, 12);
+    column.width = Math.min(Math.max(maxLength + 4, 12), 45);
   });
 
   const arrayBuffer = await workbook.xlsx.writeBuffer();
-  return Buffer.from(arrayBuffer);
+  const buffer = Buffer.from(arrayBuffer);
+
+  // Validate the generated buffer
+  const validation = await validateXlsxBuffer(buffer, versionIndex);
+  if (!validation.valid) {
+    console.error('[ExcelService] Falha na validação do buffer gerado:', validation.error);
+  }
+
+  (buffer as any).validation = validation;
+  return buffer;
 }
+
+export async function generateExcelBufferWithValidation(title: string, content: string, versionIndex = 1): Promise<{ buffer: Buffer; validation: XlsxValidationResult }> {
+  const buffer = await generateExcelBuffer(title, content, versionIndex);
+  const validation = (buffer as any).validation || await validateXlsxBuffer(buffer, versionIndex);
+  return { buffer, validation };
+}
+

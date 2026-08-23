@@ -40,7 +40,7 @@ import {
 import { runAllEmailAutomations } from "./emailAutomation.js";
 import { processBackgroundTasks, executeScheduledTaskNow } from "./scheduledTasksBackground.js";
 import { getAllSystemPrompts, getSystemPrompt, updateSystemPrompt } from "./systemPromptsManager.js";
-import { executeSandboxCommand, writeSandboxFile, writeSandboxBinaryFile, readSandboxFile, deleteSandboxFile, listSandboxFiles, ensureSandboxDir, getSandboxFileDetails, getMimeTypeForFile, preFlightCheck } from "./terminalService.js";
+import { executeSandboxCommand, writeSandboxFile, writeSandboxBinaryFile, readSandboxFile, deleteSandboxFile, listSandboxFiles, ensureSandboxDir, getSandboxFileDetails, getMimeTypeForFile, preFlightCheck, type ExecutionResult } from "./terminalService.js";
 import { generateExcelBuffer } from "./excelService.js";
 import { verifyFirebaseIdToken, DecodedAuthToken } from "./authVerifier.js";
 import { cleanAndDeduplicateSources, extractDateFromUrlAndSnippet, normalizeCanonicalUrl, RawSource } from "../src/utils/sourceCleaner.js";
@@ -157,22 +157,22 @@ async function getWatermarkLogoBuffer(): Promise<Buffer | null> {
 }
 
 const app = express();
+app.disable('x-powered-by');
+app.use((_req, res, next) => {
+  res.removeHeader('X-Powered-By');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  next();
+});
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Health Check route
+// Health Check route - Public health check (clean, no fingerprinting or integration flags exposed)
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
     service: "Omnix AI Backend",
-    timestamp: new Date().toISOString(),
-    env: {
-      hasIaApiKey: Boolean(process.env.IA_API_KEY || process.env.GEMINI_API_KEY),
-      hasIaApiKey2: Boolean(process.env.IA_API_KEY_2 || process.env.GEMINI_API_KEY_2),
-      hasIaApiKey3: Boolean(process.env.IA_API_KEY_3 || process.env.GEMINI_API_KEY_3),
-      hasTavily: Boolean(process.env.TAVILY_API_KEY),
-      hasResend: Boolean(process.env.RESEND_API_KEY)
-    }
+    version: "1.0.0",
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -200,9 +200,10 @@ export async function verifyAuthTokenMiddleware(
 
   if (isInternalBypass) {
     const verifiedUid = (req.body && req.body.userId) || (req.headers['x-scheduled-task-user-id'] as string) || 'system_scheduler';
+    const callerEmail = (req.headers['x-scheduled-task-user-email'] as string) || (req.body && req.body.userEmail) || `${verifiedUid}@omnix.internal`;
     req.user = {
       uid: verifiedUid,
-      email: 'wsmathenas@gmail.com',
+      email: callerEmail,
       admin: true,
       emailVerified: true
     };
@@ -223,9 +224,10 @@ export async function verifyAuthTokenMiddleware(
           const taskData = taskDoc.data();
           // Allow if execution secret matches or if task is currently running
           if (taskData.executionSecret === executionSecret || taskData.lastStatus === 'running' || taskData.lastStatus === 'iniciada' || taskData.lastStatus === 'iniciando') {
+            const taskUserEmail = taskData.userEmail || taskData.createdByUserEmail || (req.headers['x-scheduled-task-user-email'] as string) || `${userId}@omnix.internal`;
             req.user = {
               uid: userId as string,
-              email: 'wsmathenas@gmail.com',
+              email: taskUserEmail,
               admin: true,
               emailVerified: true
             };
@@ -278,10 +280,12 @@ export async function verifyAuthTokenMiddleware(
 
   try {
     const decodedToken: DecodedAuthToken = await verifyFirebaseIdToken(token);
+    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+    const isAdmin = decodedToken.admin === true || (decodedToken.email && adminEmails.includes(decodedToken.email.toLowerCase()));
     req.user = {
       uid: decodedToken.uid,
       email: decodedToken.email,
-      admin: decodedToken.admin === true || decodedToken.email === 'wsmathenas@gmail.com',
+      admin: Boolean(isAdmin),
       emailVerified: decodedToken.emailVerified
     };
     return next();
@@ -1023,6 +1027,7 @@ DIRETRIZES FUNDAMENTAIS DE CONTINUIDADE:
       const idx = cleanedText.toLowerCase().indexOf("<history>");
       cleanedText = cleanedText.slice(0, idx);
     }
+    cleanedText = cleanedText.replace(/<\/?(?:finish|agent)\b[^>]*\/?>/gi, "");
     return { cleanedText: cleanedText.trim(), memoryDoc };
   };
 
@@ -1582,6 +1587,22 @@ ${contextInfo}`;
     const formInstruction = "\n" + getSystemPrompt('form_generation', '');
     const docInstruction = "\n" + getSystemPrompt('doc_generator', '');
     const writingConstraints = "\n" + getSystemPrompt('writing_constraints', '');
+    const mathInstruction = "\n" + getSystemPrompt('math_latex_instructions', `
+# MATEMÁTICA, FÍSICA E FÓRMULAS CIENTÍFICAS (LATEX E MATHJAX/KATEX OBRIGATÓRIOS)
+TODAS as fórmulas matemáticas, equações de física, expressões algébricas, variáveis com índices, frações e cálculos DEVEM OBRIGATORIAMENTE ser escritos em sintaxe LaTeX padronizada para renderização visual perfeita via KaTeX/MathJax:
+1. **FÓRMULAS EM DESTAQUE (BLOCO $$ ... $$)**: Toda equação principal, fórmula física, dedução ou linha de cálculo DEVE ser delimitada por \`$$\` ... \`$$\` (NUNCA use crases \` em volta de fórmulas LaTeX!). Ex: \`$$P_{\\text{inicial}} = P_{\\text{final}}$$\`, \`$$m_A \\cdot v_{A,\\text{inicial}} + m_B \\cdot v_{B,\\text{inicial}} = m_A \\cdot v_{A,\\text{final}} + m_B \\cdot v_{B,\\text{final}}$$\`, \`$$P_{\\text{inicial}} = (m_b + m_c) \\cdot 0 = 0$$\`, \`$$P_{\\text{final}} = m_b v_b + m_c v_c$$\`, \`$$v_c = -\\frac{v_b}{8}$$\`, \`$$E = m c^2$$\`, \`$$F = m a$$\`, \`$$\\Delta s = v_0 t + \\frac{1}{2} a t^2$$\`.
+2. **TERMOS E VARIÁVEIS NO TEXTO (INLINE $ ... $)**: Variáveis matemáticas, índices ou grandezas no meio de frases DEVEM usar \`$ ... $\` (ex: \`$v_c$\`, \`$m_A$\`, \`$v_{A,\\text{inicial}}$\`, \`$P_{\\text{final}}$\`, \`$P_{\\text{inicial}}$\`, \`$t$\`, \`$\\Delta t$\`, \`$\\alpha$\`, \`$\\pi$\`).
+3. **REGRAS ESTRITAS DE SINTAXE LATEX & PROIBIÇÃO DE ERROS**:
+   - NUNCA use crases de código (\`) ao redor de fórmulas.
+   - NUNCA use múltiplos underscores encadeados sem chaves como \`v_A_inicial\`. Use sempre chaves agrupadoras com \`\\text{}\`: \`$v_{A,\\text{inicial}}$\`, \`$v_{A,\\text{final}}$\`, \`$m_A$\`.
+   - Use SEMPRE operadores LaTeX: multiplicação com \`\\cdot\`, frações com \`\\frac{a}{b}\`, raízes com \`\\sqrt{x}\` e letras gregas como \`\\Delta\`, \`\\theta\`.
+`);
+    const flowControlInstruction = "\n" + getSystemPrompt('agent_flow_control', `
+# CONTROLE DE FLUXO E SINALIZAÇÃO DE ESTADO (<finish> E <agent>)
+1. SINALIZAÇÃO DE RESPOSTA CONCLUÍDA (<finish>): Sempre que você terminar de responder integralmente a mensagem do usuário (seja resposta conversacional, explicação de cálculo, raciocínio ou entrega final), finalize SEMPRE a sua resposta com a tag <finish>.
+2. SINALIZAÇÃO DE CONTINUAÇÃO AGÊNTICA (<agent>): Se você estiver em um fluxo agêntico intermediário executando múltiplas ferramentas sequenciais e ainda NÃO terminou a resposta final, emita a tag <agent> acompanhada da chamada da ferramenta.
+3. TRANSPARÊNCIA: As tags <finish> e <agent> são de controle de execução interna e são filtradas automaticamente pelo sistema, nunca aparecendo para o usuário.
+`);
     const tasksInstruction = isScheduledExecution
       ? `\n## ATENÇÃO CRÍTICA: EXECUÇÃO AUTOMÁTICA DE TAREFA AGENDADA\nEsta requisição é a execução de uma tarefa que JÁ FOI AGENDADA previamente. Você está ABSOLUTAMENTE PROIBIDO de gerar a tag <wsm_task ... /> nesta resposta under ANY circumstances. Apenas execute a instrução e apresente o resultado final diretamente.`
       : "\n" + getSystemPrompt('autonomous_tasks', '');
@@ -1668,14 +1689,23 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
    - **Shell / Linux Utilities**: \`bash\`, \`sh\`, \`ls\`, \`cat\`, \`grep\`, \`mkdir\`, \`cp\`, \`mv\`, \`rm\`, \`touch\`, \`head\`, \`tail\`, etc.
 2. **Manipulação de Arquivos e Pastas**: Crie, edite, renomeie, exclua e organize pastas e documentos usando ferramentas de documento (\`create_document\`, \`edit_document\`, \`delete_document\`) ou comandos do terminal (\`mkdir\`, \`touch\`, \`mv\`, \`cp\`, \`rm\`, \`cat\`, \`ls\`, \`write_terminal_file\`). Todos os arquivos criados ou modificados aparecem automaticamente no Workspace do usuário.
 3. **Execução Real de Códigos e Scripts**: Sempre que o usuário pedir para criar, testar ou executar códigos Python ou JavaScript, utilize \`execute_terminal_command\` (ex: \`python3 script.py\`, \`python script.py\`, \`node index.js\`, \`npm test\`) ou \`run_code_sandbox\`. ${isPythonInstalled ? "" : "IMPORTANTE: Como o Python não está instalado no sandbox, você NUNCA deve chamar execute_terminal_command ou run_code_sandbox para Python; use apenas para JavaScript/Node.js."}
-4. **Validação Obrigatória de Status, Erros e Hashes SHA-256 (PROIBIDO INVENTAR SUCESSO OU HASHES)**:
+   - **EXECUÇÃO EM MEMÓRIA / SEM CRIAÇÃO DE ARQUIVOS**: Quando o usuário pedir para executar código, calcular operações (como soma, média, estatísticas ou testes) com a instrução de 'não criar arquivos', 'sem criar arquivos' ou quando não houver necessidade de salvar arquivos no Workspace, você DEVE utilizar \`run_code_sandbox\` com \`in_memory: true\` ou executar inline. NUNCA crie arquivos como \`index.js\`, \`script.py\` ou arquivos persistentes no Workspace. A execução ocorrerá de forma limpa em memória/temporária sem deixar lixo no Workspace.
+4. **Precisão de Fontes, Cotações e Reconciliação de Divergências na Web (REGRA CRÍTICA DE FIDELIDADE)**:
+   - **Diferenciação Rigorosa de Fontes**: NUNCA chame portais comerciais de notícias ou agregadores financeiros (como UOL Economia, Valor Econômico, InfoMoney, Google Finance, Investing.com, portais de notícias) de "fontes oficiais". Fontes oficiais são exclusivamente autoridades governamentais primárias ou emissoras reguladoras (ex: Banco Central do Brasil - BCB, Taxa PTAX, Receita Federal, B3, IBGE, Federal Reserve, Banco Central Europeu).
+   - **Reconciliação e Explicação de Divergências**: Se a busca retornar valores divergentes (ex: cotação do Dólar ou Euro variando entre R$ 5,1087, R$ 5,14 e R$ 5,19), você DEVE OBRIGATORIAMENTE explicar a razão técnica e temporal da diferença ao usuário:
+     1. Modalidade da cotação: Dólar Comercial vs Dólar Turismo vs Taxa PTAX do Banco Central;
+     2. Tipo de operação: Preço de Compra vs Preço de Venda (spread cambial);
+     3. Momento/Horário: Fechamento do dia anterior vs Cotação Intraday em tempo real vs horário de atualização do portal consultado;
+     4. Identifique claramente a fonte primária/oficial (ex: Banco Central do Brasil / PTAX) e diferencie-a dos portais de cotação comercial/turismo.
+5. **Validação Obrigatória de Status, Erros e Hashes SHA-256 (PROIBIDO INVENTAR SUCESSO OU HASHES)**:
+   - **FIDELIDADE TOTAL AO COMANDO LITERAL E EXECUÇÃO REAL**: Você DEVE SEMPRE relatar o comando literal exato enviado, o stdout real, o stderr real e o exit code real retornado pela ferramenta (\`execute_terminal_command\` ou \`run_code_sandbox\`). Se o comando executado retornou um erro, exit code diferente de zero ou stderr com falha, você DEVE declarar com precisão o resultado real ocorrido, sem inventar resultados teóricos ou omitir o que efetivamente aconteceu.
    - **PROIBIDO INVENTAR HASHES**: É ABSOLUTAMENTE PROIBIDO inventar, adivinhar ou escrever hashes SHA-256 (ex: strings de 64 caracteres hexa) ou tamanhos de arquivos manualmente no texto da sua resposta. Todos os hashes SHA-256 e tamanhos em bytes são gerados exclusivamente pelo backend do sistema a partir do arquivo real salvo no disco.
    - **CONDIÇÃO PARA APROVAÇÃO DE TESTES**: A palavra 'aprovado' ou afirmações de que testes/código foram executados e aprovados SÓ PODEM SER DECLARADAS se um comando de teste (\`execute_terminal_command\` ou \`run_code_sandbox\`) foi REALMENTE invocado e retornou \`exit_code === 0\` com saída confirmada no stdout.
    - **FERRAMENTAS BLOQUEADAS OU NÃO EXECUTADAS**: Se qualquer ferramenta foi bloqueada (por instrução do usuário, modo informativo ou diretiva de segurança) ou não foi executada, você DEVE OBRIGATORIAMENTE declarar o status como 'Não executado / Bloqueado'. NUNCA simule um sucesso sintético, NUNCA invente resultados de testes nem crie um relatório falso de aprovação.
-5. **Nunca Simule em Texto**: Sempre invoque a ferramenta correspondente no mesmo turno.`;
-      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + (userLocationContextInstruction ? userLocationContextInstruction + "\n\n" : "") + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + (activeSkillsInstruction ? activeSkillsInstruction + "\n\n" : "") + docInstruction + "\n\n" + formInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction + terminalInstruction + modeAdditions;
+6. **Nunca Simule em Texto**: Sempre invoque a ferramenta correspondente no mesmo turno.`;
+      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + (userLocationContextInstruction ? userLocationContextInstruction + "\n\n" : "") + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + (activeSkillsInstruction ? activeSkillsInstruction + "\n\n" : "") + docInstruction + "\n\n" + mathInstruction + "\n\n" + flowControlInstruction + "\n\n" + formInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction + terminalInstruction + modeAdditions;
     } else {
-      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + (activeSkillsInstruction ? activeSkillsInstruction + "\n\n" : "") + writingConstraints + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
+      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + (activeSkillsInstruction ? activeSkillsInstruction + "\n\n" : "") + writingConstraints + "\n\n" + mathInstruction + "\n\n" + flowControlInstruction + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
     }
 
     if (userForbidsTerminal) {
@@ -1683,7 +1713,7 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
     }
 
     if (userForbidsDocuments) {
-      activeSystemPrompt += "\n\n[INSTRUÇÃO DE SEGURANÇA ABSOLUTA - PROIBIÇÃO EXPLÍCITA DE CRIAÇÃO DE ARQUIVOS]: O usuário ordenou explicitamente: 'NÃO CRIE ARQUIVOS/DOCUMENTOS'. Você está ESTRITAMENTE PROIBIDO de invocar create_document, edit_document ou de emitir qualquer bloco <wsm_doc> ou <doc> na sua resposta. Responda exclusivamente em texto no chat.";
+      activeSystemPrompt += "\n\n[INSTRUÇÃO DE SEGURANÇA ABSOLUTA - PROIBIÇÃO EXPLÍCITA DE CRIAÇÃO DE ARQUIVOS]: O usuário ordenou explicitamente: 'NÃO CRIE ARQUIVOS/DOCUMENTOS' ou 'sem criar arquivos'. Você está ESTRITAMENTE PROIBIDO de invocar create_document, edit_document, write_terminal_file ou de emitir qualquer bloco <wsm_doc> ou <doc> na sua resposta. Se for necessário calcular ou executar código (ex: calcular soma, média, estatísticas ou testes), você DEVE OBRIGATORIAMENTE utilizar execução em memória (run_code_sandbox com in_memory=true) sem criar nem persistir arquivos no Workspace, e informar ao usuário que o processamento foi executado em memória.";
     }
 
     if (userForbidsTools) {
@@ -1871,10 +1901,15 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
             },
             {
               name: "run_code_sandbox",
-              description: "Executa código Python, JavaScript ou Node.js no terminal sandbox.",
+              description: "Executa código Python, JavaScript ou Node.js no terminal sandbox. Suporta execução em memória sem criar arquivos no workspace quando in_memory=true ou quando o usuário solicitar para não criar arquivos.",
               parameters: {
                 type: Type.OBJECT,
-                properties: { language: { type: Type.STRING }, code: { type: Type.STRING }, filename: { type: Type.STRING } },
+                properties: {
+                  language: { type: Type.STRING, description: "Linguagem do código (javascript, nodejs, python)" },
+                  code: { type: Type.STRING, description: "Código fonte a ser executado" },
+                  filename: { type: Type.STRING, description: "Nome do arquivo (opcional). Se omitido ou in_memory=true, executa em memória sem salvar arquivo no workspace." },
+                  in_memory: { type: Type.BOOLEAN, description: "Se true, executa em memória/runtime temporário sem persistir nenhum arquivo no Workspace." }
+                },
                 required: ["language", "code"]
               }
             },
@@ -1965,6 +2000,21 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
       const promptHasRequestedActions = !isHtmlSiteRequest && !isSimpleGreetingOrMathPrompt && (promptWantsBrowser || promptWantsSearch);
 
       const visitedUrlsInTurn: string[] = [];
+      interface AgenticNavStep {
+        step: number;
+        action: string;
+        target?: string;
+        previousUrl: string;
+        currentUrl: string;
+        pageTitle: string;
+        contentHash: string;
+        h1?: string;
+        headings?: Array<{ tag: string; text: string }>;
+        paragraphs?: string[];
+        snippet: string;
+        status: string;
+      }
+      const agenticNavHistory: AgenticNavStep[] = [];
       let autoContinuationCount = 0;
       const MAX_AUTO_CONTINUATIONS = 2;
 
@@ -2112,9 +2162,13 @@ function getAttachmentStatusMessage(attachments: any[]): string {
         let textForThisTurn = "";
         let functionCallsForThisTurn: any[] = [];
         let aggregatedParts: any[] = [];
+        let finishReasonForThisTurn: string | undefined = undefined;
 
         for await (const chunk of responseStream) {
           const candidate = chunk.candidates?.[0];
+          if (candidate?.finishReason) {
+            finishReasonForThisTurn = candidate.finishReason;
+          }
           
           if (candidate?.content?.parts) {
             for (const part of candidate.content.parts) {
@@ -2124,16 +2178,22 @@ function getAttachmentStatusMessage(attachments: any[]): string {
               if (part.text) {
                 textForThisTurn += part.text;
                 fullOutput += part.text;
-                // Send text in simulated stream chunks for smooth UI typewriter feel (suppress <history> internal tags from streaming)
+                // Send text in simulated stream chunks for smooth UI typewriter feel (suppress <history> and internal flow control tags from streaming)
                 if (!fullOutput.includes("<history>")) {
-                  const words = part.text.split(/(\s+)/);
-                  let chunkGroup = "";
-                  for (let i = 0; i < words.length; i++) {
-                    chunkGroup += words[i];
-                    if (i % 6 === 0 || i === words.length - 1) {
-                      sendEvent({ type: "chunk", text: chunkGroup });
-                      chunkGroup = "";
-                      await new Promise(r => setTimeout(r, 15));
+                  const cleanPartText = part.text.replace(/<\/?(?:finish|agent)\b[^>]*\/?>/gi, "");
+                  if (cleanPartText) {
+                    const words = cleanPartText.split(/(\s+)/);
+                    let chunkGroup = "";
+                    for (let i = 0; i < words.length; i++) {
+                      chunkGroup += words[i];
+                      if (i % 6 === 0 || i === words.length - 1) {
+                        const cleanChunk = chunkGroup.replace(/<\/?(?:finish|agent)\b[^>]*\/?>/gi, "");
+                        if (cleanChunk) {
+                          sendEvent({ type: "chunk", text: cleanChunk });
+                        }
+                        chunkGroup = "";
+                        await new Promise(r => setTimeout(r, 15));
+                      }
                     }
                   }
                 }
@@ -2143,6 +2203,14 @@ function getAttachmentStatusMessage(attachments: any[]): string {
               }
             }
           }
+        }
+
+        // Detect if response was truncated due to output token limit
+        if (finishReasonForThisTurn === 'MAX_TOKENS' || finishReasonForThisTurn === 'LENGTH') {
+          const truncationWarning = `\n\n⚠️ **[Aviso: Resposta Truncada por Limite de Tamanho]**\nA saída atingiu a janela máxima de tokens permitida pelo modelo antes de concluir a totalidade dos dados. Se você precisa da continuação da lista, código ou documento, responda *"continue"* ou *"continuar a partir de [último item gerado]"*.`;
+          sendEvent({ type: "chunk", text: truncationWarning });
+          textForThisTurn += truncationWarning;
+          fullOutput += truncationWarning;
         }
 
         // 1. Detect if model wrote pseudocode call tags in textForThisTurn instead of native functionCall
@@ -2353,8 +2421,14 @@ function getAttachmentStatusMessage(attachments: any[]): string {
             }
             else if (fc.name === "run_code_sandbox") {
               const lang = (fc.args as any)?.language || 'javascript';
-              const fn = (fc.args as any)?.filename || ((lang === 'python' || lang === 'py') ? 'script.py' : 'index.js');
-              thinkingText = `\n\n<wsm_terminal_exec command="${(lang === 'python' || lang === 'py') ? 'python3 ' + fn : 'node ' + fn}" status="running" />\n\n`;
+              const explicitFn = (fc.args as any)?.filename ? String((fc.args as any).filename).trim() : '';
+              const isInMemory = Boolean((fc.args as any)?.in_memory || userForbidsDocuments || !explicitFn);
+              if (isInMemory) {
+                thinkingText = `\n\n<wsm_terminal_exec command="${(lang === 'python' || lang === 'py') ? 'python3 (em memória)' : 'node (em memória)'}" status="running" inMemory="true" />\n\n`;
+              } else {
+                const fn = explicitFn || ((lang === 'python' || lang === 'py') ? 'script.py' : 'index.js');
+                thinkingText = `\n\n<wsm_terminal_exec command="${(lang === 'python' || lang === 'py') ? 'python3 ' + fn : 'node ' + fn}" status="running" />\n\n`;
+              }
             }
             else if (fc.name === "write_terminal_file") {
               thinkingText = `\n\n<wsm_terminal_file action="write" path="${(fc.args as any)?.path || 'arquivo'}" />\n\n`;
@@ -2395,7 +2469,7 @@ function getAttachmentStatusMessage(attachments: any[]): string {
               continue;
             }
 
-            if (userForbidsDocuments && ["create_document", "edit_document", "append_document", "delete_document"].includes(fc.name)) {
+            if (userForbidsDocuments && ["create_document", "edit_document", "append_document", "delete_document", "write_terminal_file"].includes(fc.name)) {
               console.warn(`[Security Block] Intercepted and blocked document creation tool '${fc.name}' due to user prohibition ('Não crie arquivos').`);
               const callId = fc.id || `call_${fc.name}_${Math.random().toString(36).substring(2, 8)}`;
               functionResponseParts.push({
@@ -2407,7 +2481,7 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                     executed: false,
                     exit_code: null,
                     error: "Criação/edição de documentos bloqueada por instrução explícita do usuário ('Não crie arquivos').",
-                    instruction: "AVISO CRÍTICO DE INTEGRIDADE: O usuário proibiu explicitamente a criação de documentos. A ferramenta FOI BLOQUEADA E NÃO FOI EXECUTADA. É ABSOLUTAMENTE PROIBIDO AFIRMAR QUE OS ARQUIVOS FORAM CRIADOS OU EDITADOS. Forneça apenas resposta explicativa em texto."
+                    instruction: "AVISO CRÍTICO DE INTEGRIDADE: O usuário proibiu explicitamente a criação de documentos. A ferramenta FOI BLOQUEADA E NÃO FOI EXECUTADA. É ABSOLUTAMENTE PROIBIDO AFIRMAR QUE OS ARQUIVOS FORAM CRIADOS OU EDITADOS. Se precisar calcular operações ou testar códigos, utilize execução em memória (run_code_sandbox com in_memory=true) sem persistir arquivos no Workspace."
                   }
                 }
               });
@@ -2642,6 +2716,9 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                 functionResponse: { id: fc.id, name: fc.name, response: { conversation_history: historyText } }
               });
             } else if (fc.name === "open_url" || fc.name === "click" || fc.name === "type_text" || fc.name === "scroll_page" || fc.name === "extract_visible_text" || fc.name === "wait_seconds") {
+              const prevNavStep = agenticNavHistory[agenticNavHistory.length - 1];
+              const prevUrl = prevNavStep?.currentUrl || '';
+
               let result: any = {};
               if (fc.name === "open_url") {
                 result = await openUrl((fc.args as any).url);
@@ -2684,13 +2761,61 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                 delete result.screenshot;
               }
 
-              if (result && result.url) {
-                const normUrl = String(result.url).replace(/\/$/, '').toLowerCase();
+              const curUrl = result.url || (fc.args as any)?.url || prevUrl;
+              const contentHash = result.content_hash || crypto.createHash('sha256').update(result.text || curUrl || '', 'utf8').digest('hex').substring(0, 16);
+              const curTitle = result.title || prevNavStep?.pageTitle || '';
+              const curH1 = result.h1 || prevNavStep?.h1 || '';
+              const curHeadings = result.headings || prevNavStep?.headings || [];
+              const curParagraphs = result.paragraphs || prevNavStep?.paragraphs || [];
+              const snippet = (result.text || '').substring(0, 300);
+
+              // Proactive agentic tracking: detect duplicate action/state without progress
+              const isSameStateRepeat = Boolean(prevNavStep && (
+                (prevNavStep.action === fc.name && prevNavStep.contentHash === contentHash && prevNavStep.currentUrl === curUrl) ||
+                (fc.name === "extract_visible_text" && prevNavStep.contentHash === contentHash) ||
+                (fc.name === "open_url" && prevNavStep.currentUrl === curUrl && prevNavStep.contentHash === contentHash)
+              ));
+
+              const navStepNumber = agenticNavHistory.length + 1;
+              agenticNavHistory.push({
+                step: navStepNumber,
+                action: fc.name,
+                target: (fc.args as any)?.url || (fc.args as any)?.selector || (fc.args as any)?.text || '',
+                previousUrl: prevUrl,
+                currentUrl: curUrl,
+                pageTitle: curTitle,
+                contentHash,
+                h1: curH1,
+                headings: curHeadings,
+                paragraphs: curParagraphs,
+                snippet,
+                status: result.error ? "failed" : "succeeded"
+              });
+
+              if (curUrl) {
+                const normUrl = String(curUrl).replace(/\/$/, '').toLowerCase();
                 visitedUrlsInTurn.push(normUrl);
-                const visitCount = visitedUrlsInTurn.filter(u => u === normUrl).length;
-                if (visitCount >= 2) {
-                  result.system_note = `[SISTEMA DE PREVENÇÃO DE LOOP DE NAVEGAÇÃO]: Você já acessou a URL '${result.url}' ${visitCount} vezes nesta resposta. PARE de abrir links ou navegar. Responda imediatamente ao usuário transcrevendo o texto exato retornado no campo 'text' sem realizar mais nenhuma chamada de ferramenta de navegação.`;
-                }
+              }
+
+              // Include rich agentic navigation feedback
+              result.agentic_navigation_summary = {
+                step: navStepNumber,
+                acao_executada: fc.name,
+                url_anterior: prevUrl || '(início da navegação)',
+                url_atual: curUrl,
+                titulo_pagina: curTitle,
+                cabecalho_principal_h1: curH1,
+                cabecalhos_extraidos: curHeadings,
+                paragrafos_extraidos: curParagraphs,
+                hash_conteudo: contentHash,
+                estado_mudou: !isSameStateRepeat,
+                instrucao_ao_agente: isSameStateRepeat
+                  ? `[AVISO PROATIVO DE ESTADO INALTERADO]: A página '${curUrl}' já foi lida e os dados já foram coletados no passo anterior (hash ${contentHash}). NÃO repita a chamada de ferramentas para esta página. Elabore e envie agora a resposta final completa ao usuário com o título, cabeçalho e parágrafos solicitados.`
+                  : `Você obteve com sucesso os dados da página '${curUrl}'. Título: "${curTitle}". H1: "${curH1}". ${curParagraphs.length} parágrafos disponíveis. Se o objetivo do usuário foi navegar, ler ou extrair informações desta página, você já possui todas as informações necessárias. Responda diretamente ao usuário agora em texto explicativo formatado.`
+              };
+
+              if (isSameStateRepeat) {
+                result.system_note = `[PROACTIVE NAVIGATION LOOP GUARD]: O conteúdo da página não sofreu alterações desde a última leitura (hash ${contentHash}). Você já possui todo o texto. Responda imediatamente ao usuário sem disparar novas chamadas de ferramentas.`;
               }
 
               functionResponseParts.push({
@@ -3315,42 +3440,78 @@ function getAttachmentStatusMessage(attachments: any[]): string {
             } else if (fc.name === "run_code_sandbox") {
               terminalCommandsExecutedCount++;
               const args = fc.args as any;
-              const lang = String(args.language || 'javascript');
+              const lang = String(args.language || 'javascript').toLowerCase();
               const code = String(args.code || '');
-              const fn = String(args.filename || (lang === 'python' ? 'script.py' : 'index.js'));
-              
-              // Persist code to real sandbox file
-              writeSandboxFile(fn, code);
+              const explicitFn = args.filename ? String(args.filename).trim() : '';
+              const isInMemory = Boolean(args.in_memory || userForbidsDocuments || !explicitFn);
+
+              let cmd = '';
+              let tempFilename: string | null = null;
+              let targetFn = explicitFn;
+
+              if (isInMemory) {
+                // In-memory or temporary execution: create hidden transient file and delete immediately in finally block
+                const tempId = `._tmp_exec_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+                const ext = (lang === 'python' || lang === 'py') ? 'py' : 'js';
+                tempFilename = `${tempId}.${ext}`;
+                writeSandboxFile(tempFilename, code);
+                cmd = (lang === 'python' || lang === 'py') ? `python3 ${tempFilename}` : `node ${tempFilename}`;
+                targetFn = '(em memória)';
+              } else {
+                targetFn = explicitFn || (lang === 'python' ? 'script.py' : 'index.js');
+                writeSandboxFile(targetFn, code);
+                cmd = (lang === 'python' || lang === 'py') ? `python3 ${targetFn}` : `node ${targetFn}`;
+              }
 
               sendEvent({
                 type: "terminal_action",
                 action: "run_code",
                 language: lang,
                 code,
-                filename: fn
+                filename: targetFn,
+                inMemory: isInMemory
               });
 
-              const cmd = (lang === 'python' || lang === 'py') ? `python3 ${fn}` : `node ${fn}`;
-              const execResult = await executeSandboxCommand(cmd, 15);
+              let execResult: ExecutionResult;
+              try {
+                execResult = await executeSandboxCommand(cmd, 15);
+              } finally {
+                if (tempFilename) {
+                  try {
+                    deleteSandboxFile(tempFilename);
+                  } catch {}
+                }
+              }
+
               (fc as any)._exitCode = execResult.exitCode;
+              (fc as any)._inMemory = isInMemory;
+              (fc as any)._stdout = execResult.stdout;
+              (fc as any)._stderr = execResult.stderr;
+
+              const sanitizedFilesModified = (execResult.filesModified || []).filter(
+                f => !f.includes('._tmp_') && !f.includes('/._tmp_') && !f.startsWith('.') && !f.includes('/.')
+              );
 
               sendEvent({
                 type: "terminal_action",
                 action: "result",
-                command: cmd,
+                command: isInMemory ? `${lang} (em memória)` : cmd,
                 exitCode: execResult.exitCode,
                 stdout: execResult.stdout,
                 stderr: execResult.stderr,
-                filesModified: execResult.filesModified
+                filesModified: sanitizedFilesModified,
+                inMemory: isInMemory
               });
 
               let codeDirective: string | undefined = undefined;
               if (execResult.exitCode !== 0) {
                 if (execResult.exitCode === 127 || execResult.stderr.toLowerCase().includes('command not found')) {
-                  codeDirective = `[ALERTA DE RUNTIME INDISPONÍVEL (Exit ${execResult.exitCode})]: O script '${fn}' não pôde ser executado porque o interpretador (${lang}) não está instalado no ambiente (command not found). É ESTRITAMENTE PROIBIDO SIMULAR UMA EXECUÇÃO OU AFIRMAR SUCESSO. Você DEVE OBRIGATORIAMENTE declarar status: 'failed', exibir a mensagem do stderr e informar o usuário sobre a ausência do interpretador.`;
+                  codeDirective = `[ALERTA DE RUNTIME INDISPONÍVEL (Exit ${execResult.exitCode})]: O código não pôde ser executado porque o interpretador (${lang}) não está instalado no ambiente (command not found). É ESTRITAMENTE PROIBIDO SIMULAR UMA EXECUÇÃO OU AFIRMAR SUCESSO. Você DEVE OBRIGATORIAMENTE declarar status: 'failed', exibir a mensagem do stderr e informar o usuário sobre a ausência do interpretador.`;
                 } else {
-                  codeDirective = `[ALERTA CRÍTICO DO SISTEMA - FALHA NA EXECUÇÃO DO SCRIPT (Exit ${execResult.exitCode})]: O script '${fn}' falhou ao executar. Se o script deveria ter gerado arquivos e falhou, esses arquivos NÃO FORAM CRIADOS. É ESTRITAMENTE PROIBIDO AFIRMAR QUE OS ARQUIVOS FORAM CRIADOS E VALIDADOS COM SUCESSO. Você DEVE OBRIGATORIAMENTE declarar 'failed' e exibir a mensagem de erro do stderr.`;
+                  codeDirective = `[ALERTA CRÍTICO DO SISTEMA - FALHA NA EXECUÇÃO DO SCRIPT (Exit ${execResult.exitCode})]: A execução do código falhou. Se o código deveria ter gerado arquivos e falhou, esses arquivos NÃO FORAM CRIADOS. É ESTRITAMENTE PROIBIDO AFIRMAR QUE OS ARQUIVOS FORAM CRIADOS E VALIDADOS COM SUCESSO. Você DEVE OBRIGATORIAMENTE declarar 'failed' e exibir a mensagem de erro do stderr.`;
                 }
+              } else if (isInMemory) {
+                codeDirective = `[EXECUÇÃO EM MEMÓRIA CONCLUÍDA COM SUCESSO]: O processamento foi realizado em memória/temporariamente sem criar ou persistir nenhum arquivo no Workspace, respeitando a diretiva de integridade. Apresente o resultado do cálculo/processamento diretamente em texto.`;
               }
 
               functionResponseParts.push({
@@ -3360,11 +3521,12 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                   response: {
                     status: execResult.exitCode === 0 ? "succeeded" : "failed",
                     language: lang,
-                    filename: fn,
+                    filename: targetFn,
+                    in_memory: isInMemory,
                     exit_code: execResult.exitCode,
                     stdout: execResult.stdout,
                     stderr: execResult.stderr,
-                    files_modified: execResult.filesModified,
+                    files_modified: sanitizedFilesModified,
                     execution_time_ms: execResult.durationMs,
                     ...(codeDirective ? { system_directive: codeDirective } : {})
                   }
@@ -3515,23 +3677,34 @@ function getAttachmentStatusMessage(attachments: any[]): string {
               finalTagText = `\n\n${fileTags}<wsm_terminal_exec command="${cmd.replace(/"/g, '&quot;')}" status="${termStatus}" exitCode="${code}" runId="${runId}" stdout_b64="${b64Out}" stderr_b64="${b64Err}" />\n\n`;
             } else if (fc.name === "run_code_sandbox") {
               const lang = (fc.args as any)?.language || 'javascript';
-              const fn = (fc.args as any)?.filename || ((lang === 'python' || lang === 'py') ? 'script.py' : 'index.js');
+              const isInMemory = Boolean((fc as any)._inMemory || (fc.args as any)?.in_memory || userForbidsDocuments || !(fc.args as any)?.filename);
+              const explicitFn = (fc.args as any)?.filename ? String((fc.args as any).filename).trim() : '';
+              const fn = explicitFn || ((lang === 'python' || lang === 'py') ? 'script.py' : 'index.js');
               const codeStr = (fc.args as any)?.code || '';
               const code = typeof (fc as any)._exitCode === 'number' ? (fc as any)._exitCode : 0;
               const codeStatus = code === 0 ? "succeeded" : (code === 124 ? "timed_out" : "failed");
               const runId = (fc as any)._runId || `run_code_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
               const ext = fn.split('.').pop() || ((lang === 'python' || lang === 'py') ? 'py' : 'js');
-              const details = getSandboxFileDetails(fn);
-              const diskSize = details?.size ?? Buffer.byteLength(codeStr, 'utf8');
-              const diskSha256 = details?.sha256 ?? crypto.createHash('sha256').update(codeStr, 'utf8').digest('hex');
-              const docJson = JSON.stringify({ title: fn, format: ext, content: codeStr, size: diskSize, sha256: diskSha256 });
-              const execCmd = (lang === 'python' || lang === 'py') ? 'python3 ' + fn : 'node ' + fn;
-              if (code === 0) {
-                finalTagText = `\n\n<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${fn}" size="${diskSize}" hash="${diskSha256}" runId="${runId}" />\n<wsm_terminal_exec command="${execCmd}" status="${codeStatus}" exitCode="${code}" runId="${runId}" />\n\n`;
-              } else {
+              
+              if (isInMemory) {
+                // In-memory execution: zero files in workspace, NEVER emit <wsm_doc> or <wsm_terminal_file action="write">
                 const stdOutB64 = (fc as any)._stdout ? Buffer.from((fc as any)._stdout).toString("base64") : "";
                 const stdErrB64 = (fc as any)._stderr ? Buffer.from((fc as any)._stderr).toString("base64") : "";
-                finalTagText = `\n\n<wsm_terminal_exec command="${execCmd}" status="${codeStatus}" exitCode="${code}" runId="${runId}" stdout_b64="${stdOutB64}" stderr_b64="${stdErrB64}" />\n\n`;
+                const execCmd = (lang === 'python' || lang === 'py') ? 'python3 (em memória)' : 'node (em memória)';
+                finalTagText = `\n\n<wsm_terminal_exec command="${execCmd}" status="${codeStatus}" exitCode="${code}" inMemory="true" runId="${runId}" stdout_b64="${stdOutB64}" stderr_b64="${stdErrB64}" />\n\n`;
+              } else {
+                const details = getSandboxFileDetails(fn);
+                const diskSize = details?.size ?? Buffer.byteLength(codeStr, 'utf8');
+                const diskSha256 = details?.sha256 ?? crypto.createHash('sha256').update(codeStr, 'utf8').digest('hex');
+                const docJson = JSON.stringify({ title: fn, format: ext, content: codeStr, size: diskSize, sha256: diskSha256 });
+                const execCmd = (lang === 'python' || lang === 'py') ? 'python3 ' + fn : 'node ' + fn;
+                if (code === 0) {
+                  finalTagText = `\n\n<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${fn}" size="${diskSize}" hash="${diskSha256}" runId="${runId}" />\n<wsm_terminal_exec command="${execCmd}" status="${codeStatus}" exitCode="${code}" runId="${runId}" />\n\n`;
+                } else {
+                  const stdOutB64 = (fc as any)._stdout ? Buffer.from((fc as any)._stdout).toString("base64") : "";
+                  const stdErrB64 = (fc as any)._stderr ? Buffer.from((fc as any)._stderr).toString("base64") : "";
+                  finalTagText = `\n\n<wsm_terminal_exec command="${execCmd}" status="${codeStatus}" exitCode="${code}" runId="${runId}" stdout_b64="${stdOutB64}" stderr_b64="${stdErrB64}" />\n\n`;
+                }
               }
             } else if (fc.name === "write_terminal_file") {
               const pathStr = (fc.args as any)?.path || 'arquivo.py';
@@ -3582,16 +3755,23 @@ function getAttachmentStatusMessage(attachments: any[]): string {
 
           const isHtmlRequestThisTurn = isHtmlSiteRequest || aiStr.includes("[lendo skill: web-html]") || aiStr.includes("web-html") || aiStr.includes("<html") || aiStr.includes("<!doctype html>");
 
+          const hasNavigated = agenticNavHistory.length > 0;
+          const isFinalTextAnswer = hasNavigated && (
+            aiStr.length > 25 &&
+            !aiStr.includes("<task>") &&
+            !/\b(vou|irei|vamos|agora vou)\s+(abrir|acessar|navegar|clicar|digitar)\b/i.test(aiStr)
+          );
+
           const aiHasTaskBlock = aiStr.includes("<task>") || /\[(acessar|digitar|rolar|clicar|pesquisar|buscar|aguardar|esperar)\b/i.test(aiStr);
           const aiPromisedBrowser = !isHtmlRequestThisTurn && (/\b(vou|irei|estou|vamos|agora|próximo|proximo)\s+(abrir|acessar|navegar|digitar|clicar|rolar|preencher|enviar|colocar|selecionar|pressionar|aguardar|esperar|fechar)\b/i.test(aiStr) || /\b(preenchendo|enviando|clicando|digitando|abrindo|acessando|rolando|aguardando|fechando)\b/i.test(aiStr));
           const aiPromisedSearch = !isHtmlRequestThisTurn && (/\b(vou|irei|estou)\s+(pesquisar|buscar)\b|\bpesquisando\b/i.test(aiStr));
 
-          const wantsBrowser = !isHtmlRequestThisTurn && (promptWantsBrowser || aiPromisedBrowser);
+          const wantsBrowser = !isHtmlRequestThisTurn && !hasNavigated && (promptWantsBrowser || aiPromisedBrowser);
           const wantsSearch = !isHtmlRequestThisTurn && (promptWantsSearch || aiPromisedSearch);
 
-          const missingToolCall = !isHtmlRequestThisTurn && (
+          const missingToolCall = !isHtmlRequestThisTurn && !isFinalTextAnswer && (
             aiHasTaskBlock ||
-            aiPromisedBrowser ||
+            (!hasNavigated && aiPromisedBrowser) ||
             aiPromisedSearch
           );
 
@@ -3688,86 +3868,24 @@ function getAttachmentStatusMessage(attachments: any[]): string {
               continue;
             }
 
-            // Silent Auto-Inspection & Continuation Loop
-            if (autoContinuationCount < MAX_AUTO_CONTINUATIONS && turnCount < 10) {
-              const userRequestStr = typeof text === 'string' ? text : JSON.stringify(text);
-              const aiOutputSoFar = fullOutput.trim();
-              const createdDocsList = Array.from(workspaceDocuments.keys());
-
-              const userWantsDocOrFile = /\b(pdf|documento|doc|redação|redacao|artigo|relatório|relatorio|arquivo|código|codigo|script)\b/i.test(userRequestStr) && /\b(crie|criar|gerar|gere|escrever|escreva|faça|fazer|monte|montar)\b/i.test(userRequestStr);
-              const hasNoDocCreated = workspaceDocuments.size === 0 && !fullOutput.includes('<wsm_doc');
-              const isIntroductoryOrIncomplete = aiOutputSoFar.length < 350 || /\b(vou\s+(criar|gerar|escrever|fazer)|com\s+certeza!|aqui\s+está)\b/i.test(aiOutputSoFar);
-
-              let evalResultText = "";
-              let isDeclaredIncomplete = false;
-
-              if (userWantsDocOrFile && hasNoDocCreated && isIntroductoryOrIncomplete) {
-                console.warn(`[Auto-Inspection] Deterministic check triggered: User requested doc/PDF/file but AI gave only intro text without creating doc!`);
-                isDeclaredIncomplete = true;
-                evalResultText = "CONTINUAR: O usuário solicitou a criação de um PDF/documento/arquivo/redação, mas a resposta deu apenas uma introdução e não criou o documento/PDF no workspace.";
-              } else {
-                const inspectorPrompt = `Você é o Inspetor Silencioso de Qualidade de Respostas do Omnix 1.6.
-Sua missão é avaliar se a resposta da IA concluiu integralmente e com sucesso o serviço solicitado pelo usuário, ou se a IA parou na metade (ex: prometeu "Vou criar o PDF", "Vou gerar a redação", "Segue o código", "Vou criar o arquivo" mas a resposta encerrou antes do conteúdo completo ser fornecido ou antes de gerar o arquivo/documento no workspace).
-
-SOLICITAÇÃO DO USUÁRIO:
-"${userRequestStr}"
-
-RESPOSTA ATUAL DA IA:
-"${aiOutputSoFar}"
-
-DOCUMENTOS/ARQUIVOS CRIADOS NO WORKSPACE:
-${createdDocsList.length > 0 ? createdDocsList.join(', ') : 'Nenhum'}
-
-COMANDOS/SCRIPTS EXECUTADOS NO TERMINAL:
-${terminalCommandsExecutedCount > 0 ? `${terminalCommandsExecutedCount} comandos executados` : 'Nenhum'}
-
-INSTRUÇÕES DE AVALIAÇÃO:
-1. Se o usuário pediu para criar/gerar/escrever um PDF, documento, redação, código, script, arquivo ou projeto, e a IA apenas escreveu uma frase de introdução ou intenção (ex: "Vou criar...", "Vou gerar...", "Aqui está...", "Com certeza!") mas NÃO criou o documento no workspace e não forneceu a redação/código completo, responda: CONTINUAR: O usuário pediu para criar/gerar um PDF/documento/arquivo/redação, mas a IA apenas deu uma resposta introdutória e parou sem gerar o conteúdo/arquivo final. Crie o documento/PDF no workspace com o texto completo.
-2. Se a IA prometeu apresentar algo (ex: "Abaixo está o texto:", "Segue o arquivo:") mas a resposta foi cortada ou finalizada antes de apresentar o conteúdo, responda: CONTINUAR: A resposta parou no meio sem apresentar o conteúdo prometido. Apresente o conteúdo final completo.
-3. Se a IA respondeu ao usuário de forma completa, forneceu a resposta desejada ou criou o arquivo/documento com sucesso, responda APENAS: CONCLUIDO.
-
-Responda EXATAMENTE com "CONCLUIDO" ou "CONTINUAR: <motivo_curto>".`;
-
-                try {
-                  console.log(`[Auto-Inspection] Verifying AI response completeness on turn ${turnCount}...`);
-                  const inspectionResult = await callGeminiWithFallback({
-                    model: "gemini-2.5-flash",
-                    contents: inspectorPrompt,
-                    systemInstruction: "Você é um inspetor estrito de qualidade. Responda apenas CONCLUIDO ou CONTINUAR com o motivo."
-                  });
-
-                  evalResultText = (inspectionResult.text || "").trim();
-                  if (evalResultText.toUpperCase().startsWith("CONTINUAR")) {
-                    isDeclaredIncomplete = true;
-                  }
-                } catch (inspErr) {
-                  console.error("[Auto-Inspection Error]", inspErr);
-                }
-              }
-
-              if (isDeclaredIncomplete) {
-                autoContinuationCount++;
-                const motivoStr = evalResultText.replace(/^CONTINUAR:?\s*/i, "").trim() || "A resposta parou na metade ou prometeu algo sem concluir.";
-                console.warn(`[Auto-Inspection] Response incomplete on turn ${turnCount} (Pass ${autoContinuationCount}). Reason: ${motivoStr}`);
-
-                currentContents.push({ 
-                  role: "model", 
-                  parts: aggregatedParts.length > 0 ? aggregatedParts : [{ text: textForThisTurn || "Vou continuar o atendimento." }] 
-                });
-
-                currentContents.push({
-                  role: "user",
-                  parts: [{ text: `SISTEMA (AUTO-INSPEÇÃO SILENCIOSA - CONTINUAÇÃO): A sua resposta anterior parou na metade e não concluiu o pedido do usuário ("${userRequestStr.slice(0, 150)}..."). Motivo: ${motivoStr}. Por favor, continue IMEDIATAMENTE e CONCLUA a tarefa do usuário, gerando o documento/PDF/arquivo completo no Workspace (use a ferramenta 'create_document' ou crie o arquivo) ou fornecendo o conteúdo final integral sem frases introdutórias repetidas.` }]
-                });
-
-                forceNextTurnModeAny = true;
-                turnCount++;
-                continue; // Continues stream loop seamlessly!
-              } else {
-                console.log(`[Auto-Inspection] Response verified as complete (CONCLUIDO).`);
-              }
+            // Check if model explicitly signaled continuation with <agent> (and no <finish>)
+            const hasAgentSignal = /<agent\b[^>]*\/?>/i.test(textForThisTurn) && !/<finish\b[^>]*\/?>/i.test(textForThisTurn);
+            if (hasAgentSignal && turnCount < 5) {
+              console.log(`[Agentic Loop] <agent> signal detected on turn ${turnCount}. Continuing agent loop...`);
+              currentContents.push({ 
+                role: "model", 
+                parts: aggregatedParts.length > 0 ? aggregatedParts : [{ text: textForThisTurn || "" }] 
+              });
+              currentContents.push({
+                role: "user",
+                parts: [{ text: "SISTEMA: Prossiga com o próximo passo do fluxo agêntico." }]
+              });
+              turnCount++;
+              continue;
             }
 
+            // Normal completion: model generated response or emitted <finish> - finish immediately without secondary auto-inspection calls
+            console.log(`[Agentic Loop] Response completed on turn ${turnCount}. Terminating loop immediately.`);
             break; // no more function calls, we are done
           }
         }
@@ -3836,6 +3954,7 @@ Responda EXATAMENTE com "CONCLUIDO" ou "CONTINUAR: <motivo_curto>".`;
         .replace(/<call[\s\S]*?(?:\/>|>)/gi, "")
         .replace(/<call:default_api[\s\S]*?(?:\/>|>)/gi, "")
         .replace(/call:default_api:[^\s>]+/gi, "")
+        .replace(/<\/?(?:finish|agent)\b[^>]*\/?>/gi, "")
         .trim();
 
       wsmImageTokens.forEach((tag, idx) => {
@@ -4184,12 +4303,10 @@ app.post("/api/scheduled-tasks/execute-now", verifyAuthTokenMiddleware, async (r
   }
 });
 
-app.get("/api/scheduled-tasks/execute-now", (req: express.Request, res: express.Response) => {
-  return res.json({
-    status: "ok",
-    endpoint: "/api/scheduled-tasks/execute-now",
-    method: "POST required",
-    description: "Executa uma tarefa agendada imediatamente com verificação de autenticação."
+app.get("/api/scheduled-tasks/execute-now", (_req: express.Request, res: express.Response) => {
+  return res.status(405).json({
+    error: "Method Not Allowed",
+    message: "O endpoint /api/scheduled-tasks/execute-now aceita exclusivamente requisições POST autenticadas com parâmetros 'taskId' e 'taskData'."
   });
 });
 
@@ -4574,12 +4691,10 @@ app.get("/api/terminal/preflight", async (req: express.Request, res: express.Res
   }
 });
 
-app.get("/api/terminal/exec", (req: express.Request, res: express.Response) => {
-  return res.json({
-    status: "ok",
-    endpoint: "/api/terminal/exec",
-    method: "POST required",
-    description: "Executa comandos no terminal do sandbox com timeout configurável."
+app.get("/api/terminal/exec", (_req: express.Request, res: express.Response) => {
+  return res.status(405).json({
+    error: "Method Not Allowed",
+    message: "O endpoint /api/terminal/exec aceita exclusivamente requisições POST autenticadas contendo o campo 'command'."
   });
 });
 

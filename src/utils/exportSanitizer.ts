@@ -39,6 +39,7 @@ const ALLOWED_EXPORT_ROLES = new Set(['user', 'ai', 'assistant']);
  * Note: Visual UI artifacts (wsm_chart, wsm_map, wsm_mindmap, wsm_task, wsm_form) are now converted to Markdown before this stage.
  */
 const BANNED_PATTERNS: RegExp[] = [
+  /<\/?(?:finish|agent)\b[^>]*\/?>/gi,
   /<developer[\s\S]*?<\/developer>/gi,
   /<system_instructions[\s\S]*?<\/system_instructions>/gi,
   /<system[\s\S]*?<\/system>/gi,
@@ -129,11 +130,19 @@ export function convertVisualArtifactsToMarkdown(rawText: string): string {
         if (Array.isArray(parsed) && parsed.length > 0) {
           // Check if array of objects
           if (typeof parsed[0] === 'object' && parsed[0] !== null) {
-            const keys = Object.keys(parsed[0]);
-            markdownOutput += `| ${keys.join(' | ')} |\n`;
-            markdownOutput += `| ${keys.map(() => '---').join(' | ')} |\n`;
+            const rawKeys = Object.keys(parsed[0]);
+            const headerTitles = rawKeys.map(k => {
+              const clean = k.toLowerCase().trim();
+              if (['name', 'nome', 'label', 'x', 'eixo_x'].includes(clean)) return (xAxis && xAxis !== 'Eixo X') ? xAxis : 'Categoria / Item';
+              if (['valor', 'val', 'value', 'y', 'eixo_y'].includes(clean)) return (yAxis && yAxis !== 'Eixo Y') ? yAxis : 'Valor';
+              if (['mes', 'mês', 'month'].includes(clean)) return 'Mês';
+              if (['trimestre', 'tri'].includes(clean)) return 'Trimestre';
+              return k.charAt(0).toUpperCase() + k.slice(1);
+            });
+            markdownOutput += `| ${headerTitles.join(' | ')} |\n`;
+            markdownOutput += `| ${headerTitles.map(() => '---').join(' | ')} |\n`;
             parsed.forEach(item => {
-              markdownOutput += `| ${keys.map(k => String(item[k] ?? '')).join(' | ')} |\n`;
+              markdownOutput += `| ${rawKeys.map(k => String(item[k] ?? '')).join(' | ')} |\n`;
             });
           } else {
             markdownOutput += `\`\`\`json\n${JSON.stringify(parsed, null, 2)}\n\`\`\`\n`;
