@@ -39,10 +39,14 @@ export function extractSteps(
           description = cleanContent;
         }
 
+        // Clean wrapping markdown symbols on title
+        title = title.replace(/^[\*\_`#]+\s*/, '').replace(/\s*[\*\_`#]+$/, '').trim();
+        description = description.replace(/^[\*\_`#]+\s*/, '').replace(/\s*[\*\_`#]+$/, '').trim();
+
         steps.push({
           id: `step_text_${steps.length + 1}`,
-          title,
-          description,
+          title: title || cleanContent,
+          description: description || (isChecked ? 'Etapa concluída' : 'Etapa pendente'),
           status: isChecked ? 'completed' : 'pending',
           isExplicitCheckbox: true,
           startedAt: createdAt
@@ -67,10 +71,14 @@ export function extractSteps(
           description = cleanContent;
         }
 
+        // Clean wrapping markdown symbols on title
+        title = title.replace(/^[\*\_`#]+\s*/, '').replace(/\s*[\*\_`#]+$/, '').trim();
+        description = description.replace(/^[\*\_`#]+\s*/, '').replace(/\s*[\*\_`#]+$/, '').trim();
+
         steps.push({
           id: `step_text_${steps.length + 1}`,
-          title,
-          description,
+          title: title || cleanContent,
+          description: description || 'Etapa do plano de execução do agente',
           status: 'pending',
           isExplicitCheckbox: false,
           startedAt: createdAt

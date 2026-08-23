@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import katex from 'katex';
 import { OmnixRun, RunStep, DetailedToolCall } from '../types';
 import { 
   CheckCircle2,
@@ -28,6 +29,121 @@ interface RightRunSidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
   isStreaming?: boolean;
+}
+
+/**
+ * Safely renders inline markdown and LaTeX math (e.g. fractions, bold, code)
+ * so that raw asterisks or unparsed markers never appear in the sidebar.
+ */
+function renderFormattedStepText(text: string): React.ReactNode {
+  if (!text) return null;
+
+  // 1. First tokenize LaTeX math blocks: $...$ or \(...\)
+  const mathTokens: { id: string; html: string }[] = [];
+  let processed = text.replace(/(\$\$[\s\S]*?\$\$|\$[^$\n]+\$|\\\([\s\S]*?\\\))/g, (match) => {
+    let cleanTex = match;
+    if (cleanTex.startsWith('$$') && cleanTex.endsWith('$$')) {
+      cleanTex = cleanTex.slice(2, -2).trim();
+    } else if (cleanTex.startsWith('$') && cleanTex.endsWith('$')) {
+      cleanTex = cleanTex.slice(1, -1).trim();
+    } else if (cleanTex.startsWith('\\(') && cleanTex.endsWith('\\)')) {
+      cleanTex = cleanTex.slice(2, -2).trim();
+    }
+    try {
+      const html = katex.renderToString(cleanTex, { throwOnError: false, displayMode: false });
+      const id = `:::MATH_${mathTokens.length}:::`;
+      mathTokens.push({ id, html });
+      return id;
+    } catch {
+      return match;
+    }
+  });
+
+  // 2. Tokenize inline code: `code`
+  const codeTokens: { id: string; code: string }[] = [];
+  processed = processed.replace(/`([^`]+)`/g, (_m, code) => {
+    const id = `:::CODE_${codeTokens.length}:::`;
+    codeTokens.push({ id, code });
+    return id;
+  });
+
+  // 3. Tokenize markdown links: [text](url)
+  const linkTokens: { id: string; label: string; url: string }[] = [];
+  processed = processed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label, url) => {
+    const id = `:::LINK_${linkTokens.length}:::`;
+    linkTokens.push({ id, label, url });
+    return id;
+  });
+
+  // 4. Tokenize bold & italics: **bold**, *italic*, __bold__, _italic_
+  const spanTokens: { id: string; node: React.ReactNode }[] = [];
+  processed = processed.replace(/\*\*([^*]+)\*\*/g, (_m, inner) => {
+    const id = `:::SPAN_${spanTokens.length}:::`;
+    spanTokens.push({ id, node: <strong key={id} className="font-semibold text-stone-900 dark:text-stone-100">{inner}</strong> });
+    return id;
+  });
+  processed = processed.replace(/__([^_]+)__/g, (_m, inner) => {
+    const id = `:::SPAN_${spanTokens.length}:::`;
+    spanTokens.push({ id, node: <strong key={id} className="font-semibold text-stone-900 dark:text-stone-100">{inner}</strong> });
+    return id;
+  });
+  processed = processed.replace(/\*([^*]+)\*/g, (_m, inner) => {
+    const id = `:::SPAN_${spanTokens.length}:::`;
+    spanTokens.push({ id, node: <em key={id} className="italic text-stone-700 dark:text-stone-300">{inner}</em> });
+    return id;
+  });
+
+  // 5. Clean up any leftover stray asterisks or backticks
+  processed = processed.replace(/[*`_]/g, '');
+
+  // 6. Split by token pattern and rebuild React nodes
+  const tokenRegex = /(:::(?:MATH|CODE|LINK|SPAN)_\d+:::)/g;
+  const parts = processed.split(tokenRegex);
+
+  return (
+    <>
+      {parts.map((part, pIdx) => {
+        if (!part) return null;
+        if (part.startsWith(':::MATH_')) {
+          const item = mathTokens.find(m => m.id === part);
+          if (item) {
+            return (
+              <span 
+                key={pIdx} 
+                className="inline-block align-middle mx-0.5" 
+                dangerouslySetInnerHTML={{ __html: item.html }} 
+              />
+            );
+          }
+        }
+        if (part.startsWith(':::CODE_')) {
+          const item = codeTokens.find(c => c.id === part);
+          if (item) {
+            return (
+              <code key={pIdx} className="font-mono text-[11px] bg-stone-200/70 dark:bg-zinc-800 px-1 py-0.5 rounded text-stone-800 dark:text-stone-200">
+                {item.code}
+              </code>
+            );
+          }
+        }
+        if (part.startsWith(':::LINK_')) {
+          const item = linkTokens.find(l => l.id === part);
+          if (item) {
+            return (
+              <a key={pIdx} href={item.url} target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">
+                {item.label}
+              </a>
+            );
+          }
+        }
+        if (part.startsWith(':::SPAN_')) {
+          const item = spanTokens.find(s => s.id === part);
+          if (item) return item.node;
+        }
+        return <span key={pIdx}>{part}</span>;
+      })}
+    </>
+  );
 }
 
 export const RightRunSidebar: React.FC<RightRunSidebarProps> = ({
@@ -248,7 +364,7 @@ export const RightRunSidebar: React.FC<RightRunSidebarProps> = ({
                             ? 'line-through text-stone-400 dark:text-stone-500 decoration-[#1a1a1a]/30 dark:decoration-stone-700' 
                             : 'text-[#1a1a1a] dark:text-[#f0f0f0]'
                         }`}>
-                          {step.title}
+                          {renderFormattedStepText(step.title)}
                         </h4>
                         {isReplanned && (
                           <span className="text-[9.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.2 rounded border border-amber-200 dark:border-amber-900 shrink-0">
@@ -261,7 +377,7 @@ export const RightRunSidebar: React.FC<RightRunSidebarProps> = ({
                           ? 'line-through text-stone-400/80 dark:text-stone-500/80 decoration-[#5c5c5c]/20 dark:decoration-stone-800' 
                           : 'text-[#5c5c5c] dark:text-[#a3a3a3]'
                       }`}>
-                        {step.description}
+                        {renderFormattedStepText(step.description)}
                       </p>
                     </div>
                   </div>
@@ -281,7 +397,7 @@ export const RightRunSidebar: React.FC<RightRunSidebarProps> = ({
                 <span className="text-blue-600 dark:text-blue-400 font-mono">ID: {run?.id.slice(0, 10) || 'run_root'}</span>
               </div>
               <p className="font-bold text-stone-900 dark:text-stone-100 text-[13px] leading-snug">
-                {run?.objective || 'Processamento agêntico e síntese verificável'}
+                {renderFormattedStepText(run?.objective || 'Processamento agêntico e síntese verificável')}
               </p>
 
               {/* Metrics Grid */}
@@ -438,12 +554,12 @@ export const RightRunSidebar: React.FC<RightRunSidebarProps> = ({
                         <span className={`font-bold block leading-tight ${
                           isPassed ? 'text-stone-800 dark:text-stone-200' : 'text-rose-700 dark:text-rose-400'
                         }`}>
-                          {test.name}
+                          {renderFormattedStepText(test.name)}
                         </span>
                         <span className={`text-[10px] ${
                           isPassed ? 'text-stone-500 dark:text-stone-400' : 'text-rose-600 dark:text-rose-300'
                         }`}>
-                          {test.description}
+                          {renderFormattedStepText(test.description)}
                         </span>
                       </div>
                     </div>

@@ -2000,6 +2000,7 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
       const promptHasRequestedActions = !isHtmlSiteRequest && !isSimpleGreetingOrMathPrompt && (promptWantsBrowser || promptWantsSearch);
 
       const visitedUrlsInTurn: string[] = [];
+      const turnCreatedDocuments = new Map<string, { title: string; content: string; format: string; size?: number; sha256?: string }>();
       interface AgenticNavStep {
         step: number;
         action: string;
@@ -2877,6 +2878,7 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                   const docEntry = { title: cleanTitle, content: diskContent, format, size: bytes, sha256 };
                   workspaceDocuments.set(cleanTitle, docEntry);
                   workspaceDocuments.set(baseName, docEntry);
+                  turnCreatedDocuments.set(cleanTitle, docEntry);
                   syncWorkspaceWithDisk();
 
                   const isPersisted = Boolean(fileDetails && fileDetails.exists && bytes > 0 && diskContent.length > 0);
@@ -3068,6 +3070,7 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                   const docEntry = { title: targetTitle, content: diskContent, format, size: bytes, sha256 };
                   workspaceDocuments.set(targetTitle, docEntry);
                   workspaceDocuments.set(baseName, docEntry);
+                  turnCreatedDocuments.set(targetTitle, docEntry);
                   syncWorkspaceWithDisk();
 
                   const isPersisted = Boolean(fileDetails && fileDetails.exists && bytes > 0);
@@ -3194,6 +3197,7 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                   const docEntry = { title: targetTitle, content: diskContent, format, size: bytes, sha256 };
                   workspaceDocuments.set(targetTitle, docEntry);
                   workspaceDocuments.set(baseName, docEntry);
+                  turnCreatedDocuments.set(targetTitle, docEntry);
                   syncWorkspaceWithDisk();
 
                   const isPersisted = Boolean(fileDetails && fileDetails.exists && bytes > prevBytes && diskContent.includes(textToAppend.trim()));
@@ -3289,6 +3293,8 @@ function getAttachmentStatusMessage(attachments: any[]): string {
 
                 workspaceDocuments.delete(targetTitle);
                 workspaceDocuments.delete(baseName);
+                turnCreatedDocuments.delete(targetTitle);
+                turnCreatedDocuments.delete(baseName);
                 deleteSandboxFile(targetTitle);
                 syncWorkspaceWithDisk();
 
@@ -3550,6 +3556,7 @@ function getAttachmentStatusMessage(attachments: any[]): string {
               const docEntry = { title: cleanPath, content: diskContent, format: ext, size: diskSize, sha256: diskSha256 };
               workspaceDocuments.set(cleanPath, docEntry);
               workspaceDocuments.set(baseName, docEntry);
+              turnCreatedDocuments.set(cleanPath, docEntry);
 
               sendEvent({
                 type: "terminal_action",
@@ -3912,8 +3919,8 @@ function getAttachmentStatusMessage(attachments: any[]): string {
         }
       }
 
-      if (workspaceDocuments.size > 0) {
-        for (const [dTitle, dObj] of workspaceDocuments.entries()) {
+      if (turnCreatedDocuments.size > 0) {
+        for (const [dTitle, dObj] of turnCreatedDocuments.entries()) {
           const docJson = JSON.stringify({ title: dObj.title, content: dObj.content, format: dObj.format });
           const tag = `<wsm_doc>${docJson}</wsm_doc>`;
           const hasDocTagAlready = fullOutput.includes('<wsm_doc>') && (fullOutput.includes(`"title":"${dObj.title}"`) || fullOutput.includes(`"title": "${dObj.title}"`));
@@ -4672,8 +4679,31 @@ ORDER BY total_tasks DESC;`,
   });
 });
 
+export async function optionalAuthTokenMiddleware(
+  req: AuthenticatedRequest,
+  res: express.Response,
+  next: express.NextFunction
+) {
+  if (req.method === 'OPTIONS') return next();
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ') && authHeader !== 'Bearer guest-token') {
+    try {
+      return await verifyAuthTokenMiddleware(req, res, next);
+    } catch {
+      // Fallback to guest user on token error
+    }
+  }
+  req.user = {
+    uid: 'guest_sandbox_user',
+    email: 'guest@omnix.sandbox',
+    admin: false,
+    emailVerified: false
+  };
+  return next();
+}
+
 // REST endpoints for Terminal Sandbox real execution & file syncing
-app.get("/api/terminal", (req: express.Request, res: express.Response) => {
+app.get("/api/terminal", (_req: express.Request, res: express.Response) => {
   return res.json({
     status: "ok",
     service: "Terminal Sandbox Service",
@@ -4682,7 +4712,7 @@ app.get("/api/terminal", (req: express.Request, res: express.Response) => {
   });
 });
 
-app.get("/api/terminal/preflight", async (req: express.Request, res: express.Response) => {
+app.get("/api/terminal/preflight", async (_req: express.Request, res: express.Response) => {
   try {
     const check = await preFlightCheck();
     return res.json({ success: true, ...check });
@@ -4694,11 +4724,11 @@ app.get("/api/terminal/preflight", async (req: express.Request, res: express.Res
 app.get("/api/terminal/exec", (_req: express.Request, res: express.Response) => {
   return res.status(405).json({
     error: "Method Not Allowed",
-    message: "O endpoint /api/terminal/exec aceita exclusivamente requisições POST autenticadas contendo o campo 'command'."
+    message: "O endpoint /api/terminal/exec aceita exclusivamente requisições POST contendo o campo 'command'."
   });
 });
 
-app.post("/api/terminal/exec", verifyAuthTokenMiddleware, async (req: express.Request, res: express.Response) => {
+app.post("/api/terminal/exec", optionalAuthTokenMiddleware, async (req: express.Request, res: express.Response) => {
   try {
     const { command, timeout_seconds } = req.body;
     if (!command || typeof command !== 'string') {
@@ -4727,7 +4757,7 @@ app.post("/api/terminal/exec", verifyAuthTokenMiddleware, async (req: express.Re
   }
 });
 
-app.get("/api/terminal/files", verifyAuthTokenMiddleware, (req: express.Request, res: express.Response) => {
+app.get("/api/terminal/files", optionalAuthTokenMiddleware, (req: express.Request, res: express.Response) => {
   try {
     const files = listSandboxFiles();
     return res.json({ files });
@@ -4736,7 +4766,7 @@ app.get("/api/terminal/files", verifyAuthTokenMiddleware, (req: express.Request,
   }
 });
 
-app.get("/api/terminal/write", (req: express.Request, res: express.Response) => {
+app.get("/api/terminal/write", (_req: express.Request, res: express.Response) => {
   return res.json({
     status: "ok",
     endpoint: "/api/terminal/write",
@@ -4745,7 +4775,7 @@ app.get("/api/terminal/write", (req: express.Request, res: express.Response) => 
   });
 });
 
-app.post("/api/terminal/write", verifyAuthTokenMiddleware, (req: express.Request, res: express.Response) => {
+app.post("/api/terminal/write", optionalAuthTokenMiddleware, (req: express.Request, res: express.Response) => {
   try {
     const { path: filePath, content } = req.body;
     if (!filePath) return res.status(400).json({ error: "Caminho obrigatório." });
@@ -4763,7 +4793,7 @@ app.post("/api/terminal/write", verifyAuthTokenMiddleware, (req: express.Request
   }
 });
 
-app.get("/api/terminal/delete", (req: express.Request, res: express.Response) => {
+app.get("/api/terminal/delete", (_req: express.Request, res: express.Response) => {
   return res.json({
     status: "ok",
     endpoint: "/api/terminal/delete",
@@ -4772,7 +4802,7 @@ app.get("/api/terminal/delete", (req: express.Request, res: express.Response) =>
   });
 });
 
-app.post("/api/terminal/delete", verifyAuthTokenMiddleware, (req: express.Request, res: express.Response) => {
+app.post("/api/terminal/delete", optionalAuthTokenMiddleware, (req: express.Request, res: express.Response) => {
   try {
     const { path: filePath } = req.body;
     if (!filePath) return res.status(400).json({ error: "Caminho obrigatório." });

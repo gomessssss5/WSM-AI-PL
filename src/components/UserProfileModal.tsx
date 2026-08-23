@@ -97,261 +97,267 @@ export default function UserProfileModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[120] flex items-center justify-center p-4">
-      <div className="absolute inset-0" onClick={onClose} />
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[120] flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
+      <div className="fixed inset-0" onClick={onClose} />
       
-      <div className="bg-white dark:bg-gray-900 border border-[#eae6e1] dark:border-gray-800 rounded-3xl p-6 sm:p-7 shadow-2xl max-w-md w-full relative z-10 animate-in zoom-in-95 duration-200">
+      <div className="bg-white dark:bg-gray-900 border border-[#eae6e1] dark:border-gray-800 rounded-2xl sm:rounded-3xl shadow-2xl max-w-lg sm:max-w-xl w-full relative z-10 my-auto max-h-[92vh] sm:max-h-[88vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
         
-        {/* Notification banners */}
-        {errorMessage && (
-          <div className="mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 text-red-700 dark:text-red-400 text-xs flex justify-between items-center animate-in fade-in-50">
-            <span>{errorMessage}</span>
-            <button onClick={() => setErrorMessage(null)} className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        {infoMessage && (
-          <div className="mb-4 p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs flex justify-between items-center animate-in fade-in-50">
-            <span>{infoMessage}</span>
-            <button onClick={() => setInfoMessage(null)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-750 rounded">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        {/* Delete Account Dialog */}
-        {showDeleteConfirm && (
-          <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 mb-4 space-y-3">
-            <h4 className="text-xs font-bold text-red-800 dark:text-red-400">Confirmar exclusão de conta?</h4>
-            <p className="text-[11px] text-red-600 dark:text-red-500 leading-relaxed">
-              Tem certeza que deseja solicitar a exclusão permanente da sua conta? Todos os seus dados serão apagados de acordo com a LGPD e não poderão ser recuperados.
-            </p>
-            <div className="flex gap-2 justify-end text-[11px]">
-              <button 
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-750 text-gray-700 dark:text-gray-300 font-semibold"
-              >
-                Cancelar
-              </button>
-              <button 
-                onClick={() => {
-                  setShowDeleteConfirm(false);
-                  setDeleteRequested(true);
-                  setInfoMessage("Solicitação registrada. Sua conta será excluída em até 30 dias.");
-                }}
-                className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold"
-              >
-                Sim, Solicitar Exclusão
-              </button>
+        {/* Sticky Header */}
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-100 dark:border-gray-800 shrink-0 bg-white dark:bg-gray-900">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+              <UserIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-900 dark:text-white text-base sm:text-lg">Informações da Conta</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Gerencie seu perfil, avatar e preferências</p>
             </div>
           </div>
-        )}
-        <button
-          onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-pointer"
-          title="Fechar"
-        >
-          <X className="w-5 h-5" />
-        </button>
-
-        {/* Modal Header */}
-        <div className="flex items-center gap-2 mb-6">
-          <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
-            <UserIcon className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="font-bold text-gray-900 dark:text-white text-lg">Informações da Conta</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Gerencie seu perfil e dados pessoais</p>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-pointer"
+            title="Fechar"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        {/* Avatar Selection Section */}
-        <div className="flex flex-col items-center justify-center mb-6">
-          <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-            <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-amber-500/20 shadow-md bg-gray-100 dark:bg-gray-800 flex items-center justify-center relative">
-              <img
-                src={photoURL}
-                alt="Foto de perfil"
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-semibold">
-                <Camera className="w-6 h-6 mb-1" />
-                <span>Alterar</span>
+        {/* Scrollable Body Content */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+          {/* Notification banners */}
+          {errorMessage && (
+            <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 text-red-700 dark:text-red-400 text-xs flex justify-between items-center animate-in fade-in-50">
+              <span>{errorMessage}</span>
+              <button onClick={() => setErrorMessage(null)} className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {infoMessage && (
+            <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs flex justify-between items-center animate-in fade-in-50">
+              <span>{infoMessage}</span>
+              <button onClick={() => setInfoMessage(null)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-750 rounded">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Delete Account Dialog */}
+          {showDeleteConfirm && (
+            <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 space-y-3">
+              <h4 className="text-xs font-bold text-red-800 dark:text-red-400">Confirmar exclusão de conta?</h4>
+              <p className="text-[11px] text-red-600 dark:text-red-500 leading-relaxed">
+                Tem certeza que deseja solicitar a exclusão permanente da sua conta? Todos os seus dados serão apagados de acordo com a LGPD e não poderão ser recuperados.
+              </p>
+              <div className="flex gap-2 justify-end text-[11px]">
+                <button 
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-750 text-gray-700 dark:text-gray-300 font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    setDeleteRequested(true);
+                    setInfoMessage("Solicitação registrada. Sua conta será excluída em até 30 dias.");
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold"
+                >
+                  Sim, Solicitar Exclusão
+                </button>
               </div>
             </div>
+          )}
 
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                fileInputRef.current?.click();
-              }}
-              className="absolute bottom-0 right-0 p-2 bg-amber-500 hover:bg-amber-600 text-white rounded-full shadow-lg transition-transform active:scale-95 cursor-pointer"
-              title="Carregar foto do dispositivo"
-            >
-              <Camera className="w-4 h-4" />
-            </button>
-          </div>
+          {/* Avatar Selection Section */}
+          <div className="flex flex-col items-center justify-center">
+            <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+              <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-amber-500/20 shadow-md bg-gray-100 dark:bg-gray-800 flex items-center justify-center relative">
+                <img
+                  src={photoURL}
+                  alt="Foto de perfil"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-semibold">
+                  <Camera className="w-6 h-6 mb-1" />
+                  <span>Alterar</span>
+                </div>
+              </div>
 
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept="image/png, image/jpeg, image/webp, image/gif"
-            className="hidden"
-          />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fileInputRef.current?.click();
+                }}
+                className="absolute bottom-0 right-0 p-2 bg-amber-500 hover:bg-amber-600 text-white rounded-full shadow-lg transition-transform active:scale-95 cursor-pointer"
+                title="Carregar foto do dispositivo"
+              >
+                <Camera className="w-4 h-4" />
+              </button>
+            </div>
 
-          <div className="flex items-center gap-2 mt-3">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="text-xs font-semibold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
-            >
-              <Camera className="w-3.5 h-3.5" />
-              Enviar foto do dispositivo
-            </button>
-            <span className="text-gray-300 dark:text-gray-700">•</span>
-            <button
-              type="button"
-              onClick={handleResetToDiceBear}
-              className="text-xs font-semibold text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:underline flex items-center gap-1 cursor-pointer"
-              title="Gerar avatar DiceBear padrão"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Usar DiceBear
-            </button>
-          </div>
-        </div>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept="image/png, image/jpeg, image/webp, image/gif"
+              className="hidden"
+            />
 
-        {/* User Details Form */}
-        <div className="space-y-4">
-          {/* Display Name Input */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
-              Nome de Exibição
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Seu nome completo"
-                className="w-full px-3.5 py-2.5 pl-10 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white focus:outline-none focus:border-amber-500 dark:focus:border-amber-500 transition-colors"
-              />
-              <UserIcon className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
+            <div className="flex items-center gap-2 mt-3">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-xs font-semibold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                Enviar foto do dispositivo
+              </button>
+              <span className="text-gray-300 dark:text-gray-700">•</span>
+              <button
+                type="button"
+                onClick={handleResetToDiceBear}
+                className="text-xs font-semibold text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:underline flex items-center gap-1 cursor-pointer"
+                title="Gerar avatar DiceBear padrão"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Usar DiceBear
+              </button>
             </div>
           </div>
 
-          {/* Email Display */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
-              E-mail da Conta
-            </label>
-            <div className="relative">
-              <input
-                type="email"
-                value={currentUser?.email || ''}
-                readOnly
-                className="w-full px-3.5 py-2.5 pl-10 bg-gray-100 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/60 rounded-xl text-sm text-gray-500 dark:text-gray-400 cursor-not-allowed"
-              />
-              <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
-            </div>
-          </div>
-
-          {/* User UID */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
-              ID do Usuário (UID)
-            </label>
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
+          {/* User Details Form */}
+          <div className="space-y-4">
+            {/* Display Name Input */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                Nome de Exibição
+              </label>
+              <div className="relative">
                 <input
                   type="text"
-                  value={currentUser?.uid || ''}
-                  readOnly
-                  className="w-full px-3.5 py-2 bg-gray-100 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/60 rounded-xl text-xs font-mono text-gray-500 dark:text-gray-400 cursor-not-allowed truncate"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Seu nome completo"
+                  className="w-full px-3.5 py-2.5 pl-10 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white focus:outline-none focus:border-amber-500 dark:focus:border-amber-500 transition-colors"
                 />
-                <Shield className="w-3.5 h-3.5 text-gray-400 absolute left-3.5 top-2.5" />
+                <UserIcon className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
               </div>
-              <button
-                type="button"
-                onClick={copyUid}
-                className="p-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-xl transition-colors cursor-pointer text-xs flex items-center gap-1 font-medium"
-                title="Copiar ID"
-              >
-                {copiedUid ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-              </button>
             </div>
-          </div>
-          
-          {/* Security Management */}
-          <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-800">
-            <h4 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-3">Segurança e Privacidade</h4>
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                className="text-left px-3.5 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/20 hover:bg-emerald-100/50 transition-colors text-xs font-bold text-emerald-900 dark:text-emerald-300 flex items-center justify-between cursor-pointer"
-                onClick={() => {
-                  onClose();
-                  if (onOpenSecurityModal) onOpenSecurityModal();
-                }}
-              >
-                <div className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-emerald-600" />
-                  <span>Segurança Agêntica & Governança</span>
+
+            {/* Email Display */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                E-mail da Conta
+              </label>
+              <div className="relative">
+                <input
+                  type="email"
+                  value={currentUser?.email || ''}
+                  readOnly
+                  className="w-full px-3.5 py-2.5 pl-10 bg-gray-100 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/60 rounded-xl text-sm text-gray-500 dark:text-gray-400 cursor-not-allowed"
+                />
+                <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
+              </div>
+            </div>
+
+            {/* User UID */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                ID do Usuário (UID)
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={currentUser?.uid || ''}
+                    readOnly
+                    className="w-full px-3.5 py-2 bg-gray-100 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/60 rounded-xl text-xs font-mono text-gray-500 dark:text-gray-400 cursor-not-allowed truncate"
+                  />
+                  <Shield className="w-3.5 h-3.5 text-gray-400 absolute left-3.5 top-2.5" />
                 </div>
-                <span className="px-2 py-0.5 rounded bg-emerald-200 dark:bg-emerald-800 text-[10px] font-bold text-emerald-900 dark:text-emerald-100 uppercase">Configurar</span>
-              </button>
-              <button
-                type="button"
-                className="text-left px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between cursor-pointer"
-                onClick={() => {
-                  if (onOpenPasswordChangeModal) {
-                    onOpenPasswordChangeModal();
-                  }
-                }}
-              >
-                <span>Alterar Senha</span>
-                <span className="text-[10px] text-gray-400 font-normal">Recomendado</span>
-              </button>
-              <button
-                type="button"
-                className="text-left px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between cursor-pointer"
-                onClick={() => setInfoMessage("A Autenticação em Duas Etapas (2FA) estará disponível na próxima atualização.")}
-              >
-                <span>Autenticação em Duas Etapas (2FA)</span>
-                <span className="px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700 text-[9px] font-bold text-gray-500 uppercase">Em breve</span>
-              </button>
-              <button
-                type="button"
-                className="text-left px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between cursor-pointer"
-                onClick={() => setInfoMessage("Para encerrar sessões em outros dispositivos, você precisará confirmar sua identidade.")}
-              >
-                <span>Histórico de Sessões / Desconectar Todos</span>
-              </button>
-              <button
-                type="button"
-                disabled={deleteRequested}
-                className="text-left px-3.5 py-2.5 rounded-xl border border-red-200 dark:border-red-900/30 bg-red-50/50 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-xs font-semibold text-red-600 dark:text-red-400 flex items-center justify-between cursor-pointer mt-2 disabled:opacity-50"
-                onClick={() => {
-                  setShowDeleteConfirm(true);
-                  setErrorMessage(null);
-                  setInfoMessage(null);
-                }}
-              >
-                <span>{deleteRequested ? "Exclusão Solicitada" : "Excluir conta permanentemente (LGPD)"}</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={copyUid}
+                  className="p-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-xl transition-colors cursor-pointer text-xs flex items-center gap-1 font-medium"
+                  title="Copiar ID"
+                >
+                  {copiedUid ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            
+            {/* Security Management */}
+            <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
+              <h4 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-3">Segurança e Privacidade</h4>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  className="text-left px-3.5 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/20 hover:bg-emerald-100/50 transition-colors text-xs font-bold text-emerald-900 dark:text-emerald-300 flex items-center justify-between cursor-pointer"
+                  onClick={() => {
+                    onClose();
+                    if (onOpenSecurityModal) onOpenSecurityModal();
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-emerald-600" />
+                    <span>Segurança Agêntica & Governança</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded bg-emerald-200 dark:bg-emerald-800 text-[10px] font-bold text-emerald-900 dark:text-emerald-100 uppercase">Configurar</span>
+                </button>
+                <button
+                  type="button"
+                  className="text-left px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between cursor-pointer"
+                  onClick={() => {
+                    if (onOpenPasswordChangeModal) {
+                      onOpenPasswordChangeModal();
+                    }
+                  }}
+                >
+                  <span>Alterar Senha</span>
+                  <span className="text-[10px] text-gray-400 font-normal">Recomendado</span>
+                </button>
+                <button
+                  type="button"
+                  className="text-left px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between cursor-pointer"
+                  onClick={() => setInfoMessage("A Autenticação em Duas Etapas (2FA) estará disponível na próxima atualização.")}
+                >
+                  <span>Autenticação em Duas Etapas (2FA)</span>
+                  <span className="px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700 text-[9px] font-bold text-gray-500 uppercase">Em breve</span>
+                </button>
+                <button
+                  type="button"
+                  className="text-left px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between cursor-pointer"
+                  onClick={() => setInfoMessage("Para encerrar sessões em outros dispositivos, você precisará confirmar sua identidade.")}
+                >
+                  <span>Histórico de Sessões / Desconectar Todos</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={deleteRequested}
+                  className="text-left px-3.5 py-2.5 rounded-xl border border-red-200 dark:border-red-900/30 bg-red-50/50 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-xs font-semibold text-red-600 dark:text-red-400 flex items-center justify-between cursor-pointer mt-2 disabled:opacity-50"
+                  onClick={() => {
+                    setShowDeleteConfirm(true);
+                    setErrorMessage(null);
+                    setInfoMessage(null);
+                  }}
+                >
+                  <span>{deleteRequested ? "Exclusão Solicitada" : "Excluir conta permanentemente (LGPD)"}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="mt-7 pt-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between gap-3">
+        {/* Sticky Footer */}
+        <div className="p-4 sm:p-5 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between gap-3 shrink-0 bg-gray-50/60 dark:bg-gray-900">
           {onSignOut ? (
             <button
               type="button"

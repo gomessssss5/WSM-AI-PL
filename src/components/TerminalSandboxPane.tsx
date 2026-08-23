@@ -270,11 +270,20 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
       }
     } catch (err: any) {
       if (xtermInstance.current) {
-        xtermInstance.current.write(`\x1b[31m✕ Falha na execução: ${err?.message || String(err)}\x1b[0m\r\n${sandboxEngine.getPrompt()}`);
+        xtermInstance.current.write(`\x1b[31m✕ Falha na execução: ${err?.message || String(err)}\x1b[0m\r\n`);
       }
     } finally {
       setIsRunning(false);
       setCurrentProcessInfo(null);
+      writePrompt();
+    }
+  };
+
+  // Clear terminal screen
+  const handleClearTerminal = () => {
+    if (xtermInstance.current) {
+      xtermInstance.current.clear();
+      writePrompt();
     }
   };
 
@@ -360,16 +369,44 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
               ubuntu@sandbox:{currentCwd}
             </span>
             {isRunning && (
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 animate-pulse">
+              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 animate-pulse">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                Executando em tempo real...
+                Executando comando...
               </span>
             )}
           </div>
         </div>
 
         {/* Top Controls */}
-        <div className="flex items-center gap-1 text-gray-500">
+        <div className="flex items-center gap-1.5 text-gray-500">
+          <button
+            type="button"
+            onClick={handleClearTerminal}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-md transition-colors cursor-pointer border border-gray-200 dark:border-zinc-700"
+            title="Limpar tela do terminal"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-gray-500" />
+            <span>Limpar</span>
+          </button>
+          
+          <button
+            type="button"
+            onClick={handleDownloadZip}
+            className="p-1.5 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-md transition-colors cursor-pointer text-gray-600 dark:text-gray-400"
+            title="Baixar Workspace (.zip)"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleResetSandbox}
+            className="p-1.5 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-md transition-colors cursor-pointer text-gray-600 dark:text-gray-400"
+            title="Resetar Sandbox"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+
           <button
             type="button"
             onClick={() => setIsFullscreen(!isFullscreen)}
@@ -389,28 +426,243 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
         </div>
       </div>
 
-      {/* Runtime Environment Info Bar */}
-      <div className="px-3 py-1.5 bg-gray-50 dark:bg-zinc-900 border-b border-gray-200/60 dark:border-zinc-800 text-[11px] text-gray-600 dark:text-gray-400 font-mono flex items-center justify-between gap-2 overflow-x-auto shrink-0 select-none">
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="inline-flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-            <Cpu className="w-3 h-3" />
-            Execução Real (Sandbox Container)
-          </span>
-          <span>Runtimes Ativos: Node.js (v20+), Bash (Shell Linux)</span>
+      {/* Mode Navigation Tabs */}
+      <div className="px-3 py-1 bg-gray-100 dark:bg-zinc-900/80 border-b border-gray-200/80 dark:border-zinc-800 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab('terminal')}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'terminal'
+                ? 'bg-white dark:bg-zinc-800 text-gray-900 dark:text-white shadow-xs font-bold'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+            }`}
+          >
+            <TerminalIcon className="w-3.5 h-3.5" />
+            <span>Terminal CLI</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('history')}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'history'
+                ? 'bg-white dark:bg-zinc-800 text-gray-900 dark:text-white shadow-xs font-bold'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>Histórico & Auditoria</span>
+            {commandLogs.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-gray-200 dark:bg-zinc-700 font-mono">
+                {commandLogs.length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('files')}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'files'
+                ? 'bg-white dark:bg-zinc-800 text-gray-900 dark:text-white shadow-xs font-bold'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+            }`}
+          >
+            <FolderTree className="w-3.5 h-3.5" />
+            <span>Arquivos Workspace</span>
+            {files.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-gray-200 dark:bg-zinc-700 font-mono">
+                {files.length}
+              </span>
+            )}
+          </button>
         </div>
-        <span className="text-[10px] text-gray-500 dark:text-gray-500 truncate">
-          Arquivos .py são salvos no Workspace como código-fonte
+
+        <span className="text-[10px] text-gray-500 font-mono hidden sm:inline-block">
+          Ubuntu 22.04 LTS Container
         </span>
       </div>
 
-      {/* Main Terminal Canvas */}
+      {/* Main Container */}
       <div className="flex-1 relative overflow-hidden bg-[#f6f6f7] dark:bg-zinc-950 flex flex-col">
-        <div className="w-full h-full p-3 overflow-hidden flex flex-col">
-          <div 
-            ref={terminalRef} 
-            className="w-full h-full flex-1 overflow-hidden" 
-          />
-        </div>
+        {activeTab === 'terminal' && (
+          <div className="w-full h-full p-3 overflow-hidden flex flex-col">
+            <div 
+              ref={terminalRef} 
+              className="w-full h-full flex-1 overflow-hidden" 
+            />
+          </div>
+        )}
+
+        {activeTab === 'history' && (
+          <div className="w-full h-full p-4 overflow-y-auto space-y-3 font-mono text-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-gray-200 dark:border-zinc-800">
+              <h4 className="font-bold text-gray-900 dark:text-white text-sm flex items-center gap-2">
+                <Clock className="w-4 h-4 text-emerald-500" />
+                Histórico Detalhado de Execuções
+              </h4>
+              <button
+                type="button"
+                onClick={() => {
+                  sandboxEngine.clearHistory();
+                  refreshSandboxState();
+                }}
+                className="text-xs text-red-500 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Limpar Histórico
+              </button>
+            </div>
+
+            {commandLogs.length === 0 ? (
+              <div className="p-8 text-center text-gray-400">
+                Nenhum comando foi executado na sessão atual.
+              </div>
+            ) : (
+              commandLogs.slice().reverse().map((log, idx) => (
+                <div key={log.id || idx} className="p-3 bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        log.exitCode === 0 
+                          ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800'
+                          : 'bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400 border border-red-300 dark:border-red-800'
+                      }`}>
+                        {log.exitCode === 0 ? '✓ SUCESSO' : `✕ ERRO (Exit ${log.exitCode})`}
+                      </span>
+                      <span className="font-bold text-gray-900 dark:text-white text-xs">
+                        $ {log.command}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-[11px] text-gray-500">
+                      <span>Duração: {log.durationMs}ms</span>
+                      <span>•</span>
+                      <span>{new Date(log.timestamp).toLocaleTimeString()}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('terminal');
+                          executeCommandInTerminal(log.command);
+                        }}
+                        className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 rounded text-[10px] font-bold cursor-pointer"
+                      >
+                        Re-executar
+                      </button>
+                    </div>
+                  </div>
+
+                  {log.stdout && (
+                    <div className="p-2 bg-gray-50 dark:bg-zinc-950 rounded border border-gray-100 dark:border-zinc-800/80 text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-40 overflow-y-auto font-mono text-[11px]">
+                      <div className="text-[9px] font-bold text-gray-400 uppercase mb-1">STDOUT:</div>
+                      {log.stdout}
+                    </div>
+                  )}
+
+                  {log.stderr && (
+                    <div className="p-2 bg-red-50/50 dark:bg-red-950/30 rounded border border-red-100 dark:border-red-900/40 text-red-600 dark:text-red-400 whitespace-pre-wrap max-h-40 overflow-y-auto font-mono text-[11px]">
+                      <div className="text-[9px] font-bold text-red-400 uppercase mb-1">STDERR:</div>
+                      {log.stderr}
+                    </div>
+                  )}
+
+                  {log.filesModified && log.filesModified.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1 text-[10px] text-gray-500">
+                      <span className="font-bold">Arquivos Modificados:</span>
+                      {log.filesModified.map((f, fIdx) => (
+                        <span key={fIdx} className="px-1.5 py-0.5 bg-gray-100 dark:bg-zinc-800 rounded font-mono text-gray-800 dark:text-gray-200">
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {activeTab === 'files' && (
+          <div className="w-full h-full p-4 overflow-y-auto space-y-3 text-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-gray-200 dark:border-zinc-800">
+              <h4 className="font-bold text-gray-900 dark:text-white text-sm flex items-center gap-2">
+                <FolderTree className="w-4 h-4 text-emerald-500" />
+                Explorador de Arquivos do Workspace
+              </h4>
+              <button
+                type="button"
+                onClick={() => setIsCreatingFile(true)}
+                className="px-2.5 py-1 bg-emerald-600 text-white hover:bg-emerald-700 rounded text-xs font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Novo Arquivo
+              </button>
+            </div>
+
+            {isCreatingFile && (
+              <div className="p-3 bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 space-y-2">
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                  Nome do Novo Arquivo (ex: app.py, script.js, index.html)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newFileName}
+                    onChange={(e) => setNewFileName(e.target.value)}
+                    placeholder="novo_arquivo.py"
+                    className="flex-1 px-3 py-1.5 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded text-xs font-mono text-gray-900 dark:text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCreateFile}
+                    className="px-3 py-1.5 bg-emerald-600 text-white rounded text-xs font-bold cursor-pointer"
+                  >
+                    Criar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingFile(false)}
+                    className="px-3 py-1.5 bg-gray-200 dark:bg-zinc-800 text-gray-700 dark:text-gray-300 rounded text-xs font-semibold cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {files.map((file, idx) => (
+                <div
+                  key={idx}
+                  className="p-2.5 bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 flex items-center justify-between hover:border-emerald-500 transition-colors"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <FileCode2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <div className="flex flex-col truncate">
+                      <span className="font-mono font-bold text-gray-900 dark:text-white truncate">
+                        {file.name}
+                      </span>
+                      <span className="text-[10px] text-gray-400 font-mono">
+                        {file.size} bytes
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const { downloadWorkspaceFile } = await import('../utils/fileDownload');
+                      downloadWorkspaceFile(file.name);
+                    }}
+                    className="p-1 hover:bg-gray-100 dark:hover:bg-zinc-800 text-emerald-600 dark:text-emerald-400 rounded cursor-pointer"
+                    title="Baixar arquivo"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );

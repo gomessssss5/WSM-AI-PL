@@ -662,9 +662,43 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
       // Fallback to client-side sandbox execution when running in test environment or offline
     }
 
+    // Check if command contains compound operators (; or && or ||) outside quotes
+    if (!literalFullCommand && (fullCmdLine.includes(';') || fullCmdLine.includes('&&') || fullCmdLine.includes('||'))) {
+      const subCmds = fullCmdLine.split(/(?<!['"])\s*(;|\&\&|\|\|)\s*(?![^'"]*['"])/);
+      let lastExit = 0;
+      let i = 0;
+      while (i < subCmds.length) {
+        const sub = subCmds[i].trim();
+        if (sub === ';' || sub === '&&' || sub === '||') {
+          const op = sub;
+          i++;
+          if (i >= subCmds.length) break;
+          const nextSub = subCmds[i].trim();
+          if (op === '&&' && lastExit !== 0) { i++; continue; }
+          if (op === '||' && lastExit === 0) { i++; continue; }
+          lastExit = await this.executeSingleCommand(nextSub, [], stdout, stderr, nextSub);
+        } else if (sub) {
+          lastExit = await this.executeSingleCommand(sub, [], stdout, stderr, sub);
+        }
+        i++;
+      }
+      return lastExit;
+    }
+
     // Client-side fallback for built-in commands
     if (cleanCmd === 'pwd') {
       stdout(`${this.currentWorkingDir}\n`);
+      return 0;
+    }
+
+    if (cleanCmd === 'printf') {
+      const formatStr = cmdArgs.join(' ')
+        .replace(/^["']|["']$/g, '')
+        .replace(/\\n/g, '\n')
+        .replace(/\\t/g, '\t')
+        .replace(/\\r/g, '\r')
+        .replace(/\\\\/g, '\\');
+      stdout(formatStr);
       return 0;
     }
 

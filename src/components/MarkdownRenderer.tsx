@@ -1659,6 +1659,21 @@ export default function MarkdownRenderer({
                     displayText = domain;
                   }
 
+                  const isUnverified = token.url === '#' || !token.url || token.text.toLowerCase().includes('não verificável') || token.text.toLowerCase().includes('nao verificavel');
+                  if (isUnverified) {
+                    return (
+                      <span
+                        key={`unverif-${pIdx}-${keyIndex++}`}
+                        className="inline-flex items-center gap-1 px-2.5 py-0.5 my-0.5 mx-1 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-full text-[11.5px] font-medium text-amber-800 dark:text-amber-300 select-none align-baseline max-w-full truncate shadow-3xs"
+                        title="Fonte não verificável"
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                        <span className="truncate">{displayText.replace(/\s*\(fonte não verificável\)/i, '')}</span>
+                        <span className="text-[10px] text-amber-600 dark:text-amber-400 italic shrink-0">(fonte não verificável)</span>
+                      </span>
+                    );
+                  }
+
                   const isInvalid2 = !domain || domain.includes(" ") || !domain.includes(".") || domain.length < 3; const faviconUrl = isInvalid2 ? "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><line x1='2' y1='12' x2='22' y2='12'/></svg>" : `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`;
 
                   return (
@@ -1744,6 +1759,32 @@ export default function MarkdownRenderer({
 
     // Remove markdown horizontal rules (---) which are visually inelegant
     formattedContent = formattedContent.replace(/\n\s*---\s*\n/g, '\n\n').replace(/^\s*---\s*\n/g, '');
+
+    // Normalize and resolve plain text "Link Direto: Nome" or "**Fonte**: Nome" if not already a markdown link
+    formattedContent = formattedContent.replace(/(\*\*(?:Link Direto|Link|Fonte|Veículo|Origem)\*\*:\s*)([^\n\[\]\(\)]+)/gi, (match, prefix, rawName) => {
+      const trimmed = rawName.trim();
+      if (!trimmed || trimmed.startsWith('http') || trimmed.toLowerCase().includes('não verificável') || trimmed.toLowerCase().includes('nao verificavel')) {
+        return match;
+      }
+      if (searchSources && searchSources.length > 0) {
+        const tLow = trimmed.toLowerCase();
+        const matched = searchSources.find(s => {
+          const sTitle = (s.title || '').toLowerCase();
+          let sHost = '';
+          try {
+            sHost = s.url ? new URL(s.url).hostname.toLowerCase() : '';
+          } catch {
+            sHost = ((s as any).hostname || (s as any).source || '').toLowerCase();
+          }
+          return sTitle.includes(tLow) || sHost.includes(tLow) || tLow.includes(sHost);
+        });
+        const finalUrl = (matched as any)?.url_final || matched?.url;
+        if (matched && finalUrl) {
+          return `${prefix}[${trimmed}](${finalUrl})`;
+        }
+      }
+      return `${prefix}[${trimmed} (fonte não verificável)](#)`;
+    });
 
     // Fix malformed AI links (e.g. [Site](url], or [Site](url, extra] -> [Site](url))
     formattedContent = formattedContent.replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)\]\,]+)[^\)]*\]/g, '[$1]($2)');
