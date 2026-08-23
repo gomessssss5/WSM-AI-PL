@@ -1579,7 +1579,7 @@ export default function MarkdownRenderer({
                   return (
                     <span
                       key={`math-${pIdx}-${keyIndex++}`}
-                      className="inline-block px-1 select-text"
+                      className="inline-block align-middle px-0.5 select-text whitespace-nowrap"
                       dangerouslySetInnerHTML={{ __html: html }}
                     />
                   );

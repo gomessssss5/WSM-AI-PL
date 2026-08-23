@@ -23,6 +23,32 @@ html, body, #root {
   --color-wsm-cream: #faf9f6;
 }
 
+/* KaTeX and Math Typography Protections */
+.katex {
+  font-size: 1.05em !important;
+  text-rendering: auto;
+  white-space: nowrap;
+}
+.katex-display {
+  display: block;
+  margin: 0.75em 0;
+  text-align: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+}
+.katex .mfrac {
+  display: inline-block !important;
+  vertical-align: -0.5em !important;
+  padding: 0 0.1em;
+}
+.katex .frac-line {
+  display: block !important;
+}
+.katex-html {
+  white-space: nowrap;
+}
+
 /* Custom scrollbars for clean look */
 ::-webkit-scrollbar {
   width: 6px;

@@ -144,48 +144,9 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
         // Write full terminal history on mount
         term.write(sandboxEngine.getTerminalHistoryText().replace(/\n/g, '\r\n'));
 
-        // Keyboard handler
+        // Keyboard & Paste handler
         term.onData((data) => {
           if (isRunning) return;
-
-          // Enter key
-          if (data === '\r') {
-            const cmd = promptBuffer.current.trim();
-            term.write('\r\n');
-            if (cmd) {
-              localCommandHistory.current.push(cmd);
-              historyIndex.current = localCommandHistory.current.length;
-              executeCommandInTerminal(cmd);
-            } else {
-              writePrompt();
-            }
-            promptBuffer.current = '';
-            return;
-          }
-
-          // Backspace
-          if (data === '\x7f' || data === '\b') {
-            if (promptBuffer.current.length > 0) {
-              promptBuffer.current = promptBuffer.current.slice(0, -1);
-              term.write('\b \b');
-            }
-            return;
-          }
-
-          // Ctrl+C
-          if (data === '\x03') {
-            term.write('^C\r\n');
-            promptBuffer.current = '';
-            writePrompt();
-            return;
-          }
-
-          // Ctrl+L (clear)
-          if (data === '\x0c') {
-            term.clear();
-            writePrompt();
-            return;
-          }
 
           // Arrow Up (History Prev)
           if (data === '\x1b[A') {
@@ -213,12 +174,71 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
             return;
           }
 
-          // Standard character input
-          if (data.length === 1 && data.charCodeAt(0) >= 32) {
-            promptBuffer.current += data;
-            term.write(data);
+          // Process input character by character to handle multi-character pastes, typed text, and newlines
+          let idx = 0;
+          while (idx < data.length) {
+            const char = data[idx];
+
+            // Enter key (\r or \n)
+            if (char === '\r' || char === '\n') {
+              const cmd = promptBuffer.current.trim();
+              term.write('\r\n');
+              if (cmd) {
+                localCommandHistory.current.push(cmd);
+                historyIndex.current = localCommandHistory.current.length;
+                executeCommandInTerminal(cmd);
+              } else {
+                writePrompt();
+              }
+              promptBuffer.current = '';
+              idx++;
+              if (char === '\r' && idx < data.length && data[idx] === '\n') {
+                idx++;
+              }
+              continue;
+            }
+
+            // Backspace
+            if (char === '\x7f' || char === '\b') {
+              if (promptBuffer.current.length > 0) {
+                promptBuffer.current = promptBuffer.current.slice(0, -1);
+                term.write('\b \b');
+              }
+              idx++;
+              continue;
+            }
+
+            // Ctrl+C
+            if (char === '\x03') {
+              term.write('^C\r\n');
+              promptBuffer.current = '';
+              writePrompt();
+              idx++;
+              continue;
+            }
+
+            // Ctrl+L (clear)
+            if (char === '\x0c') {
+              term.clear();
+              writePrompt();
+              idx++;
+              continue;
+            }
+
+            // Printable characters & Tab
+            const code = char.charCodeAt(0);
+            if (code >= 32 || code === 9) {
+              promptBuffer.current += char;
+              term.write(char);
+            }
+            idx++;
           }
         });
+
+        // Initial focus
+        setTimeout(() => {
+          xtermInstance.current?.focus();
+        }, 100);
       } else {
         fitAddonInstance.current?.fit();
       }
@@ -485,7 +505,12 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
       {/* Main Container */}
       <div className="flex-1 relative overflow-hidden bg-[#f6f6f7] dark:bg-zinc-950 flex flex-col">
         {activeTab === 'terminal' && (
-          <div className="w-full h-full p-3 overflow-hidden flex flex-col">
+          <div 
+            className="w-full h-full p-3 overflow-hidden flex flex-col cursor-text"
+            onClick={() => {
+              xtermInstance.current?.focus();
+            }}
+          >
             <div 
               ref={terminalRef} 
               className="w-full h-full flex-1 overflow-hidden" 

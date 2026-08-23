@@ -31,14 +31,7 @@ export async function downloadWorkspaceFile(filename: string, fallbackContent?: 
     const res = await fetch(`/api/download/${encodeURIComponent(cleanName)}`, { headers });
     if (res.ok) {
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = baseName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      triggerBlobDownload(baseName, blob);
       return true;
     }
   } catch (err) {
@@ -61,14 +54,7 @@ export async function downloadWorkspaceFile(filename: string, fallbackContent?: 
           const fileRes = await fetch(`/api/download/${encodeURIComponent(cleanMatchPath)}`, { headers });
           if (fileRes.ok) {
             const blob = await fileRes.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = baseName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            triggerBlobDownload(baseName, blob);
             return true;
           }
         }
@@ -79,7 +65,7 @@ export async function downloadWorkspaceFile(filename: string, fallbackContent?: 
   return false;
 }
 
-export function triggerBlobDownload(filename: string, content: string | Uint8Array) {
+export function triggerBlobDownload(filename: string, content: string | Uint8Array | Blob) {
   const ext = filename.split('.').pop()?.toLowerCase() || 'txt';
   let mimeType = 'text/plain;charset=utf-8';
   if (ext === 'json') mimeType = 'application/json;charset=utf-8';
@@ -98,7 +84,9 @@ export function triggerBlobDownload(filename: string, content: string | Uint8Arr
 
   let blob: Blob;
 
-  if (content instanceof Uint8Array) {
+  if (content instanceof Blob) {
+    blob = content;
+  } else if (content instanceof Uint8Array) {
     blob = new Blob([content], { type: mimeType });
   } else if (typeof content === 'string') {
     // Check if string contains raw binary bytes (e.g. PK magic bytes or base64)
@@ -130,8 +118,13 @@ export function triggerBlobDownload(filename: string, content: string | Uint8Arr
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setTimeout(() => {
+    if (document.body.contains(a)) {
+      document.body.removeChild(a);
+    }
+    URL.revokeObjectURL(url);
+  }, 5000);
 }

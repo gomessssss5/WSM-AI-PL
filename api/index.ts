@@ -1596,6 +1596,15 @@ TODAS as fórmulas matemáticas, equações de física, expressões algébricas,
    - NUNCA use crases de código (\`) ao redor de fórmulas.
    - NUNCA use múltiplos underscores encadeados sem chaves como \`v_A_inicial\`. Use sempre chaves agrupadoras com \`\\text{}\`: \`$v_{A,\\text{inicial}}$\`, \`$v_{A,\\text{final}}$\`, \`$m_A$\`.
    - Use SEMPRE operadores LaTeX: multiplicação com \`\\cdot\`, frações com \`\\frac{a}{b}\`, raízes com \`\\sqrt{x}\` e letras gregas como \`\\Delta\`, \`\\theta\`.
+4. **RIGOR ARITMÉTICO E DIVISÃO DE FRAÇÕES (PRECISÃO ABSOLUTA)**:
+   - Divisão de Frações: Para dividir frações, multiplique a primeira fração pelo inverso do divisor: \`$$\\frac{a}{b} \\div \\frac{c}{d} = \\frac{a}{b} \\cdot \\frac{d}{c} = \\frac{a \\cdot d}{b \\cdot c}$$\`.
+   - Exemplo com Verificação Passo a Passo:
+     - \`$$\\frac{3}{4} + \\frac{5}{6} = \\frac{9}{12} + \\frac{10}{12} = \\frac{19}{12}$$\`
+     - \`$$\\left(\\frac{19}{12}\\right) \\div \\left(\\frac{7}{8}\\right) = \\frac{19}{12} \\cdot \\frac{8}{7} = \\frac{152}{84} = \\frac{38}{21}$$\`
+     - Decimal: \`$$\\frac{38}{21} \\approx 1{,}8095\\dots \\approx 1{,}81$$\`
+   - VERIFICAÇÃO DE CONSISTÊNCIA FRAÇÃO <-> DECIMAL: Se o numerador for maior que o denominador ($152 > 84 \\implies 38 > 21$), o resultado DEVE ser maior que 1 ($1{,}81 > 1$). JAMAIS inverta numerador e denominador na resposta final (ex: escrever 21/38 é um erro grave de inversão).
+5. **RESOLUÇÃO DE EQUAÇÕES**:
+   - Para equações (ex: $2x + 5 = 17$), isole a incógnita passo a passo ($2x = 12 \\implies x = 6$) e mostre a verificação final $2(6) + 5 = 17$.
 `);
     const flowControlInstruction = "\n" + getSystemPrompt('agent_flow_control', `
 # CONTROLE DE FLUXO E SINALIZAÇÃO DE ESTADO (<finish> E <agent>)
@@ -2361,8 +2370,8 @@ function getAttachmentStatusMessage(attachments: any[]): string {
             lastFunctionCallsStr = currentCallsStr;
           }
 
-          if (sameCallCount >= 2) {
-            const loopText = "\n\n[Sistema]: Interrompendo execução para evitar loop infinito da mesma ação.\n\n";
+          if (sameCallCount >= 3) {
+            const loopText = "\n\n[Sistema]: Interrompendo chamadas repetidas. Resumo final dos dados coletados da página.\n\n";
             sendEvent({ type: 'chunk', text: loopText });
             fullOutput += loopText;
             break;
@@ -2673,10 +2682,29 @@ function getAttachmentStatusMessage(attachments: any[]): string {
               });
             } else if (fc.name === "calculadora") {
               const args = fc.args as any;
-              let mathResult;
+              let mathResult: any;
               try {
                 const math = await import("mathjs");
-                mathResult = math.evaluate(args.expression);
+                const expr = String(args.expression || '').replace(/÷/g, '/').replace(/×/g, '*');
+                const evaluated = math.evaluate(expr);
+                
+                let simplifiedFraction = '';
+                try {
+                  const frac = math.fraction(expr) as any;
+                  if (frac && typeof frac === 'object' && typeof frac.n === 'number' && typeof frac.d === 'number') {
+                    const sign = frac.s < 0 ? '-' : '';
+                    simplifiedFraction = frac.d === 1 ? `${sign}${frac.n}` : `${sign}${frac.n}/${frac.d}`;
+                  }
+                } catch {
+                  // Ignore if math.fraction does not parse complex expression
+                }
+
+                mathResult = {
+                  expression: args.expression,
+                  decimal: typeof evaluated === 'number' ? evaluated : (evaluated?.toString?.() || String(evaluated)),
+                  ...(simplifiedFraction ? { simplified_fraction: simplifiedFraction } : {}),
+                  result: evaluated
+                };
               } catch (e: any) {
                 mathResult = { error: e.message };
               }
@@ -3748,13 +3776,8 @@ function getAttachmentStatusMessage(attachments: any[]): string {
 
           currentContents.push({ role: "user", parts: functionResponseParts });
           turnCount++;
-          const userStrLow = (typeof text === 'string' ? text : JSON.stringify(text)).toLowerCase();
-          const promptHasBrowserSteps = promptWantsBrowser && /\b(cadastr\w*|login|entrar|entra|clic\w*|preench\w*|digit\w*|pesquis\w*|busc\w*|naveg\w*)\b/i.test(userStrLow);
-          if (promptHasBrowserSteps && turnCount < 10) {
-            forceNextTurnModeAny = true;
-          } else {
-            forceNextTurnModeAny = false;
-          }
+          // Reset forceNextTurnModeAny to false after tool calls so the model can evaluate and respond with text (AUTO mode)
+          forceNextTurnModeAny = false;
         } else {
           // Check for unfulfilled tool calls (e.g. model outputted conversational text or <task> block promising tools without calling functionCall)
           const userStr = (typeof text === 'string' ? text : JSON.stringify(text)).toLowerCase();
