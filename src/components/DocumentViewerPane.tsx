@@ -203,138 +203,168 @@ export default function DocumentViewerPane({
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 20 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
-      className={`h-full bg-[#f4f3f1] dark:bg-gray-950 flex flex-col overflow-hidden relative border-l border-[#eae6e1] dark:border-gray-800 min-w-0 max-w-full max-md:fixed max-md:inset-0 max-md:z-50 ${
-        isFullscreen ? 'w-full flex-1' : 'w-full md:w-1/2 flex-1'
+      className={`flex flex-col overflow-hidden relative min-w-0 max-w-full z-30 shrink-0 ${
+        isFullscreen 
+          ? 'fixed inset-0 z-50 bg-stone-900/40 backdrop-blur-sm p-4 sm:p-6 flex items-center justify-center' 
+          : 'w-full md:w-1/2 flex-1 h-full p-2 sm:p-3 max-md:fixed max-md:inset-0 max-md:z-50 max-md:p-2 bg-stone-100/50 dark:bg-stone-950/50'
       }`}
     >
-      {/* Top Header Controls Bar */}
-      <div className="bg-white dark:bg-gray-900 border-b border-[#eae6e1] dark:border-gray-800 px-3 md:px-5 py-2.5 flex items-center justify-between gap-2 shrink-0 z-20 shadow-3xs select-none">
-        
-        {/* Document Info */}
-                {/* Eye/Code toggle for HTML */}
-        {format === 'html' && (
-          <div className="flex items-center gap-0.5 bg-gray-100 dark:bg-gray-800 p-0.5 rounded-lg border border-gray-200 dark:border-gray-700 mr-2 shrink-0">
-            <button
-              onClick={() => setHtmlPreviewMode(true)}
-              className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${htmlPreviewMode ? 'bg-white dark:bg-gray-600 shadow-sm text-black dark:text-blue-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
-              title="Visualizar HTML"
+      <div className={`flex flex-col h-full w-full bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-sm overflow-hidden relative ${
+        isFullscreen ? 'max-w-6xl h-[90vh] shadow-2xl' : ''
+      }`}>
+        {/* Top Header Controls Bar */}
+        <div className="bg-stone-50/80 dark:bg-stone-900/90 backdrop-blur-xs border-b border-stone-200/80 dark:border-stone-800 px-3 md:px-4 py-2.5 flex items-center justify-between gap-2 shrink-0 z-20 select-none">
+          
+          {/* Document Info */}
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {/* Eye/Code toggle for HTML */}
+            {format === 'html' ? (
+              <div className="flex items-center gap-0.5 bg-stone-200/60 dark:bg-stone-800 p-0.5 rounded-lg border border-stone-200 dark:border-stone-700 shrink-0">
+                <button
+                  onClick={() => setHtmlPreviewMode(true)}
+                  className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${htmlPreviewMode ? 'bg-white dark:bg-stone-700 shadow-3xs text-black dark:text-blue-400' : 'text-stone-500 hover:text-stone-700 dark:text-stone-400'}`}
+                  title="Visualizar HTML"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setHtmlPreviewMode(false)}
+                  className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${!htmlPreviewMode ? 'bg-white dark:bg-stone-700 shadow-3xs text-black dark:text-blue-400' : 'text-stone-500 hover:text-stone-700 dark:text-stone-400'}`}
+                  title="Código HTML"
+                >
+                  <Code className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center p-1.5 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 shrink-0">
+                <Eye className="w-3.5 h-3.5" />
+              </div>
+            )}
+
+            {/* Document Title & Format */}
+            <div className="flex items-center gap-1.5 min-w-0 font-sans">
+              <span className="text-xs font-semibold text-stone-800 dark:text-stone-200 truncate" title={document.title}>
+                {document.title}
+              </span>
+              <span className="text-stone-300 dark:text-stone-700 text-xs font-semibold">·</span>
+              <span className="text-[11px] font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider shrink-0">
+                {format}
+              </span>
+            </div>
+          </div>
+
+          {/* Right Action Controls */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Google Drive Logo Indicator */}
+            <div 
+              className="p-1.5 rounded-lg hover:bg-stone-200/60 dark:hover:bg-stone-800 transition-colors cursor-pointer text-stone-500"
+              title="Salvo no Google Drive / Workspace"
             >
-              <Eye className="w-4 h-4" />
+              <svg className="w-4 h-4" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
+                <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5" fill="#0066da"/>
+                <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5" fill="#00ac47"/>
+                <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5" fill="#ea4335"/>
+                <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2" fill="#00832d"/>
+                <path d="m59.8 53h27.5c0-1.55-.4-3.1-1.2-4.5l-13.75-23.8c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8" fill="#ffba00"/>
+                <path d="m73.4 76.8 1.2-2.1 12.55-21.7c.8-1.4 1.2-2.95 1.2-4.5h-28.5l-26.2 45.3h18.5c1.6 0 3.15-.45 4.5-1.2" fill="#2684fc"/>
+              </svg>
+            </div>
+
+            {/* Copy Button */}
+            <button
+              onClick={handleCopy}
+              className="px-2.5 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200/80 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 text-xs font-semibold flex items-center gap-1.5 transition-all border border-stone-200/80 dark:border-stone-700 cursor-pointer active:scale-95"
+              title="Copiar conteúdo"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">Copiado!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400" />
+                  <span>Copiar</span>
+                </>
+              )}
             </button>
+
+            {/* Zoom controls (Only for PDF/MD paper view) */}
+            {format !== 'xlsx' && (
+              <div className="hidden sm:flex items-center gap-0.5 bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl p-1 text-xs">
+                <button
+                  onClick={handleZoomOut}
+                  disabled={zoom <= 60}
+                  className="p-1 hover:bg-white dark:hover:bg-stone-700 rounded-lg text-stone-600 dark:text-stone-300 disabled:opacity-30 transition-all cursor-pointer"
+                  title="Diminuir zoom"
+                >
+                  <ZoomOut className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={handleResetZoom}
+                  className="px-1.5 text-[11px] font-bold text-stone-700 dark:text-stone-300 hover:text-black transition-colors cursor-pointer"
+                  title="Resetar zoom para 100%"
+                >
+                  {zoom}%
+                </button>
+                <button
+                  onClick={handleZoomIn}
+                  disabled={zoom >= 180}
+                  className="p-1 hover:bg-white dark:hover:bg-stone-700 rounded-lg text-stone-600 dark:text-stone-300 disabled:opacity-30 transition-all cursor-pointer"
+                  title="Aumentar zoom"
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Fullscreen Toggle Button */}
             <button
-              onClick={() => setHtmlPreviewMode(false)}
-              className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${!htmlPreviewMode ? 'bg-white dark:bg-gray-600 shadow-sm text-black dark:text-blue-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
-              title="Código HTML"
+              onClick={onToggleFullscreen}
+              className="p-1.5 hover:bg-stone-200/80 dark:hover:bg-stone-800 rounded-xl text-stone-600 dark:text-stone-400 transition-colors cursor-pointer"
+              title={isFullscreen ? "Restaurar visão dividida" : "Expandir para tela cheia"}
             >
-              <Code className="w-4 h-4" />
+              {isFullscreen ? (
+                <Minimize2 className="w-4 h-4" />
+              ) : (
+                <Maximize2 className="w-4 h-4" />
+              )}
+            </button>
+
+            {/* Download Button */}
+            <button
+              onClick={handleDownload}
+              disabled={isGenerating}
+              className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 active:scale-95 text-white font-semibold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50 ${
+                format === 'xlsx'
+                  ? 'bg-emerald-600 hover:bg-emerald-700'
+                  : 'bg-black hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200'
+              }`}
+              title={`Baixar ${format.toUpperCase()}`}
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span className="hidden sm:inline">Gerando...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Baixar</span>
+                </>
+              )}
+            </button>
+
+            {/* Close Panel Button */}
+            <button
+              onClick={onClose}
+              className="p-1.5 hover:bg-stone-200/80 dark:hover:bg-stone-800 rounded-xl text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-100 transition-colors cursor-pointer"
+              title="Fechar documento"
+            >
+              <X className="w-4 h-4" />
             </button>
           </div>
-        )}
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <button
-            onClick={handleCopy}
-            className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200/80 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-semibold flex items-center gap-1.5 transition-all border border-gray-200/80 dark:border-gray-700 cursor-pointer shadow-3xs active:scale-95"
-            title="Copiar conteúdo"
-          >
-            {copied ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-emerald-600 dark:text-emerald-400 font-bold">Copiado!</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
-                <span>Copiar</span>
-              </>
-            )}
-          </button>
         </div>
-
-        {/* Right Action Controls */}
-        <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
-          
-          {/* Zoom controls (Only for PDF/MD paper view) */}
-          {format !== 'xlsx' && (
-            <div className="hidden sm:flex items-center gap-1 bg-[#f4f3f1] dark:bg-gray-800/80 border border-[#eae6e1] dark:border-gray-700/80 rounded-xl p-1 text-xs">
-              <button
-                onClick={handleZoomOut}
-                disabled={zoom <= 60}
-                className="p-1 hover:bg-white dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300 disabled:opacity-30 transition-all cursor-pointer"
-                title="Diminuir zoom"
-              >
-                <ZoomOut className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={handleResetZoom}
-                className="px-1.5 text-[11px] font-bold text-gray-700 dark:text-gray-300 hover:text-black transition-colors cursor-pointer"
-                title="Resetar zoom para 100%"
-              >
-                {zoom}%
-              </button>
-              <button
-                onClick={handleZoomIn}
-                disabled={zoom >= 180}
-                className="p-1 hover:bg-white dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300 disabled:opacity-30 transition-all cursor-pointer"
-                title="Aumentar zoom"
-              >
-                <ZoomIn className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
-          {/* Fullscreen Toggle Button */}
-          <button
-            onClick={onToggleFullscreen}
-            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 bg-[#f4f3f1] hover:bg-[#eae8e5] dark:bg-gray-800 dark:hover:bg-gray-700 border border-[#eae6e1] dark:border-gray-700 rounded-xl text-[12px] font-semibold text-gray-700 dark:text-gray-200 transition-all cursor-pointer active:scale-95"
-            title={isFullscreen ? "Restaurar visão dividida" : "Expandir para tela cheia"}
-          >
-            {isFullscreen ? (
-              <>
-                <Minimize2 className="w-3.5 h-3.5 text-gray-600 dark:text-gray-300" />
-                <span>Dividir tela</span>
-              </>
-            ) : (
-              <>
-                <Maximize2 className="w-3.5 h-3.5 text-gray-600 dark:text-gray-300" />
-                <span>Tela cheia</span>
-              </>
-            )}
-          </button>
-
-          {/* Download Button */}
-          <button
-            onClick={handleDownload}
-            disabled={isGenerating}
-            className={`flex items-center gap-1.5 px-3 py-1.5 active:scale-95 text-white font-semibold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50 ${
-              format === 'xlsx'
-                ? 'bg-emerald-600 hover:bg-emerald-700'
-                : 'bg-black hover:bg-neutral-800'
-            }`}
-            title={`Baixar ${format.toUpperCase()}`}
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span className="hidden sm:inline">Gerando...</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-3.5 h-3.5" />
-                <span>Baixar</span>
-              </>
-            )}
-          </button>
-
-          {/* Close Panel Button */}
-          <button
-            onClick={onClose}
-            className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100 transition-colors cursor-pointer"
-            title="Fechar documento"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
 
       {/* Document Reader / Interactive Spreadsheet Area */}
       <div className={`flex-1 overflow-y-auto scrollbar-thin ${format === 'xlsx' || isCode ? 'flex flex-col' : 'flex justify-center items-start p-3 sm:p-6 md:p-8'}`}>
@@ -413,6 +443,7 @@ export default function DocumentViewerPane({
           </div>
         )}
       </div>
-    </motion.div>
-  );
+    </div>
+  </motion.div>
+);
 }
