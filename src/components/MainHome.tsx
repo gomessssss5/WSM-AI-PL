@@ -1294,13 +1294,13 @@ export default function MainHome({
                     aria-pressed={isSearchEnabled}
                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold transition-all cursor-pointer ${
                       isSearchEnabled
-                        ? 'bg-blue-600 text-white dark:bg-blue-600 dark:text-white border border-blue-600 shadow-2xs'
+                        ? 'bg-blue-600 text-white dark:bg-blue-600 dark:text-white border border-blue-600 shadow-sm ring-2 ring-blue-500/20'
                         : 'bg-white text-gray-700 dark:bg-zinc-800 dark:text-gray-200 border border-[#eae6e1] dark:border-zinc-700 hover:border-gray-300 hover:bg-gray-50/50 shadow-2xs'
                     }`}
-                    title={isSearchEnabled ? "Desativar busca web" : "Ativar busca web"}
+                    title={isSearchEnabled ? "Busca Web ativada (Clique para desativar)" : "Pesquisar na Web (Clique para ativar)"}
                   >
                     <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-white animate-spin-slow' : 'text-gray-500 dark:text-gray-400'}`} />
-                    <span>Pesquisar</span>
+                    <span>{isSearchEnabled ? "Pesquisa Ativa" : "Pesquisar"}</span>
                   </button>
                 </div>
 

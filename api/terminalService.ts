@@ -4,7 +4,18 @@ import os from 'os';
 import crypto from 'crypto';
 import { exec } from 'child_process';
 
-export const SANDBOX_DIR = path.join(os.tmpdir(), 'omnix_terminal_sandbox');
+/**
+ * Derives a clean, isolated sandbox directory for a given user or session ID.
+ * Prevents cross-session leaks, multi-user overwrites, and state collision on container restart.
+ */
+export function getSandboxDir(userIdOrSession?: string): string {
+  const safeId = String(userIdOrSession || 'default')
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .slice(0, 64) || 'default';
+  return path.join(os.tmpdir(), 'omnix_sandboxes', safeId);
+}
+
+export const SANDBOX_DIR = getSandboxDir('default');
 
 export interface ExecutionResult {
   stdout: string;
@@ -15,13 +26,14 @@ export interface ExecutionResult {
   fileContents?: Record<string, string>;
 }
 
-export function ensureSandboxDir(): void {
+export function ensureSandboxDir(userIdOrSession?: string): string {
+  const targetDir = getSandboxDir(userIdOrSession);
   try {
-    if (!fs.existsSync(SANDBOX_DIR)) {
-      fs.mkdirSync(SANDBOX_DIR, { recursive: true });
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
     }
 
-    const pkgPath = path.join(SANDBOX_DIR, 'package.json');
+    const pkgPath = path.join(targetDir, 'package.json');
     if (!fs.existsSync(pkgPath)) {
       fs.writeFileSync(
         pkgPath,
@@ -45,18 +57,19 @@ export function ensureSandboxDir(): void {
   } catch (err) {
     console.error('[TerminalService] Error initializing sandbox directory:', err);
   }
+  return targetDir;
 }
 
-export function sanitizePath(relPath: string): string {
-  ensureSandboxDir();
+export function sanitizePath(relPath: string, userIdOrSession?: string): string {
+  const sandboxDir = ensureSandboxDir(userIdOrSession);
   const normalized = path.normalize(relPath || '')
     .replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '')
     .replace(/^\/+/, '');
   
-  const resolvedPath = path.resolve(SANDBOX_DIR, normalized || 'arquivo.txt');
+  const resolvedPath = path.resolve(sandboxDir, normalized || 'arquivo.txt');
   
-  const realSandbox = fs.existsSync(SANDBOX_DIR) ? fs.realpathSync(SANDBOX_DIR) : SANDBOX_DIR;
-  if (!resolvedPath.startsWith(realSandbox) && !resolvedPath.startsWith(SANDBOX_DIR)) {
+  const realSandbox = fs.existsSync(sandboxDir) ? fs.realpathSync(sandboxDir) : sandboxDir;
+  if (!resolvedPath.startsWith(realSandbox) && !resolvedPath.startsWith(sandboxDir)) {
     throw new Error(`Acesso de caminho negado: O caminho '${relPath}' viola a fronteira do diretório sandbox.`);
   }
 
@@ -74,9 +87,9 @@ export function sanitizePath(relPath: string): string {
   return resolvedPath;
 }
 
-export function writeSandboxFile(relPath: string, content: string): string {
-  ensureSandboxDir();
-  const fullPath = sanitizePath(relPath);
+export function writeSandboxFile(relPath: string, content: string, userIdOrSession?: string): string {
+  ensureSandboxDir(userIdOrSession);
+  const fullPath = sanitizePath(relPath, userIdOrSession);
   const dir = path.dirname(fullPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -85,9 +98,9 @@ export function writeSandboxFile(relPath: string, content: string): string {
   return fullPath;
 }
 
-export function writeSandboxBinaryFile(relPath: string, buffer: Buffer): string {
-  ensureSandboxDir();
-  const fullPath = sanitizePath(relPath);
+export function writeSandboxBinaryFile(relPath: string, buffer: Buffer, userIdOrSession?: string): string {
+  ensureSandboxDir(userIdOrSession);
+  const fullPath = sanitizePath(relPath, userIdOrSession);
   const dir = path.dirname(fullPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -96,10 +109,10 @@ export function writeSandboxBinaryFile(relPath: string, buffer: Buffer): string 
   return fullPath;
 }
 
-export function readSandboxFile(relPath: string): string | null {
-  ensureSandboxDir();
+export function readSandboxFile(relPath: string, userIdOrSession?: string): string | null {
+  ensureSandboxDir(userIdOrSession);
   try {
-    const fullPath = sanitizePath(relPath);
+    const fullPath = sanitizePath(relPath, userIdOrSession);
     if (!fs.existsSync(fullPath)) return null;
     return fs.readFileSync(fullPath, 'utf8');
   } catch {
@@ -107,10 +120,10 @@ export function readSandboxFile(relPath: string): string | null {
   }
 }
 
-export function readSandboxBinaryFile(relPath: string): Buffer | null {
-  ensureSandboxDir();
+export function readSandboxBinaryFile(relPath: string, userIdOrSession?: string): Buffer | null {
+  ensureSandboxDir(userIdOrSession);
   try {
-    const fullPath = sanitizePath(relPath);
+    const fullPath = sanitizePath(relPath, userIdOrSession);
     if (!fs.existsSync(fullPath)) return null;
     return fs.readFileSync(fullPath);
   } catch {
@@ -118,10 +131,10 @@ export function readSandboxBinaryFile(relPath: string): Buffer | null {
   }
 }
 
-export function deleteSandboxFile(relPath: string): boolean {
-  ensureSandboxDir();
+export function deleteSandboxFile(relPath: string, userIdOrSession?: string): boolean {
+  ensureSandboxDir(userIdOrSession);
   try {
-    const fullPath = sanitizePath(relPath);
+    const fullPath = sanitizePath(relPath, userIdOrSession);
     if (!fs.existsSync(fullPath)) return false;
     fs.unlinkSync(fullPath);
     return true;
@@ -173,18 +186,18 @@ export function getMimeTypeForFile(filename: string): string {
   }
 }
 
-export function getSandboxFileDetails(relPath: string): { fullPath: string; exists: boolean; size: number; sha256: string; mimeType: string; filename: string } | null {
-  ensureSandboxDir();
+export function getSandboxFileDetails(relPath: string, userIdOrSession?: string): { fullPath: string; exists: boolean; size: number; sha256: string; mimeType: string; filename: string } | null {
+  const sandboxDir = ensureSandboxDir(userIdOrSession);
   try {
     const rawRel = String(relPath || '').trim();
     const cleanRel = rawRel
       .replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '')
       .replace(/^\/+/, '');
     
-    let fullPath = sanitizePath(cleanRel);
+    let fullPath = sanitizePath(cleanRel, userIdOrSession);
     let filename = path.basename(fullPath);
 
-    // 1. Direct check in SANDBOX_DIR
+    // 1. Direct check in user sandboxDir
     if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
       const stat = fs.statSync(fullPath);
       const buf = fs.readFileSync(fullPath);
@@ -202,20 +215,11 @@ export function getSandboxFileDetails(relPath: string): { fullPath: string; exis
     // Candidate paths to search for temporary / system probe files
     const candidatePaths: string[] = [];
 
-    // If cleanRel starts with "tmp/", search without "tmp/" prefix inside SANDBOX_DIR
     if (cleanRel.startsWith('tmp/')) {
       const strippedTmp = cleanRel.replace(/^tmp\//, '');
-      candidatePaths.push(path.resolve(SANDBOX_DIR, strippedTmp));
-      candidatePaths.push(path.join('/tmp', strippedTmp));
-      candidatePaths.push(path.join(os.tmpdir(), strippedTmp));
+      candidatePaths.push(path.resolve(sandboxDir, strippedTmp));
     }
-
-    // Direct /tmp and os.tmpdir() checks for cleanRel or filename
-    candidatePaths.push(path.join('/tmp', cleanRel));
-    candidatePaths.push(path.join(os.tmpdir(), cleanRel));
-    candidatePaths.push(path.join('/tmp', filename));
-    candidatePaths.push(path.join(os.tmpdir(), filename));
-    candidatePaths.push(path.resolve(SANDBOX_DIR, 'tmp', filename));
+    candidatePaths.push(path.resolve(sandboxDir, 'tmp', filename));
 
     for (const candPath of candidatePaths) {
       try {
@@ -223,34 +227,14 @@ export function getSandboxFileDetails(relPath: string): { fullPath: string; exis
           const stat = fs.statSync(candPath);
           const buf = fs.readFileSync(candPath);
           const candSha = crypto.createHash('sha256').update(buf).digest('hex');
-          // Sync candidate file into SANDBOX_DIR for durable access
-          try {
-            const dir = path.dirname(fullPath);
-            if (!fs.existsSync(dir)) {
-              fs.mkdirSync(dir, { recursive: true });
-            }
-            fs.copyFileSync(candPath, fullPath);
-            const copiedStat = fs.statSync(fullPath);
-            const copiedBuf = fs.readFileSync(fullPath);
-            const copiedSha = crypto.createHash('sha256').update(copiedBuf).digest('hex');
-            return {
-              fullPath,
-              exists: true,
-              size: copiedStat.size,
-              sha256: copiedSha,
-              mimeType: getMimeTypeForFile(filename),
-              filename
-            };
-          } catch {
-            return {
-              fullPath: candPath,
-              exists: true,
-              size: stat.size,
-              sha256: candSha,
-              mimeType: getMimeTypeForFile(filename),
-              filename
-            };
-          }
+          return {
+            fullPath: candPath,
+            exists: true,
+            size: stat.size,
+            sha256: candSha,
+            mimeType: getMimeTypeForFile(filename),
+            filename
+          };
         }
       } catch {}
     }
@@ -285,17 +269,17 @@ export interface PreFlightCheckResult {
 let cachedPreFlight: PreFlightCheckResult | null = null;
 let lastCheckTime = 0;
 
-export async function preFlightCheck(forceRefresh = false): Promise<PreFlightCheckResult> {
+export async function preFlightCheck(forceRefresh = false, userIdOrSession?: string): Promise<PreFlightCheckResult> {
   const now = Date.now();
   if (!forceRefresh && cachedPreFlight && (now - lastCheckTime < 60000)) {
     return cachedPreFlight;
   }
 
-  ensureSandboxDir();
+  const sandboxDir = ensureSandboxDir(userIdOrSession);
 
   let isWritable = false;
   try {
-    const testFile = path.join(SANDBOX_DIR, '.write_test');
+    const testFile = path.join(sandboxDir, '.write_test');
     fs.writeFileSync(testFile, 'ok', 'utf8');
     if (fs.existsSync(testFile)) {
       fs.unlinkSync(testFile);
@@ -327,7 +311,7 @@ export async function preFlightCheck(forceRefresh = false): Promise<PreFlightChe
 
   let deps: string[] = [];
   try {
-    const pkgPath = path.join(SANDBOX_DIR, 'package.json');
+    const pkgPath = path.join(sandboxDir, 'package.json');
     if (fs.existsSync(pkgPath)) {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
       deps = Object.keys(pkg.dependencies || {});
@@ -335,7 +319,7 @@ export async function preFlightCheck(forceRefresh = false): Promise<PreFlightChe
   } catch {}
 
   cachedPreFlight = {
-    writablePath: SANDBOX_DIR,
+    writablePath: sandboxDir,
     isWritable,
     runtimes: {
       node: nodeRes,
@@ -352,8 +336,8 @@ export async function preFlightCheck(forceRefresh = false): Promise<PreFlightChe
   return cachedPreFlight;
 }
 
-export function listSandboxFiles(): Array<{ name: string; path: string; size: number; updatedAt: number }> {
-  ensureSandboxDir();
+export function listSandboxFiles(userIdOrSession?: string): Array<{ name: string; path: string; size: number; updatedAt: number }> {
+  const sandboxDir = ensureSandboxDir(userIdOrSession);
   const results: Array<{ name: string; path: string; size: number; updatedAt: number }> = [];
 
   function walk(dir: string, prefix = '') {
@@ -388,23 +372,38 @@ export function listSandboxFiles(): Array<{ name: string; path: string; size: nu
     } catch {}
   }
 
-  walk(SANDBOX_DIR);
+  walk(sandboxDir);
   return results;
 }
 
-export async function executeSandboxCommand(command: string, timeoutSec = 15): Promise<ExecutionResult> {
-  ensureSandboxDir();
+export async function executeSandboxCommand(
+  command: string, 
+  timeoutSec = 15, 
+  userIdOrSession?: string,
+  syncFiles?: Record<string, string>
+): Promise<ExecutionResult> {
+  const sandboxDir = ensureSandboxDir(userIdOrSession);
+
+  // Pre-sync client files to ensure target container instance has exact user session workspace
+  if (syncFiles && typeof syncFiles === 'object') {
+    for (const [filePath, content] of Object.entries(syncFiles)) {
+      try {
+        writeSandboxFile(filePath, String(content || ''), userIdOrSession);
+      } catch (e) {
+        console.warn(`[TerminalService] Failed pre-syncing file ${filePath}:`, e);
+      }
+    }
+  }
+
   const startTime = Date.now();
-  const filesBefore = new Set(listSandboxFiles().map(f => f.path));
+  const filesBefore = new Set(listSandboxFiles(userIdOrSession).map(f => f.path));
 
   let adjustedCommand = command.trim();
 
-  // Rewrite /workspace paths to SANDBOX_DIR so commands like
-  // mkdir /workspace/dir, cat /workspace/file.txt, printf ... > /workspace/file.txt
-  // execute against the sandbox directory instead of root /workspace on Cloud Run.
+  // Rewrite /workspace paths to the isolated sandboxDir
   adjustedCommand = adjustedCommand
-    .replace(/\/workspace\//g, `${SANDBOX_DIR}/`)
-    .replace(/\b\/workspace\b/g, SANDBOX_DIR);
+    .replace(/\/workspace\//g, `${sandboxDir}/`)
+    .replace(/\b\/workspace\b/g, sandboxDir);
 
   // Basic command safety check against destructive system commands
   const lowerCmd = adjustedCommand.toLowerCase();
@@ -437,8 +436,8 @@ export async function executeSandboxCommand(command: string, timeoutSec = 15): P
   const fullPath = `${process.env.PATH || ''}:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin`;
   const safeEnv: Record<string, string> = {
     PATH: fullPath,
-    HOME: SANDBOX_DIR,
-    TMPDIR: SANDBOX_DIR,
+    HOME: sandboxDir,
+    TMPDIR: sandboxDir,
     PYTHONUNBUFFERED: '1',
     NODE_ENV: 'development',
     TERM: 'xterm-256color',
@@ -451,7 +450,7 @@ export async function executeSandboxCommand(command: string, timeoutSec = 15): P
     exec(
       adjustedCommand,
       {
-        cwd: SANDBOX_DIR,
+        cwd: sandboxDir,
         timeout: timeoutMs,
         maxBuffer: 10 * 1024 * 1024,
         env: safeEnv,
@@ -492,23 +491,23 @@ export async function executeSandboxCommand(command: string, timeoutSec = 15): P
           }
         }
 
-        const filesAfter = listSandboxFiles();
+        const filesAfter = listSandboxFiles(userIdOrSession);
         const filesModified: string[] = [];
         const fileContents: Record<string, string> = {};
 
         for (const file of filesAfter) {
           if (!filesBefore.has(file.path) || file.updatedAt >= startTime) {
             filesModified.push(file.path);
-            const content = readSandboxFile(file.path);
+            const content = readSandboxFile(file.path, userIdOrSession);
             if (content !== null) {
               fileContents[file.path] = content;
             }
           }
         }
 
-        // Sanitize outputs replacing internal temp SANDBOX_DIR with /workspace
-        if (SANDBOX_DIR) {
-          const escapedDir = SANDBOX_DIR.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Sanitize outputs replacing internal temp sandboxDir with /workspace
+        if (sandboxDir) {
+          const escapedDir = sandboxDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           const dirRegex = new RegExp(escapedDir, 'g');
           finalStdout = finalStdout.replace(dirRegex, '/workspace');
           finalStderr = finalStderr.replace(dirRegex, '/workspace');
@@ -526,3 +525,4 @@ export async function executeSandboxCommand(command: string, timeoutSec = 15): P
     );
   });
 }
+

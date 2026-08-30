@@ -27,7 +27,31 @@ function getDb() {
   return adminDbInstance;
 }
 
-export const workspaceDocuments = new Map<string, { title: string; content: string; format: string; size?: number; sha256?: string }>();
+export const userWorkspaceDocuments = new Map<string, Map<string, { title: string; content: string; format: string; size?: number; sha256?: string }>>();
+
+export function getSessionOrUserId(req: express.Request): string {
+  const userUid = (req as any).user?.uid;
+  if (userUid && userUid !== 'guest_sandbox_user') return userUid;
+  const headerSessionId = (req.headers['x-session-id'] as string) || (req.headers['x-user-id'] as string);
+  if (headerSessionId) return headerSessionId;
+  const querySessionId = (req.query.session_id as string) || (req.query.userId as string);
+  if (querySessionId) return querySessionId;
+  const bodySessionId = req.body?.sessionId || req.body?.userId;
+  if (bodySessionId) return String(bodySessionId);
+  return 'guest_default_session';
+}
+
+export function getUserWorkspaceDocs(sessionId?: string): Map<string, { title: string; content: string; format: string; size?: number; sha256?: string }> {
+  const safeId = String(sessionId || 'guest_default_session').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64) || 'guest_default_session';
+  let docs = userWorkspaceDocuments.get(safeId);
+  if (!docs) {
+    docs = new Map<string, { title: string; content: string; format: string; size?: number; sha256?: string }>();
+    userWorkspaceDocuments.set(safeId, docs);
+  }
+  return docs;
+}
+
+export const workspaceDocuments = getUserWorkspaceDocs('guest_default_session');
 import sharp from "sharp";
 import { openUrl, clickSelector, typeText, scrollPage, extractText, waitSeconds } from "./playwrightAgent.js";
 import { 
@@ -40,7 +64,7 @@ import {
 import { runAllEmailAutomations } from "./emailAutomation.js";
 import { processBackgroundTasks, executeScheduledTaskNow } from "./scheduledTasksBackground.js";
 import { getAllSystemPrompts, getSystemPrompt, updateSystemPrompt } from "./systemPromptsManager.js";
-import { executeSandboxCommand, writeSandboxFile, writeSandboxBinaryFile, readSandboxFile, deleteSandboxFile, listSandboxFiles, ensureSandboxDir, getSandboxFileDetails, getMimeTypeForFile, preFlightCheck, type ExecutionResult } from "./terminalService.js";
+import { executeSandboxCommand, writeSandboxFile, writeSandboxBinaryFile, readSandboxFile, deleteSandboxFile, listSandboxFiles, ensureSandboxDir, getSandboxFileDetails, getMimeTypeForFile, preFlightCheck, getSandboxDir, type ExecutionResult } from "./terminalService.js";
 import { generateExcelBuffer } from "./excelService.js";
 import { verifyFirebaseIdToken, DecodedAuthToken } from "./authVerifier.js";
 import { cleanAndDeduplicateSources, extractDateFromUrlAndSnippet, normalizeCanonicalUrl, RawSource } from "../src/utils/sourceCleaner.js";
@@ -48,9 +72,10 @@ import { isDomainBlocked, normalizeDomain } from "./securityValidator.js";
 
 dotenv.config();
 
-export function syncWorkspaceWithDisk() {
+export function syncWorkspaceWithDisk(sessionId?: string) {
   try {
-    const sandboxFiles = listSandboxFiles();
+    const docs = getUserWorkspaceDocs(sessionId);
+    const sandboxFiles = listSandboxFiles(sessionId);
     const diskKeys = new Set<string>();
 
     sandboxFiles.forEach(f => {
@@ -61,23 +86,23 @@ export function syncWorkspaceWithDisk() {
       diskKeys.add(cleanPath);
       diskKeys.add(baseName);
 
-      const content = readSandboxFile(cleanPath) || '';
+      const content = readSandboxFile(cleanPath, sessionId) || '';
       const ext = path.extname(cleanPath).replace(/^\./, '').toLowerCase() || 'txt';
-      const details = getSandboxFileDetails(cleanPath);
+      const details = getSandboxFileDetails(cleanPath, sessionId);
       const size = details?.size ?? Buffer.byteLength(content, 'utf8');
       const sha256 = details?.sha256 ?? crypto.createHash('sha256').update(content, 'utf8').digest('hex');
 
       const docEntry = { title: cleanPath, content, format: ext, size, sha256 };
-      workspaceDocuments.set(cleanPath, docEntry);
-      workspaceDocuments.set(baseName, docEntry);
+      docs.set(cleanPath, docEntry);
+      docs.set(baseName, docEntry);
     });
 
-    for (const key of workspaceDocuments.keys()) {
+    for (const key of docs.keys()) {
       if (!diskKeys.has(key)) {
         const cleanPath = key.replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '').replace(/^\/+/, '');
-        const details = getSandboxFileDetails(cleanPath);
+        const details = getSandboxFileDetails(cleanPath, sessionId);
         if (!details || !details.exists) {
-          workspaceDocuments.delete(key);
+          docs.delete(key);
         }
       }
     }
@@ -86,8 +111,9 @@ export function syncWorkspaceWithDisk() {
   }
 }
 
-export function findDocumentInWorkspace(inputTitle: string): { title: string; docObj: { title: string; content: string; format: string; size?: number; sha256?: string } } | null {
-  syncWorkspaceWithDisk();
+export function findDocumentInWorkspace(inputTitle: string, sessionId?: string): { title: string; docObj: { title: string; content: string; format: string; size?: number; sha256?: string } } | null {
+  syncWorkspaceWithDisk(sessionId);
+  const docs = getUserWorkspaceDocs(sessionId);
   
   const trimmed = (inputTitle || '').trim();
   const lowerTrimmed = trimmed.toLowerCase();
@@ -95,7 +121,7 @@ export function findDocumentInWorkspace(inputTitle: string): { title: string; do
   // If inputTitle is missing or generic "Documento", try finding existing single doc
   if (!trimmed || lowerTrimmed === 'documento' || lowerTrimmed === 'documento.md') {
     const uniqueDocs = new Map<string, { title: string; content: string; format: string; size?: number; sha256?: string }>();
-    for (const doc of workspaceDocuments.values()) {
+    for (const doc of docs.values()) {
       uniqueDocs.set(doc.title, doc);
     }
     if (uniqueDocs.size === 1) {
@@ -109,23 +135,23 @@ export function findDocumentInWorkspace(inputTitle: string): { title: string; do
   const baseName = path.basename(rawClean);
 
   // Exact lookup
-  let found = workspaceDocuments.get(rawClean) || workspaceDocuments.get(baseName) || workspaceDocuments.get(trimmed);
+  let found = docs.get(rawClean) || docs.get(baseName) || docs.get(trimmed);
   if (found) return { title: found.title, docObj: found };
 
   // Case-insensitive lookup
   const lowerClean = rawClean.toLowerCase();
   const lowerBase = baseName.toLowerCase();
 
-  for (const [key, doc] of workspaceDocuments.entries()) {
+  for (const [key, doc] of docs.entries()) {
     if (key.toLowerCase() === lowerClean || key.toLowerCase() === lowerBase || doc.title.toLowerCase() === lowerClean || doc.title.toLowerCase() === lowerBase) {
       return { title: doc.title, docObj: doc };
     }
   }
 
   // Look up disk directly
-  const diskDetails = getSandboxFileDetails(rawClean) || getSandboxFileDetails(baseName);
+  const diskDetails = getSandboxFileDetails(rawClean, sessionId) || getSandboxFileDetails(baseName, sessionId);
   if (diskDetails && diskDetails.exists) {
-    const diskContent = readSandboxFile(rawClean) || readSandboxFile(baseName) || '';
+    const diskContent = readSandboxFile(rawClean, sessionId) || readSandboxFile(baseName, sessionId) || '';
     const ext = path.extname(rawClean).replace(/^\./, '').toLowerCase() || 'txt';
     const docEntry = {
       title: diskDetails.filename || rawClean,
@@ -134,8 +160,8 @@ export function findDocumentInWorkspace(inputTitle: string): { title: string; do
       size: diskDetails.size,
       sha256: diskDetails.sha256
     };
-    workspaceDocuments.set(rawClean, docEntry);
-    workspaceDocuments.set(baseName, docEntry);
+    docs.set(rawClean, docEntry);
+    docs.set(baseName, docEntry);
     return { title: docEntry.title, docObj: docEntry };
   }
 
@@ -4872,9 +4898,10 @@ app.get("/api/terminal", (_req: express.Request, res: express.Response) => {
   });
 });
 
-app.get("/api/terminal/preflight", async (_req: express.Request, res: express.Response) => {
+app.get("/api/terminal/preflight", async (req: express.Request, res: express.Response) => {
   try {
-    const check = await preFlightCheck();
+    const sessionId = getSessionOrUserId(req);
+    const check = await preFlightCheck(false, sessionId);
     return res.json({ success: true, ...check });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err?.message || "Erro no pre-flight check." });
@@ -4890,24 +4917,26 @@ app.get("/api/terminal/exec", (_req: express.Request, res: express.Response) => 
 
 app.post("/api/terminal/exec", optionalAuthTokenMiddleware, async (req: express.Request, res: express.Response) => {
   try {
-    const { command, timeout_seconds } = req.body;
+    const sessionId = getSessionOrUserId(req);
+    const { command, timeout_seconds, files } = req.body;
     if (!command || typeof command !== 'string') {
       return res.status(400).json({ error: "Comando inválido." });
     }
-    const result = await executeSandboxCommand(command, Number(timeout_seconds) || 15);
+    const result = await executeSandboxCommand(command, Number(timeout_seconds) || 15, sessionId, files);
 
-    // Sync all modified/created file contents into global workspaceDocuments map for persistent download access
+    // Sync all modified/created file contents into user workspaceDocuments map for persistent download access
+    const userDocs = getUserWorkspaceDocs(sessionId);
     if (result.fileContents && typeof result.fileContents === 'object') {
       Object.entries(result.fileContents).forEach(([filePath, content]) => {
         const cleanName = filePath.replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '').replace(/^\/+/, '');
         const baseName = path.basename(cleanName);
         const ext = path.extname(cleanName).replace(/^\./, '').toLowerCase() || 'txt';
-        const details = getSandboxFileDetails(cleanName);
+        const details = getSandboxFileDetails(cleanName, sessionId);
         const size = details?.size ?? Buffer.byteLength(content as string, 'utf8');
         const sha256 = details?.sha256 ?? crypto.createHash('sha256').update(content as string, 'utf8').digest('hex');
         const docEntry = { title: cleanName, content: content as string, format: ext, size, sha256 };
-        workspaceDocuments.set(cleanName, docEntry);
-        workspaceDocuments.set(baseName, docEntry);
+        userDocs.set(cleanName, docEntry);
+        userDocs.set(baseName, docEntry);
       });
     }
 
@@ -4919,7 +4948,8 @@ app.post("/api/terminal/exec", optionalAuthTokenMiddleware, async (req: express.
 
 app.get("/api/terminal/files", optionalAuthTokenMiddleware, (req: express.Request, res: express.Response) => {
   try {
-    const files = listSandboxFiles();
+    const sessionId = getSessionOrUserId(req);
+    const files = listSandboxFiles(sessionId);
     return res.json({ files });
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || "Erro ao listar arquivos do sandbox." });
@@ -4937,15 +4967,17 @@ app.get("/api/terminal/write", (_req: express.Request, res: express.Response) =>
 
 app.post("/api/terminal/write", optionalAuthTokenMiddleware, (req: express.Request, res: express.Response) => {
   try {
+    const sessionId = getSessionOrUserId(req);
     const { path: filePath, content } = req.body;
     if (!filePath) return res.status(400).json({ error: "Caminho obrigatório." });
-    writeSandboxFile(filePath, String(content || ''));
+    writeSandboxFile(filePath, String(content || ''), sessionId);
 
     const cleanName = String(filePath).replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '').replace(/^\/+/, '');
     const baseName = path.basename(cleanName);
     const ext = path.extname(cleanName).replace(/^\./, '').toLowerCase() || 'txt';
-    workspaceDocuments.set(cleanName, { title: cleanName, content: String(content || ''), format: ext });
-    workspaceDocuments.set(baseName, { title: baseName, content: String(content || ''), format: ext });
+    const userDocs = getUserWorkspaceDocs(sessionId);
+    userDocs.set(cleanName, { title: cleanName, content: String(content || ''), format: ext });
+    userDocs.set(baseName, { title: baseName, content: String(content || ''), format: ext });
 
     return res.json({ success: true, path: filePath });
   } catch (err: any) {
@@ -4964,9 +4996,15 @@ app.get("/api/terminal/delete", (_req: express.Request, res: express.Response) =
 
 app.post("/api/terminal/delete", optionalAuthTokenMiddleware, (req: express.Request, res: express.Response) => {
   try {
+    const sessionId = getSessionOrUserId(req);
     const { path: filePath } = req.body;
     if (!filePath) return res.status(400).json({ error: "Caminho obrigatório." });
-    const success = deleteSandboxFile(filePath);
+    const success = deleteSandboxFile(filePath, sessionId);
+    const cleanName = String(filePath).replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '').replace(/^\/+/, '');
+    const baseName = path.basename(cleanName);
+    const userDocs = getUserWorkspaceDocs(sessionId);
+    userDocs.delete(cleanName);
+    userDocs.delete(baseName);
     return res.json({ success });
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || "Erro ao excluir arquivo." });
@@ -4976,6 +5014,7 @@ app.post("/api/terminal/delete", optionalAuthTokenMiddleware, (req: express.Requ
 // Dedicated Workspace & Sandbox File Download Endpoints
 const handleFileDownload = async (req: express.Request, res: express.Response) => {
   try {
+    const sessionId = getSessionOrUserId(req);
     let rawParam = (req.params as any)?.filename || (req.params as any)?.[0] || (req.query.file as string) || (req.query.path as string) || (req.query.filename as string) || '';
     if (!rawParam && req.path) {
       if (req.path.startsWith('/workspace/')) rawParam = req.path.replace(/^\/workspace\//, '');
@@ -4991,34 +5030,35 @@ const handleFileDownload = async (req: express.Request, res: express.Response) =
       .replace(/^(\/workspace\/|\/workspace|workspace\/)/i, '')
       .replace(/^\/+/, '');
 
-    let details = getSandboxFileDetails(cleanFilename);
+    let details = getSandboxFileDetails(cleanFilename, sessionId);
     
     // If not found on disk, check if it exists in memory workspace documents or if it's an xlsx needing generation
     if (!details || !details.exists) {
       // Check if it's .xlsx and a .csv exists or vice versa
       if (cleanFilename.toLowerCase().endsWith('.xlsx')) {
         const baseWithoutExt = cleanFilename.replace(/\.xlsx$/i, '');
-        const csvDetails = getSandboxFileDetails(`${baseWithoutExt}.csv`);
+        const csvDetails = getSandboxFileDetails(`${baseWithoutExt}.csv`, sessionId);
         if (csvDetails && csvDetails.exists) {
-          const csvContent = readSandboxFile(`${baseWithoutExt}.csv`) || '';
+          const csvContent = readSandboxFile(`${baseWithoutExt}.csv`, sessionId) || '';
           const xlsxBuf = await generateExcelBuffer(cleanFilename, csvContent);
-          writeSandboxBinaryFile(cleanFilename, xlsxBuf);
-          details = getSandboxFileDetails(cleanFilename);
+          writeSandboxBinaryFile(cleanFilename, xlsxBuf, sessionId);
+          details = getSandboxFileDetails(cleanFilename, sessionId);
         }
       }
 
-      // Check workspaceDocuments map in memory
-      if ((!details || !details.exists) && typeof workspaceDocuments !== 'undefined') {
+      // Check user workspaceDocuments map in memory
+      const userDocs = getUserWorkspaceDocs(sessionId);
+      if ((!details || !details.exists) && userDocs) {
         const baseName = path.basename(cleanFilename);
-        const memDoc = workspaceDocuments.get(cleanFilename) || workspaceDocuments.get(baseName);
+        const memDoc = userDocs.get(cleanFilename) || userDocs.get(baseName);
         if (memDoc) {
           if (memDoc.format === 'xlsx' || cleanFilename.toLowerCase().endsWith('.xlsx')) {
             const xlsxBuf = await generateExcelBuffer(memDoc.title || cleanFilename, memDoc.content);
-            writeSandboxBinaryFile(cleanFilename, xlsxBuf);
+            writeSandboxBinaryFile(cleanFilename, xlsxBuf, sessionId);
           } else {
-            writeSandboxFile(cleanFilename, memDoc.content);
+            writeSandboxFile(cleanFilename, memDoc.content, sessionId);
           }
-          details = getSandboxFileDetails(cleanFilename);
+          details = getSandboxFileDetails(cleanFilename, sessionId);
         }
       }
 
@@ -5028,8 +5068,8 @@ const handleFileDownload = async (req: express.Request, res: express.Response) =
         for (const [_, artData] of persistentArtifactsMap.entries()) {
           if (artData.name === cleanFilename || artData.name === baseName || artData.title === cleanFilename) {
             if (artData.content) {
-              writeSandboxFile(cleanFilename, artData.content);
-              details = getSandboxFileDetails(cleanFilename);
+              writeSandboxFile(cleanFilename, artData.content, sessionId);
+              details = getSandboxFileDetails(cleanFilename, sessionId);
               break;
             }
           }

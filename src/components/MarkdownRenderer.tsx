@@ -1191,7 +1191,7 @@ export default function MarkdownRenderer({
     });
 
     // 1. Extract inline math: $...$ or \(...\)
-    const inlineMathRegex = /(?<![A-Za-z0-9\\$])\$([^\s$]|(?:[^\s$](?:[^$]|\\\$)*?[^\s$]))\$(?![0-9])|\\\((.*?)\\\)/g;
+    const inlineMathRegex = /(?<![A-Za-z0-9\\$])\$([^\s$\n]|(?:[^\s$\n](?:[^$\n]|\\\$)*?[^\s$\n]))(?<![A-Za-z])\$(?![0-9])|\\\((.*?)\\\)/g;
     currentText = currentText.replace(inlineMathRegex, (match, p1, p2) => {
       let tex = (p1 !== undefined ? p1 : p2) || '';
       tex = tex.trim()
@@ -2084,16 +2084,16 @@ export default function MarkdownRenderer({
           i++;
         }
 
-        if (tableLines.length >= 2) {
-          const parseRow = (rowLine: string) => {
-            // Split by | but ignore escaped pipes if any
-            const cells = rowLine.split('|').map(c => c.trim());
-            // Remove first and last empty cells due to outer pipes
-            if (cells[0] === '') cells.shift();
-            if (cells[cells.length - 1] === '') cells.pop();
-            return cells;
-          };
+        const parseRow = (rowLine: string) => {
+          // Split by | but ignore escaped pipes if any
+          const cells = rowLine.split('|').map(c => c.trim());
+          // Remove first and last empty cells due to outer pipes
+          if (cells[0] === '') cells.shift();
+          if (cells.length > 0 && cells[cells.length - 1] === '') cells.pop();
+          return cells;
+        };
 
+        if (tableLines.length >= 2) {
           const headers = parseRow(tableLines[0]);
           // Check if second line is a delimiter like |---|---|
           const isDelimiter = tableLines[1].replace(/[\s\-\|:]/g, '') === '';
@@ -2131,6 +2131,29 @@ export default function MarkdownRenderer({
             </div>
           );
           continue;
+        } else if (tableLines.length === 1) {
+          const headers = parseRow(tableLines[0]);
+          if (headers.length > 0) {
+            blocks.push(
+              <div key={`table-partial-${i}`} className="my-5 overflow-x-auto rounded-xl border border-gray-200 dark:border-zinc-800 shadow-2xs bg-white dark:bg-zinc-900 w-full max-w-full">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-zinc-800">
+                  <thead className="bg-[#fcfbfa] dark:bg-zinc-800/80">
+                    <tr>
+                      {headers.map((header, hIdx) => (
+                        <th
+                          key={hIdx}
+                          className="px-4 py-3 text-left text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                        >
+                          {renderInlineContent(header)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                </table>
+              </div>
+            );
+            continue;
+          }
         }
       }
 

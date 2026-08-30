@@ -261,11 +261,7 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
 `;
 
     this.fileSystem.set('/workspace/package.json', defaultPackageJson);
-    this.fileSystem.set('/workspace/index.js', defaultIndexJs);
-    this.fileSystem.set('/workspace/test.js', defaultTestJs);
-    this.fileSystem.set('/workspace/analise.py', defaultPythonScript);
-    this.fileSystem.set('/workspace/dados_vendas.csv', defaultCsvData);
-    this.fileSystem.set('/workspace/README.md', `# Omnix Terminal Sandbox\n\nAmbiente isolado para testes, Node.js, Python e análise de dados.`);
+    this.fileSystem.set('/workspace/README.md', `# Omnix Terminal Sandbox\n\nAmbiente isolado de execução Linux/Node.js/Python para scripts e análise de dados.`);
   }
 
   // Subscribe to stream events

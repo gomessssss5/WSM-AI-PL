@@ -205,20 +205,14 @@ export default function TypewriterMarkdown({
             }
           }
 
-          // Math block buffering: ONLY buffer dedicated double-dollar ($$) blocks during active streaming
+          // Math block buffering: ONLY buffer dedicated double-dollar ($$) blocks when inside an unclosed $$ pair
           // NEVER buffer single dollar ($), currency signs (R$, US$, $100), or prose
-          let lastDoubleDollarIndex = -1;
-          for (let i = currentIndexRef.current - 1; i >= 1; i--) {
-            if (currentSegments[i] === '$' && currentSegments[i - 1] === '$') {
-              lastDoubleDollarIndex = i - 1;
-              break;
-            }
-          }
-
-          if (lastDoubleDollarIndex !== -1) {
+          const mathBlockMatch = slicedTextForCheck.match(/\$\$/g) || [];
+          const isInsideMathBlock = mathBlockMatch.length % 2 !== 0;
+          if (isInsideMathBlock) {
             let foundClosingMath = false;
             let closingMathIndex = -1;
-            for (let i = lastDoubleDollarIndex + 2; i < currentTotalLen - 1; i++) {
+            for (let i = currentIndexRef.current; i < currentTotalLen - 1; i++) {
               if (currentSegments[i] === '$' && currentSegments[i + 1] === '$') {
                 closingMathIndex = i + 2;
                 foundClosingMath = true;
@@ -227,9 +221,12 @@ export default function TypewriterMarkdown({
             }
 
             if (foundClosingMath) {
-              currentIndexRef.current = Math.max(currentIndexRef.current, closingMathIndex);
+              currentIndexRef.current = closingMathIndex;
             } else {
-              currentIndexRef.current = lastDoubleDollarIndex;
+              const lastDoubleDollarStart = slicedTextForCheck.lastIndexOf('$$');
+              if (lastDoubleDollarStart !== -1) {
+                currentIndexRef.current = lastDoubleDollarStart;
+              }
             }
           }
         }
