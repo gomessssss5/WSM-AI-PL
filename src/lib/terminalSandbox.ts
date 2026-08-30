@@ -34,6 +34,15 @@ export interface TerminalCommandLog {
   caller: 'ai' | 'user';
 }
 
+export interface FileVersionEntry {
+  version: number;
+  content: string;
+  size: number;
+  sha256: string;
+  timestamp: number;
+  author: string;
+}
+
 export interface SandboxFileEntry {
   path: string;
   name: string;
@@ -67,10 +76,43 @@ class TerminalSandboxEngine {
   private networkIsolated = true;
   private runningProcessesCount = 0;
   private terminalHistoryText: string = '\x1b[1;32mubuntu@sandbox:/workspace\x1b[0m$ ';
+  private fileVersionHistory: Map<string, FileVersionEntry[]> = new Map();
 
   constructor() {
     this.seedDefaultFileSystem();
-    this.terminalHistoryText = this.getPrompt();
+    this.loadPersistentState();
+  }
+
+  private loadPersistentState() {
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        const savedHistory = sessionStorage.getItem('omnix_terminal_sandbox_history');
+        if (savedHistory) {
+          const parsed = JSON.parse(savedHistory);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            this.commandHistory = parsed;
+          }
+        }
+        const savedText = sessionStorage.getItem('omnix_terminal_history_text');
+        if (savedText && savedText.trim().length > 0) {
+          this.terminalHistoryText = savedText;
+        } else {
+          this.terminalHistoryText = this.getPrompt();
+        }
+      }
+    } catch (e) {
+      console.warn('Error loading terminal persistent state:', e);
+      this.terminalHistoryText = this.getPrompt();
+    }
+  }
+
+  public savePersistentState() {
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        sessionStorage.setItem('omnix_terminal_sandbox_history', JSON.stringify(this.commandHistory.slice(-100)));
+        sessionStorage.setItem('omnix_terminal_history_text', this.terminalHistoryText.slice(-30000));
+      }
+    } catch (e) {}
   }
 
   public getPrompt(): string {
@@ -93,6 +135,7 @@ class TerminalSandboxEngine {
   public clearTerminalHistory() {
     const prompt = this.getPrompt();
     this.terminalHistoryText = prompt;
+    this.savePersistentState();
     this.emit('stdout', { pid: 0, text: `\x1b[2J\x1b[H${prompt}` });
   }
 
@@ -244,7 +287,7 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
   }
 
   // Filesystem methods
-  public writeFile(path: string, content: string): boolean {
+  public writeFile(path: string, content: string, author = 'Agente Omnix'): boolean {
     const normalized = this.normalizePath(path);
     const baseName = normalized.replace('/workspace/', '').replace(/^\/+/, '');
     
@@ -260,8 +303,40 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
     this.deletedFiles.delete(normalized);
     this.deletedFiles.delete(baseName);
     this.fileSystem.set(normalized, content);
-    this.emit('fs_change', { action: 'write', path: normalized });
+
+    // Track Version History
+    const sha256 = computeSha256(content);
+    const currentVersions = this.fileVersionHistory.get(normalized) || [];
+    const newVersionNum = currentVersions.length + 1;
+    const versionEntry: FileVersionEntry = {
+      version: newVersionNum,
+      content,
+      size: newBytes,
+      sha256,
+      timestamp: Date.now(),
+      author
+    };
+    currentVersions.push(versionEntry);
+    this.fileVersionHistory.set(normalized, currentVersions);
+    if (baseName !== normalized) {
+      this.fileVersionHistory.set(baseName, currentVersions);
+    }
+
+    this.emit('fs_change', { action: 'write', path: normalized, version: newVersionNum });
     return true;
+  }
+
+  public getFileVersions(path: string): FileVersionEntry[] {
+    const normalized = this.normalizePath(path);
+    const baseName = normalized.replace('/workspace/', '').replace(/^\/+/, '');
+    return this.fileVersionHistory.get(normalized) || this.fileVersionHistory.get(baseName) || [];
+  }
+
+  public restoreFileVersion(path: string, versionNumber: number): boolean {
+    const versions = this.getFileVersions(path);
+    const targetVer = versions.find(v => v.version === versionNumber);
+    if (!targetVer) return false;
+    return this.writeFile(path, targetVer.content, `Restaurado de v${versionNumber}`);
   }
 
   public readFile(path: string): string | null {
@@ -385,6 +460,12 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
 
   public clearHistory() {
     this.commandHistory = [];
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        sessionStorage.removeItem('omnix_terminal_sandbox_history');
+      }
+    } catch (e) {}
+    this.emit('fs_change');
   }
 
   private normalizePath(inputPath: string): string {
@@ -425,6 +506,8 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
       cwd?: string; 
       timeoutSec?: number;
       env?: Record<string, string>;
+      echoCommand?: boolean;
+      echoPrompt?: boolean;
     }
   ): Promise<{ process: SandboxProcess; outputText: string; exitCode: number; filesModified: string[] }> {
     const pid = this.nextPid++;
@@ -447,6 +530,7 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
     const pushStdout = (chunk: string) => {
       stdoutBuffer += chunk;
       this.terminalHistoryText += chunk;
+      this.savePersistentState();
       this.emit('stdout', { pid, text: chunk });
       if (streamController) {
         try {
@@ -458,6 +542,7 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
     const pushStderr = (chunk: string) => {
       stderrBuffer += chunk;
       this.terminalHistoryText += chunk;
+      this.savePersistentState();
       this.emit('stderr', { pid, text: chunk });
       if (streamController) {
         try {
@@ -467,7 +552,11 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
     };
 
     const fullCmd = [rawCommand, ...args].join(' ').trim();
-    pushStdout(`${fullCmd}\r\n`);
+    if (options?.echoPrompt) {
+      pushStdout(`\r\n${this.getPrompt()}${fullCmd}\r\n`);
+    } else if (options?.echoCommand !== false) {
+      pushStdout(`${fullCmd}\r\n`);
+    }
 
     this.runningProcessesCount++;
     this.emit('start', { pid, command: rawCommand, args, timestamp: startTime });
@@ -703,7 +792,7 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
     }
 
     if (cleanCmd === 'cd') {
-      const target = args[0] || '/workspace';
+      const target = cmdArgs[0] || '/workspace';
       const norm = this.normalizePath(target);
       this.currentWorkingDir = norm;
       stdout(`Diretório atual: ${norm}\n`);
@@ -711,8 +800,8 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
     }
 
     if (cleanCmd === 'ls') {
-      const showAll = args.includes('-la') || args.includes('-a') || args.includes('-l');
-      const targetDir = args.find(a => !a.startsWith('-')) || this.currentWorkingDir;
+      const showAll = cmdArgs.includes('-la') || cmdArgs.includes('-a') || cmdArgs.includes('-l');
+      const targetDir = cmdArgs.find(a => !a.startsWith('-')) || this.currentWorkingDir;
       const files = this.listFiles(targetDir);
 
       if (files.length === 0) {
@@ -739,14 +828,14 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
     }
 
     if (cleanCmd === 'cat') {
-      if (args.length === 0) {
+      if (cmdArgs.length === 0) {
         stderr('cat: argumento de arquivo faltando\n');
         return 1;
       }
-      const filePath = this.normalizePath(args[0]);
+      const filePath = this.normalizePath(cmdArgs[0]);
       const content = this.readFile(filePath);
       if (content === null) {
-        stderr(`cat: ${args[0]}: Arquivo ou diretório não encontrado\n`);
+        stderr(`cat: ${cmdArgs[0]}: Arquivo ou diretório não encontrado\n`);
         return 1;
       }
       stdout(content.endsWith('\n') ? content : content + '\n');
@@ -754,11 +843,11 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
     }
 
     if (cleanCmd === 'touch') {
-      if (args.length === 0) {
+      if (cmdArgs.length === 0) {
         stderr('touch: argumento de arquivo faltando\n');
         return 1;
       }
-      const filePath = this.normalizePath(args[0]);
+      const filePath = this.normalizePath(cmdArgs[0]);
       if (!this.fileExists(filePath)) {
         this.writeFile(filePath, '');
       }
@@ -766,20 +855,20 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
     }
 
     if (cleanCmd === 'mkdir') {
-      if (args.length === 0) {
+      if (cmdArgs.length === 0) {
         stderr('mkdir: nome do diretório faltando\n');
         return 1;
       }
-      stdout(`Diretório ${args[0]} criado no sandbox.\n`);
+      stdout(`Diretório ${cmdArgs[0]} criado no sandbox.\n`);
       return 0;
     }
 
     if (cleanCmd === 'rm') {
-      if (args.length === 0) {
+      if (cmdArgs.length === 0) {
         stderr('rm: arquivo faltando\n');
         return 1;
       }
-      const target = args.find(a => !a.startsWith('-')) || '';
+      const target = cmdArgs.find(a => !a.startsWith('-')) || '';
       const filePath = this.normalizePath(target);
       if (this.deleteFile(filePath)) {
         stdout(`Arquivo ${target} removido.\n`);
@@ -791,44 +880,44 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
     }
 
     if (cleanCmd === 'cp') {
-      if (args.length < 2) {
+      if (cmdArgs.length < 2) {
         stderr('cp: origem e destino obrigatórios\n');
         return 1;
       }
-      const src = this.normalizePath(args[0]);
-      const dst = this.normalizePath(args[1]);
+      const src = this.normalizePath(cmdArgs[0]);
+      const dst = this.normalizePath(cmdArgs[1]);
       const content = this.readFile(src);
       if (content === null) {
-        stderr(`cp: '${args[0]}': Arquivo não encontrado\n`);
+        stderr(`cp: '${cmdArgs[0]}': Arquivo não encontrado\n`);
         return 1;
       }
       this.writeFile(dst, content);
-      stdout(`'${args[0]}' -> '${args[1]}'\n`);
+      stdout(`'${cmdArgs[0]}' -> '${cmdArgs[1]}'\n`);
       return 0;
     }
 
     if (cleanCmd === 'mv') {
-      if (args.length < 2) {
+      if (cmdArgs.length < 2) {
         stderr('mv: origem e destino obrigatórios\n');
         return 1;
       }
-      const src = this.normalizePath(args[0]);
-      const dst = this.normalizePath(args[1]);
+      const src = this.normalizePath(cmdArgs[0]);
+      const dst = this.normalizePath(cmdArgs[1]);
       const content = this.readFile(src);
       if (content === null) {
-        stderr(`mv: '${args[0]}': Arquivo não encontrado\n`);
+        stderr(`mv: '${cmdArgs[0]}': Arquivo não encontrado\n`);
         return 1;
       }
       this.writeFile(dst, content);
       this.deleteFile(src);
-      stdout(`'${args[0]}' -> '${args[1]}'\n`);
+      stdout(`'${cmdArgs[0]}' -> '${cmdArgs[1]}'\n`);
       return 0;
     }
 
     if (cleanCmd === 'echo') {
       // Check for redirect: echo "text" > file.txt or >> file.txt
-      const fullArgs = args.join(' ');
-      const redirectMatch = fullArgs.match(/^(.*?)\s*(>>|>)\s*([^\s]+)$/);
+      const rawArgs = fullCmdLine.replace(/^echo\s*/i, '');
+      const redirectMatch = rawArgs.match(/^(.*?)\s*(>>|>)\s*([^\s]+)$/);
       if (redirectMatch) {
         let textPart = redirectMatch[1].trim();
         const hasNoNewline = textPart.startsWith('-n ') || textPart === '-n';
@@ -850,7 +939,7 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
         return 0;
       }
 
-      let textPart = fullArgs.trim();
+      let textPart = rawArgs.trim();
       const hasNoNewline = textPart.startsWith('-n ') || textPart === '-n';
       if (hasNoNewline) {
         textPart = textPart.replace(/^-n\s*/, '');

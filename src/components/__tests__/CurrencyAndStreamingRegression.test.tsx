@@ -1,0 +1,90 @@
+import { describe, it, expect, vi } from 'vitest';
+import React from 'react';
+import { renderToString } from 'react-dom/server';
+
+vi.mock('../../lib/firebase', () => ({
+  auth: { currentUser: null },
+  db: {}
+}));
+
+vi.mock('firebase/firestore', () => ({
+  doc: vi.fn(),
+  getDoc: vi.fn()
+}));
+
+vi.mock('../WsmMapComponent', () => ({
+  default: function MockMap({ lat, lon, place }: { lat: number; lon: number; place: string }) {
+    return <div data-testid="wsm-map" data-place={place} data-lat={lat} data-lon={lon}>Mapa: {place} ({lat}, {lon})</div>;
+  }
+}));
+
+vi.mock('../WsmChartComponent', () => ({
+  default: function MockChart() { return <div className="mock-chart">Chart</div>; }
+}));
+
+vi.mock('../WsmMindmapComponent', () => ({
+  default: function MockMindmap() { return <div className="mock-mindmap">Mindmap</div>; }
+}));
+
+vi.mock('katex', () => ({
+  default: {
+    renderToString: (tex: string) => `<span class="katex">${tex}</span>`
+  }
+}));
+
+import MarkdownRenderer from '../MarkdownRenderer';
+
+describe('Currency R$ and Streaming Table/Map Regression Tests', () => {
+  it('renders Brazilian Real (R$) currency and prices in Markdown tables without math corruption', () => {
+    const tableMarkdown = `
+Aqui está a tabela comparativa dos carros e o mapa de São Paulo:
+
+| Modelo | Preço (R$) | Consumo (km/l) |
+|---|---|---|
+| Fiat Mobi Like | R$ 72.990 | 14,2 (Gasolina) |
+| Renault Kwid Zen | R$ 73.640 | 15,3 (Gasolina) |
+| Citroën C3 Live | R$ 74.790 | 13,0 (Gasolina) |
+
+<wsm_map lat="-23.5505" lon="-46.6333" place="São Paulo, SP" zoom="12" />
+    `.trim();
+
+    const html = renderToString(<MarkdownRenderer content={tableMarkdown} />);
+
+    // 1. Tabela deve ser renderizada por completo
+    expect(html).toContain('Preço (R$)');
+    expect(html).toContain('Fiat Mobi Like');
+    expect(html).toContain('R$ 72.990');
+    expect(html).toContain('Renault Kwid Zen');
+    expect(html).toContain('R$ 73.640');
+    expect(html).toContain('Citroën C3 Live');
+    expect(html).toContain('R$ 74.790');
+
+    // 2. Não deve transformar preços em expressões KaTeX ou corromper
+    expect(html).not.toContain('<span class="katex">72.990');
+    expect(html).not.toContain('<span class="katex">R$');
+
+    // 3. Mapa deve ser renderizado logo após a tabela
+    expect(html).toContain('data-testid="wsm-map"');
+    expect(html).toContain('São Paulo, SP');
+  });
+
+  it('differentiates LaTeX mathematical equations from currency symbols', () => {
+    const mixedMarkdown = `
+O valor inicial foi de R$ 50,00 e o final de R$ 120,00.
+Em dólares, custou US$ 25.00 e $30.00.
+
+Fórmula de física: $E = mc^2$
+Equação quadrática: $ax^2 + bx + c = 0$
+    `.trim();
+
+    const html = renderToString(<MarkdownRenderer content={mixedMarkdown} />);
+
+    // Moedas permanecem como texto legível
+    expect(html).toContain('R$ 50,00');
+    expect(html).toContain('R$ 120,00');
+    expect(html).toContain('US$ 25.00');
+
+    // Fórmulas matemáticas reais são convertidas para KaTeX
+    expect(html).toContain('katex');
+  });
+});

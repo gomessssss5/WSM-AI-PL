@@ -73,6 +73,10 @@ const BANNED_PATTERNS: RegExp[] = [
   /\[ALERTA CRÍTICO DO SISTEMA[\s\S]*?\]/gi,
   /\[Texto Anexado do Editor:\n"[\s\S]*?"\]\n\n?/gi,
   /\[Utilize as seguintes skills:[\s\S]*?\]/gi,
+  /\x1b\[[0-9;]*[a-zA-Z]/g, // ANSI color escape sequences
+  /(?:ubuntu|root)@[a-zA-Z0-9_\-\.]+:[^\n$#]*[$#]\s*$/gmi, // Trailing terminal prompts
+  /^ubuntu@sandbox:[^\n]*[$#]\s*$/gmi, // Standalone prompt lines
+  /\bubuntu@sandbox:[^\n]*[$#]\s*/gi, // Inline terminal prompt leaks
 ];
 
 /**
@@ -305,10 +309,15 @@ export function validateExportedMarkdown(markdown: string): { isValid: boolean; 
 export function generateSanitizedExportMarkdown(
   messages: ExportableMessage[],
   title: string = 'Chat',
-  selectedModel: string = 'Omnix 1.6'
+  selectedModel: string = 'Omnix 1.6',
+  options?: {
+    exportOption?: 'conversation_only' | 'with_steps' | 'with_terminal';
+    terminalTranscript?: string;
+  }
 ): string {
   let md = `# Conversa do Omnix AI - ${title || 'Chat'}\n\n`;
   md += `**Modelo selecionado:** ${selectedModel}\n`;
+  md += `**Modo de exportação:** ${options?.exportOption === 'with_terminal' ? 'Conversa + Transcript do Terminal' : (options?.exportOption === 'with_steps' ? 'Conversa + Etapas' : 'Conversa Pura')}\n`;
   md += `**Exportado em:** ${new Date().toLocaleString()}\n\n`;
   md += `---\n\n`;
 
@@ -368,7 +377,19 @@ export function generateSanitizedExportMarkdown(
   });
 
   if (exportedMessageCount === 0) {
-    md += `*Nenhuma mensagem conversacional visível para exportar.*\n`;
+    md += `*Nenhuma mensagem conversacional visível para exportar.*\n\n`;
+  }
+
+  // If user requested conversation + terminal transcript, append isolated terminal appendix
+  if (options?.exportOption === 'with_terminal' && options?.terminalTranscript) {
+    const cleanTranscript = options.terminalTranscript
+      .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+      .trim();
+    if (cleanTranscript) {
+      md += `## 🖥️ Anexo: Transcript Isolado do Terminal Sandbox\n\n`;
+      md += `> *Sessão de terminal executada durante o workspace.*\n\n`;
+      md += `\`\`\`terminal\n${cleanTranscript}\n\`\`\`\n\n`;
+    }
   }
 
   // Final verification & sanitization pass

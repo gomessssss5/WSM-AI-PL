@@ -97,99 +97,54 @@ export default function TypewriterMarkdown({
       if (currentIndexRef.current < currentTotalLen) {
         currentIndexRef.current += Math.max(1, Math.floor(delta * charsPerMs));
         
-        const slicedTextForCheck = currentSegments.slice(0, currentIndexRef.current).join('');
-        const codeBlockMatch = slicedTextForCheck.match(/```/g) || [];
-        const isInsideCodeBlock = codeBlockMatch.length % 2 !== 0;
-        
-        if (isInsideCodeBlock) {
-          // Pause the typing exactly at the start of the code block
-          // until the closing triple backticks are available in the stream
-          let foundClosing = false;
-          let closingIndex = -1;
-          for (let i = currentIndexRef.current; i < currentTotalLen - 2; i++) {
-            if (currentSegments[i] === '`' && currentSegments[i+1] === '`' && currentSegments[i+2] === '`') {
-              closingIndex = i + 3;
-              foundClosing = true;
-              break;
-            }
-          }
+        if (isThinking) {
+          const slicedTextForCheck = currentSegments.slice(0, currentIndexRef.current).join('');
+          const codeBlockMatch = slicedTextForCheck.match(/```/g) || [];
+          const isInsideCodeBlock = codeBlockMatch.length % 2 !== 0;
           
-          if (foundClosing) {
-            // Instantly reveal the entire code block
-            currentIndexRef.current = closingIndex;
-          } else {
-            // Keep the index right before the opening backticks so the block doesn't render partially
-            const lastBacktickStart = slicedTextForCheck.lastIndexOf('```');
-            if (lastBacktickStart !== -1) {
-              currentIndexRef.current = lastBacktickStart;
-            }
-          }
-        }
-
-        // Check for custom wsm component tags (<wsm_...) to buffer them
-        let lastOpenAngleIndex = -1;
-        for (let i = currentIndexRef.current - 1; i >= 0; i--) {
-          if (currentSegments[i] === '<') {
-            lastOpenAngleIndex = i;
-            break;
-          } else if (currentSegments[i] === '>') {
-            break;
-          }
-        }
-
-        if (lastOpenAngleIndex !== -1) {
-          const textInside = currentSegments.slice(lastOpenAngleIndex).join('').toLowerCase();
-          if (textInside.startsWith('<wsm_') || textInside.startsWith('<img') || textInside.startsWith('<svg')) {
+          if (isInsideCodeBlock) {
+            // Pause the typing exactly at the start of the code block
+            // until the closing triple backticks are available in the stream
             let foundClosing = false;
             let closingIndex = -1;
-            for (let i = lastOpenAngleIndex; i < currentTotalLen; i++) {
-              if (currentSegments[i] === '>') {
-                closingIndex = i + 1;
+            for (let i = currentIndexRef.current; i < currentTotalLen - 2; i++) {
+              if (currentSegments[i] === '`' && currentSegments[i+1] === '`' && currentSegments[i+2] === '`') {
+                closingIndex = i + 3;
                 foundClosing = true;
                 break;
               }
             }
-
+            
             if (foundClosing) {
-              currentIndexRef.current = Math.max(currentIndexRef.current, closingIndex);
+              // Instantly reveal the entire code block
+              currentIndexRef.current = closingIndex;
             } else {
-              currentIndexRef.current = lastOpenAngleIndex;
+              // Keep the index right before the opening backticks so the block doesn't render partially
+              const lastBacktickStart = slicedTextForCheck.lastIndexOf('```');
+              if (lastBacktickStart !== -1) {
+                currentIndexRef.current = lastBacktickStart;
+              }
             }
           }
-        }
 
-        // Check for agentic tags to buffer them
-        let lastOpenBracketIndex = -1;
-        for (let i = currentIndexRef.current - 1; i >= 0; i--) {
-          if (currentSegments[i] === '[') {
-            lastOpenBracketIndex = i;
-            break;
-          } else if (currentSegments[i] === ']') {
-            break; 
+          // Check for custom wsm component tags (<wsm_...) to buffer them
+          let lastOpenAngleIndex = -1;
+          for (let i = currentIndexRef.current - 1; i >= 0; i--) {
+            if (currentSegments[i] === '<') {
+              lastOpenAngleIndex = i;
+              break;
+            } else if (currentSegments[i] === '>') {
+              break;
+            }
           }
-        }
 
-        if (lastOpenBracketIndex !== -1) {
-           const textInside = currentSegments.slice(lastOpenBracketIndex + 1).join('').toLowerCase();
-           const prefixes = [
-              "pesquisou na web", "pesquisando", "calculando", "verificando",
-              "código 100% verificado", "corrigindo erro",
-              "sandbox de depuração", "criando skill", "editando skill",
-              "excluindo skill", "criou skill", "editou skill", "excluiu skill",
-              "nova tarefa", "tarefa removida", "passo concluído",
-              "abrindo site", "acessando site", "acessando", "lendo página", "lendo conteúdo",
-              "preparando resumo", "preparando", "elaborando resposta", "elaborando", "analisando",
-              "sintetizando", "extraindo", "clicando", "digitando", "rolando",
-              "aguardando", "criando documento", "editando documento",
-              "excluindo documento", "listando documentos", "buscando"
-           ];
-           const isAgentic = prefixes.some(p => p.startsWith(textInside) || textInside.startsWith(p)) || textInside.includes('...');
-           
-           if (isAgentic) {
+          if (lastOpenAngleIndex !== -1) {
+            const textInside = currentSegments.slice(lastOpenAngleIndex).join('').toLowerCase();
+            if (textInside.startsWith('<wsm_') || textInside.startsWith('<img') || textInside.startsWith('<svg')) {
               let foundClosing = false;
               let closingIndex = -1;
-              for (let i = lastOpenBracketIndex; i < currentTotalLen; i++) {
-                if (currentSegments[i] === ']') {
+              for (let i = lastOpenAngleIndex; i < currentTotalLen; i++) {
+                if (currentSegments[i] === '>') {
                   closingIndex = i + 1;
                   foundClosing = true;
                   break;
@@ -197,52 +152,84 @@ export default function TypewriterMarkdown({
               }
 
               if (foundClosing) {
-                 currentIndexRef.current = Math.max(currentIndexRef.current, closingIndex);
+                currentIndexRef.current = Math.max(currentIndexRef.current, closingIndex);
               } else {
-                 currentIndexRef.current = lastOpenBracketIndex;
+                currentIndexRef.current = lastOpenAngleIndex;
               }
-           }
-        }
-
-        // Buffer math blocks ($$ or $) during streaming
-        let lastDollarIndex = -1;
-        let isDoubleDollar = false;
-        for (let i = currentIndexRef.current - 1; i >= 0; i--) {
-          if (currentSegments[i] === '$') {
-            lastDollarIndex = i;
-            if (i > 0 && currentSegments[i - 1] === '$') {
-              lastDollarIndex = i - 1;
-              isDoubleDollar = true;
             }
-            break;
           }
-        }
 
-        if (lastDollarIndex !== -1) {
-          let foundClosingMath = false;
-          let closingMathIndex = -1;
-          const searchStart = isDoubleDollar ? lastDollarIndex + 2 : lastDollarIndex + 1;
-          for (let i = searchStart; i < currentTotalLen; i++) {
-            if (currentSegments[i] === '$') {
-              if (isDoubleDollar && i + 1 < currentTotalLen && currentSegments[i + 1] === '$') {
+          // Check for agentic tags to buffer them
+          let lastOpenBracketIndex = -1;
+          for (let i = currentIndexRef.current - 1; i >= 0; i--) {
+            if (currentSegments[i] === '[') {
+              lastOpenBracketIndex = i;
+              break;
+            } else if (currentSegments[i] === ']') {
+              break; 
+            }
+          }
+
+          if (lastOpenBracketIndex !== -1) {
+            const textInside = currentSegments.slice(lastOpenBracketIndex + 1).join('').toLowerCase();
+            const prefixes = [
+                "pesquisou na web", "pesquisando", "calculando", "verificando",
+                "código 100% verificado", "corrigindo erro",
+                "sandbox de depuração", "criando skill", "editando skill",
+                "excluindo skill", "criou skill", "editou skill", "excluiu skill",
+                "nova tarefa", "tarefa removida", "passo concluído",
+                "abrindo site", "acessando site", "acessando", "lendo página", "lendo conteúdo",
+                "preparando resumo", "preparando", "elaborando resposta", "elaborando", "analisando",
+                "sintetizando", "extraindo", "clicando", "digitando", "rolando",
+                "aguardando", "criando documento", "editando documento",
+                "excluindo documento", "listando documentos", "buscando"
+            ];
+            const isAgentic = textInside.length > 0 && (prefixes.some(p => textInside.startsWith(p) || (textInside.length >= 3 && p.startsWith(textInside))) || textInside.includes('...'));
+            
+            if (isAgentic) {
+                let foundClosing = false;
+                let closingIndex = -1;
+                for (let i = lastOpenBracketIndex; i < currentTotalLen; i++) {
+                  if (currentSegments[i] === ']') {
+                    closingIndex = i + 1;
+                    foundClosing = true;
+                    break;
+                  }
+                }
+
+                if (foundClosing) {
+                    currentIndexRef.current = Math.max(currentIndexRef.current, closingIndex);
+                } else {
+                    currentIndexRef.current = lastOpenBracketIndex;
+                }
+            }
+          }
+
+          // Math block buffering: ONLY buffer dedicated double-dollar ($$) blocks during active streaming
+          // NEVER buffer single dollar ($), currency signs (R$, US$, $100), or prose
+          let lastDoubleDollarIndex = -1;
+          for (let i = currentIndexRef.current - 1; i >= 1; i--) {
+            if (currentSegments[i] === '$' && currentSegments[i - 1] === '$') {
+              lastDoubleDollarIndex = i - 1;
+              break;
+            }
+          }
+
+          if (lastDoubleDollarIndex !== -1) {
+            let foundClosingMath = false;
+            let closingMathIndex = -1;
+            for (let i = lastDoubleDollarIndex + 2; i < currentTotalLen - 1; i++) {
+              if (currentSegments[i] === '$' && currentSegments[i + 1] === '$') {
                 closingMathIndex = i + 2;
                 foundClosingMath = true;
                 break;
-              } else if (!isDoubleDollar) {
-                closingMathIndex = i + 1;
-                foundClosingMath = true;
-                break;
               }
             }
-          }
 
-          if (foundClosingMath) {
-            currentIndexRef.current = Math.max(currentIndexRef.current, closingMathIndex);
-          } else {
-            // Check if this dollar sign is an unclosed math token rather than price currency
-            const mathCandidate = currentSegments.slice(lastDollarIndex, currentTotalLen).join('');
-            if (/[\\+*\/=_{}^]/.test(mathCandidate) || mathCandidate.length > 30) {
-              currentIndexRef.current = lastDollarIndex;
+            if (foundClosingMath) {
+              currentIndexRef.current = Math.max(currentIndexRef.current, closingMathIndex);
+            } else {
+              currentIndexRef.current = lastDoubleDollarIndex;
             }
           }
         }

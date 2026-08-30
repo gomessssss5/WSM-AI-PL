@@ -30,7 +30,10 @@ import {
   Minimize2,
   Copy,
   Check,
-  SkipBack
+  SkipBack,
+  Send,
+  CornerDownLeft,
+  Activity
 } from 'lucide-react';
 import { sandboxEngine, SandboxFileEntry, TerminalCommandLog, SandboxResourceUsage } from '../lib/terminalSandbox';
 
@@ -57,7 +60,12 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [currentProcessInfo, setCurrentProcessInfo] = useState<{ command: string; pid: number } | null>(null);
+  const [lastExecutionStatus, setLastExecutionStatus] = useState<{ command: string; exitCode: number; durationMs: number; timestamp: number } | null>(null);
   
+  // Auxiliary input field state
+  const [auxiliaryInput, setAuxiliaryInput] = useState('');
+  const auxiliaryInputRef = useRef<HTMLInputElement | null>(null);
+
   // File Explorer State
   const [files, setFiles] = useState<SandboxFileEntry[]>([]);
   const [selectedFile, setSelectedFile] = useState<SandboxFileEntry | null>(null);
@@ -67,9 +75,8 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
   const [isCreatingFile, setIsCreatingFile] = useState(false);
 
   // Command History & Audit
-  const [commandLogs, setCommandLogs] = useState<TerminalCommandLog[]>([]);
+  const [commandLogs, setCommandLogs] = useState<TerminalCommandLog[]>(sandboxEngine.getHistory());
   const [resourceUsage, setResourceUsage] = useState<SandboxResourceUsage>(sandboxEngine.getResourceUsage());
-  const [copiedCode, setCopiedCode] = useState(false);
 
   // Shell prompt line buffer
   const promptBuffer = useRef<string>('');
@@ -78,13 +85,18 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
 
   const [currentCwd, setCurrentCwd] = useState<string>(sandboxEngine.getCwd());
 
-  // Refresh files & resources
+  // Refresh files, history & resources
   const refreshSandboxState = () => {
     setCurrentCwd(sandboxEngine.getCwd());
     setFiles(sandboxEngine.listFiles('/workspace'));
     setCommandLogs(sandboxEngine.getHistory());
     setResourceUsage(sandboxEngine.getResourceUsage());
   };
+
+  // Synchronize on mount and whenever isOpen / activeTab changes
+  useEffect(() => {
+    refreshSandboxState();
+  }, [isOpen, activeTab]);
 
   const writePrompt = () => {
     if (xtermInstance.current) {
@@ -93,167 +105,202 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
     }
   };
 
-  // Initialize xterm with Manus AI light theme matching screenshot
+  // Initialize and clean up xterm instance
   useEffect(() => {
     if (!isOpen) return;
 
+    let isDisposed = false;
+
     const timer = setTimeout(() => {
-      if (!terminalRef.current) return;
+      if (isDisposed || !terminalRef.current) return;
 
-      if (!xtermInstance.current) {
-        const term = new Terminal({
-          cursorBlink: true,
-          convertEol: true,
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-          fontSize: 13,
-          lineHeight: 1.3,
-          theme: {
-            background: '#f6f6f7',
-            foreground: '#374151',
-            cursor: '#16a34a',
-            cursorAccent: '#ffffff',
-            selectionBackground: 'rgba(22, 163, 74, 0.2)',
-            black: '#18181b',
-            red: '#dc2626',
-            green: '#16a34a',
-            yellow: '#d97706',
-            blue: '#2563eb',
-            magenta: '#9333ea',
-            cyan: '#0891b2',
-            white: '#64748b',
-            brightBlack: '#71717a',
-            brightRed: '#ef4444',
-            brightGreen: '#15803d',
-            brightYellow: '#f59e0b',
-            brightBlue: '#3b82f6',
-            brightMagenta: '#a855f7',
-            brightCyan: '#06b6d4',
-            brightWhite: '#09090b'
-          }
-        });
+      // Clean up previous xterm instance if any
+      if (xtermInstance.current) {
+        try {
+          xtermInstance.current.dispose();
+        } catch (e) {}
+        xtermInstance.current = null;
+        fitAddonInstance.current = null;
+      }
 
-        const fitAddon = new FitAddon();
-        term.loadAddon(fitAddon);
+      if (terminalRef.current) {
+        terminalRef.current.innerHTML = '';
+      }
 
+      const term = new Terminal({
+        cursorBlink: true,
+        convertEol: true,
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+        fontSize: 13,
+        lineHeight: 1.3,
+        theme: {
+          background: '#f6f6f7',
+          foreground: '#374151',
+          cursor: '#16a34a',
+          cursorAccent: '#ffffff',
+          selectionBackground: 'rgba(22, 163, 74, 0.2)',
+          black: '#18181b',
+          red: '#dc2626',
+          green: '#16a34a',
+          yellow: '#d97706',
+          blue: '#2563eb',
+          magenta: '#9333ea',
+          cyan: '#0891b2',
+          white: '#64748b',
+          brightBlack: '#71717a',
+          brightRed: '#ef4444',
+          brightGreen: '#15803d',
+          brightYellow: '#f59e0b',
+          brightBlue: '#3b82f6',
+          brightMagenta: '#a855f7',
+          brightCyan: '#06b6d4',
+          brightWhite: '#09090b'
+        }
+      });
+
+      const fitAddon = new FitAddon();
+      term.loadAddon(fitAddon);
+
+      if (terminalRef.current) {
         term.open(terminalRef.current);
-        fitAddon.fit();
+        try {
+          fitAddon.fit();
+        } catch (e) {}
+      }
 
-        xtermInstance.current = term;
-        fitAddonInstance.current = fitAddon;
+      xtermInstance.current = term;
+      fitAddonInstance.current = fitAddon;
 
-        // Write full terminal history on mount
-        term.write(sandboxEngine.getTerminalHistoryText().replace(/\n/g, '\r\n'));
+      // Write full terminal history on mount
+      const historyText = sandboxEngine.getTerminalHistoryText();
+      term.write(historyText.replace(/\n/g, '\r\n'));
+      term.scrollToBottom();
 
-        // Keyboard & Paste handler
-        term.onData((data) => {
-          if (isRunning) return;
+      // Keyboard & Paste handler
+      term.onData((data) => {
+        if (sandboxEngine.getIsRunning()) return;
 
-          // Arrow Up (History Prev)
-          if (data === '\x1b[A') {
-            if (localCommandHistory.current.length > 0 && historyIndex.current > 0) {
+        // Arrow Up (History Prev)
+        if (data === '\x1b[A') {
+          const hist = sandboxEngine.getHistory().map(h => h.command);
+          if (hist.length > 0) {
+            if (historyIndex.current === -1) {
+              historyIndex.current = hist.length - 1;
+            } else if (historyIndex.current > 0) {
               historyIndex.current--;
-              const prevCmd = localCommandHistory.current[historyIndex.current];
-              term.write('\r\x1b[K' + sandboxEngine.getPrompt() + prevCmd);
-              promptBuffer.current = prevCmd;
             }
-            return;
+            const prevCmd = hist[historyIndex.current];
+            term.write('\r\x1b[K' + sandboxEngine.getPrompt() + prevCmd);
+            promptBuffer.current = prevCmd;
           }
+          return;
+        }
 
-          // Arrow Down (History Next)
-          if (data === '\x1b[B') {
-            if (historyIndex.current < localCommandHistory.current.length - 1) {
-              historyIndex.current++;
-              const nextCmd = localCommandHistory.current[historyIndex.current];
-              term.write('\r\x1b[K' + sandboxEngine.getPrompt() + nextCmd);
-              promptBuffer.current = nextCmd;
+        // Arrow Down (History Next)
+        if (data === '\x1b[B') {
+          const hist = sandboxEngine.getHistory().map(h => h.command);
+          if (historyIndex.current !== -1 && historyIndex.current < hist.length - 1) {
+            historyIndex.current++;
+            const nextCmd = hist[historyIndex.current];
+            term.write('\r\x1b[K' + sandboxEngine.getPrompt() + nextCmd);
+            promptBuffer.current = nextCmd;
+          } else {
+            historyIndex.current = -1;
+            term.write('\r\x1b[K' + sandboxEngine.getPrompt());
+            promptBuffer.current = '';
+          }
+          return;
+        }
+
+        // Process input character by character
+        let idx = 0;
+        while (idx < data.length) {
+          const char = data[idx];
+
+          // Enter key (\r or \n)
+          if (char === '\r' || char === '\n') {
+            const cmd = promptBuffer.current.trim();
+            promptBuffer.current = '';
+            term.write('\r\n');
+            if (cmd) {
+              localCommandHistory.current.push(cmd);
+              historyIndex.current = -1;
+              executeCommandInTerminal(cmd, 'user', true);
             } else {
-              historyIndex.current = localCommandHistory.current.length;
-              term.write('\r\x1b[K' + sandboxEngine.getPrompt());
-              promptBuffer.current = '';
-            }
-            return;
-          }
-
-          // Process input character by character to handle multi-character pastes, typed text, and newlines
-          let idx = 0;
-          while (idx < data.length) {
-            const char = data[idx];
-
-            // Enter key (\r or \n)
-            if (char === '\r' || char === '\n') {
-              const cmd = promptBuffer.current.trim();
-              term.write('\r\n');
-              if (cmd) {
-                localCommandHistory.current.push(cmd);
-                historyIndex.current = localCommandHistory.current.length;
-                executeCommandInTerminal(cmd);
-              } else {
-                writePrompt();
-              }
-              promptBuffer.current = '';
-              idx++;
-              if (char === '\r' && idx < data.length && data[idx] === '\n') {
-                idx++;
-              }
-              continue;
-            }
-
-            // Backspace
-            if (char === '\x7f' || char === '\b') {
-              if (promptBuffer.current.length > 0) {
-                promptBuffer.current = promptBuffer.current.slice(0, -1);
-                term.write('\b \b');
-              }
-              idx++;
-              continue;
-            }
-
-            // Ctrl+C
-            if (char === '\x03') {
-              term.write('^C\r\n');
-              promptBuffer.current = '';
-              writePrompt();
-              idx++;
-              continue;
-            }
-
-            // Ctrl+L (clear)
-            if (char === '\x0c') {
-              term.clear();
-              writePrompt();
-              idx++;
-              continue;
-            }
-
-            // Printable characters & Tab
-            const code = char.charCodeAt(0);
-            if (code >= 32 || code === 9) {
-              promptBuffer.current += char;
-              term.write(char);
+              term.write(sandboxEngine.getPrompt());
             }
             idx++;
+            if (char === '\r' && idx < data.length && data[idx] === '\n') {
+              idx++;
+            }
+            continue;
           }
-        });
 
-        // Initial focus
-        setTimeout(() => {
+          // Backspace
+          if (char === '\x7f' || char === '\b') {
+            if (promptBuffer.current.length > 0) {
+              promptBuffer.current = promptBuffer.current.slice(0, -1);
+              term.write('\b \b');
+            }
+            idx++;
+            continue;
+          }
+
+          // Ctrl+C
+          if (char === '\x03') {
+            term.write('^C\r\n');
+            promptBuffer.current = '';
+            term.write(sandboxEngine.getPrompt());
+            idx++;
+            continue;
+          }
+
+          // Ctrl+L (clear)
+          if (char === '\x0c') {
+            term.clear();
+            term.write(sandboxEngine.getPrompt());
+            idx++;
+            continue;
+          }
+
+          // Printable characters & Tab
+          const code = char.charCodeAt(0);
+          if (code >= 32 || code === 9) {
+            promptBuffer.current += char;
+            term.write(char);
+          }
+          idx++;
+        }
+      });
+
+      // Initial focus
+      setTimeout(() => {
+        try {
           xtermInstance.current?.focus();
-        }, 100);
-      } else {
-        fitAddonInstance.current?.fit();
-      }
-    }, 50);
+        } catch (e) {}
+      }, 100);
+    }, 60);
 
     const handleResize = () => {
-      fitAddonInstance.current?.fit();
+      try {
+        fitAddonInstance.current?.fit();
+      } catch (e) {}
     };
     window.addEventListener('resize', handleResize);
 
     return () => {
+      isDisposed = true;
       clearTimeout(timer);
       window.removeEventListener('resize', handleResize);
+      if (xtermInstance.current) {
+        try {
+          xtermInstance.current.dispose();
+        } catch (e) {}
+        xtermInstance.current = null;
+        fitAddonInstance.current = null;
+      }
     };
-  }, [isOpen]);
+  }, [isOpen, activeTab]);
 
   // Subscribe to Sandbox Engine events
   useEffect(() => {
@@ -264,6 +311,13 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
       } else if (event.type === 'stderr' && event.data?.text && xtermInstance.current) {
         xtermInstance.current.write(`\x1b[31m${event.data.text.replace(/\n/g, '\r\n')}\x1b[0m`);
         xtermInstance.current.scrollToBottom();
+      } else if (event.type === 'start') {
+        setIsRunning(true);
+        refreshSandboxState();
+      } else if (event.type === 'exit') {
+        setIsRunning(false);
+        setCurrentProcessInfo(null);
+        refreshSandboxState();
       } else if (event.type === 'fs_change') {
         refreshSandboxState();
       }
@@ -275,14 +329,35 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
   }, []);
 
   // Run a command inside xterm
-  const executeCommandInTerminal = async (cmdLine: string, caller: 'ai' | 'user' = 'user') => {
+  const executeCommandInTerminal = async (
+    cmdLine: string, 
+    caller: 'ai' | 'user' = 'user',
+    isDirectTyping = false
+  ) => {
     if (!cmdLine.trim()) return;
 
     setIsRunning(true);
     setCurrentProcessInfo({ command: cmdLine, pid: Math.floor(Math.random() * 9000) + 1000 });
 
     try {
-      const { exitCode, outputText, filesModified } = await sandboxEngine.spawn(cmdLine, [], { caller });
+      // If run from auxiliary bar, programmatic button, or AI, write prompt + command clearly to xterm
+      if (!isDirectTyping && xtermInstance.current) {
+        xtermInstance.current.write(`\r\n${sandboxEngine.getPrompt()}${cmdLine}\r\n`);
+      }
+
+      const { exitCode, outputText, filesModified } = await sandboxEngine.spawn(cmdLine, [], { 
+        caller,
+        echoCommand: !isDirectTyping,
+        echoPrompt: false
+      });
+
+      setLastExecutionStatus({
+        command: cmdLine,
+        exitCode,
+        durationMs: 0,
+        timestamp: Date.now()
+      });
+
       refreshSandboxState();
 
       if (onRunFinished) {
@@ -291,26 +366,39 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
     } catch (err: any) {
       if (xtermInstance.current) {
         xtermInstance.current.write(`\x1b[31m✕ Falha na execução: ${err?.message || String(err)}\x1b[0m\r\n`);
+        xtermInstance.current.write(sandboxEngine.getPrompt());
       }
     } finally {
       setIsRunning(false);
       setCurrentProcessInfo(null);
-      writePrompt();
+      refreshSandboxState();
     }
+  };
+
+  // Handle submit from Auxiliary Input
+  const handleAuxiliarySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cmd = auxiliaryInput.trim();
+    if (!cmd || isRunning) return;
+
+    setAuxiliaryInput('');
+    setActiveTab('terminal');
+    executeCommandInTerminal(cmd, 'user', false);
   };
 
   // Clear terminal screen
   const handleClearTerminal = () => {
     if (xtermInstance.current) {
       xtermInstance.current.clear();
-      writePrompt();
+      xtermInstance.current.write(sandboxEngine.getPrompt());
     }
+    sandboxEngine.clearTerminalHistory();
   };
 
   // If AI initiated an active execution, trigger it in terminal automatically
   useEffect(() => {
     if (activeCommand && isOpen) {
-      executeCommandInTerminal(activeCommand, 'ai');
+      executeCommandInTerminal(activeCommand, 'ai', false);
     }
   }, [activeCommand]);
 
@@ -335,23 +423,12 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
   const handleResetSandbox = () => {
     sandboxEngine.seedDefaultFileSystem();
     sandboxEngine.clearHistory();
+    sandboxEngine.clearTerminalHistory();
     refreshSandboxState();
     if (xtermInstance.current) {
       xtermInstance.current.clear();
       xtermInstance.current.writeln('\x1b[1;33m[Sandbox reiniciado para o estado padrão com sucesso]\x1b[0m');
-      writePrompt();
-    }
-  };
-
-  // Save file from editor
-  const handleSaveFile = () => {
-    if (!selectedFile) return;
-    try {
-      sandboxEngine.writeFile(selectedFile.path, fileEditorContent);
-      setIsEditingFile(false);
-      refreshSandboxState();
-    } catch (err: any) {
-      alert(err?.message || 'Erro ao salvar arquivo');
+      xtermInstance.current.write(sandboxEngine.getPrompt());
     }
   };
 
@@ -371,6 +448,15 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
 
   if (!isOpen) return null;
 
+  const quickCommands = [
+    { label: "printf 'OMNIX_TERMINAL_OK\\n'", cmd: "printf 'OMNIX_TERMINAL_OK\\n'" },
+    { label: "echo OMNIX_TERM_OK", cmd: "echo OMNIX_TERM_OK" },
+    { label: "ls -la", cmd: "ls -la" },
+    { label: "node index.js", cmd: "node index.js" },
+    { label: "python3 analise.py", cmd: "python3 analise.py" },
+    { label: "npm test", cmd: "npm test" }
+  ];
+
   return (
     <aside 
       aria-label="Terminal Sandbox"
@@ -388,10 +474,15 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
             <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 font-mono tracking-tight">
               ubuntu@sandbox:{currentCwd}
             </span>
-            {isRunning && (
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 animate-pulse">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            {isRunning ? (
+              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
                 Executando comando...
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                Sessão Ativa
               </span>
             )}
           </div>
@@ -473,7 +564,7 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
             <Clock className="w-3.5 h-3.5" />
             <span>Histórico & Auditoria</span>
             {commandLogs.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-gray-200 dark:bg-zinc-700 font-mono">
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 font-mono font-bold">
                 {commandLogs.length}
               </span>
             )}
@@ -505,16 +596,97 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
       {/* Main Container */}
       <div className="flex-1 relative overflow-hidden bg-[#f6f6f7] dark:bg-zinc-950 flex flex-col">
         {activeTab === 'terminal' && (
-          <div 
-            className="w-full h-full p-3 overflow-hidden flex flex-col cursor-text"
-            onClick={() => {
-              xtermInstance.current?.focus();
-            }}
-          >
+          <div className="w-full h-full flex flex-col overflow-hidden">
+            {/* Terminal Canvas Area */}
             <div 
-              ref={terminalRef} 
-              className="w-full h-full flex-1 overflow-hidden" 
-            />
+              className="flex-1 w-full p-3 overflow-hidden flex flex-col cursor-text min-h-0"
+              onClick={() => {
+                xtermInstance.current?.focus();
+              }}
+            >
+              <div 
+                ref={terminalRef} 
+                className="w-full h-full flex-1 overflow-hidden" 
+              />
+            </div>
+
+            {/* Interactive Auxiliary Command Execution Bar */}
+            <div className="p-2.5 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 shrink-0 space-y-2">
+              {/* Quick suggestions pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 text-[11px]">
+                <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-emerald-500" />
+                  Atalhos:
+                </span>
+                {quickCommands.map((q, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    disabled={isRunning}
+                    onClick={() => {
+                      executeCommandInTerminal(q.cmd, 'user', false);
+                    }}
+                    className="px-2 py-0.5 bg-gray-100 dark:bg-zinc-800 hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400 text-gray-600 dark:text-gray-300 rounded font-mono text-[10.5px] border border-gray-200 dark:border-zinc-700 hover:border-emerald-500/30 transition-all shrink-0 cursor-pointer disabled:opacity-50"
+                  >
+                    {q.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Input Form */}
+              <form onSubmit={handleAuxiliarySubmit} className="flex items-center gap-2">
+                <div className="relative flex-1 flex items-center">
+                  <span className="absolute left-2.5 text-xs font-mono text-emerald-600 dark:text-emerald-400 font-bold select-none">
+                    $
+                  </span>
+                  <input
+                    ref={auxiliaryInputRef}
+                    type="text"
+                    value={auxiliaryInput}
+                    onChange={(e) => setAuxiliaryInput(e.target.value)}
+                    placeholder="Campo Auxiliar: Digite um comando (ex: echo OMNIX_TERM_OK) e aperte Enter..."
+                    disabled={isRunning}
+                    className="w-full pl-7 pr-3 py-1.5 bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-700 rounded-lg text-xs font-mono text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 disabled:opacity-50"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!auxiliaryInput.trim() || isRunning}
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                >
+                  {isRunning ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Executando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                      <span>Executar</span>
+                      <CornerDownLeft className="w-3 h-3 opacity-70" />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {/* Status Bar */}
+              <div className="flex items-center justify-between text-[10px] text-gray-500 dark:text-gray-400 pt-0.5 border-t border-gray-100 dark:border-zinc-800/60 font-mono">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center gap-1">
+                    <Activity className="w-3 h-3 text-emerald-500" />
+                    Status: {isRunning ? 'Executando comando...' : 'Pronto para entrada'}
+                  </span>
+                  <span>•</span>
+                  <span>Total de execuções na sessão: {commandLogs.length}</span>
+                </div>
+                {lastExecutionStatus && (
+                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                    Último: {lastExecutionStatus.command} (Exit {lastExecutionStatus.exitCode})
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -523,7 +695,7 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
             <div className="flex items-center justify-between pb-2 border-b border-gray-200 dark:border-zinc-800">
               <h4 className="font-bold text-gray-900 dark:text-white text-sm flex items-center gap-2">
                 <Clock className="w-4 h-4 text-emerald-500" />
-                Histórico Detalhado de Execuções
+                Histórico Detalhado de Execuções ({commandLogs.length})
               </h4>
               <button
                 type="button"
@@ -539,12 +711,34 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
             </div>
 
             {commandLogs.length === 0 ? (
-              <div className="p-8 text-center text-gray-400">
-                Nenhum comando foi executado na sessão atual.
+              <div className="p-8 text-center space-y-3 text-gray-400">
+                <p>Nenhum comando foi executado na sessão atual.</p>
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('terminal');
+                      executeCommandInTerminal("printf 'OMNIX_TERMINAL_OK\\n'", 'user', false);
+                    }}
+                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-sans font-semibold cursor-pointer"
+                  >
+                    Testar printf OMNIX_TERMINAL_OK
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('terminal');
+                      executeCommandInTerminal("echo OMNIX_TERM_OK", 'user', false);
+                    }}
+                    className="px-3 py-1 bg-gray-200 dark:bg-zinc-800 text-gray-800 dark:text-gray-200 rounded text-xs font-sans font-semibold cursor-pointer"
+                  >
+                    Testar echo OMNIX_TERM_OK
+                  </button>
+                </div>
               </div>
             ) : (
               commandLogs.slice().reverse().map((log, idx) => (
-                <div key={log.id || idx} className="p-3 bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 space-y-2">
+                <div key={log.id || idx} className="p-3 bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 space-y-2 shadow-xs">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -560,16 +754,14 @@ export const TerminalSandboxPane: React.FC<TerminalSandboxPaneProps> = ({
                     </div>
 
                     <div className="flex items-center gap-3 text-[11px] text-gray-500">
-                      <span>Duração: {log.durationMs}ms</span>
-                      <span>•</span>
                       <span>{new Date(log.timestamp).toLocaleTimeString()}</span>
                       <button
                         type="button"
                         onClick={() => {
                           setActiveTab('terminal');
-                          executeCommandInTerminal(log.command);
+                          executeCommandInTerminal(log.command, 'user', false);
                         }}
-                        className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 rounded text-[10px] font-bold cursor-pointer"
+                        className="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 rounded text-[11px] font-bold cursor-pointer transition-colors"
                       >
                         Re-executar
                       </button>

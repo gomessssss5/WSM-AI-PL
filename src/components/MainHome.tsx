@@ -1291,14 +1291,15 @@ export default function MainHome({
                     type="button"
                     id="btn-search-toggle"
                     onClick={() => setIsSearchEnabled(!isSearchEnabled)}
+                    aria-pressed={isSearchEnabled}
                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold transition-all cursor-pointer ${
                       isSearchEnabled
-                        ? 'bg-black text-white dark:bg-white dark:text-black border border-black dark:border-white shadow-2xs'
-                        : 'bg-white text-gray-700 border border-[#eae6e1] hover:border-gray-300 hover:bg-gray-50/50 shadow-2xs'
+                        ? 'bg-blue-600 text-white dark:bg-blue-600 dark:text-white border border-blue-600 shadow-2xs'
+                        : 'bg-white text-gray-700 dark:bg-zinc-800 dark:text-gray-200 border border-[#eae6e1] dark:border-zinc-700 hover:border-gray-300 hover:bg-gray-50/50 shadow-2xs'
                     }`}
-                    title="Pesquisar na Web"
+                    title={isSearchEnabled ? "Desativar busca web" : "Ativar busca web"}
                   >
-                    <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-black dark:text-white animate-spin-slow' : 'text-gray-500'}`} />
+                    <Globe className={`w-3.5 h-3.5 ${isSearchEnabled ? 'text-white animate-spin-slow' : 'text-gray-500 dark:text-gray-400'}`} />
                     <span>Pesquisar</span>
                   </button>
                 </div>

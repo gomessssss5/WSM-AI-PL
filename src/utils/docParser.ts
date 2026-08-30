@@ -657,20 +657,30 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
   }
 
   for (const doc of docMap.values()) {
-    const stats = terminalSandbox.getFileStats(doc.title);
-    if (stats.exists && stats.content !== null) {
-      doc.content = stats.content;
-      doc.size = stats.size;
-      doc.sizeBytes = stats.size;
-      doc.hash = stats.sha256;
-      doc.sha256 = stats.sha256;
-      doc.validation = buildDocumentValidation(doc.title, doc.format || 'md', stats.content, stats.size, stats.sha256);
+    const docContent = doc.content || '';
+    if (docContent) {
+      const utf8 = new TextEncoder().encode(docContent);
+      doc.size = utf8.length;
+      doc.sizeBytes = utf8.length;
+      doc.hash = computeSha256(docContent);
+      doc.sha256 = doc.hash;
+      doc.validation = buildDocumentValidation(doc.title, doc.format || 'md', docContent, doc.size, doc.hash);
     } else {
-      doc.validation = doc.validation || buildDocumentValidation(doc.title, doc.format || 'md', doc.content, doc.size, doc.hash);
-      doc.size = doc.size ?? doc.validation.sizeBytes;
-      doc.sizeBytes = doc.sizeBytes ?? doc.validation.sizeBytes;
-      doc.hash = doc.hash ?? doc.validation.hash;
-      doc.sha256 = doc.sha256 ?? doc.validation.hash;
+      const stats = terminalSandbox.getFileStats(doc.title);
+      if (stats.exists && stats.content !== null) {
+        doc.content = stats.content;
+        doc.size = stats.size;
+        doc.sizeBytes = stats.size;
+        doc.hash = stats.sha256;
+        doc.sha256 = stats.sha256;
+        doc.validation = buildDocumentValidation(doc.title, doc.format || 'md', stats.content, stats.size, stats.sha256);
+      } else {
+        doc.validation = doc.validation || buildDocumentValidation(doc.title, doc.format || 'md', doc.content, doc.size, doc.hash);
+        doc.size = doc.size ?? doc.validation.sizeBytes;
+        doc.sizeBytes = doc.sizeBytes ?? doc.validation.sizeBytes;
+        doc.hash = doc.hash ?? doc.validation.hash;
+        doc.sha256 = doc.sha256 ?? doc.validation.hash;
+      }
     }
     docObjs.push(doc);
   }

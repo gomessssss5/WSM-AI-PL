@@ -30,6 +30,7 @@ import {
   History,
   ShieldCheck,
   RotateCcw,
+  RotateCw,
   CheckCircle2,
   AlertCircle,
   GitBranch
@@ -130,6 +131,22 @@ export default function WorkspaceViewerPane({
           });
         }
 
+        // 1.1 Extract direct documents array on message if present
+        if (Array.isArray((msg as any).documents)) {
+          (msg as any).documents.forEach((doc: any, idx: number) => {
+            const title = doc.title || `doc_${idx + 1}.txt`;
+            const inferredFmt = doc.format || inferFormatFromTitle(title, doc.content) || 'txt';
+            filesMap.set(title, {
+              id: doc.id || `ai-direct-${title}`,
+              title,
+              content: doc.content || '',
+              format: inferredFmt,
+              source: 'ai',
+              updatedAt: new Date(msg.timestamp || Date.now()),
+            });
+          });
+        }
+
         // 2. Extract tableData
         if (msg.tableData) {
           const title = `planilha_${msgIdx + 1}.xlsx`;
@@ -168,37 +185,78 @@ export default function WorkspaceViewerPane({
   }, [messages]);
 
   const [sandboxFiles, setSandboxFiles] = useState<WorkspaceFile[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const fetchAndSyncSandboxFiles = async () => {
+    try {
+      const entries = terminalSandbox.listFiles('/workspace');
+      const files: WorkspaceFile[] = [];
+      entries.forEach(entry => {
+        const fullPath = entry.path;
+        const content = terminalSandbox.readFile(fullPath) || '';
+        const name = entry.name || fullPath.replace('/workspace/', '').replace(/^\//, '');
+        if (name && !name.startsWith('.') && !entry.isDir) {
+          files.push({
+            id: `sandbox-${name}`,
+            title: name,
+            content,
+            format: inferFormatFromTitle(name, content),
+            source: 'ai',
+            updatedAt: new Date(entry.updatedAt || Date.now()),
+          });
+        }
+      });
+
+      // Try fetching backend server files if available
+      try {
+        const res = await fetch('/api/terminal/files');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.files)) {
+            data.files.forEach((sf: any) => {
+              const fileName = sf.name || sf.path;
+              if (fileName && !fileName.startsWith('.') && !sf.isDir) {
+                const existingIdx = files.findIndex(f => f.title === fileName);
+                const fileObj: WorkspaceFile = {
+                  id: `server-${fileName}`,
+                  title: fileName,
+                  content: sf.content || '',
+                  format: inferFormatFromTitle(fileName, sf.content),
+                  source: 'ai',
+                  updatedAt: new Date(sf.updatedAt || Date.now()),
+                };
+                if (existingIdx >= 0) {
+                  files[existingIdx] = fileObj;
+                } else {
+                  files.push(fileObj);
+                }
+                // Also write to local sandbox memory for instant access
+                if (sf.content) {
+                  terminalSandbox.writeFile(`/workspace/${fileName}`, sf.content);
+                }
+              }
+            });
+          }
+        }
+      } catch {}
+
+      setSandboxFiles(files);
+    } catch (e) {
+      console.error("Error reading sandbox files for workspace:", e);
+    }
+  };
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchAndSyncSandboxFiles();
+    setTimeout(() => setIsRefreshing(false), 500);
+  };
 
   // Synchronize files from Terminal Sandbox filesystem
   useEffect(() => {
-    const updateFromSandbox = () => {
-      try {
-        const entries = terminalSandbox.listFiles('/workspace');
-        const files: WorkspaceFile[] = [];
-        entries.forEach(entry => {
-          const fullPath = entry.path;
-          const content = terminalSandbox.readFile(fullPath) || '';
-          const name = entry.name || fullPath.replace('/workspace/', '').replace(/^\//, '');
-          if (name && !name.startsWith('.') && !entry.isDir) {
-            files.push({
-              id: `sandbox-${name}`,
-              title: name,
-              content,
-              format: inferFormatFromTitle(name, content),
-              source: 'ai',
-              updatedAt: new Date(entry.updatedAt || Date.now()),
-            });
-          }
-        });
-        setSandboxFiles(files);
-      } catch (e) {
-        console.error("Error reading sandbox files for workspace:", e);
-      }
-    };
-
-    updateFromSandbox();
+    fetchAndSyncSandboxFiles();
     const unsubscribe = terminalSandbox.subscribe(() => {
-      updateFromSandbox();
+      fetchAndSyncSandboxFiles();
     });
     return unsubscribe;
   }, []);
@@ -569,7 +627,17 @@ export default function WorkspaceViewerPane({
               <Folder className="w-3.5 h-3.5 text-amber-500" />
               <span>/ workspace</span>
             </div>
-            <span>{filteredFiles.length}</span>
+            <div className="flex items-center gap-1.5">
+              <span>{filteredFiles.length}</span>
+              <button
+                type="button"
+                onClick={handleManualRefresh}
+                className="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
+                title="Sincronizar arquivos do Workspace"
+              >
+                <RotateCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin text-indigo-500' : ''}`} />
+              </button>
+            </div>
           </div>
 
           {/* File List */}
