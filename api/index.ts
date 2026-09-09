@@ -1,11 +1,30 @@
 import express from "express";
 import crypto from "crypto";
 import path from "path";
-import { GoogleGenAI, Type } from "@google/genai";
+import fs from 'fs';
 import dotenv from "dotenv";
+import sharp from "sharp";
+import { GoogleGenAI, Type } from "@google/genai";
 import { initializeApp as initAdminApp, getApps as getAdminApps } from 'firebase-admin/app';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
-import fs from 'fs';
+import { openUrl, clickSelector, typeText, scrollPage, extractText, waitSeconds } from "./playwrightAgent.js";
+import { 
+  sendScheduledEmail, 
+  sendWelcomeEmail, 
+  sendInterruptedResponseEmail, 
+  sendGenericEmail,
+  isGmailUser 
+} from "./emailService.js";
+import { runAllEmailAutomations } from "./emailAutomation.js";
+import { processBackgroundTasks, executeScheduledTaskNow } from "./scheduledTasksBackground.js";
+import { getAllSystemPrompts, getSystemPrompt, updateSystemPrompt } from "./systemPromptsManager.js";
+import { executeSandboxCommand, writeSandboxFile, writeSandboxBinaryFile, readSandboxFile, deleteSandboxFile, listSandboxFiles, ensureSandboxDir, getSandboxFileDetails, getMimeTypeForFile, preFlightCheck, getSandboxDir, type ExecutionResult } from "./terminalService.js";
+import { generateExcelBuffer } from "./excelService.js";
+import { verifyFirebaseIdToken, DecodedAuthToken } from "./authVerifier.js";
+import { cleanAndDeduplicateSources, extractDateFromUrlAndSnippet, normalizeCanonicalUrl, RawSource } from "../src/utils/sourceCleaner.js";
+import { isDomainBlocked, normalizeDomain } from "./securityValidator.js";
+
+dotenv.config();
 
 let adminDbInstance: any = null;
 function getDb() {
@@ -52,25 +71,6 @@ export function getUserWorkspaceDocs(sessionId?: string): Map<string, { title: s
 }
 
 export const workspaceDocuments = getUserWorkspaceDocs('guest_default_session');
-import sharp from "sharp";
-import { openUrl, clickSelector, typeText, scrollPage, extractText, waitSeconds } from "./playwrightAgent.js";
-import { 
-  sendScheduledEmail, 
-  sendWelcomeEmail, 
-  sendInterruptedResponseEmail, 
-  sendGenericEmail,
-  isGmailUser 
-} from "./emailService.js";
-import { runAllEmailAutomations } from "./emailAutomation.js";
-import { processBackgroundTasks, executeScheduledTaskNow } from "./scheduledTasksBackground.js";
-import { getAllSystemPrompts, getSystemPrompt, updateSystemPrompt } from "./systemPromptsManager.js";
-import { executeSandboxCommand, writeSandboxFile, writeSandboxBinaryFile, readSandboxFile, deleteSandboxFile, listSandboxFiles, ensureSandboxDir, getSandboxFileDetails, getMimeTypeForFile, preFlightCheck, getSandboxDir, type ExecutionResult } from "./terminalService.js";
-import { generateExcelBuffer } from "./excelService.js";
-import { verifyFirebaseIdToken, DecodedAuthToken } from "./authVerifier.js";
-import { cleanAndDeduplicateSources, extractDateFromUrlAndSnippet, normalizeCanonicalUrl, RawSource } from "../src/utils/sourceCleaner.js";
-import { isDomainBlocked, normalizeDomain } from "./securityValidator.js";
-
-dotenv.config();
 
 export function syncWorkspaceWithDisk(sessionId?: string) {
   try {

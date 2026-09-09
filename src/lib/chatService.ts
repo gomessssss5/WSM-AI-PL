@@ -12,6 +12,8 @@ import {
   getDocs
 } from 'firebase/firestore';
 import { ChatSession, Message, Draft } from '../types';
+import { safeToDate, safeParseDate } from '../utils/dateUtils';
+export { safeToDate, safeParseDate };
 
 export enum OperationType {
   CREATE = 'create',
@@ -59,9 +61,6 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
-
-import { safeToDate, safeParseDate } from '../utils/dateUtils';
-export { safeToDate, safeParseDate };
 
 // Converts firestore document data to local ChatSession object
 const mapDocToSession = (id: string, data: any): ChatSession => {

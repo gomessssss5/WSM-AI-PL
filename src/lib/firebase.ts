@@ -27,7 +27,8 @@ import {
   query,
   orderBy,
   onSnapshot,
-  Timestamp
+  Timestamp,
+  getDocFromServer
 } from 'firebase/firestore';
 import config from '../../firebase-applet-config.json';
 
@@ -54,7 +55,6 @@ export const db = initializeFirestore(app, {
 }, dbId);
 
 // Validate Connection to Firestore on boot
-import { getDocFromServer } from 'firebase/firestore';
 async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
