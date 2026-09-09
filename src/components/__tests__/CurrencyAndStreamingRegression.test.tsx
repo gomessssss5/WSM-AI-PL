@@ -87,4 +87,30 @@ Equação quadrática: $ax^2 + bx + c = 0$
     // Fórmulas matemáticas reais são convertidas para KaTeX
     expect(html).toContain('katex');
   });
+
+  it('renders inline math variables like $x$ without leaving raw dollar signs in prose', () => {
+    const mathProse = `
+Para resolver a equação, precisamos isolar a variável $x$:
+Primeiro, adicionamos 5 a ambos os lados da equação para isolar o termo com $x$:
+Temos $3x - 5 = 16$, logo $3x = 21$.
+Agora dividimos por 3 para encontrar o valor de $x$:
+Obtemos $x = 7$.
+Além disso, com duas variáveis $x$ e $y$, temos $x + y = 10$.
+    `.trim();
+
+    const html = renderToString(<MarkdownRenderer content={mathProse} />);
+
+    // Não deve conter "$x$" cru como texto
+    expect(html).not.toContain('>$x$<');
+    expect(html).not.toContain(' $x$');
+    expect(html).not.toContain('com $x$:');
+    expect(html).not.toContain('variável $x$:');
+
+    // Deve conter a renderização KaTeX do x
+    expect(html).toContain('<span class="katex">x</span>');
+    expect(html).toContain('isolar o termo com');
+    expect(html).toContain('isolar a variável');
+    expect(html).toContain('<span class="katex">3x = 21</span>');
+    expect(html).toContain('<span class="katex">x = 7</span>');
+  });
 });

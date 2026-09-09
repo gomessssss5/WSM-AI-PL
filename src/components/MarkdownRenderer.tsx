@@ -1191,7 +1191,7 @@ export default function MarkdownRenderer({
     });
 
     // 1. Extract inline math: $...$ or \(...\)
-    const inlineMathRegex = /(?<![A-Za-z0-9\\$])\$([^\s$\n]|(?:[^\s$\n](?:[^$\n]|\\\$)*?[^\s$\n]))(?<![A-Za-z])\$(?![0-9])|\\\((.*?)\\\)/g;
+    const inlineMathRegex = /(?<![A-Za-z0-9\\$])\$([^\s$\n]|(?:[^\s$\n](?:[^$\n]|\\\$)*?[^\s$\n]))\$(?![0-9])|\\\((.*?)\\\)/g;
     currentText = currentText.replace(inlineMathRegex, (match, p1, p2) => {
       let tex = (p1 !== undefined ? p1 : p2) || '';
       tex = tex.trim()
@@ -1211,7 +1211,7 @@ export default function MarkdownRenderer({
         if (!isSingleVarOrSymbol) {
           // Currency/prose typically starts with digits (e.g. "$10 e $20" -> "10 e ") or contains prose words
           const startsWithDigitOrSpaceDigit = /^\s*\d/.test(tex);
-          const hasProseWords = /\b(ou|and|or|de|com|por|em|para|desconto|preço|preco|custo|valor|totais|total|reais|dólares|dolares)\b/i.test(tex) || /\be\b/.test(tex); // Note: exact 'e' without /i on letter E
+          const hasProseWords = /\b(ou|and|or|de|com|por|em|para|ate|até|desconto|preço|preco|custo|valor|totais|total|reais|dólares|dolares)\b/i.test(tex) || /\be\b/.test(tex); // Note: exact 'e' without /i on letter E
           if (startsWithDigitOrSpaceDigit && hasProseWords) {
             // If it contains genuine math symbols or commands, it is NOT currency
             if (!/[=+\-*\/\\^_<>≤≥≠≈±÷×]/.test(tex) && !/\\(frac|sqrt|cdot|times|text)/.test(tex)) {
