@@ -122,7 +122,11 @@ describe('WsmChartComponent', () => {
     expect(options.scales.y.max).toBe(55);
     expect(options.scales.y.suggestedMax).toBe(55);
 
-    // Canvas rotated vertical title should be disabled to prevent clipping, shown cleanly in HTML badge
-    expect(options.scales.y.title.display).toBe(false);
+    // Top padding should be 50 to guarantee plenty of breathing room
+    expect(options.layout.padding.top).toBe(50);
+
+    // Canvas vertical title and HTML badge both support the label seamlessly
+    expect(options.scales.y.title.display).toBe(true);
+    expect(options.scales.y.title.text).toBe('População (milhões)');
   });
 });

@@ -375,10 +375,10 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
     maintainAspectRatio: false,
     layout: {
       padding: {
-        top: 24,
-        left: 12,
-        right: 18,
-        bottom: 12
+        top: 50, // Generous 50px top padding ensures highest bars and vertical axis titles never get clipped
+        left: 16,
+        right: 24,
+        bottom: 16
       }
     },
     interaction: {
@@ -442,7 +442,11 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
           padding: 8
         },
         title: {
-          display: false
+          display: Boolean(resolvedXLabel),
+          text: resolvedXLabel,
+          color: '#64748b',
+          font: { size: 12, weight: '600' },
+          padding: { top: 10 }
         }
       },
       y: {
@@ -477,7 +481,12 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
           }
         },
         title: {
-          display: false // Avoid canvas vertical rotated text clipping; represented crisply in the header badge
+          display: Boolean(resolvedYLabel),
+          text: resolvedYLabel,
+          color: '#475569',
+          font: { size: 11, weight: '600' },
+          align: 'center',
+          padding: { bottom: 8, top: 4 }
         }
       }
     }
