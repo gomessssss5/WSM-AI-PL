@@ -1679,6 +1679,20 @@ ${contextInfo}`;
 
     const formInstruction = "\n" + getSystemPrompt('form_generation', '');
     const docInstruction = "\n" + getSystemPrompt('doc_generator', '');
+    const chartInstruction = "\n" + getSystemPrompt('chart_generation', `
+# GRÁFICOS INTERATIVOS (<wsm_chart>)
+Quando o usuário solicitar qualquer tipo de gráfico (barras, linhas, pizza, rosca, radar):
+1. **TAG OBRIGATÓRIA**: Emita exclusivamente a tag \`<wsm_chart ... />\`.
+2. **PARÂMETROS ESSENCIAIS**:
+   - \`type\`: "bar" (padrão), "bar_horizontal", "line", "pie", "doughnut", "radar".
+   - \`title\`: Título claro e objetivo do gráfico (ex: \`title="População dos 5 Maiores Estados do Brasil"\`).
+   - \`subtitle\`: Subtítulo opcional ou fonte oficial (ex: \`subtitle="Dados em milhões de habitantes (IBGE)"\`).
+   - \`xAxis\`: Nome da categoria do eixo X (ex: \`xAxis="Estado"\`, \`xAxis="Mês"\`, \`xAxis="Produto"\`). NUNCA use "name" ou deixe vazio.
+   - \`yAxis\`: Nome da métrica com sua respectiva unidade de medida no eixo Y (ex: \`yAxis="População (milhões)"\`, \`yAxis="Receita (R$)"\`, \`yAxis="Quantidade"\`).
+   - \`data\`: Array JSON de objetos contendo valores NUMÉRICOS PUROS proporcionais aos dados reais (ex: \`44.4\`, \`20.5\`, \`16.1\`). NUNCA passe strings de texto no lugar de números (ex: NUNCA escreva \`"44.4 milhões"\` no campo de valor numérico).
+3. **EXEMPLO DE USO**:
+\`<wsm_chart type="bar" title="População dos 5 Maiores Estados do Brasil" subtitle="Estimativa em milhões de habitantes (IBGE)" xAxis="Estado" yAxis="População (milhões)" data='[{"estado":"São Paulo","populacao":44.4},{"estado":"Minas Gerais","populacao":20.5},{"estado":"Rio de Janeiro","populacao":16.1},{"estado":"Bahia","populacao":14.1},{"estado":"Paraná","populacao":11.4}]' />\`
+`);
     const writingConstraints = "\n" + getSystemPrompt('writing_constraints', '');
     const mathInstruction = "\n" + getSystemPrompt('math_latex_instructions', `
 # MATEMÁTICA, FÍSICA E FÓRMULAS CIENTÍFICAS (LATEX E MATHJAX/KATEX OBRIGATÓRIOS)
@@ -1807,9 +1821,9 @@ Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal
    - **CONDIÇÃO PARA APROVAÇÃO DE TESTES**: A palavra 'aprovado' ou afirmações de que testes/código foram executados e aprovados SÓ PODEM SER DECLARADAS se um comando de teste (\`execute_terminal_command\` ou \`run_code_sandbox\`) foi REALMENTE invocado e retornou \`exit_code === 0\` com saída confirmada no stdout.
    - **FERRAMENTAS BLOQUEADAS OU NÃO EXECUTADAS**: Se qualquer ferramenta foi bloqueada (por instrução do usuário, modo informativo ou diretiva de segurança) ou não foi executada, você DEVE OBRIGATORIAMENTE declarar o status como 'Não executado / Bloqueado'. NUNCA simule um sucesso sintético, NUNCA invente resultados de testes nem crie um relatório falso de aprovação.
 6. **Nunca Simule em Texto**: Sempre invoque a ferramenta correspondente no mesmo turno.`;
-      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + (userLocationContextInstruction ? userLocationContextInstruction + "\n\n" : "") + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + (activeSkillsInstruction ? activeSkillsInstruction + "\n\n" : "") + docInstruction + "\n\n" + mathInstruction + "\n\n" + flowControlInstruction + "\n\n" + formInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction + terminalInstruction + modeAdditions;
+      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + (userLocationContextInstruction ? userLocationContextInstruction + "\n\n" : "") + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + (activeSkillsInstruction ? activeSkillsInstruction + "\n\n" : "") + docInstruction + "\n\n" + chartInstruction + "\n\n" + mathInstruction + "\n\n" + flowControlInstruction + "\n\n" + formInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction + terminalInstruction + modeAdditions;
     } else {
-      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + (activeSkillsInstruction ? activeSkillsInstruction + "\n\n" : "") + writingConstraints + "\n\n" + mathInstruction + "\n\n" + flowControlInstruction + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
+      activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + (activeSkillsInstruction ? activeSkillsInstruction + "\n\n" : "") + writingConstraints + "\n\n" + chartInstruction + "\n\n" + mathInstruction + "\n\n" + flowControlInstruction + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
     }
 
     if (userForbidsTerminal) {
