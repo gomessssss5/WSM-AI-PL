@@ -33,36 +33,53 @@ interface RightRunSidebarProps {
 
 /**
  * Safely renders inline markdown and LaTeX math (e.g. fractions, bold, code)
- * so that raw asterisks or unparsed markers never appear in the sidebar.
+ * so that raw asterisks, backticks, or unparsed tokens never appear in the sidebar.
  */
 function renderFormattedStepText(text: string): React.ReactNode {
   if (!text) return null;
 
-  // 1. First tokenize LaTeX math blocks: $...$ or \(...\)
-  const mathTokens: { id: string; html: string }[] = [];
-  let processed = text.replace(/(\$\$[\s\S]*?\$\$|\$[^$\n]+\$|\\\([\s\S]*?\\\))/g, (match) => {
+  // 0. Clean any leaked or orphaned synthetic tokens from previous runs or corrupted history
+  let processed = text.replace(/:::(?:MATH|CODE|LINK|SPAN)_?(\d+):::/g, '');
+
+  // 1. First tokenize LaTeX math blocks: $$...$$, $...$, or \(...\)
+  const mathTokens: { id: string; html: string; rawText: string }[] = [];
+  const mathRegex = /(\$\$[\s\S]*?\$\$|\$[^$\n]+\$|\\\([\s\S]*?\\\))/g;
+
+  processed = processed.replace(mathRegex, (match) => {
     let cleanTex = match;
+    let isBlock = false;
     if (cleanTex.startsWith('$$') && cleanTex.endsWith('$$')) {
       cleanTex = cleanTex.slice(2, -2).trim();
+      isBlock = true;
     } else if (cleanTex.startsWith('$') && cleanTex.endsWith('$')) {
       cleanTex = cleanTex.slice(1, -1).trim();
     } else if (cleanTex.startsWith('\\(') && cleanTex.endsWith('\\)')) {
       cleanTex = cleanTex.slice(2, -2).trim();
     }
+
+    if (!cleanTex) return '';
+
     try {
-      const html = katex.renderToString(cleanTex, { throwOnError: false, displayMode: false });
-      const id = `:::MATH_${mathTokens.length}:::`;
-      mathTokens.push({ id, html });
+      const html = katex.renderToString(cleanTex, { throwOnError: false, displayMode: isBlock });
+      const id = `@@@OMNIX_MATH${mathTokens.length}@@@`;
+      mathTokens.push({ id, html, rawText: cleanTex });
       return id;
     } catch {
-      return match;
+      // Safe fallback: render clean text without dollar signs
+      const id = `@@@OMNIX_MATH${mathTokens.length}@@@`;
+      mathTokens.push({ 
+        id, 
+        html: `<span class="italic font-serif mx-0.5">${cleanTex}</span>`, 
+        rawText: cleanTex 
+      });
+      return id;
     }
   });
 
   // 2. Tokenize inline code: `code`
   const codeTokens: { id: string; code: string }[] = [];
   processed = processed.replace(/`([^`]+)`/g, (_m, code) => {
-    const id = `:::CODE_${codeTokens.length}:::`;
+    const id = `@@@OMNIX_CODE${codeTokens.length}@@@`;
     codeTokens.push({ id, code });
     return id;
   });
@@ -70,7 +87,7 @@ function renderFormattedStepText(text: string): React.ReactNode {
   // 3. Tokenize markdown links: [text](url)
   const linkTokens: { id: string; label: string; url: string }[] = [];
   processed = processed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label, url) => {
-    const id = `:::LINK_${linkTokens.length}:::`;
+    const id = `@@@OMNIX_LINK${linkTokens.length}@@@`;
     linkTokens.push({ id, label, url });
     return id;
   });
@@ -78,33 +95,34 @@ function renderFormattedStepText(text: string): React.ReactNode {
   // 4. Tokenize bold & italics: **bold**, *italic*, __bold__, _italic_
   const spanTokens: { id: string; node: React.ReactNode }[] = [];
   processed = processed.replace(/\*\*([^*]+)\*\*/g, (_m, inner) => {
-    const id = `:::SPAN_${spanTokens.length}:::`;
+    const id = `@@@OMNIX_SPAN${spanTokens.length}@@@`;
     spanTokens.push({ id, node: <strong key={id} className="font-semibold text-stone-900 dark:text-stone-100">{inner}</strong> });
     return id;
   });
   processed = processed.replace(/__([^_]+)__/g, (_m, inner) => {
-    const id = `:::SPAN_${spanTokens.length}:::`;
+    const id = `@@@OMNIX_SPAN${spanTokens.length}@@@`;
     spanTokens.push({ id, node: <strong key={id} className="font-semibold text-stone-900 dark:text-stone-100">{inner}</strong> });
     return id;
   });
   processed = processed.replace(/\*([^*]+)\*/g, (_m, inner) => {
-    const id = `:::SPAN_${spanTokens.length}:::`;
+    const id = `@@@OMNIX_SPAN${spanTokens.length}@@@`;
     spanTokens.push({ id, node: <em key={id} className="italic text-stone-700 dark:text-stone-300">{inner}</em> });
     return id;
   });
 
-  // 5. Clean up any leftover stray asterisks or backticks
-  processed = processed.replace(/[*`_]/g, '');
+  // 5. Clean up any leftover stray markdown syntax characters (*, `)
+  // Note: We deliberately do NOT strip underscores here so token delimiters and text remain intact!
+  processed = processed.replace(/[*`]/g, '');
 
   // 6. Split by token pattern and rebuild React nodes
-  const tokenRegex = /(:::(?:MATH|CODE|LINK|SPAN)_\d+:::)/g;
+  const tokenRegex = /(@@@OMNIX_(?:MATH|CODE|LINK|SPAN)\d+@@@)/g;
   const parts = processed.split(tokenRegex);
 
   return (
     <>
       {parts.map((part, pIdx) => {
         if (!part) return null;
-        if (part.startsWith(':::MATH_')) {
+        if (part.startsWith('@@@OMNIX_MATH')) {
           const item = mathTokens.find(m => m.id === part);
           if (item) {
             return (
@@ -116,7 +134,7 @@ function renderFormattedStepText(text: string): React.ReactNode {
             );
           }
         }
-        if (part.startsWith(':::CODE_')) {
+        if (part.startsWith('@@@OMNIX_CODE')) {
           const item = codeTokens.find(c => c.id === part);
           if (item) {
             return (
@@ -126,7 +144,7 @@ function renderFormattedStepText(text: string): React.ReactNode {
             );
           }
         }
-        if (part.startsWith(':::LINK_')) {
+        if (part.startsWith('@@@OMNIX_LINK')) {
           const item = linkTokens.find(l => l.id === part);
           if (item) {
             return (
@@ -136,7 +154,7 @@ function renderFormattedStepText(text: string): React.ReactNode {
             );
           }
         }
-        if (part.startsWith(':::SPAN_')) {
+        if (part.startsWith('@@@OMNIX_SPAN')) {
           const item = spanTokens.find(s => s.id === part);
           if (item) return item.node;
         }
@@ -157,7 +175,11 @@ export const RightRunSidebar: React.FC<RightRunSidebarProps> = ({
 
   if (!isOpen) return null;
 
-  const steps = run?.plan?.steps || [
+  const steps = (run?.plan?.steps && run.plan.steps.length > 0)
+    ? run.plan.steps
+    : ((run as any)?.steps && (run as any).steps.length > 0)
+      ? (run as any).steps
+      : [
     {
       id: 'step_default_1',
       title: 'Interpretando pedido do usuário',

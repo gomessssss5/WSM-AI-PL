@@ -33,6 +33,7 @@ vi.mock('katex', () => ({
 }));
 
 import MarkdownRenderer from '../MarkdownRenderer';
+import { RightRunSidebar } from '../RightRunSidebar';
 
 describe('Currency R$ and Streaming Table/Map Regression Tests', () => {
   it('renders Brazilian Real (R$) currency and prices in Markdown tables without math corruption', () => {
@@ -112,5 +113,53 @@ Além disso, com duas variáveis $x$ e $y$, temos $x + y = 10$.
     expect(html).toContain('isolar a variável');
     expect(html).toContain('<span class="katex">3x = 21</span>');
     expect(html).toContain('<span class="katex">x = 7</span>');
+  });
+
+  it('renders Agent Execution Plan steps with LaTeX math in RightRunSidebar without leaking :::MATH0::: placeholders', () => {
+    const mockRun = {
+      id: 'run_test_math',
+      sessionId: 'session_test',
+      status: 'completed',
+      objective: 'Resolução de equação algébrica com passos',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      steps: [
+        {
+          id: 'step_1',
+          title: 'Etapa do plano de execução do agente',
+          description: 'Adicione $5$ a ambos os lados da equação para isolar o termo com $3x$',
+          status: 'completed',
+          startedAt: new Date().toISOString()
+        },
+        {
+          id: 'step_2',
+          title: 'Etapa do plano de execução do agente',
+          description: 'Divida ambos os lados por $3$ para encontrar o valor de $x$',
+          status: 'completed',
+          startedAt: new Date().toISOString()
+        }
+      ]
+    };
+
+    const html = renderToString(React.createElement(RightRunSidebar, { run: mockRun as any, isOpen: true }));
+
+    // Não deve conter os placeholders crus :::MATH0::: ou :::MATH1:::
+    expect(html).not.toContain(':::MATH');
+    expect(html).not.toContain(':::MATH0:::');
+    expect(html).not.toContain(':::MATH1:::');
+    expect(html).not.toContain(':::MATH_');
+    expect(html).not.toContain('@@@OMNIX_');
+
+    // Deve conter a matemática renderizada via KaTeX
+    expect(html).toContain('<span class="katex">5</span>');
+    expect(html).toContain('<span class="katex">3x</span>');
+    expect(html).toContain('<span class="katex">3</span>');
+    expect(html).toContain('<span class="katex">x</span>');
+
+    // Frases devem estar completas
+    expect(html).toContain('Adicione');
+    expect(html).toContain('a ambos os lados da equação para isolar o termo com');
+    expect(html).toContain('Divida ambos os lados por');
+    expect(html).toContain('para encontrar o valor de');
   });
 });
