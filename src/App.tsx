@@ -2408,15 +2408,23 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
   // Render authentic loading screen
   const isBenchmarkRoute = typeof window !== 'undefined' && (window.location.pathname === '/benchmark' || window.location.pathname === '/benchmark/');
 
-  const shareMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/share\/(.+)/);
-  if (shareMatch) {
-    const sessionId = shareMatch[1];
-    const uid = new URLSearchParams(window.location.search).get("uid");
-    if (uid && sessionId) {
-      return (
-        <SharedChatView sessionId={sessionId} uid={uid} />
-      );
-    }
+  const isShareRoute = typeof window !== "undefined" && (window.location.pathname.startsWith('/share') || window.location.pathname.startsWith('/s/'));
+  if (isShareRoute) {
+    const path = window.location.pathname;
+    const searchParams = new URLSearchParams(window.location.search);
+    const idFromQuery = searchParams.get("id");
+    const uid = searchParams.get("uid");
+    const sessionIdFromQuery = searchParams.get("sessionId");
+
+    const pathMatch = path.match(/^\/(?:share|s)\/(.+)/);
+    const pathSegment = pathMatch ? pathMatch[1].replace(/\/$/, '') : null;
+
+    const sharedId = idFromQuery || (pathSegment && pathSegment !== 'chat' ? pathSegment : null);
+    const sessionId = sessionIdFromQuery || (pathSegment && pathSegment !== 'chat' ? pathSegment : null);
+
+    return (
+      <SharedChatView sharedId={sharedId} sessionId={sessionId} uid={uid} />
+    );
   }
 
   if (isBenchmarkRoute) {
@@ -2578,6 +2586,7 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
             ) : activeSession ? (
               <ChatWindow
                 key={activeSession.id}
+                sessionId={activeSession.id}
                 messages={activeSession.messages}
                 title={activeSession.title}
                 isThinking={isThinking}

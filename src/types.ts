@@ -621,8 +621,20 @@ export interface ChatSession {
   isScheduled?: boolean;
   isTemporary?: boolean;
   isPublic?: boolean;
+  shareId?: string;
   model?: string;
   chatMemoryDoc?: string;
+}
+
+export interface SharedChatData {
+  id: string;
+  title: string;
+  messages: any[];
+  authorId: string;
+  sessionId?: string;
+  createdAt: any;
+  updatedAt?: any;
+  model?: string;
 }
 
 export interface Draft {

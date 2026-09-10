@@ -70,6 +70,8 @@ const mapDocToSession = (id: string, data: any): ChatSession => {
     category: data.category || 'general',
     isUnread: !!data.isUnread,
     isScheduled: !!data.isScheduled,
+    isPublic: !!data.isPublic,
+    shareId: data.shareId || undefined,
     model: data.model,
     chatMemoryDoc: data.chatMemoryDoc || '',
     timestamp: safeToDate(data.timestamp || data.updatedAt || data.createdAt),
@@ -96,6 +98,8 @@ const mapSessionToDoc = (session: ChatSession): any => {
     category: session.category || 'general',
     isUnread: !!session.isUnread,
     isScheduled: !!session.isScheduled,
+    isPublic: !!session.isPublic,
+    ...(session.shareId && { shareId: session.shareId }),
     ...(session.model && { model: session.model }),
     ...(session.chatMemoryDoc && { chatMemoryDoc: session.chatMemoryDoc }),
     timestamp: Timestamp.fromDate(safeToDate(session.timestamp)),
@@ -235,6 +239,115 @@ export const deleteSessionFromDb = async (userId: string, sessionId: string): Pr
     await deleteDoc(sessionDocRef);
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
+  }
+};
+
+/**
+ * Publishes a chat session to the public /sharedChats collection.
+ * Generates or reuses a unique public share ID.
+ */
+export const publishSharedChat = async (userId: string, session: ChatSession): Promise<string> => {
+  if (!userId) {
+    throw new Error("Usuário não autenticado para compartilhar.");
+  }
+
+  // Generate unique alphanumeric ID conforming to isValidId: sc_<time36>_<random6>
+  const sharedId = session.shareId || `sc_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
+  const path = `sharedChats/${sharedId}`;
+  const sharedDocRef = doc(db, 'sharedChats', sharedId);
+
+  const cleanMessages = (session.messages || []).map((msg) => ({
+    id: msg.id,
+    sender: msg.sender,
+    text: msg.text || '',
+    timestamp: msg.timestamp ? safeParseDate(msg.timestamp).toISOString() : new Date().toISOString(),
+    ...(msg.imageUrl && { imageUrl: msg.imageUrl }),
+    ...(msg.codeBlock && { codeBlock: msg.codeBlock }),
+    ...(msg.translationData && { translationData: msg.translationData }),
+    ...(msg.tableData && {
+      tableData: {
+        headers: msg.tableData.headers || [],
+        rows: (msg.tableData.rows || []).map((r: any) => Array.isArray(r) ? r : (r.cells || []))
+      }
+    }),
+    ...(msg.searchImages && { searchImages: msg.searchImages }),
+    ...(msg.searchSources && { searchSources: msg.searchSources }),
+    ...(msg.searchIntro && { searchIntro: msg.searchIntro }),
+    ...(msg.searchSteps && { searchSteps: msg.searchSteps }),
+    ...(msg.finalSynthesis && { finalSynthesis: msg.finalSynthesis })
+  }));
+
+  const docData = {
+    title: session.title || 'Chat Compartilhado',
+    authorId: userId,
+    sessionId: session.id,
+    model: session.model || 'Omnix AI 1.6',
+    messages: cleanMessages,
+    createdAt: Timestamp.now(),
+    updatedAt: Timestamp.now()
+  };
+
+  try {
+    await setDoc(sharedDocRef, docData);
+
+    // Also persist shareId on the user's private session document if saved in Firestore
+    if (!session.isTemporary && session.id) {
+      try {
+        const sessionDocRef = doc(db, 'users', userId, 'sessions', session.id);
+        await setDoc(sessionDocRef, { isPublic: true, shareId: sharedId }, { merge: true });
+      } catch (e) {
+        console.warn("[publishSharedChat] Failed to update session doc with shareId:", e);
+      }
+    }
+
+    return sharedId;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    throw error;
+  }
+};
+
+/**
+ * Retrieves a shared chat by its unique sharedId from /sharedChats
+ */
+export const getSharedChat = async (sharedId: string): Promise<any | null> => {
+  if (!sharedId) return null;
+  const path = `sharedChats/${sharedId}`;
+  try {
+    const docRef = doc(db, 'sharedChats', sharedId);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return { id: snap.id, ...snap.data() };
+    }
+    return null;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
+    return null;
+  }
+};
+
+/**
+ * Deactivates and permanently deletes a public shared chat
+ */
+export const deactivateSharedChat = async (userId: string, sharedId: string, sessionId?: string): Promise<void> => {
+  if (!sharedId) return;
+  const path = `sharedChats/${sharedId}`;
+  try {
+    const docRef = doc(db, 'sharedChats', sharedId);
+    await deleteDoc(docRef);
+
+    // Update user's session document if sessionId is known
+    if (userId && sessionId) {
+      try {
+        const sessionDocRef = doc(db, 'users', userId, 'sessions', sessionId);
+        await setDoc(sessionDocRef, { isPublic: false, shareId: '' }, { merge: true });
+      } catch (e) {
+        console.warn("[deactivateSharedChat] Could not remove shareId from session doc:", e);
+      }
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+    throw error;
   }
 };
 

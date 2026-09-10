@@ -76,6 +76,21 @@ service cloud.firestore {
         && data.title is string && data.title.size() <= 500;
     }
 
+    function isValidSharedChat(data) {
+      return data.title is string && data.title.size() <= 500
+        && data.authorId is string && data.authorId == request.auth.uid
+        && data.messages is list && data.messages.size() <= 1000;
+    }
+
+    // Publicly Shared Chats Collection
+    match /sharedChats/{sharedId} {
+      allow get: if isValidId(sharedId);
+      allow list: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidId(sharedId) && isValidSharedChat(incoming());
+      allow update: if isSignedIn() && isValidId(sharedId) && (existing().authorId == request.auth.uid || isAdmin()) && isValidSharedChat(incoming());
+      allow delete: if isSignedIn() && isValidId(sharedId) && (existing().authorId == request.auth.uid || isAdmin());
+    }
+
     // Writer Documents Collection
     match /writer_documents/{docId} {
       allow list: if isSignedIn();

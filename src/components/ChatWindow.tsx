@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Paperclip, Globe, Monitor, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share, Columns, Pause, Cpu, Bot, PanelRight, Activity, Terminal, ScrollText, Info, ShieldCheck } from 'lucide-react';
+import { Paperclip, Globe, Monitor, Mic, ArrowUp, Sparkles, Copy, Check, ChevronDown, ChevronUp, ChevronRight, Brain, Lock, Download, ZoomIn, X, ChevronsLeft, XCircle, Calculator, Clock, ThumbsUp, ThumbsDown, Edit2, MoreVertical, Plus, Flag, Star, Trash2, Video, Volume2, FileText, AlertCircle, AlertTriangle, Image as ImageIcon, Menu, RotateCcw, CheckCircle2, Circle, Loader2, FileCode2, BookOpen, MessageCircleDashed, Share, Columns, Pause, Cpu, Bot, PanelRight, Activity, Terminal, ScrollText, Info, ShieldCheck, ExternalLink } from 'lucide-react';
 import BrowserPreviewPane from './BrowserPreviewPane';
 import DocumentViewerPane from './DocumentViewerPane';
 import WorkspaceViewerPane from './WorkspaceViewerPane';
@@ -12,7 +12,7 @@ import { Skill } from '../lib/skills';
 import { OFFICIAL_SKILLS } from '../lib/officialSkills';
 import { DeclarativeSkillComposer } from './DeclarativeSkillComposer';
 import { Message, Draft, WsmDocument } from '../types';
-import { saveEvaluationToDb } from '../lib/chatService';
+import { saveEvaluationToDb, publishSharedChat, deactivateSharedChat } from '../lib/chatService';
 import MarkdownRenderer from './MarkdownRenderer';
 import SearchMessageView from './SearchMessageView';
 import TypewriterMarkdown from './TypewriterMarkdown';
@@ -756,6 +756,10 @@ export default function ChatWindow({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isCopiedShare, setIsCopiedShare] = useState(false);
+  const [activeShareId, setActiveShareId] = useState<string | null>(null);
+  const [isGeneratingShare, setIsGeneratingShare] = useState(false);
+  const [isDeactivatingShare, setIsDeactivatingShare] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
 
   const [isListening, setIsListening] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
@@ -2038,10 +2042,33 @@ export default function ChatWindow({
                     <span>Avaliar chat (Estrelas)</span>
                   </button>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       setIsMenuOpen(false);
                       setIsShareModalOpen(true);
+                      setShareError(null);
                       if (onShareSession) onShareSession();
+
+                      // Auto-publish to sharedChats in Firestore to create a real public link with server registration
+                      if (currentUserId && !activeShareId) {
+                        setIsGeneratingShare(true);
+                        try {
+                          const newShareId = await publishSharedChat(currentUserId, {
+                            id: sessionId || `session_${Date.now()}`,
+                            title: title || 'Chat Compartilhado',
+                            timestamp: new Date(),
+                            messages: messages,
+                            model: selectedModel,
+                            isTemporary: !!isTemporary,
+                            shareId: activeShareId || undefined
+                          });
+                          setActiveShareId(newShareId);
+                        } catch (err: any) {
+                          console.error("[ChatWindow] Erro ao publicar chat compartilhado:", err);
+                          setShareError("Não foi possível registrar o chat público no servidor. Verifique sua conexão.");
+                        } finally {
+                          setIsGeneratingShare(false);
+                        }
+                      }
                     }}
                     className="w-full px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 flex items-center justify-between gap-2.5 transition-colors cursor-pointer"
                   >
@@ -3875,44 +3902,132 @@ export default function ChatWindow({
               </div>
             )}
 
+            {shareError && (
+              <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl text-xs text-red-700 dark:text-red-300 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <span className="flex-1">{shareError}</span>
+              </div>
+            )}
+
             <div className="space-y-2">
               <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">Link público da conversa:</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={`${window.location.origin}/share/${sessionId || 'chat'}${currentUserId ? `?uid=${currentUserId}` : ''}`}
-                  className="flex-1 text-xs p-2.5 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl outline-none font-mono text-gray-700 dark:text-gray-300"
-                />
-                <button
-                  onClick={async () => {
-                    const shareUrl = `${window.location.origin}/share/${sessionId || 'chat'}${currentUserId ? `?uid=${currentUserId}` : ''}`;
-                    try {
-                      await navigator.clipboard.writeText(shareUrl);
-                    } catch {
-                      const tempInput = document.createElement('input');
-                      tempInput.value = shareUrl;
-                      document.body.appendChild(tempInput);
-                      tempInput.select();
-                      document.execCommand('copy');
-                      document.body.removeChild(tempInput);
-                    }
-                    setIsCopiedShare(true);
-                    setToastMessage('Link de compartilhamento copiado com sucesso! 🔗');
-                    setTimeout(() => {
-                      setIsCopiedShare(false);
-                      setToastMessage(null);
-                    }, 3000);
-                  }}
-                  className="px-3.5 py-2.5 bg-black dark:bg-white text-white dark:text-black hover:opacity-90 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
-                >
-                  {isCopiedShare ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{isCopiedShare ? 'Copiado!' : 'Copiar'}</span>
-                </button>
-              </div>
+              
+              {isGeneratingShare ? (
+                <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl text-xs text-gray-500 dark:text-gray-400">
+                  <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                  <span>Salvando conversa pública no Firestore...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={activeShareId ? `${window.location.origin}/share/chat?id=${activeShareId}` : `${window.location.origin}/share/chat`}
+                      className="flex-1 text-xs p-2.5 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl outline-none font-mono text-gray-700 dark:text-gray-300 select-all"
+                    />
+                    <button
+                      onClick={async () => {
+                        const shareUrl = activeShareId ? `${window.location.origin}/share/chat?id=${activeShareId}` : `${window.location.origin}/share/chat`;
+                        try {
+                          await navigator.clipboard.writeText(shareUrl);
+                        } catch {
+                          const tempInput = document.createElement('input');
+                          tempInput.value = shareUrl;
+                          document.body.appendChild(tempInput);
+                          tempInput.select();
+                          document.execCommand('copy');
+                          document.body.removeChild(tempInput);
+                        }
+                        setIsCopiedShare(true);
+                        setToastMessage('Link de compartilhamento copiado! 🔗');
+                        setTimeout(() => {
+                          setIsCopiedShare(false);
+                          setToastMessage(null);
+                        }, 3000);
+                      }}
+                      className="px-3.5 py-2.5 bg-black dark:bg-white text-white dark:text-black hover:opacity-90 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      {isCopiedShare ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{isCopiedShare ? 'Copiado!' : 'Copiar'}</span>
+                    </button>
+                  </div>
+
+                  {activeShareId && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                      <a
+                        href={`/share/chat?id=${activeShareId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 font-medium"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>Abrir link em nova aba</span>
+                      </a>
+
+                      <button
+                        onClick={async () => {
+                          if (!currentUserId || !activeShareId) return;
+                          if (confirm('Deseja realmente desativar este link público? O link deixará de funcionar imediatamente.')) {
+                            setIsDeactivatingShare(true);
+                            try {
+                              await deactivateSharedChat(currentUserId, activeShareId, sessionId);
+                              setActiveShareId(null);
+                              setToastMessage('Compartilhamento desativado com sucesso!');
+                              setTimeout(() => setToastMessage(null), 3000);
+                            } catch (e) {
+                              console.error("Erro ao desativar compartilhamento:", e);
+                              setShareError("Erro ao desativar link no servidor.");
+                            } finally {
+                              setIsDeactivatingShare(false);
+                            }
+                          }
+                        }}
+                        disabled={isDeactivatingShare}
+                        className="text-[11px] text-red-600 dark:text-red-400 hover:text-red-700 hover:underline inline-flex items-center gap-1 font-medium cursor-pointer"
+                      >
+                        {isDeactivatingShare ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                        <span>Desativar compartilhamento</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {!activeShareId && !isGeneratingShare && (
+                    <button
+                      onClick={async () => {
+                        if (!currentUserId) {
+                          setShareError("Faça login para gerar um link público compartilhado.");
+                          return;
+                        }
+                        setIsGeneratingShare(true);
+                        setShareError(null);
+                        try {
+                          const newShareId = await publishSharedChat(currentUserId, {
+                            id: sessionId || `session_${Date.now()}`,
+                            title: title || 'Chat Compartilhado',
+                            timestamp: new Date(),
+                            messages: messages,
+                            model: selectedModel,
+                            isTemporary: !!isTemporary
+                          });
+                          setActiveShareId(newShareId);
+                        } catch (err: any) {
+                          console.error("[ChatWindow] Erro ao publicar chat compartilhado:", err);
+                          setShareError("Não foi possível salvar no Firestore. Tente novamente.");
+                        } finally {
+                          setIsGeneratingShare(false);
+                        }
+                      }}
+                      className="w-full mt-2 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                    >
+                      Gerar Link Público Agora
+                    </button>
+                  )}
+                </>
+              )}
             </div>
 
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end pt-2 border-t border-gray-100 dark:border-gray-800">
               <button
                 onClick={() => setIsShareModalOpen(false)}
                 className="px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl text-xs font-semibold transition-colors cursor-pointer"

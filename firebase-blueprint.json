@@ -57,9 +57,27 @@
         "error": { "type": "string" }
       },
       "required": ["taskId", "taskTitle", "executedAt", "sessionId", "status"]
+    },
+    "SharedChat": {
+      "title": "SharedChat",
+      "description": "A publicly shared chat snapshot",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "messages": { "type": "array" },
+        "authorId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "sessionId": { "type": "string" },
+        "model": { "type": "string" }
+      },
+      "required": ["title", "messages", "authorId", "createdAt"]
     }
   },
   "firestore": {
+    "/sharedChats/{sharedId}": {
+      "schema": "SharedChat",
+      "description": "Publicly shared chat conversations accessible via direct link"
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "User profile data"
