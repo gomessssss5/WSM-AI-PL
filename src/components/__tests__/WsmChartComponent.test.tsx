@@ -118,10 +118,11 @@ describe('WsmChartComponent', () => {
     // São Paulo value should be exactly 45, Minas Gerais 21
     expect(chartData.datasets[0].data).toEqual([45, 21, 16, 14, 11]);
 
-    // Top padding should be at least 40px
-    expect(options.layout.padding.top).toBeGreaterThanOrEqual(40);
+    // Explicit max and suggestedMax ceiling should be 55 (multiple of 5 with 15% margin above 45)
+    expect(options.scales.y.max).toBe(55);
+    expect(options.scales.y.suggestedMax).toBe(55);
 
-    // Suggested max ceiling should be Math.ceil(45 * 1.15) = 52
-    expect(options.scales.y.suggestedMax).toBe(52);
+    // Canvas rotated vertical title should be disabled to prevent clipping, shown cleanly in HTML badge
+    expect(options.scales.y.title.display).toBe(false);
   });
 });

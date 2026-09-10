@@ -350,18 +350,24 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
   const isMultipleDatasets = chartData.datasets && chartData.datasets.length > 1;
 
   // Calculate dynamic maximum value and domain ceiling across all datasets
-  const maxDataValue = useMemo(() => {
-    if (!chartData || !chartData.datasets) return 0;
-    const allValues = chartData.datasets.flatMap((ds: any) => ds.data || [])
+  const allValues = useMemo(() => {
+    if (!chartData || !chartData.datasets) return [];
+    return chartData.datasets.flatMap((ds: any) => ds.data || [])
       .map((v: any) => typeof v === 'number' ? v : parseNumericValue(v))
       .filter((v: number) => !isNaN(v) && isFinite(v));
-    return allValues.length > 0 ? Math.max(...allValues) : 0;
   }, [chartData]);
 
-  // Suggested domain ceiling with 15% top margin
-  const dynamicSuggestedMax = maxDataValue > 0 
-    ? (maxDataValue <= 1 ? Number((maxDataValue * 1.2).toFixed(2)) : Math.ceil(maxDataValue * 1.15)) 
-    : undefined;
+  const maxDataValue = allValues.length > 0 ? Math.max(...allValues) : 0;
+
+  // Compute dynamic domain maximum ceiling with 15% breathing room (e.g. max 45 -> 55, max 20 -> 25)
+  const yAxisMax = useMemo(() => {
+    if (maxDataValue <= 0) return undefined;
+    if (maxDataValue <= 1) return Number((maxDataValue * 1.25).toFixed(2));
+    if (maxDataValue <= 10) return Math.ceil(maxDataValue * 1.2);
+    const rawMax = maxDataValue * 1.15;
+    const step = maxDataValue >= 100 ? 50 : (maxDataValue >= 20 ? 5 : 2);
+    return Math.ceil(rawMax / step) * step;
+  }, [maxDataValue]);
 
   // Base options for Chart.js
   const baseOptions: any = {
@@ -369,10 +375,10 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
     maintainAspectRatio: false,
     layout: {
       padding: {
-        top: 42, // Extra top breathing room so highest bars and axis titles never get cut off
-        left: 14,
-        right: 22,
-        bottom: 14
+        top: 24,
+        left: 12,
+        right: 18,
+        bottom: 12
       }
     },
     interaction: {
@@ -423,7 +429,8 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
     scales: (type === 'pie' || type === 'doughnut' || type === 'radar') ? undefined : {
       x: {
         beginAtZero: true,
-        suggestedMax: type === 'bar_horizontal' ? dynamicSuggestedMax : undefined,
+        max: type === 'bar_horizontal' ? yAxisMax : undefined,
+        suggestedMax: type === 'bar_horizontal' ? yAxisMax : undefined,
         border: { display: false },
         grid: { display: false },
         ticks: { 
@@ -435,17 +442,13 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
           padding: 8
         },
         title: {
-          display: Boolean(resolvedXLabel),
-          text: resolvedXLabel,
-          color: '#64748b',
-          font: { size: 12, weight: '600' },
-          padding: { top: 10 }
+          display: false
         }
       },
       y: {
         beginAtZero: true,
-        suggestedMax: type !== 'bar_horizontal' ? dynamicSuggestedMax : undefined,
-        grace: '15%', // Ensures breathing room above the tallest data bar
+        max: type !== 'bar_horizontal' ? yAxisMax : undefined,
+        suggestedMax: type !== 'bar_horizontal' ? yAxisMax : undefined,
         border: { display: false },
         grid: { color: '#f1f5f9', drawTicks: false },
         ticks: { 
@@ -474,12 +477,7 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
           }
         },
         title: {
-          display: Boolean(resolvedYLabel),
-          text: resolvedYLabel,
-          color: '#475569',
-          font: { size: 12, weight: '600' },
-          align: 'center',
-          padding: { bottom: 8, top: 0 }
+          display: false // Avoid canvas vertical rotated text clipping; represented crisply in the header badge
         }
       }
     }
@@ -516,15 +514,16 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
   return (
     <div className="my-5 w-full max-w-full border border-gray-200/90 dark:border-neutral-800 rounded-2xl bg-white dark:bg-neutral-900 p-5 sm:p-6 shadow-sm overflow-hidden transition-all">
       {(title || subtitle || resolvedYLabel) && (
-        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             {title && <h3 className="m-0 text-base sm:text-lg font-semibold tracking-tight text-gray-900 dark:text-neutral-100">{title}</h3>}
             {subtitle && <p className="mt-0.5 text-xs sm:text-sm text-gray-500 dark:text-neutral-400">{subtitle}</p>}
           </div>
           {resolvedYLabel && (
-            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900/60 shadow-2xs">
-              {resolvedYLabel}
-            </span>
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shadow-2xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400"></span>
+              <span>{resolvedYLabel}</span>
+            </div>
           )}
         </div>
       )}
