@@ -760,8 +760,8 @@ app.post("/api/chat", verifyAuthTokenMiddleware, async (req: express.Request, re
   const simAuthHeader = (req.headers['x-simulate-auth-error'] || "").toString();
   
   const isExplicitInvalidToken = authHeader === 'Bearer invalid-token' || authHeader === 'Bearer expired-token';
-  const isSimulated401 = simAuthHeader === '401' || isExplicitInvalidToken || /\b(simul(ar|e)\s+(erro\s+)?401|simulate_401|auth_error_401|token_expired_401)\b/i.test(userPromptText);
-  const isSimulated419 = simAuthHeader === '419' || /\b(simul(ar|e)\s+(erro\s+)?419|simulate_419|auth_error_419|session_expired_419)\b/i.test(userPromptText);
+  const isSimulated401 = !isScheduledExecution && (simAuthHeader === '401' || isExplicitInvalidToken || /\b(simul(ar|e)\s+(erro\s+)?401|simulate_401|auth_error_401|token_expired_401)\b/i.test(userPromptText));
+  const isSimulated419 = !isScheduledExecution && (simAuthHeader === '419' || /\b(simul(ar|e)\s+(erro\s+)?419|simulate_419|auth_error_419|session_expired_419)\b/i.test(userPromptText));
 
   if (isSimulated401 || isSimulated419) {
     const statusCode = isSimulated419 ? 419 : 401;
@@ -4481,14 +4481,15 @@ app.post("/api/send-scheduled-email", verifyAuthTokenMiddleware, emailRateLimite
 
 // Endpoint para execução imediata (Run Now) de tarefa agendada
 app.post("/api/scheduled-tasks/execute-now", verifyAuthTokenMiddleware, async (req: express.Request, res: express.Response) => {
-  const { userId, taskId, taskData } = req.body;
+  const { userId, taskId, taskData, authToken } = req.body;
   if (!taskId || !taskData) {
     return res.status(400).json({ success: false, error: "Parâmetros 'taskId' e 'taskData' são obrigatórios." });
   }
 
   try {
     const verifiedUid = (req as AuthenticatedRequest).user?.uid || userId || 'guest';
-    const result = await executeScheduledTaskNow(verifiedUid, taskId, taskData);
+    const incomingAuthToken = (req.headers.authorization as string) || (authToken as string) || "";
+    const result = await executeScheduledTaskNow(verifiedUid, taskId, taskData, incomingAuthToken, req);
     return res.json(result);
   } catch (err: any) {
     console.error("Erro ao executar tarefa agendada manualmente:", err);

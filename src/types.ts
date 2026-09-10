@@ -431,7 +431,9 @@ export interface ScheduledTask {
   nextRunAt: Date;
   retryPolicy?: ScheduledTaskRetryPolicy;
   lastExecutionDurationMs?: number;
-  lastExecutionStatus?: 'succeeded' | 'failed' | 'running';
+  lastExecutionStatus?: 'succeeded' | 'failed' | 'running' | 'needs_auth';
+  lastStatus?: string;
+  lastOutput?: string;
   lastErrorDetails?: string;
   executionSecret?: string;
 }
@@ -452,7 +454,7 @@ export interface TaskExecution {
   durationMs?: number;
   triggerType?: 'manual' | 'scheduled' | 'retry' | 'event';
   sessionId: string;
-  status: 'queued' | 'planning' | 'waiting_approval' | 'running' | 'waiting_user' | 'partial' | 'succeeded' | 'failed' | 'canceled' | 'cancelada' | 'cancelled' | 'expired';
+  status: 'queued' | 'planning' | 'waiting_approval' | 'running' | 'waiting_user' | 'partial' | 'succeeded' | 'failed' | 'needs_auth' | 'canceled' | 'cancelada' | 'cancelled' | 'expired';
   attempts?: number;
   maxRetries?: number;
   outputSummary?: string;

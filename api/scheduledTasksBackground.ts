@@ -100,7 +100,13 @@ export function calculateNextRunAt(
   return fallback;
 }
 
-export async function executeScheduledTaskNow(userId: string, taskId: string, taskData: any): Promise<{ success: boolean; aiResponse?: string; error?: string; sessionId?: string; session?: any; execution?: any }> {
+export async function executeScheduledTaskNow(
+  userId: string, 
+  taskId: string, 
+  taskData: any, 
+  userAuthToken?: string,
+  reqContext?: any
+): Promise<{ success: boolean; aiResponse?: string; error?: string; sessionId?: string; session?: any; execution?: any }> {
   const db = getDb();
   if (!db) return { success: false, error: 'Database instance unavailable' };
 
@@ -200,6 +206,47 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
 
   const shouldForceFailure = taskData.prompt?.toLowerCase().includes("simular falha") || taskData.prompt?.toLowerCase().includes("force_failure");
 
+  // Determine candidate URLs for connection
+  const port = process.env.PORT || '3000';
+  const candidateUrls: string[] = [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
+  if (reqContext?.get && typeof reqContext.get === 'function') {
+    const host = reqContext.get('host');
+    if (host && !host.includes('127.0.0.1') && !host.includes('localhost')) {
+      const proto = reqContext.protocol || (host.includes('localhost') ? 'http' : 'https');
+      candidateUrls.push(`${proto}://${host}`);
+    }
+  }
+  if (process.env.BASE_URL && !candidateUrls.includes(process.env.BASE_URL)) {
+    candidateUrls.push(process.env.BASE_URL);
+  }
+  if (process.env.VERCEL_URL) {
+    const vercelUrl = `https://${process.env.VERCEL_URL}`;
+    if (!candidateUrls.includes(vercelUrl)) {
+      candidateUrls.push(vercelUrl);
+    }
+  }
+
+  // Determine effective auth header
+  let effectiveAuthHeader = "Bearer OmnixInternalSchedulerBypassToken_2026";
+  if (userAuthToken && userAuthToken.trim()) {
+    effectiveAuthHeader = userAuthToken.startsWith('Bearer ') ? userAuthToken.trim() : `Bearer ${userAuthToken.trim()}`;
+  } else if (taskData.userAuthToken) {
+    effectiveAuthHeader = taskData.userAuthToken.startsWith('Bearer ') ? taskData.userAuthToken.trim() : `Bearer ${taskData.userAuthToken.trim()}`;
+  }
+
+  const requestHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Authorization": effectiveAuthHeader,
+    "x-internal-secret": "OmnixInternalSchedulerBypassToken_2026",
+    "x-task-execution-secret": taskData.executionSecret || "",
+    "x-scheduled-task-id": taskId,
+    "x-scheduled-task-user-id": userId,
+    "x-scheduled-task-user-email": taskData.userEmail || taskData.createdByUserEmail || `${userId}@omnix.internal`
+  };
+  if (userAuthToken) {
+    requestHeaders["x-user-auth-token"] = userAuthToken;
+  }
+
   while (attempts < maxRetries) {
     attempts++;
     console.log(`[ScheduledTasks] Executing task ${taskId} (Attempt ${attempts}/${maxRetries})...`);
@@ -208,28 +255,37 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
         throw new Error(`[Simulação de Falha] Erro forçado na tentativa ${attempts} de ${maxRetries} para testar a política de retentativas.`);
       }
 
-      const baseUrl = process.env.BASE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://127.0.0.1:3000');
-      const res = await fetch(`${baseUrl}/api/chat`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": "Bearer OmnixInternalSchedulerBypassToken_2026",
-          "x-internal-secret": "OmnixInternalSchedulerBypassToken_2026",
-          "x-task-execution-secret": taskData.executionSecret || "",
-          "x-scheduled-task-id": taskId,
-          "x-scheduled-task-user-id": userId
-        },
-        body: JSON.stringify({
-          text: taskData.prompt,
-          isSearchEnabled: true,
-          isScheduledExecution: true,
-          model: 'Omnix 1.6',
-          skills: skills,
-          userId: userId,
-          userContext: `Execução automática de tarefa agendada em segundo plano. Tentativa ${attempts}/${maxRetries}.`,
-          history: []
-        })
-      });
+      const requestPayload = {
+        text: taskData.prompt,
+        isSearchEnabled: true,
+        isScheduledExecution: true,
+        model: 'Omnix 1.6',
+        skills: skills,
+        userId: userId,
+        userContext: `Execução automática de tarefa agendada em segundo plano. Tentativa ${attempts}/${maxRetries}.`,
+        history: []
+      };
+
+      let res: any = null;
+      let lastFetchErr: any = null;
+
+      for (const base of candidateUrls) {
+        try {
+          const testRes = await fetch(`${base}/api/chat`, {
+            method: "POST",
+            headers: requestHeaders,
+            body: JSON.stringify(requestPayload)
+          });
+          res = testRes;
+          break;
+        } catch (fetchErr: any) {
+          lastFetchErr = fetchErr;
+        }
+      }
+
+      if (!res) {
+        throw new Error(`Falha de conexão com os serviços internos: ${lastFetchErr?.message || lastFetchErr}`);
+      }
 
       if (res.ok) {
         const contentType = res.headers.get("content-type") || "";
@@ -307,57 +363,60 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
 
   let createdSessionObj: any = null;
 
-  // ONLY create result conversation if execution succeeded and produced valid output
-  if (executionStatus === 'success') {
-    try {
-      const userMsg = {
-        id: crypto.randomUUID(),
-        sender: 'user',
-        text: taskData.prompt,
-        timestamp: Timestamp.fromDate(now)
-      };
+  // Create audit session document on both success and failure so "Ver Conversa" always opens the execution audit trail
+  try {
+    const isSuccess = executionStatus === 'success';
+    const userMsg = {
+      id: crypto.randomUUID(),
+      sender: 'user',
+      text: taskData.prompt,
+      timestamp: Timestamp.fromDate(now)
+    };
 
-      const aiMsg = {
-        id: crypto.randomUUID(),
-        sender: 'ai',
-        text: finalOutput,
-        finalSynthesis: aiFinalSynthesis || '',
-        timestamp: Timestamp.fromDate(finishedAt),
-        isSearchMessage: searchSources.length > 0,
-        searchSources: searchSources
-      };
+    const aiMsgText = isSuccess 
+      ? finalOutput 
+      : `⚠️ [Falha na Execução Agendada]\n\n${executionError || 'Ocorreu uma falha no processamento da tarefa em segundo plano.'}\n\n**Detalhes da Execução:**\n- Status: ${executionStatus === 'needs_auth' ? 'Falha de Autenticação (HTTP 401/419)' : 'Falhou'}\n- Tentativas: ${attempts} de ${maxRetries}\n- Duração: ${(durationMs / 1000).toFixed(1)}s\n- ID da Tarefa: \`${taskId}\``;
 
-      const sessionMessages = [userMsg, aiMsg];
+    const aiMsg = {
+      id: crypto.randomUUID(),
+      sender: 'ai',
+      text: aiMsgText,
+      finalSynthesis: isSuccess ? (aiFinalSynthesis || '') : '',
+      timestamp: Timestamp.fromDate(finishedAt),
+      isSearchMessage: searchSources.length > 0,
+      searchSources: searchSources
+    };
 
-      await db.collection('users').doc(userId).collection('sessions').doc(newSessionId).set({
-        id: newSessionId,
-        title: `[Execução Agendada] ${taskData.title}`,
-        createdAt: Timestamp.fromDate(now),
-        updatedAt: Timestamp.fromDate(finishedAt),
-        timestamp: Timestamp.fromDate(finishedAt),
-        messages: sessionMessages,
-        isUnread: true,
-        isTemporary: false,
-        isScheduled: true
-      });
+    const sessionMessages = [userMsg, aiMsg];
 
-      createdSessionObj = {
-        id: newSessionId,
-        title: `[Execução Agendada] ${taskData.title}`,
-        createdAt: now,
-        updatedAt: finishedAt,
-        timestamp: finishedAt,
-        messages: [
-          { ...userMsg, timestamp: now },
-          { ...aiMsg, timestamp: finishedAt }
-        ],
-        isUnread: true,
-        isTemporary: false,
-        isScheduled: true
-      };
-    } catch (e) {
-      console.warn('[ScheduledTasks] Warning creating session doc:', e);
-    }
+    await db.collection('users').doc(userId).collection('sessions').doc(newSessionId).set({
+      id: newSessionId,
+      title: isSuccess ? `[Execução Agendada] ${taskData.title}` : `[Falha Agendada] ${taskData.title}`,
+      createdAt: Timestamp.fromDate(now),
+      updatedAt: Timestamp.fromDate(finishedAt),
+      timestamp: Timestamp.fromDate(finishedAt),
+      messages: sessionMessages,
+      isUnread: true,
+      isTemporary: false,
+      isScheduled: true
+    });
+
+    createdSessionObj = {
+      id: newSessionId,
+      title: isSuccess ? `[Execução Agendada] ${taskData.title}` : `[Falha Agendada] ${taskData.title}`,
+      createdAt: now,
+      updatedAt: finishedAt,
+      timestamp: finishedAt,
+      messages: [
+        { ...userMsg, timestamp: now },
+        { ...aiMsg, timestamp: finishedAt }
+      ],
+      isUnread: true,
+      isTemporary: false,
+      isScheduled: true
+    };
+  } catch (e) {
+    console.warn('[ScheduledTasks] Warning creating session doc:', e);
   }
 
   // Record task execution log with complete agentic provenance
@@ -426,7 +485,7 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
     finishedAt: finishedAt,
     durationMs: durationMs,
     triggerType: taskData.triggerType || 'manual',
-    sessionId: executionStatus === 'success' ? newSessionId : undefined,
+    sessionId: newSessionId,
     status: executionStatus === 'success' ? 'succeeded' : executionStatus === 'needs_auth' ? 'needs_auth' : 'failed',
     attempts: attempts,
     maxRetries: maxRetries,
@@ -439,7 +498,7 @@ export async function executeScheduledTaskNow(userId: string, taskId: string, ta
     success: executionStatus === 'success',
     aiResponse: executionStatus === 'success' ? finalOutput : undefined,
     error: executionError,
-    sessionId: executionStatus === 'success' ? newSessionId : undefined,
+    sessionId: newSessionId,
     session: createdSessionObj,
     execution: createdExecutionObj
   };

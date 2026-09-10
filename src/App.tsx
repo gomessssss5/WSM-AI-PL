@@ -2564,11 +2564,8 @@ Por favor, corrija os nomes solicitados para a leitura ou crie as skills se nece
                 }}
                 onOpenSession={(sessionId) => {
                   if (!sessionId) return;
-                  const targetSession = sessions.find((s) => s.id === sessionId);
-                  if (targetSession) {
-                    handleSelectSession(sessionId);
-                    setIsScheduledTasksView(false);
-                  }
+                  handleSelectSession(sessionId);
+                  setIsScheduledTasksView(false);
                 }}
                 onSessionCreated={(createdSession) => {
                   setSessions((prev) => [createdSession, ...prev.filter((s) => s.id !== createdSession.id)]);

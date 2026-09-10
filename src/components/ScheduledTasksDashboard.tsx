@@ -187,6 +187,7 @@ export default function ScheduledTasksDashboard({
       }, 500);
 
       let authHeaders = await getAuthHeader(false);
+      const userToken = authHeaders?.['Authorization'] || authHeaders?.['authorization'];
       let res = await fetch('/api/scheduled-tasks/execute-now', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
@@ -194,7 +195,8 @@ export default function ScheduledTasksDashboard({
         body: JSON.stringify({
           userId: currentUserId || 'guest',
           taskId: task.id,
-          taskData: task
+          taskData: task,
+          authToken: userToken
         })
       });
 
@@ -202,6 +204,7 @@ export default function ScheduledTasksDashboard({
       if (res.status === 401 || res.status === 419) {
         console.warn('[ScheduledTasks] 401/419 encountered. Retrying with forced token refresh...');
         authHeaders = await getAuthHeader(true);
+        const refreshedUserToken = authHeaders?.['Authorization'] || authHeaders?.['authorization'];
         res = await fetch('/api/scheduled-tasks/execute-now', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeaders },
@@ -209,7 +212,8 @@ export default function ScheduledTasksDashboard({
           body: JSON.stringify({
             userId: currentUserId || 'guest',
             taskId: task.id,
-            taskData: task
+            taskData: task,
+            authToken: refreshedUserToken
           })
         });
       }
@@ -289,6 +293,17 @@ export default function ScheduledTasksDashboard({
           onExecutionCreated(completedExecution);
         }
 
+        if (onSaveTask) {
+          onSaveTask({
+            ...task,
+            lastStatus: 'succeeded',
+            lastExecutionStatus: 'succeeded',
+            lastRunAt: startedAt,
+            lastOutput: (data.aiResponse || '').slice(0, 200),
+            lastExecutionDurationMs: Date.now() - startedAt.getTime()
+          } as any);
+        }
+
         setExecutionStates(prev => ({ ...prev, [task.id]: 'concluido' }));
         logAuditEvent({
           toolName: 'scheduler.trigger_now_success',
@@ -301,9 +316,10 @@ export default function ScheduledTasksDashboard({
         });
       } else {
         const errDetail = data.error || 'Erro interno retornado pela execução';
+        const isAuthFailure = data.status === 'needs_auth' || errDetail.includes('401') || errDetail.includes('autenticação');
         const failedExecution: TaskExecution = {
           ...optimisticExecution,
-          status: 'failed',
+          status: isAuthFailure ? 'needs_auth' : 'failed',
           finishedAt: new Date(),
           durationMs: Date.now() - startedAt.getTime(),
           outputSummary: errDetail,
@@ -315,6 +331,16 @@ export default function ScheduledTasksDashboard({
 
         if (onExecutionCreated) {
           onExecutionCreated(failedExecution);
+        }
+
+        if (onSaveTask) {
+          onSaveTask({
+            ...task,
+            lastStatus: isAuthFailure ? 'needs_auth' : 'failed',
+            lastExecutionStatus: isAuthFailure ? 'needs_auth' : 'failed',
+            lastRunAt: startedAt,
+            lastErrorDetails: errDetail
+          } as any);
         }
 
         setExecutionStates(prev => ({ ...prev, [task.id]: 'falhou' }));
@@ -338,6 +364,16 @@ export default function ScheduledTasksDashboard({
       console.error('Erro ao executar tarefa agora:', e);
       const isAbort = e?.name === 'AbortError';
       const errMsg = isAbort ? 'Tempo limite de execução excedido (Timeout 60s).' : (e?.message || 'Falha de rede ou servidor.');
+
+      if (onSaveTask) {
+        onSaveTask({
+          ...task,
+          lastStatus: 'failed',
+          lastExecutionStatus: 'failed',
+          lastRunAt: startedAt,
+          lastErrorDetails: errMsg
+        } as any);
+      }
 
       const failedExecution: TaskExecution = {
         ...optimisticExecution,
@@ -1068,13 +1104,47 @@ export default function ScheduledTasksDashboard({
                         </div>
                         <div>
                           <p className="font-bold text-[10px] uppercase text-gray-400 tracking-wider">Último Resultado</p>
-                          <span className={`inline-flex items-center gap-1 font-semibold mt-0.5 ${
-                            task.lastExecutionStatus === 'succeeded' ? 'text-emerald-600' :
-                            task.lastExecutionStatus === 'failed' ? 'text-red-600' : 'text-gray-500'
-                          }`}>
-                            {task.lastExecutionStatus === 'succeeded' ? `Sucesso ${durationStr ? `(${durationStr})` : ''}` :
-                             task.lastExecutionStatus === 'failed' ? 'Falhou / Erro' : 'Nunca executado'}
-                          </span>
+                          {(() => {
+                            const latestExec = executions.find(e => e.taskId === task.id);
+                            const rawStatus = task.lastExecutionStatus || task.lastStatus || latestExec?.status;
+                            const isSuccess = rawStatus === 'succeeded' || rawStatus === 'concluido';
+                            const isAuthErr = rawStatus === 'needs_auth' || task.lastStatus === 'needs_auth';
+                            const isFailed = rawStatus === 'failed' || rawStatus === 'falhou' || isAuthErr;
+
+                            if (isSuccess) {
+                              return (
+                                <span className="inline-flex items-center gap-1 font-semibold mt-0.5 text-emerald-600">
+                                  Sucesso {durationStr ? `(${durationStr})` : ''}
+                                </span>
+                              );
+                            }
+                            if (isAuthErr) {
+                              return (
+                                <span className="inline-flex items-center gap-1 font-semibold mt-0.5 text-amber-600" title={task.lastErrorDetails || latestExec?.outputSummary}>
+                                  Falha de Autenticação
+                                </span>
+                              );
+                            }
+                            if (isFailed) {
+                              return (
+                                <span className="inline-flex items-center gap-1 font-semibold mt-0.5 text-red-600" title={task.lastErrorDetails || latestExec?.outputSummary}>
+                                  Falhou / Erro
+                                </span>
+                              );
+                            }
+                            if (task.lastRunAt || latestExec) {
+                              return (
+                                <span className="inline-flex items-center gap-1 font-semibold mt-0.5 text-gray-700">
+                                  Executado
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="inline-flex items-center gap-1 font-semibold mt-0.5 text-gray-500">
+                                Nunca executado
+                              </span>
+                            );
+                          })()}
                         </div>
                         <div>
                           <p className="font-bold text-[10px] uppercase text-gray-400 tracking-wider">Última Execução</p>
@@ -1242,12 +1312,7 @@ export default function ScheduledTasksDashboard({
                           type="button"
                           onClick={() => {
                             if (!exec.sessionId) {
-                              setSessionNotice('Nenhuma conversa foi vinculada a esta execução.');
-                              return;
-                            }
-                            const sessionExists = sessions.some(s => s.id === exec.sessionId);
-                            if (!sessionExists) {
-                              setSessionNotice('Dados expirados: A conversa associada a esta execução foi limpa pela política de retenção do histórico.');
+                              setSessionNotice('Nenhuma conversa foi vinculada a esta execução (tarefa cancelada ou falhou antes da inicialização).');
                               return;
                             }
                             setSessionNotice(null);
