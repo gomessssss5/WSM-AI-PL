@@ -100,7 +100,7 @@ const humanizeLabel = (k: string): string => {
 
 /**
  * Robust numeric parser that handles numbers, strings with units ("45 milhões"),
- * Brazilian decimal comma format ("44,4"), and currency symbols.
+ * Brazilian decimal comma format ("44,4"), currency symbols, and dot-separated thousands.
  */
 function parseNumericValue(val: any): number {
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
@@ -109,11 +109,39 @@ function parseNumericValue(val: any): number {
     const trimmed = val.trim();
     if (!trimmed) return 0;
 
-    // Remove non-numeric characters except digits, dots, commas and minus
+    // Direct clean float or int (e.g. "45", "44.4", "-10")
+    if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+      const num = parseFloat(trimmed);
+      return isNaN(num) ? 0 : num;
+    }
+
+    // Brazilian format without units: "44,4" or "44,40"
+    if (/^-?\d+(,\d+)?$/.test(trimmed)) {
+      const num = parseFloat(trimmed.replace(',', '.'));
+      return isNaN(num) ? 0 : num;
+    }
+
+    // Match leading number portion before unit words (e.g. "45 milhões", "44,4 mi", "45M")
+    const leadingNumMatch = trimmed.match(/^-?[\d.,]+/);
+    if (leadingNumMatch) {
+      let cleaned = leadingNumMatch[0];
+      if (cleaned.includes(',') && cleaned.includes('.')) {
+        if (cleaned.indexOf('.') < cleaned.indexOf(',')) {
+          cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+        } else {
+          cleaned = cleaned.replace(/,/g, '');
+        }
+      } else if (cleaned.includes(',')) {
+        cleaned = cleaned.replace(',', '.');
+      }
+      const num = parseFloat(cleaned);
+      if (!isNaN(num)) return num;
+    }
+
+    // Fallback cleanup
     let cleaned = trimmed.replace(/[^\d.,\-]/g, '');
     if (!cleaned) return 0;
 
-    // Handle Brazilian vs US decimal formats: "1.000,50" vs "1,000.50" vs "44,4" vs "44.4"
     if (cleaned.includes(',') && cleaned.includes('.')) {
       if (cleaned.indexOf('.') < cleaned.indexOf(',')) {
         cleaned = cleaned.replace(/\./g, '').replace(',', '.');
@@ -321,16 +349,30 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
 
   const isMultipleDatasets = chartData.datasets && chartData.datasets.length > 1;
 
+  // Calculate dynamic maximum value and domain ceiling across all datasets
+  const maxDataValue = useMemo(() => {
+    if (!chartData || !chartData.datasets) return 0;
+    const allValues = chartData.datasets.flatMap((ds: any) => ds.data || [])
+      .map((v: any) => typeof v === 'number' ? v : parseNumericValue(v))
+      .filter((v: number) => !isNaN(v) && isFinite(v));
+    return allValues.length > 0 ? Math.max(...allValues) : 0;
+  }, [chartData]);
+
+  // Suggested domain ceiling with 15% top margin
+  const dynamicSuggestedMax = maxDataValue > 0 
+    ? (maxDataValue <= 1 ? Number((maxDataValue * 1.2).toFixed(2)) : Math.ceil(maxDataValue * 1.15)) 
+    : undefined;
+
   // Base options for Chart.js
   const baseOptions: any = {
     responsive: true,
     maintainAspectRatio: false,
     layout: {
       padding: {
-        top: 24,
-        left: 12,
-        right: 18,
-        bottom: 12
+        top: 42, // Extra top breathing room so highest bars and axis titles never get cut off
+        left: 14,
+        right: 22,
+        bottom: 14
       }
     },
     interaction: {
@@ -380,6 +422,8 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
     },
     scales: (type === 'pie' || type === 'doughnut' || type === 'radar') ? undefined : {
       x: {
+        beginAtZero: true,
+        suggestedMax: type === 'bar_horizontal' ? dynamicSuggestedMax : undefined,
         border: { display: false },
         grid: { display: false },
         ticks: { 
@@ -400,7 +444,8 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
       },
       y: {
         beginAtZero: true,
-        grace: '10%', // Automatically ensures the largest bar has breathing room and is not clipped
+        suggestedMax: type !== 'bar_horizontal' ? dynamicSuggestedMax : undefined,
+        grace: '15%', // Ensures breathing room above the tallest data bar
         border: { display: false },
         grid: { color: '#f1f5f9', drawTicks: false },
         ticks: { 
@@ -414,7 +459,7 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
               if (Math.abs(value) >= 10_000) return (value / 1_000).toLocaleString('pt-BR') + 'k';
               
               // If context is millions and value is small (e.g. 10, 20, 30, 40, 50), add 'M' suffix
-              if (isMillionsContext && Math.abs(value) > 0 && Math.abs(value) <= 500) {
+              if (isMillionsContext && Math.abs(value) > 0 && Math.abs(value) <= 1000) {
                 return `${value.toLocaleString('pt-BR')}M`;
               }
               if (isCurrencyContext && Math.abs(value) > 0) {
@@ -433,7 +478,8 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
           text: resolvedYLabel,
           color: '#475569',
           font: { size: 12, weight: '600' },
-          padding: { bottom: 12, top: 4 }
+          align: 'center',
+          padding: { bottom: 8, top: 0 }
         }
       }
     }
@@ -469,10 +515,17 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
 
   return (
     <div className="my-5 w-full max-w-full border border-gray-200/90 dark:border-neutral-800 rounded-2xl bg-white dark:bg-neutral-900 p-5 sm:p-6 shadow-sm overflow-hidden transition-all">
-      {(title || subtitle) && (
-        <div className="mb-4">
-          {title && <h3 className="m-0 text-base sm:text-lg font-semibold tracking-tight text-gray-900 dark:text-neutral-100">{title}</h3>}
-          {subtitle && <p className="mt-0.5 text-xs sm:text-sm text-gray-500 dark:text-neutral-400">{subtitle}</p>}
+      {(title || subtitle || resolvedYLabel) && (
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+          <div>
+            {title && <h3 className="m-0 text-base sm:text-lg font-semibold tracking-tight text-gray-900 dark:text-neutral-100">{title}</h3>}
+            {subtitle && <p className="mt-0.5 text-xs sm:text-sm text-gray-500 dark:text-neutral-400">{subtitle}</p>}
+          </div>
+          {resolvedYLabel && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900/60 shadow-2xs">
+              {resolvedYLabel}
+            </span>
+          )}
         </div>
       )}
       <div 

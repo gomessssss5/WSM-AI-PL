@@ -90,4 +90,38 @@ describe('WsmChartComponent', () => {
     const chartData = capturedProps.data;
     expect(chartData.datasets[0].data).toEqual([44.4, 20.5]);
   });
+
+  it('correctly calculates dynamic domain ceiling (suggestedMax) for 45M dataset', () => {
+    capturedProps = null;
+    const data = JSON.stringify([
+      { estado: 'São Paulo', populacao: '45 milhões' },
+      { estado: 'Minas Gerais', populacao: '21 milhões' },
+      { estado: 'Rio de Janeiro', populacao: 16 },
+      { estado: 'Bahia', populacao: 14 },
+      { estado: 'Rio Grande do Sul', populacao: 11 }
+    ]);
+
+    const html = renderToString(
+      <WsmChartComponent
+        type="bar"
+        title="População dos 5 Maiores Estados"
+        yAxis="População (milhões)"
+        data={data}
+      />
+    );
+
+    expect(html).toContain('População (milhões)');
+    expect(capturedProps).toBeDefined();
+    const chartData = capturedProps.data;
+    const options = capturedProps.options;
+
+    // São Paulo value should be exactly 45, Minas Gerais 21
+    expect(chartData.datasets[0].data).toEqual([45, 21, 16, 14, 11]);
+
+    // Top padding should be at least 40px
+    expect(options.layout.padding.top).toBeGreaterThanOrEqual(40);
+
+    // Suggested max ceiling should be Math.ceil(45 * 1.15) = 52
+    expect(options.scales.y.suggestedMax).toBe(52);
+  });
 });
