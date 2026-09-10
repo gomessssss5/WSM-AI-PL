@@ -135,4 +135,33 @@ Este é um texto com **negrito**, *itálico*, ~~tachado~~ e [Link Google](https:
 
     expect(html).toMatchSnapshot();
   });
+
+  it('should render mathematical fractions and equations correctly without swallowing text', () => {
+    const markdown = `
+Para somar frações, encontramos o MMC:
+$$\\frac{3}{4} + \\frac{2}{5} = \\frac{15}{20} + \\frac{8}{20} = \\frac{23}{20}$$
+
+Para verificar se a fração $\\frac{23}{20}$ corresponde a 1,15, dividimos 23 por 20:
+$$\\frac{23}{20} = 1{,}15$$
+    `.trim();
+
+    const html = renderToString(<MarkdownRenderer content={markdown} />);
+
+    // Verify all fractions are rendered via KaTeX
+    expect(html).toContain('katex');
+    expect(html).toContain('\\frac{3}{4}');
+    expect(html).toContain('\\frac{2}{5}');
+    expect(html).toContain('\\frac{23}{20}');
+    expect(html).toContain('Para verificar se a fração');
+    expect(html).toContain('corresponde a 1,15');
+  });
+
+  it('should not delete bracketed explanatory text containing math expressions', () => {
+    const text = "Para verificar se a fração 23/20 corresponde a 1.15, fazemos a divisão.";
+    const html = renderToString(<MarkdownRenderer content={text} />);
+
+    expect(html).toContain('23/20');
+    expect(html).toContain('Para verificar se a fração');
+    expect(html).toContain('corresponde a 1.15');
+  });
 });

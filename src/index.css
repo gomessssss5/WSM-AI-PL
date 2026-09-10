@@ -25,28 +25,44 @@ html, body, #root {
 
 /* KaTeX and Math Typography Protections */
 .katex {
-  font-size: 1.05em !important;
+  font-size: 1.05em;
   text-rendering: auto;
-  white-space: nowrap;
+  line-height: 1.2;
 }
 .katex-display {
   display: block;
-  margin: 0.75em 0;
+  margin: 0.85em 0;
   text-align: center;
   overflow-x: auto;
   overflow-y: hidden;
-  white-space: nowrap;
 }
-.katex .mfrac {
-  display: inline-block !important;
-  vertical-align: -0.5em !important;
-  padding: 0 0.1em;
-}
+/* Ensure the fraction horizontal bar is ALWAYS crisp and visible across all resolutions and themes */
+.katex .mfrac .frac-line,
 .katex .frac-line {
-  display: block !important;
+  display: inline-block !important;
+  width: 100% !important;
+  border-bottom-style: solid !important;
+  border-bottom-color: currentColor !important;
+  border-bottom-width: max(1.5px, 0.08em) !important;
+  min-height: 1.5px !important;
+  box-sizing: border-box !important;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
-.katex-html {
-  white-space: nowrap;
+/* Ensure numerator and denominator stay centered and formatted */
+.katex .mfrac > span > span {
+  text-align: center !important;
+}
+/* Ensure KaTeX square roots, overlines and rules are visible */
+.katex .sqrt .sqrt-line,
+.katex .overline .overline-line,
+.katex .underline .underline-line,
+.katex .hline,
+.katex .hdashline,
+.katex .rule {
+  border-bottom-style: solid !important;
+  border-bottom-color: currentColor !important;
+  min-height: 1.5px !important;
 }
 
 /* Custom scrollbars for clean look */

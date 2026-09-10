@@ -910,8 +910,9 @@ export default function MarkdownRenderer({
     const hasLatexCommands = /\\(frac|sqrt|cdot|times|div|pm|mp|sum|int|prod|lim|alpha|beta|gamma|delta|Delta|theta|lambda|pi|sigma|omega|vec|text)\b/.test(trimmed);
     const hasMathEquationStructure = /^[\s\w\(\)\*\/+\-.,_^{}\\]+\s*(=|≈|≠|≤|≥|<|>|→|⇒)\s*[\s\w\(\)\*\/+\-.,_^{}\\]+$/.test(trimmed);
     const hasMathOperators = /[\*\/^]/.test(trimmed) && /[a-zA-Z]/.test(trimmed) && /[0-9=+\-]/.test(trimmed);
+    const hasFractions = /\d+\s*\/\s*\d+/.test(trimmed);
 
-    if ((hasSubscripts || hasSuperscripts || hasLatexCommands || hasMathOperators) && hasMathEquationStructure) {
+    if ((hasSubscripts || hasSuperscripts || hasLatexCommands || hasMathOperators || hasFractions) && hasMathEquationStructure) {
       return true;
     }
 
@@ -1079,9 +1080,15 @@ export default function MarkdownRenderer({
 
     // 1. Extract agentic tags: [pesquisou na web], [calculando], [verificando relógio], and active/completed states
     // Note negative lookahead (?!\s*\() to prevent matching markdown link text [Text](url)
-    const agenticRegex = /\[(pesquisou na web|pesquisando[\s\S]*?|acessando site[\s\S]*?|acessando[\s\S]*?|abrindo site[\s\S]*?|lendo página[\s\S]*?|lendo conteúdo[\s\S]*?|preparando resumo[\s\S]*?|preparando[\s\S]*?|elaborando resposta[\s\S]*?|elaborando[\s\S]*?|analisando[\s\S]*?|processando[\s\S]*?|sintetizando[\s\S]*?|extraindo[\s\S]*?|buscando[\s\S]*?|calculando[\s\S]*?|calculou[\s\S]*?|verificando[\s\S]*?|verificou[\s\S]*?|clicando[\s\S]*?|digitando[\s\S]*?|rolando[\s\S]*?|aguardando[\s\S]*?|aguardou[\s\S]*?|criando arquivo[\s\S]*?|criou o arquivo[\s\S]*?|criou arquivo[\s\S]*?|salvando arquivo[\s\S]*?|salvou arquivo[\s\S]*?|lendo arquivo[\s\S]*?|leu arquivo[\s\S]*?|editando arquivo[\s\S]*?|editou arquivo[\s\S]*?|excluindo arquivo[\s\S]*?|excluiu arquivo[\s\S]*?|executando[\s\S]*?|executou[\s\S]*?|rodando[\s\S]*?|rodou[\s\S]*?|testando[\s\S]*?|testou[\s\S]*?|compilando[\s\S]*?|compilou[\s\S]*?|iniciando[\s\S]*?|iniciou[\s\S]*?|gerando[\s\S]*?|gerou[\s\S]*?|validando[\s\S]*?|validou[\s\S]*?|instalando[\s\S]*?|instalou[\s\S]*?|criando skill[\s\S]*?|editando skill[\s\S]*?|excluindo skill[\s\S]*?|criou skill[\s\S]*?|editou skill[\s\S]*?|excluiu skill[\s\S]*?|criando documento[\s\S]*?|criou documento[\s\S]*?|lendo documento[\s\S]*?|leu documento[\s\S]*?|editando documento[\s\S]*?|editou documento[\s\S]*?|excluindo documento[\s\S]*?|excluiu documento[\s\S]*?|listando documentos[\s\S]*?|listou documentos[\s\S]*?|código 100% verificado[\s\S]*?|corrigindo erro[\s\S]*?|sandbox de depuração[\s\S]*?|nova tarefa[\s\S]*?|passo concluído[\s\S]*?|documento não encontrado[\s\S]*?)\](?!\s*\()/gi;
+    // Avoid matching brackets that contain math symbols or general prose sentences
+    const agenticRegex = /\[(pesquisou na web|pesquisando na web|pesquisando[\w\s.,-]{0,40}|acessando site[\w\s.,-]{0,40}|abrindo site[\w\s.,-]{0,40}|lendo página[\w\s.,-]{0,40}|lendo conteúdo[\w\s.,-]{0,40}|preparando resumo|preparando resposta|elaborando resposta|sintetizando resposta|calculando(?:\.{1,3})?|calculou|verificando relógio|verificou relógio|verificando data|verificou data|verificando hora|verificou hora|clicando[\w\s.,-]{0,40}|digitando[\w\s.,-]{0,40}|rolando[\w\s.,-]{0,40}|aguardando[\w\s.,-]{0,40}|aguardou[\w\s.,-]{0,40}|criando arquivo[\w\s.,-]{0,40}|criou o arquivo[\w\s.,-]{0,40}|criou arquivo[\w\s.,-]{0,40}|salvando arquivo[\w\s.,-]{0,40}|salvou arquivo[\w\s.,-]{0,40}|lendo arquivo[\w\s.,-]{0,40}|leu arquivo[\w\s.,-]{0,40}|editando arquivo[\w\s.,-]{0,40}|editou arquivo[\w\s.,-]{0,40}|excluindo arquivo[\w\s.,-]{0,40}|excluiu arquivo[\w\s.,-]{0,40}|executando no terminal[\w\s.,-]{0,40}|executando comando[\w\s.,-]{0,40}|executando[\w\s.,-]{0,40}|executou[\w\s.,-]{0,40}|rodando[\w\s.,-]{0,40}|rodou[\w\s.,-]{0,40}|testando[\w\s.,-]{0,40}|testou[\w\s.,-]{0,40}|compilando[\w\s.,-]{0,40}|compilou[\w\s.,-]{0,40}|iniciando[\w\s.,-]{0,40}|iniciou[\w\s.,-]{0,40}|gerando código|gerou código|validando código|validou código|instalando[\w\s.,-]{0,40}|instalou[\w\s.,-]{0,40}|criando skill[\w\s.,-]{0,40}|editando skill[\w\s.,-]{0,40}|excluindo skill[\w\s.,-]{0,40}|criou skill[\w\s.,-]{0,40}|editou skill[\w\s.,-]{0,40}|excluiu skill[\w\s.,-]{0,40}|criando documento[\w\s.,-]{0,40}|criou documento[\w\s.,-]{0,40}|lendo documento[\w\s.,-]{0,40}|leu documento[\w\s.,-]{0,40}|editando documento[\w\s.,-]{0,40}|editou documento[\w\s.,-]{0,40}|excluindo documento[\w\s.,-]{0,40}|excluiu documento[\w\s.,-]{0,40}|listando documentos[\w\s.,-]{0,40}|listou documentos[\w\s.,-]{0,40}|código 100% verificado|corrigindo erro|sandbox de depuração|nova tarefa[\w\s.,-]{0,40}|passo concluído[\w\s.,-]{0,40}|documento não encontrado[\w\s.,-]{0,40})\](?!\s*\()/gi;
     const seenAgenticTypes = new Set<string>();
     currentText = currentText.replace(agenticRegex, (match, tagContent) => {
+      // If tagContent contains mathematical expressions or equations, it is NOT an agentic status chip
+      if (/[=+\-*\/\\^_<>≤≥≠≈±÷×]/.test(tagContent) || /\b(frac|sqrt|cdot)\b/i.test(tagContent) || /\d+\s*\/\s*\d+/.test(tagContent)) {
+        return match;
+      }
+
       let finalTagContent = tagContent;
       const linkMatches = finalTagContent.match(/:::LINKTOKEN-\d+:::/g);
       if (linkMatches) {
@@ -1174,8 +1181,13 @@ export default function MarkdownRenderer({
     });
 
     // 0.1 Extract parenthesized process messages (e.g. (Gerando e validando...), (Corrigindo...))
-    const parenStatusRegex = /\(((?:Gerando|Corrigindo|Validando|Processando|Analisando|Criando|Executando|Ajustando|Testando)[\s\S]*?)\)/gi;
+    const parenStatusRegex = /\(((?:Gerando|Corrigindo|Validando|Processando|Analisando|Criando|Executando|Ajustando|Testando)\s+[a-zA-Z0-9_.\-\s]{2,40}\.{0,3})\)/gi;
     currentText = currentText.replace(parenStatusRegex, (match, tagContent) => {
+      // If tagContent contains mathematical expressions or equations, it is NOT an agentic status chip
+      if (/[=+\-*\/\\^_<>≤≥≠≈±÷×]/.test(tagContent) || /\b(frac|sqrt|cdot)\b/i.test(tagContent) || /\d+\s*\/\s*\d+/.test(tagContent)) {
+        return match;
+      }
+
       let finalTagContent = tagContent;
       const linkMatches = finalTagContent.match(/:::LINKTOKEN-\d+:::/g);
       if (linkMatches) {
@@ -1229,16 +1241,25 @@ export default function MarkdownRenderer({
       return id;
     });
 
+    // 1.2 Extract unwrapped LaTeX math expressions (e.g. \frac{23}{20}, \frac{3}{4}, \sqrt{16}, \cdot, etc.)
+    const unwrappedLatexRegex = /(?<![A-Za-z0-9\\$])(\\(?:frac\{[^{}]+\}\{[^{}]+\}|sqrt\{[^{}]+\}|cdot|times|div|pm|mp|le|ge|neq|approx|Delta|alpha|beta|pi|theta))(?![a-zA-Z])/g;
+    currentText = currentText.replace(unwrappedLatexRegex, (match, tex) => {
+      const id = `:::MATHTOKEN-${mathTokens.length}:::`;
+      mathTokens.push({ id, tex });
+      return id;
+    });
+
     // 2. Extract inline code: `code`
     const inlineCodeRegex = /`(.*?)`/g;
     currentText = currentText.replace(inlineCodeRegex, (match, code) => {
       const trimmedCode = code.trim();
       if (!trimmedCode) return match;
 
-      // Check if this inline code is actually a math/physics formula (e.g. `P_inicial = P_final` or `m_A \cdot v_A_inicial + ...` or `v_c = -v_b / 8` or `E = mc^2`)
+      // Check if this inline code is actually a math/physics formula or fraction (e.g. `P_inicial = P_final` or `3/4 + 2/5 = 23/20` or `23/20` or `v_c = -v_b / 8` or `E = mc^2`)
       const isMath = /\\(cdot|frac|sqrt|times|div|Delta|pm|vec|text)\b/.test(trimmedCode) ||
                      (/\b[A-Za-z]_[a-zA-Z0-9]+\b/.test(trimmedCode) && /[=+\-*\/]/.test(trimmedCode)) ||
-                     (/^([A-Za-z0-9_\^\\{}\s]+)\s*(=|≈|≠|≤|≥)\s*([A-Za-z0-9_\^\\{}\s]+)/.test(trimmedCode) && /[A-Za-z]/.test(trimmedCode) && !/\b(const|let|var|return|function|import|export|if|else)\b/.test(trimmedCode));
+                     (/^([A-Za-z0-9_\^\\{}\s/+\-*]+)\s*(=|≈|≠|≤|≥)\s*([A-Za-z0-9_\^\\{}\s/+\-*]+)/.test(trimmedCode) && !/\b(const|let|var|return|function|import|export|if|else)\b/.test(trimmedCode)) ||
+                     (/^\d+\s*\/\s*\d+$/.test(trimmedCode));
 
       if (isMath) {
         const id = `:::MATHTOKEN-${mathTokens.length}:::`;

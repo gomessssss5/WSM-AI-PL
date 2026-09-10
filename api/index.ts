@@ -1684,12 +1684,14 @@ ${contextInfo}`;
 # MATEMÁTICA, FÍSICA E FÓRMULAS CIENTÍFICAS (LATEX E MATHJAX/KATEX OBRIGATÓRIOS)
 TODAS as fórmulas matemáticas, equações de física, expressões algébricas, variáveis com índices, frações e cálculos DEVEM OBRIGATORIAMENTE ser escritos em sintaxe LaTeX padronizada para renderização visual perfeita via KaTeX/MathJax:
 1. **FÓRMULAS EM DESTAQUE (BLOCO $$ ... $$)**: Toda equação principal, fórmula física, dedução ou linha de cálculo DEVE ser delimitada por \`$$\` ... \`$$\` (NUNCA use crases \` em volta de fórmulas LaTeX!). Ex: \`$$P_{\\text{inicial}} = P_{\\text{final}}$$\`, \`$$m_A \\cdot v_{A,\\text{inicial}} + m_B \\cdot v_{B,\\text{inicial}} = m_A \\cdot v_{A,\\text{final}} + m_B \\cdot v_{B,\\text{final}}$$\`, \`$$P_{\\text{inicial}} = (m_b + m_c) \\cdot 0 = 0$$\`, \`$$P_{\\text{final}} = m_b v_b + m_c v_c$$\`, \`$$v_c = -\\frac{v_b}{8}$$\`, \`$$E = m c^2$$\`, \`$$F = m a$$\`, \`$$\\Delta s = v_0 t + \\frac{1}{2} a t^2$$\`.
-2. **TERMOS E VARIÁVEIS NO TEXTO (INLINE $ ... $)**: Variáveis matemáticas, índices ou grandezas no meio de frases DEVEM usar \`$ ... $\` (ex: \`$v_c$\`, \`$m_A$\`, \`$v_{A,\\text{inicial}}$\`, \`$P_{\\text{final}}$\`, \`$P_{\\text{inicial}}$\`, \`$t$\`, \`$\\Delta t$\`, \`$\\alpha$\`, \`$\\pi$\`).
+2. **TERMOS E VARIÁVEIS NO TEXTO (INLINE $ ... $)**: Variáveis matemáticas, índices, grandezas e frações no meio de frases DEVEM SEMPRE usar \`$ ... $\` com sintaxe LaTeX (ex: \`$\\frac{3}{4}$\`, \`$\\frac{2}{5}$\`, \`$\\frac{23}{20}$\`, \`$v_c$\`, \`$m_A$\`, \`$v_{A,\\text{inicial}}$\`, \`$P_{\\text{final}}$\`, \`$P_{\\text{inicial}}$\`, \`$t$\`, \`$\\Delta t$\`, \`$\\alpha$\`, \`$\\pi$\`). NUNCA escreva frações em colchetes como \`[23/20]\` ou texto simples \`23/20\` em explicações matemáticas.
 3. **REGRAS ESTRITAS DE SINTAXE LATEX & PROIBIÇÃO DE ERROS**:
-   - NUNCA use crases de código (\`) ao redor de fórmulas.
+   - NUNCA use crases de código (\`) ao redor de fórmulas ou frações.
    - NUNCA use múltiplos underscores encadeados sem chaves como \`v_A_inicial\`. Use sempre chaves agrupadoras com \`\\text{}\`: \`$v_{A,\\text{inicial}}$\`, \`$v_{A,\\text{final}}$\`, \`$m_A$\`.
-   - Use SEMPRE operadores LaTeX: multiplicação com \`\\cdot\`, frações com \`\\frac{a}{b}\`, raízes com \`\\sqrt{x}\` e letras gregas como \`\\Delta\`, \`\\theta\`.
-4. **RIGOR ARITMÉTICO E DIVISÃO DE FRAÇÕES (PRECISÃO ABSOLUTA)**:
+   - Use SEMPRE operadores LaTeX: multiplicação com \`\\cdot\`, frações com \`\\frac{numerador}{denominador}\`, raízes com \`\\sqrt{x}\` e letras gregas como \`\\Delta\`, \`\\theta\`.
+4. **RIGOR ARITMÉTICO E SOMA/DIVISÃO DE FRAÇÕES (PRECISÃO ABSOLUTA)**:
+   - Soma e Subtração de Frações: Encontre o MMC dos denominadores, iguale os denominadores e some os numeradores passo a passo:
+     - \`$$\\frac{3}{4} + \\frac{2}{5} = \\frac{15}{20} + \\frac{8}{20} = \\frac{23}{20} = 1{,}15$$\`
    - Divisão de Frações: Para dividir frações, multiplique a primeira fração pelo inverso do divisor: \`$$\\frac{a}{b} \\div \\frac{c}{d} = \\frac{a}{b} \\cdot \\frac{d}{c} = \\frac{a \\cdot d}{b \\cdot c}$$\`.
    - Exemplo com Verificação Passo a Passo:
      - \`$$\\frac{3}{4} + \\frac{5}{6} = \\frac{9}{12} + \\frac{10}{12} = \\frac{19}{12}$$\`
