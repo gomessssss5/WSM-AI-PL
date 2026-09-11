@@ -1685,13 +1685,17 @@ Quando o usuário solicitar qualquer tipo de gráfico (barras, linhas, pizza, ro
 1. **TAG OBRIGATÓRIA**: Emita exclusivamente a tag \`<wsm_chart ... />\`.
 2. **PARÂMETROS ESSENCIAIS**:
    - \`type\`: "bar" (padrão), "bar_horizontal", "line", "pie", "doughnut", "radar".
-   - \`title\`: Título claro e objetivo do gráfico (ex: \`title="População dos 5 Maiores Estados do Brasil"\`).
-   - \`subtitle\`: Subtítulo opcional ou fonte oficial (ex: \`subtitle="Dados em milhões de habitantes (IBGE)"\`).
+   - \`title\`: Título claro e objetivo do gráfico (ex: \`title="População dos Maiores Estados do Brasil"\`).
+   - \`subtitle\`: Subtítulo opcional ou fonte oficial (ex: \`subtitle="População em milhões de habitantes"\`).
    - \`xAxis\`: Nome da categoria do eixo X (ex: \`xAxis="Estado"\`, \`xAxis="Mês"\`, \`xAxis="Produto"\`). NUNCA use "name" ou deixe vazio.
    - \`yAxis\`: Nome da métrica com sua respectiva unidade de medida no eixo Y (ex: \`yAxis="População (milhões)"\`, \`yAxis="Receita (R$)"\`, \`yAxis="Quantidade"\`).
-   - \`data\`: Array JSON de objetos contendo valores NUMÉRICOS PUROS proporcionais aos dados reais (ex: \`44.4\`, \`20.5\`, \`16.1\`). NUNCA passe strings de texto no lugar de números (ex: NUNCA escreva \`"44.4 milhões"\` no campo de valor numérico).
-3. **EXEMPLO DE USO**:
-\`<wsm_chart type="bar" title="População dos 5 Maiores Estados do Brasil" subtitle="Estimativa em milhões de habitantes (IBGE)" xAxis="Estado" yAxis="População (milhões)" data='[{"estado":"São Paulo","populacao":44.4},{"estado":"Minas Gerais","populacao":20.5},{"estado":"Rio de Janeiro","populacao":16.1},{"estado":"Bahia","populacao":14.1},{"estado":"Paraná","populacao":11.4}]' />\`
+3. **FIDELIDADE ABSOLUTA E LITERAL AOS DADOS DO USUÁRIO (NÃO CONVERTA, NÃO ARREDONDE, NÃO ESCALE)**:
+   - Se o usuário forneceu dados ou números específicos na mensagem (ex: "São Paulo: 45 milhões" ou "SP = 45M", "Minas Gerais: 21 milhões"), VOCÊ DEVE OBRIGATORIAMENTE USAR ESSE NÚMERO EXATO (ex: 45, 21) no array data do gráfico!
+   - É TERMINANTEMENTE PROIBIDO alterar, converter, arredondar, normalizar ou escalar os valores fornecidos pelo usuário. Se o usuário disse 45, o valor no JSON DEVE ser 45 (NUNCA substitua por 35, 36 ou estimativas de memória).
+   - COERÊNCIA 100% ENTRE TEXTO E GRÁFICO: O número que você cita na sua explicação de texto DEVE SER ESTRITAMENTE IDÊNTICO ao número colocado no array data do gráfico.
+   - O campo no array JSON deve ser SEMPRE um número puro (ex: \`45\` ou \`21.5\`), NUNCA string com texto (ex: NUNCA escreva \`"45 milhões"\` no campo de valor numérico). Especifique a unidade de medida no \`yAxis\` ou no \`subtitle\`.
+4. **EXEMPLO DE USO**:
+\`<wsm_chart type="bar" title="População dos Maiores Estados" subtitle="Em milhões de habitantes" xAxis="Estado" yAxis="População (milhões)" data='[{"Estado":"São Paulo","População":45},{"Estado":"Minas Gerais","População":21},{"Estado":"Rio de Janeiro","População":16},{"Estado":"Bahia","População":14},{"Estado":"Rio Grande do Sul","População":11}]' />\`
 `);
     const writingConstraints = "\n" + getSystemPrompt('writing_constraints', '');
     const mathInstruction = "\n" + getSystemPrompt('math_latex_instructions', `
@@ -2223,6 +2227,7 @@ function getAttachmentStatusMessage(attachments: any[]): string {
               sendEvent,
               config: {
                 systemInstruction: activeSystemPrompt + 
+                  "\nREGRA CRÍTICA DE DADOS EM GRÁFICOS (<wsm_chart>): Quando o usuário solicitar gráfico com dados ou números específicos (ex: São Paulo = 45 milhões, etc.), gere os dados EXATOS como informado pelo usuário. Não converta, não arredonde, não escale, não estime de memória. Se o usuário disse 45, use 45 no array data do gráfico. Coerência de 100% entre o texto gerado e o array data do gráfico.\n" +
                   "\nREGRA PRINCIPAL E OBRIGATÓRIA DE ROTEAMENTO DE ARQUIVOS E MÚLTIPLOS ENTREGÁVEIS:\n" +
                   "1. RESPEITO ABSOLUTO AO FORMATO SOLICITADO: Quando o usuário pedir um formato específico (PDF, Markdown/MD, Planilha Excel/XLSX, HTML, TXT, Word/DOCX), VOCÊ É OBRIGADO A GERAR EXATAMENTE NO FORMATO SOLICITADO (format: 'md', 'pdf', 'xlsx', 'html', 'txt').\n" +
                   "2. MÚLTIPLOS ENTREGÁVEIS (2 OU MAIS ARQUIVOS): Se o usuário solicitar 2 ou mais entregáveis/arquivos na mesma mensagem (ex: 'Gere um Markdown E um HTML'), VOCÊ É OBRIGADO A GERAR TODOS OS ARQUIVOS SOLICITADOS em blocos <wsm_doc> separados! NUNCA gere arquivos soltos no corpo do texto usando crases triplas (```) se o usuário pediu para gerar um arquivo. SEMPRE use a tag <wsm_doc> para CADA arquivo pedido.\n" +

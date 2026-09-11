@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -159,6 +159,8 @@ function parseNumericValue(val: any): number {
 }
 
 export default function WsmChartComponent({ type, title, subtitle, data, xAxis, yAxis, xLabel, yLabel, unit }: WsmChartComponentProps) {
+  console.log('📊 [WsmChart] DADOS RECEBIDOS PRA PLOTAR (raw props.data):', data);
+
   // Extract contextual unit from title/subtitle/props
   const contextText = `${title || ''} ${subtitle || ''} ${yAxis || ''} ${yLabel || ''} ${unit || ''}`.toLowerCase();
   const isMillionsContext = /milh[õo]es|milh[ãa]o|\bmi\b/i.test(contextText);
@@ -167,7 +169,24 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
 
   const chartData = useMemo(() => {
     try {
-      let raw: any = typeof data === 'string' ? JSON.parse(data) : data;
+      let raw: any = data;
+      if (typeof raw === 'string') {
+        let cleanStr = raw.trim();
+        cleanStr = cleanStr.replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+        try {
+          raw = JSON.parse(cleanStr);
+          if (typeof raw === 'string') {
+            raw = JSON.parse(raw);
+          }
+        } catch {
+          try {
+            raw = Function(`'use strict'; return (${cleanStr})`)();
+          } catch (e) {
+            console.error('📊 [WsmChart] Falha ao parsear JSON:', e, cleanStr);
+            raw = null;
+          }
+        }
+      }
       if (!raw) return null;
 
       // Case 1: Chart.js standard format { labels: [...], datasets: [...] }
@@ -368,6 +387,19 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
     const step = maxDataValue >= 100 ? 50 : (maxDataValue >= 20 ? 5 : 2);
     return Math.ceil(rawMax / step) * step;
   }, [maxDataValue]);
+
+  // Debug log parsed values for devtools inspection
+  useEffect(() => {
+    if (chartData) {
+      console.log('📊 [WsmChart] DADOS PARSEADOS PRA PLOTAR:', {
+        labels: chartData.labels,
+        datasets: chartData.datasets,
+        allValues,
+        maxDataValue,
+        yAxisMax
+      });
+    }
+  }, [chartData, allValues, maxDataValue, yAxisMax]);
 
   // Base options for Chart.js
   const baseOptions: any = {

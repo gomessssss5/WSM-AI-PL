@@ -2365,12 +2365,62 @@ export default function MarkdownRenderer({
           return '';
         };
 
+        const extractChartDataJson = (str: string): string => {
+          const dataIdx = str.indexOf('data=');
+          if (dataIdx === -1) return '';
+          const afterData = str.slice(dataIdx + 5).trim();
+          
+          // Find where json structure begins: '[' or '{'
+          const firstBracket = afterData.search(/[\[\{]/);
+          if (firstBracket === -1) return '';
+          
+          const startChar = afterData[firstBracket];
+          const endChar = startChar === '[' ? ']' : '}';
+          let depth = 0;
+          let inString = false;
+          let escape = false;
+          let quoteChar: string | null = null;
+          
+          for (let idx = firstBracket; idx < afterData.length; idx++) {
+            const ch = afterData[idx];
+            if (escape) {
+              escape = false;
+              continue;
+            }
+            if (ch === '\\') {
+              escape = true;
+              continue;
+            }
+            if (inString) {
+              if (ch === quoteChar) {
+                inString = false;
+                quoteChar = null;
+              }
+              continue;
+            }
+            if (ch === '"' || ch === "'") {
+              inString = true;
+              quoteChar = ch;
+              continue;
+            }
+            if (ch === startChar) {
+              depth++;
+            } else if (ch === endChar) {
+              depth--;
+              if (depth === 0) {
+                return afterData.slice(firstBracket, idx + 1);
+              }
+            }
+          }
+          return '';
+        };
+
         const typeVal = parseAttr(chartLine, 'type') || 'bar';
         const titleVal = parseAttr(chartLine, 'title') || 'Gráfico Interativo';
         const subtitleVal = parseAttr(chartLine, 'subtitle');
         const xAxisVal = parseAttr(chartLine, 'xAxis') || parseAttr(chartLine, 'x') || parseAttr(chartLine, 'xlabel') || parseAttr(chartLine, 'eixo_x') || parseAttr(chartLine, 'eixox');
         const yAxisVal = parseAttr(chartLine, 'yAxis') || parseAttr(chartLine, 'y') || parseAttr(chartLine, 'ylabel') || parseAttr(chartLine, 'eixo_y') || parseAttr(chartLine, 'eixoy');
-        let dataVal = parseAttr(chartLine, 'data');
+        let dataVal = extractChartDataJson(chartLine) || parseAttr(chartLine, 'data');
 
         if (!dataVal) {
           const matchData = chartLine.match(/data\s*=\s*(['"`])([\s\S]*?)\1/i);

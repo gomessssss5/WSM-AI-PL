@@ -17,8 +17,13 @@ vi.mock('../WsmMapComponent', () => ({
   default: function MockMap() { return <div className="mock-map">Map</div>; }
 }));
 
+let lastChartProps: any = null;
+
 vi.mock('../WsmChartComponent', () => ({
-  default: function MockChart() { return <div className="mock-chart">Chart</div>; }
+  default: function MockChart(props: any) {
+    lastChartProps = props;
+    return <div className="mock-chart">{props.title}</div>;
+  }
 }));
 
 vi.mock('../WsmMindmapComponent', () => ({
@@ -163,5 +168,23 @@ $$\\frac{23}{20} = 1{,}15$$
     expect(html).toContain('23/20');
     expect(html).toContain('Para verificar se a fração');
     expect(html).toContain('corresponde a 1.15');
+  });
+
+  it('should parse <wsm_chart> data accurately without truncating double-quoted or single-quoted JSON', () => {
+    lastChartProps = null;
+    const chartContentSingle = `<wsm_chart type="bar" title="População dos Estados" xAxis="Estado" yAxis="População (milhões)" data='[{"Estado":"São Paulo","População":45},{"Estado":"Minas Gerais","População":21}]' />`;
+    renderToString(<MarkdownRenderer content={chartContentSingle} />);
+    
+    expect(lastChartProps).toBeDefined();
+    expect(lastChartProps.title).toBe('População dos Estados');
+    expect(lastChartProps.data).toBe('[{"Estado":"São Paulo","População":45},{"Estado":"Minas Gerais","População":21}]');
+
+    lastChartProps = null;
+    const chartContentDouble = `<wsm_chart type="bar" title="População dos Estados" xAxis="Estado" yAxis="População (milhões)" data="[{\\"Estado\\":\\"São Paulo\\",\\"População\\":45},{\\"Estado\\":\\"Minas Gerais\\",\\"População\\":21}]" />`;
+    renderToString(<MarkdownRenderer content={chartContentDouble} />);
+
+    expect(lastChartProps).toBeDefined();
+    expect(lastChartProps.data).toContain('São Paulo');
+    expect(lastChartProps.data).toContain('45');
   });
 });
