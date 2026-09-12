@@ -483,8 +483,8 @@ export default function WsmChartComponent({ type, title, subtitle, data, xAxis, 
       },
       y: {
         beginAtZero: true,
-        max: type !== 'bar_horizontal' ? yAxisMax : undefined,
-        suggestedMax: type !== 'bar_horizontal' ? yAxisMax : undefined,
+        max: yAxisMax,
+        suggestedMax: yAxisMax,
         border: { display: false },
         grid: { color: '#f1f5f9', drawTicks: false },
         ticks: { 

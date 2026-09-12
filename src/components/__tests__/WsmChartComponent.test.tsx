@@ -129,4 +129,29 @@ describe('WsmChartComponent', () => {
     expect(options.scales.y.title.display).toBe(true);
     expect(options.scales.y.title.text).toBe('População (milhões)');
   });
+
+  it('guarantees y.max and y.suggestedMax are set even if type is bar_horizontal or bar_vertical', () => {
+    capturedProps = null;
+    const data = JSON.stringify([
+      { estado: 'São Paulo', populacao: 45 },
+      { estado: 'Minas Gerais', populacao: 21 }
+    ]);
+
+    renderToString(
+      <WsmChartComponent
+        type="bar_horizontal"
+        title="População dos Maiores Estados"
+        yAxis="População (milhões)"
+        data={data}
+      />
+    );
+
+    expect(capturedProps).toBeDefined();
+    const options = capturedProps.options;
+    // Both y.max and x.max receive 55 so neither axis is ever missing ceiling
+    expect(options.scales.y.max).toBe(55);
+    expect(options.scales.y.suggestedMax).toBe(55);
+    expect(options.scales.x.max).toBe(55);
+    expect(options.scales.x.suggestedMax).toBe(55);
+  });
 });

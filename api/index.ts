@@ -1681,10 +1681,10 @@ ${contextInfo}`;
     const docInstruction = "\n" + getSystemPrompt('doc_generator', '');
     const chartInstruction = "\n" + getSystemPrompt('chart_generation', `
 # GRÁFICOS INTERATIVOS (<wsm_chart>)
-Quando o usuário solicitar qualquer tipo de gráfico (barras, linhas, pizza, rosca, radar):
+Quando o usuário solicitar qualquer tipo de gráfico (barras, colunas, linhas, pizza, rosca, radar):
 1. **TAG OBRIGATÓRIA**: Emita exclusivamente a tag \`<wsm_chart ... />\`.
 2. **PARÂMETROS ESSENCIAIS**:
-   - \`type\`: "bar" (padrão), "bar_horizontal", "line", "pie", "doughnut", "radar".
+   - \`type\`: "bar" (ou "bar_vertical" - PADRÃO OBRIGATÓRIO para colunas e barras verticais), "line", "pie", "doughnut", "radar". Use "bar_horizontal" SOMENTE se o usuário solicitar expressamente "barras horizontais" ou "deitado".
    - \`title\`: Título claro e objetivo do gráfico (ex: \`title="População dos Maiores Estados do Brasil"\`).
    - \`subtitle\`: Subtítulo opcional ou fonte oficial (ex: \`subtitle="População em milhões de habitantes"\`).
    - \`xAxis\`: Nome da categoria do eixo X (ex: \`xAxis="Estado"\`, \`xAxis="Mês"\`, \`xAxis="Produto"\`). NUNCA use "name" ou deixe vazio.
@@ -2227,7 +2227,9 @@ function getAttachmentStatusMessage(attachments: any[]): string {
               sendEvent,
               config: {
                 systemInstruction: activeSystemPrompt + 
-                  "\nREGRA CRÍTICA DE DADOS EM GRÁFICOS (<wsm_chart>): Quando o usuário solicitar gráfico com dados ou números específicos (ex: São Paulo = 45 milhões, etc.), gere os dados EXATOS como informado pelo usuário. Não converta, não arredonde, não escale, não estime de memória. Se o usuário disse 45, use 45 no array data do gráfico. Coerência de 100% entre o texto gerado e o array data do gráfico.\n" +
+                  "\nREGRA CRÍTICA DE DADOS EM GRÁFICOS (<wsm_chart>):\n" +
+                  "- TIPO DE GRÁFICO: Para gráficos de barras/colunas verticais (padrão para comparar estados, itens, meses, categorias), use SEMPRE type=\"bar\" (ou \"bar_vertical\"). NUNCA use \"bar_horizontal\" a menos que o usuário peça especificamente barras horizontais/deitadas.\n" +
+                  "- FIDELIDADE AOS DADOS: Quando o usuário solicitar gráfico com dados ou números específicos (ex: São Paulo = 45 milhões, etc.), gere os dados EXATOS como informado pelo usuário. Não converta, não arredonde, não escale, não estime de memória. Se o usuário disse 45, use 45 no array data do gráfico. Coerência de 100% entre o texto gerado e o array data do gráfico.\n" +
                   "\nREGRA PRINCIPAL E OBRIGATÓRIA DE ROTEAMENTO DE ARQUIVOS E MÚLTIPLOS ENTREGÁVEIS:\n" +
                   "1. RESPEITO ABSOLUTO AO FORMATO SOLICITADO: Quando o usuário pedir um formato específico (PDF, Markdown/MD, Planilha Excel/XLSX, HTML, TXT, Word/DOCX), VOCÊ É OBRIGADO A GERAR EXATAMENTE NO FORMATO SOLICITADO (format: 'md', 'pdf', 'xlsx', 'html', 'txt').\n" +
                   "2. MÚLTIPLOS ENTREGÁVEIS (2 OU MAIS ARQUIVOS): Se o usuário solicitar 2 ou mais entregáveis/arquivos na mesma mensagem (ex: 'Gere um Markdown E um HTML'), VOCÊ É OBRIGADO A GERAR TODOS OS ARQUIVOS SOLICITADOS em blocos <wsm_doc> separados! NUNCA gere arquivos soltos no corpo do texto usando crases triplas (```) se o usuário pediu para gerar um arquivo. SEMPRE use a tag <wsm_doc> para CADA arquivo pedido.\n" +
