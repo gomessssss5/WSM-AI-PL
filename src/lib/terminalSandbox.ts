@@ -703,26 +703,30 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
 
     // Try executing directly on the backend Linux container first for 100% fidelity
     try {
-      const authHeaders = await getAuthHeader();
+      const authHeaders = await getAuthHeader().catch(() => ({}));
       
-      // Sync local files to server sandbox
-      const syncPromises: Promise<any>[] = [];
+      const filesPayload: Record<string, string> = {};
       this.fileSystem.forEach((content, p) => {
-        syncPromises.push(
-          fetch('/api/terminal/write', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...authHeaders },
-            body: JSON.stringify({ path: p, content })
-          }).catch(() => {})
-        );
+        const cleanP = p.replace('/workspace/', '').replace(/^\/+/, '');
+        if (cleanP && !cleanP.startsWith('.')) {
+          filesPayload[cleanP] = content;
+        }
       });
-      await Promise.all(syncPromises);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), (this.cpuTimeoutSec + 5) * 1000);
 
       const res = await fetch('/api/terminal/exec', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({ command: fullCmdLine, timeout_seconds: this.cpuTimeoutSec })
+        signal: controller.signal,
+        body: JSON.stringify({ 
+          command: fullCmdLine, 
+          timeout_seconds: this.cpuTimeoutSec,
+          files: filesPayload
+        })
       });
+      clearTimeout(timeoutId);
 
       if (res.ok) {
         const data = await res.json();
@@ -732,19 +736,21 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
         // Sync any server-created or modified files with actual content into local memory map
         if (data.fileContents && typeof data.fileContents === 'object') {
           Object.entries(data.fileContents).forEach(([filePath, content]) => {
-            this.fileSystem.set(filePath, content as string);
+            const normP = filePath.startsWith('/workspace/') ? filePath : `/workspace/${filePath.replace(/^\/+/, '')}`;
+            this.fileSystem.set(normP, content as string);
           });
         } else if (Array.isArray(data.filesModified)) {
           data.filesModified.forEach((filePath: string) => {
-            if (!this.fileSystem.has(filePath)) {
-              this.fileSystem.set(filePath, '');
+            const normP = filePath.startsWith('/workspace/') ? filePath : `/workspace/${filePath.replace(/^\/+/, '')}`;
+            if (!this.fileSystem.has(normP)) {
+              this.fileSystem.set(normP, '');
             }
           });
         }
         return typeof data.exitCode === 'number' ? data.exitCode : 0;
       }
     } catch (error: any) {
-      // Fallback to client-side sandbox execution when running in test environment or offline
+      // Fallback to client-side sandbox execution when running offline or server unavailable
     }
 
     // Check if command contains compound operators (; or && or ||) outside quotes
@@ -798,6 +804,41 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
     if (cleanCmd === 'ls') {
       const showAll = cmdArgs.includes('-la') || cmdArgs.includes('-a') || cmdArgs.includes('-l');
       const targetDir = cmdArgs.find(a => !a.startsWith('-')) || this.currentWorkingDir;
+      
+      // Virtual system directories fallback
+      if (targetDir === '/usr/bin' || targetDir.endsWith('/usr/bin')) {
+        const sysBinaries = ['python3', 'python3.10', 'node', 'npm', 'npx', 'bash', 'sh', 'cat', 'grep', 'ls', 'mkdir', 'rm', 'cp', 'mv', 'touch'];
+        if (showAll) {
+          stdout(`total ${sysBinaries.length}\n`);
+          sysBinaries.forEach(b => stdout(`-rwxr-xr-x 1 root root 5937672 Sep 13 00:00 ${b}\n`));
+        } else {
+          stdout(sysBinaries.join('  ') + '\n');
+        }
+        return 0;
+      }
+
+      if (targetDir === '/usr/local/bin' || targetDir.endsWith('/usr/local/bin')) {
+        const localBinaries = ['bun', 'corepack', 'node', 'npm', 'npx', 'pip', 'pip3', 'python', 'python3', 'yarn'];
+        if (showAll) {
+          stdout(`total ${localBinaries.length}\n`);
+          localBinaries.forEach(b => stdout(`lrwxrwxrwx 1 root root 18 Sep 13 00:00 ${b}\n`));
+        } else {
+          stdout(localBinaries.join('  ') + '\n');
+        }
+        return 0;
+      }
+
+      if (targetDir === '/bin' || targetDir.endsWith('/bin')) {
+        const binBinaries = ['bash', 'sh', 'cat', 'grep', 'ls', 'mkdir', 'rm', 'cp', 'mv', 'touch', 'echo', 'date', 'sleep'];
+        if (showAll) {
+          stdout(`total ${binBinaries.length}\n`);
+          binBinaries.forEach(b => stdout(`-rwxr-xr-x 1 root root 1234567 Sep 13 00:00 ${b}\n`));
+        } else {
+          stdout(binBinaries.join('  ') + '\n');
+        }
+        return 0;
+      }
+
       const files = this.listFiles(targetDir);
 
       if (files.length === 0) {
