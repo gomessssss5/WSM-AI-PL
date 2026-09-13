@@ -1603,49 +1603,79 @@ Retorne EXCLUSIVAMENTE um objeto JSON estruturado de acordo com o seguinte esque
 - **Data e Dia Atual**: ${userDate}
 - **Horário Exato Local**: ${userTime} (${userTimezone})
 
---- REGRAS MANDATÓRIAS DE CONTEÚDO, DATAS E FORMATO DE SÍNTESE ---
-1. Responda COMPLETAMENTE a todas as solicitações do usuário na síntese final.
-2. SE O USUÁRIO SOLICITOU UMA QUANTIDADE ESPECÍFICA DE ITENS (ex: "três notícias", "3 notícias"):
+--- REGRAS MANDATÓRIAS DE CONTEÚDO, RESPOSTA DIRETA E SÍNTESE FINAL ---
+1. RESPOSTA DIRETA OBRIGATÓRIA (As fontes são lastro, NUNCA a resposta em si):
+   O seu objetivo absoluto e primordial é RESPONDER DE FORMA DIRETA, CLARA E COMPLETA à pergunta ou necessidade do usuário.
+   - Se o usuário perguntou sobre cotação, valores, preços ou dados numéricos (ex: "Qual é a cotação do dólar hoje?"): você DEVE apresentar o valor da cotação e variação de forma explícita e em destaque no início ou no corpo da resposta (ex: "O dólar comercial opera cotado a R$ X,XX hoje...").
+   - Se o usuário perguntou quem ganhou, quando ocorreu ou qualquer fato: responda o fato diretamente.
+   - NUNCA se limite a despejar apenas cards ou links de fontes. O usuário precisa ler a resposta completa diretamente no texto!
+
+2. PARÁGRAFO FINAL DE CONCLUSÃO / SÍNTESE EXECUTIVA (MANDATÓRIO EM TODAS AS RESPOSTAS):
+   Você DEVE OBRIGATORIAMENTE finalizar sua resposta com um parágrafo ou bloco de fechamento direto e conclusivo, iniciando com "💡 **Resumo:**" ou "📌 **Conclusão:**".
+   Neste parágrafo:
+   - Responda conclusivamente o que foi perguntado consolidando os fatos principais e números apurados.
+   - Cite expressamente os veículos de imprensa e portais como lastro confiável (ex: "segundo apurado pelo UOL Economia e SpaceMoney").
+   - É ESTRITAMENTE PROIBIDO terminar a resposta abruptamente em um card de fonte, em metadados técnicos ou em um link isolado sem este parágrafo final de conclusão.
+
+3. DISTINÇÃO CLARA ENTRE PERGUNTAS DIRETAS E PEDIDOS DE NOTÍCIAS:
+   - Se o usuário pediu notícias ou matérias (ex: "três notícias", "3 notícias sobre IA"):
+     Apresente as N notícias solicitadas com seus blocos detalhados (Título, Veículo, Data real comprovada, Link direto [Nome](URL), Trecho de suporte) E DEPOIS OBRIGATORIAMENTE escreva o parágrafo final "💡 **Resumo:**" integrando os acontecimentos.
+   - Se o usuário fez uma pergunta direta ou factual (ex: cotação do dólar, previsão do tempo, resultado de jogo, valor de ação):
+     Responda a pergunta diretamente em linguagem fluida e natural, cite os trechos e fontes como lastro com links clicáveis em Markdown \`[Nome do Veículo](URL)\`, e conclua com o parágrafo de resumo/conclusão.
+
+4. SE O USUÁRIO SOLICITOU UMA QUANTIDADE ESPECÍFICA DE ITENS (ex: "três notícias", "3 notícias"):
    Você DEVE OBRIGATORIAMENTE apresentar a resposta com EXATAMENTE essa quantidade de itens (por exemplo: Notícia 1, Notícia 2, Notícia 3).
    É ESTRITAMENTE PROIBIDO omitir qualquer um dos itens solicitados ou mover itens apenas para o painel de etapas sem escrevê-los no texto final da resposta.
 
-3. ESTRUTURA OBRIGATÓRIA E INDISPENSÁVEL PARA CADA NOTÍCIA/ITEM APRESENTADO:
-   Para CADA uma das notícias solicitadas (Notícia 1, Notícia 2, Notícia 3), você DEVE fornecer uma seção/bloco completo e detalhado contendo:
+5. ESTRUTURA PARA CADA NOTÍCIA/ITEM QUANDO SOLICITADO:
+   Para itens e notícias solicitadas, forneça:
    - **Título**: Título real da notícia obtido das fontes de pesquisa.
    - **Veículo / Fonte**: Nome do portal ou jornal de notícias (ex: UOL, G1, Folha, CNN, etc.).
-   - **Data Real de Publicação**: A data EXATA comprovada pela URL ou fonte (ex: 18/08/2026). NUNCA falsifique datas. Se a URL de uma fonte contiver "/2026/08/17/", a data REAL é 17/08/2026 e você DEVE relatar a data REAL de publicação (17/08/2026), explicando se for anterior à data solicitada.
-   - **URL Direta Clicável**: Link completo em Markdown \`[Nome do Veículo](URL_REAL_DA_FONTE)\` apontando para a URL canônica real fornecida nas fontes (NUNCA truncado, NUNCA omitido, NUNCA sem https://).
-   - **Trecho de Suporte / Frase Sustentada**: Citação ou frase explicativa clara trazendo a evidência e o fato comprovado no texto da pesquisa.
+   - **Data Real de Publicação**: A data EXATA comprovada pela URL ou fonte (ex: 18/08/2026). NUNCA falsifique datas.
+   - **URL Direta Clicável**: Link completo em Markdown \`[Nome do Veículo](URL_REAL_DA_FONTE)\`.
+   - **Trecho de Suporte / Frase Sustentada**: Citação ou frase explicativa clara trazendo a evidência comprovada.
 
-4. NUNCA DEIXE NENHUM ITEM APENAS NO PAINEL DE ETAPAS OU INCOMPLETO:
-   Todos os N itens solicitados pelo usuário DEVEM estar inteiramente escritos no texto da resposta final de síntese.
+6. NUNCA DEIXE NENHUM ITEM APENAS NO PAINEL DE ETAPAS OU INCOMPLETO:
+   Todos os itens solicitados pelo usuário DEVEM estar inteiramente escritos no texto da resposta final de síntese.
 
-5. RESTRIÇÕES NEGATIVAS E PROIBIÇÕES DO USUÁRIO:
+7. RESTRIÇÕES NEGATIVAS E PROIBIÇÕES DO USUÁRIO:
    Respeite com 100% de rigor todas as proibições feitas pelo usuário (ex: se o usuário pediu "proíba Instagram, redes sociais, feeds, categorias e notícias antigas", NUNCA cite Instagram, NUNCA cite redes sociais, NUNCA cite categorias e NUNCA apresente notícias de datas passadas como se fossem da data solicitada).
 
-6. REGRA DE CITAÇÃO INLINE EM MARKDOWN:
-   Ao final da apresentação de cada notícia, forneça o link direto em formato Markdown \`[Nome da Fonte](URL_REAL)\`.
-   Exemplo de formato para cada notícia:
-   "### 1. Título da Notícia Exemplo
-   - **Veículo**: Portal X
-   - **Data de Publicação**: 18/08/2026
-   - **Link Direto**: [Portal X](https://www.portalx.com.br/noticia-18-08-2026)
-   - **Trecho de Suporte**: O Portal X reportou nesta terça-feira (18/08/2026) que..."
+8. REGRA DE CITAÇÃO INLINE EM MARKDOWN:
+   Ao final da apresentação ou no corpo do texto, forneça sempre o link direto em formato Markdown \`[Nome da Fonte](URL_REAL)\`.
 
-7. VALIDAÇÃO RIGOROSA PARA NOTÍCIAS DE HOJE OU RECENTES:
+9. VALIDAÇÃO RIGOROSA PARA NOTÍCIAS DE HOJE OU RECENTES:
    Se a consulta pede notícias de hoje (${userDate}) ou recentes, valide rigorosamente a data comprovada de cada fonte.
-   - Apresente notícias reais e recentes encontradas nas fontes.
-   - NUNCA declare um artigo genérico de tendências ou retrospectiva como se fosse "notícia publicada hoje".
-   - Se uma notícia foi publicada em data anterior (ex: dias atrás), informe com transparência a data real ("Publicado em DD/MM/AAAA").
 
 --- Informações das Fontes de Pesquisa Encontradas ---
 ${contextInfo}`;
+
+      const synthesisPromptText = `Pergunta / Solicitação do Usuário: "${text}"
+
+DIRETRIZES FUNDAMENTAIS PARA SUA RESPOSTA:
+1. RESPOSTA DIRETA: Responda à pergunta do usuário logo no início ou no corpo da resposta com as informações, números, cotações ou fatos apurados. As fontes são o lastro, não a resposta.
+2. LASTRO E CITAÇÕES: Apresente as fontes consultadas com links diretos em Markdown [Nome da Fonte](URL_REAL) para comprovação.
+3. FINALIZAÇÃO OBRIGATÓRIA: Conclua OBRIGATORIAMENTE com um parágrafo final claro de síntese/conclusão (iniciando com "💡 **Resumo:**" ou "📌 **Conclusão:**"), respondendo diretamente à pergunta com os dados consolidados e citando os veículos consultados como lastro. NUNCA termine a resposta abruptamente em um link ou card de fonte sem este parágrafo final.`;
+
+      let synthesisContents: any;
+      if (Array.isArray(finalContents) && finalContents.length > 0) {
+        const priorTurns = finalContents.slice(0, -1);
+        synthesisContents = [
+          ...priorTurns,
+          {
+            role: "user",
+            parts: [{ text: synthesisPromptText }]
+          }
+        ];
+      } else {
+        synthesisContents = synthesisPromptText;
+      }
 
       let finalSynthesisText = "";
       try {
         const stream = await callGeminiStreamWithFallback({
           model: "gemini-3.5-flash-lite",
-          contents: finalContents,
+          contents: synthesisContents,
           config: {
             systemInstruction: systemPrompt
           }
@@ -1659,6 +1689,46 @@ ${contextInfo}`;
         }
       } catch (err) {
         console.error("Error generating streaming final synthesis:", err);
+      }
+
+      // Orchestration Safety Net: Ensure the synthesized response contains a substantive direct conclusion / summary
+      // and did not stop prematurely right after a source card or metadata link.
+      const trimmedSynthesis = finalSynthesisText.trim();
+      const hasClosingSummary = /(?:💡|📌|resumo|conclusão|concluindo|em suma|em síntese|síntese|portanto)/i.test(trimmedSynthesis.slice(-600));
+      const endsOnSourceCard = /(?:Trecho de Suporte|Link Direto|Data de Publicação|Veículo|Fonte)[\s\S]{0,180}$/i.test(trimmedSynthesis) ||
+                               /\[[^\]]+\]\([^\)]+\)\s*$/i.test(trimmedSynthesis);
+
+      if (uniqueSources.length > 0 && (!hasClosingSummary || endsOnSourceCard)) {
+        console.log("[Search Synthesis] Response ended on source card or lacks closing summary. Orchestrating mandatory conclusion paragraph...");
+        try {
+          const conclusionPrompt = `Você é o sintetizador do assistente Omnix AI.
+O usuário perguntou: "${text}"
+
+A resposta gerada até o momento reuniu as seguintes informações e fontes:
+${finalSynthesisText}
+
+Escreva AGORA o parágrafo final obrigatório de conclusão e resposta direta ao usuário (iniciando com "💡 **Resumo:**" ou "📌 **Conclusão:**"), respondendo objetivamente à pergunta original (com a cotação, valor, dados ou fatos apurados) e citando nominalmente as principais fontes de lastro (ex: "segundo levantamento do UOL Economia e SpaceMoney").
+Seja conciso, direto e natural (1 a 2 parágrafos). Não repita a lista detalhada de fontes.`;
+
+          const conclusionStream = await callGeminiStreamWithFallback({
+            model: "gemini-3.5-flash-lite",
+            contents: [{ role: "user", parts: [{ text: conclusionPrompt }] }]
+          });
+
+          const separator = "\n\n";
+          finalSynthesisText += separator;
+          sendEvent({ type: "chunk", text: separator });
+
+          for await (const chunk of conclusionStream) {
+            const cText = chunk.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (cText) {
+              finalSynthesisText += cText;
+              sendEvent({ type: "chunk", text: cText });
+            }
+          }
+        } catch (err) {
+          console.error("Error generating search conclusion paragraph:", err);
+        }
       }
 
       if (uniqueSources.length === 0) {
@@ -2758,7 +2828,8 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                       resultData = {
                         status: "succeeded",
                         answer: data.answer || undefined,
-                        results: cleanResults
+                        results: cleanResults,
+                        directive: "DIRETRIZ OBRIGATÓRIA: Responda diretamente e claramente à dúvida do usuário com as informações apuradas. As fontes são lastro de suporte, não a resposta em si. Conclua obrigatoriamente com um parágrafo de resumo/conclusão."
                       };
                       cleanResults.forEach((r: any) => marteSources.push(r));
                       if (data.images) {
@@ -2768,7 +2839,11 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                       console.log("[Pro Search] Tavily search returned 0 results. Falling back to searchWebFallback...");
                       const fallbackRes = await searchWebFallback(args.query || args.search_query || text);
                       if (fallbackRes && fallbackRes.length > 0) {
-                        resultData = { status: "succeeded", results: fallbackRes };
+                        resultData = {
+                          status: "succeeded",
+                          results: fallbackRes,
+                          directive: "DIRETRIZ OBRIGATÓRIA: Responda diretamente e claramente à dúvida do usuário com as informações apuradas. As fontes são lastro de suporte, não a resposta em si. Conclua obrigatoriamente com um parágrafo de resumo/conclusão."
+                        };
                         fallbackRes.forEach(r => marteSources.push(r));
                       } else {
                         resultData = {
