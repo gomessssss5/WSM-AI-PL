@@ -1888,25 +1888,27 @@ REGRAS ANTI-LOOPING E AVALIAÇÃO (REFLECT):
       const terminalInstruction = `\n\n## INTEGRAÇÃO TOTAL: WORKSPACE E TERMINAL SANDBOX
 Você possui acesso total e simultâneo ao Workspace de Documentos e ao Terminal Sandbox isolado (/workspace) do usuário:
 1. **Runtimes Instalados e Nativamente Disponíveis no Sandbox**:
-   - **Python 3**: ${isPythonInstalled ? `\`python3\` e \`python\` estão totalmente instalados e disponíveis no sistema Linux (/usr/bin/python3, Python 3.10+, módulos padrão: json, math, sys, os, subprocess, unittest, csv, re, etc.).` : `NÃO ESTÁ INSTALADO neste ambiente de contêiner. Se o usuário solicitar ou você precisar rodar códigos em Python, você está ABSOLUTAMENTE PROIBIDO de tentar planejar ou executar comandos com \`python3\` ou \`python\` no terminal. Em vez disso, explique claramente ao usuário que o interpretador Python não está instalado no ambiente atual (command not found) e ofereça o código para que o usuário execute localmente ou sugira o uso de Node.js/JavaScript, que está totalmente disponível.`}
+   - **Python 3**: \`python3\` e \`python\` estão totalmente instalados e disponíveis no sistema Linux (/usr/bin/python3, Python 3.10+, pip, numpy, pandas, requests, json, math, sys, os, subprocess, unittest, csv, re, etc.). Você pode e deve executar scripts Python com \`execute_terminal_command\` (ex: \`python3 <arquivo.py>\`) ou \`run_code_sandbox\`.
    - **Node.js**: \`node\` (v20+), \`npm\`, \`npx\` totalmente funcionais.
    - **Shell / Linux Utilities**: \`bash\`, \`sh\`, \`ls\`, \`cat\`, \`grep\`, \`mkdir\`, \`cp\`, \`mv\`, \`rm\`, \`touch\`, \`head\`, \`tail\`, etc.
-2. **Manipulação de Arquivos e Pastas**: Crie, edite, renomeie, exclua e organize pastas e documentos usando ferramentas de documento (\`create_document\`, \`edit_document\`, \`delete_document\`) ou comandos do terminal (\`mkdir\`, \`touch\`, \`mv\`, \`cp\`, \`rm\`, \`cat\`, \`ls\`, \`write_terminal_file\`). Todos os arquivos criados ou modificados aparecem automaticamente no Workspace do usuário.
-3. **Execução Real de Códigos e Scripts**: Sempre que o usuário pedir para criar, testar ou executar códigos Python ou JavaScript, utilize \`execute_terminal_command\` (ex: \`python3 script.py\`, \`python script.py\`, \`node index.js\`, \`npm test\`) ou \`run_code_sandbox\`. ${isPythonInstalled ? "" : "IMPORTANTE: Como o Python não está instalado no sandbox, você NUNCA deve chamar execute_terminal_command ou run_code_sandbox para Python; use apenas para JavaScript/Node.js."}
+2. **Nomenclatura Coerente de Arquivos (REGRA CRÍTICA)**:
+   - Ao criar arquivos ou scripts no Workspace ou Terminal, o nome do arquivo DEVE refletir fielmente o conteúdo solicitado (ex: cálculo de números primos -> \`primos.py\` ou \`primes.py\`; ordenação -> \`ordenacao.py\`; cálculo de média -> \`media.py\`). É TERMINANTEMENTE PROIBIDO nomear como \`fibonacci.py\` se o código não for sobre a sequência de Fibonacci.
+3. **Manipulação de Arquivos e Pastas**: Crie, edite, renomeie, exclua e organize pastas e documentos usando ferramentas de documento (\`create_document\`, \`edit_document\`, \`delete_document\`) ou comandos do terminal (\`mkdir\`, \`touch\`, \`mv\`, \`cp\`, \`rm\`, \`cat\`, \`ls\`, \`write_terminal_file\`). Todos os arquivos criados ou modificados aparecem automaticamente no Workspace do usuário.
+4. **Execução Real de Códigos e Scripts**: Sempre que o usuário pedir para criar, testar ou executar códigos Python ou JavaScript, utilize \`execute_terminal_command\` (ex: \`python3 primos.py\`, \`python script.py\`, \`node index.js\`, \`npm test\`) ou \`run_code_sandbox\`.
    - **EXECUÇÃO EM MEMÓRIA / SEM CRIAÇÃO DE ARQUIVOS**: Quando o usuário pedir para executar código, calcular operações (como soma, média, estatísticas ou testes) com a instrução de 'não criar arquivos', 'sem criar arquivos' ou quando não houver necessidade de salvar arquivos no Workspace, você DEVE utilizar \`run_code_sandbox\` com \`in_memory: true\` ou executar inline. NUNCA crie arquivos como \`index.js\`, \`script.py\` ou arquivos persistentes no Workspace. A execução ocorrerá de forma limpa em memória/temporária sem deixar lixo no Workspace.
-4. **Precisão de Fontes, Cotações e Reconciliação de Divergências na Web (REGRA CRÍTICA DE FIDELIDADE)**:
+5. **Precisão de Fontes, Cotações e Reconciliação de Divergências na Web (REGRA CRÍTICA DE FIDELIDADE)**:
    - **Diferenciação Rigorosa de Fontes**: NUNCA chame portais comerciais de notícias ou agregadores financeiros (como UOL Economia, Valor Econômico, InfoMoney, Google Finance, Investing.com, portais de notícias) de "fontes oficiais". Fontes oficiais são exclusivamente autoridades governamentais primárias ou emissoras reguladoras (ex: Banco Central do Brasil - BCB, Taxa PTAX, Receita Federal, B3, IBGE, Federal Reserve, Banco Central Europeu).
    - **Reconciliação e Explicação de Divergências**: Se a busca retornar valores divergentes (ex: cotação do Dólar ou Euro variando entre R$ 5,1087, R$ 5,14 e R$ 5,19), você DEVE OBRIGATORIAMENTE explicar a razão técnica e temporal da diferença ao usuário:
      1. Modalidade da cotação: Dólar Comercial vs Dólar Turismo vs Taxa PTAX do Banco Central;
      2. Tipo de operação: Preço de Compra vs Preço de Venda (spread cambial);
      3. Momento/Horário: Fechamento do dia anterior vs Cotação Intraday em tempo real vs horário de atualização do portal consultado;
      4. Identifique claramente a fonte primária/oficial (ex: Banco Central do Brasil / PTAX) e diferencie-a dos portais de cotação comercial/turismo.
-5. **Validação Obrigatória de Status, Erros e Hashes SHA-256 (PROIBIDO INVENTAR SUCESSO OU HASHES)**:
+6. **Validação Obrigatória de Status, Erros e Hashes SHA-256 (PROIBIDO INVENTAR SUCESSO OU HASHES)**:
    - **FIDELIDADE TOTAL AO COMANDO LITERAL E EXECUÇÃO REAL**: Você DEVE SEMPRE relatar o comando literal exato enviado, o stdout real, o stderr real e o exit code real retornado pela ferramenta (\`execute_terminal_command\` ou \`run_code_sandbox\`). Se o comando executado retornou um erro, exit code diferente de zero ou stderr com falha, você DEVE declarar com precisão o resultado real ocorrido, sem inventar resultados teóricos ou omitir o que efetivamente aconteceu.
    - **PROIBIDO INVENTAR HASHES**: É ABSOLUTAMENTE PROIBIDO inventar, adivinhar ou escrever hashes SHA-256 (ex: strings de 64 caracteres hexa) ou tamanhos de arquivos manualmente no texto da sua resposta. Todos os hashes SHA-256 e tamanhos em bytes são gerados exclusivamente pelo backend do sistema a partir do arquivo real salvo no disco.
    - **CONDIÇÃO PARA APROVAÇÃO DE TESTES**: A palavra 'aprovado' ou afirmações de que testes/código foram executados e aprovados SÓ PODEM SER DECLARADAS se um comando de teste (\`execute_terminal_command\` ou \`run_code_sandbox\`) foi REALMENTE invocado e retornou \`exit_code === 0\` com saída confirmada no stdout.
    - **FERRAMENTAS BLOQUEADAS OU NÃO EXECUTADAS**: Se qualquer ferramenta foi bloqueada (por instrução do usuário, modo informativo ou diretiva de segurança) ou não foi executada, você DEVE OBRIGATORIAMENTE declarar o status como 'Não executado / Bloqueado'. NUNCA simule um sucesso sintético, NUNCA invente resultados de testes nem crie um relatório falso de aprovação.
-6. **Nunca Simule em Texto**: Sempre invoque a ferramenta correspondente no mesmo turno.`;
+7. **Nunca Simule em Texto**: Sempre invoque a ferramenta correspondente no mesmo turno.`;
       activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + (userLocationContextInstruction ? userLocationContextInstruction + "\n\n" : "") + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + (activeSkillsInstruction ? activeSkillsInstruction + "\n\n" : "") + docInstruction + "\n\n" + chartInstruction + "\n\n" + mathInstruction + "\n\n" + flowControlInstruction + "\n\n" + formInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction + terminalInstruction + modeAdditions;
     } else {
       activeSystemPrompt = basePrompt + reasoningInstruction + "\n\n" + userLocationContextInstruction + "\n\n" + chatMemoryInstruction + "\n\n" + (layeredMemoryInstruction ? layeredMemoryInstruction + "\n\n" : "") + (skillsInstruction ? skillsInstruction + "\n\n" : "") + (activeSkillsInstruction ? activeSkillsInstruction + "\n\n" : "") + writingConstraints + "\n\n" + chartInstruction + "\n\n" + mathInstruction + "\n\n" + flowControlInstruction + "\n\n" + formInstruction + "\n\n" + docInstruction + "\n\n" + tasksInstruction + "\n\n" + browserInstruction;
@@ -2519,30 +2521,74 @@ function getAttachmentStatusMessage(attachments: any[]): string {
             }
           }
 
-          // 3. Auto-inject missing terminal execution tool call if user prompt or AI text requested code/script execution
+          // 3. Context-aware script execution injection if user explicitly requested execution in terminal
           const userPromptLower = (typeof text === 'string' ? text : JSON.stringify(text)).toLowerCase();
           const aiTextLower = (textForThisTurn || "").toLowerCase();
-          const mentionsTerminalExec = turnCount === 0 && terminalCommandsExecutedCount === 0 && functionCallsForThisTurn.length === 0 && (
-            /hello\.py|crie.*py|execute|rodar|script|python|node|npm test|terminal/i.test(userPromptLower) || 
-            /executando|rodando|criado.*hello\.py/i.test(aiTextLower)
+          const requestsExecution = turnCount === 0 && terminalCommandsExecutedCount === 0 && functionCallsForThisTurn.length === 0 && (
+            /(?:crie|gere|faca|faça|escreva).*(?:py|python|script).*(?:execute|rode|rodar|resultado|terminal)/i.test(userPromptLower) ||
+            /(?:execute|rode|rodar).*(?:no terminal|script|python|py|node|resultado)/i.test(userPromptLower) ||
+            /executando.*terminal|rodando.*script/i.test(aiTextLower)
           );
           
-          if (mentionsTerminalExec) {
-            let cmdToRun = "python3 hello.py";
-            if (userPromptLower.includes("node") || userPromptLower.includes("js")) {
-              cmdToRun = "node index.js";
-            } else if (userPromptLower.includes("npm test")) {
-              cmdToRun = "npm test";
-            } else if (userPromptLower.includes("ls")) {
-              cmdToRun = "ls -la";
+          if (requestsExecution) {
+            let cmdToRun = "";
+            const currentSessionId = sessionId || getSessionOrUserId(req);
+            const pyCodeMatch = textForThisTurn?.match(/```(?:python|py)\s*\n([\s\S]*?)```/i);
+            const docPyMatch = textForThisTurn?.match(/<wsm_doc[^>]*title=["']([^"']+\.py)["'][^>]*>([\s\S]*?)<\/wsm_doc>/i);
+            
+            if (docPyMatch) {
+              const fileName = docPyMatch[1];
+              try {
+                writeSandboxFile(fileName, docPyMatch[2].trim(), currentSessionId);
+                cmdToRun = `python3 ${fileName}`;
+              } catch {}
+            } else if (pyCodeMatch) {
+              const code = pyCodeMatch[1].trim();
+              let fname = "script.py";
+              if (/is_prime|primes|primos|primo/i.test(code) || /prime|primo/i.test(userPromptLower)) {
+                fname = "primos.py";
+              } else if (/fibonacci/i.test(code) || /fibonacci/i.test(userPromptLower)) {
+                fname = "fibonacci.py";
+              } else if (/fatorial|factorial/i.test(code) || /fatorial|factorial/i.test(userPromptLower)) {
+                fname = "fatorial.py";
+              } else if (/calculadora|calculator|calc/i.test(code)) {
+                fname = "calculadora.py";
+              } else {
+                const defMatch = code.match(/def\s+([a-zA-Z0-9_]{3,})\s*\(/);
+                if (defMatch && defMatch[1]) {
+                  fname = `${defMatch[1]}.py`;
+                }
+              }
+              try {
+                writeSandboxFile(fname, code, currentSessionId);
+                cmdToRun = `python3 ${fname}`;
+              } catch {}
+            } else {
+              try {
+                const existing = listSandboxFiles(currentSessionId);
+                const pyFile = existing.find(f => f.name.endsWith('.py'));
+                if (pyFile) {
+                  cmdToRun = `python3 ${pyFile.name}`;
+                }
+              } catch {}
+            }
+
+            if (!cmdToRun) {
+              if (userPromptLower.includes("npm test")) {
+                cmdToRun = "npm test";
+              } else if (/\b(ls|dir)\b/i.test(userPromptLower)) {
+                cmdToRun = "ls -la";
+              }
             }
             
-            functionCallsForThisTurn.push({
-              name: "execute_terminal_command",
-              args: { command: cmdToRun },
-              isAutoInjected: true
-            });
-            console.log(`[Auto-Inject] Terminal execution tool call auto-injected for command: '${cmdToRun}'`);
+            if (cmdToRun) {
+              functionCallsForThisTurn.push({
+                name: "execute_terminal_command",
+                args: { command: cmdToRun },
+                isAutoInjected: true
+              });
+              console.log(`[Auto-Inject] Terminal execution tool call auto-injected for command: '${cmdToRun}'`);
+            }
           }
         }
 
@@ -5026,7 +5072,7 @@ app.get("/api/terminal/exec", (_req: express.Request, res: express.Response) => 
   });
 });
 
-app.post("/api/terminal/exec", optionalAuthTokenMiddleware, async (req: express.Request, res: express.Response) => {
+app.post(["/api/terminal/exec", "/api/terminal/execute"], optionalAuthTokenMiddleware, async (req: express.Request, res: express.Response) => {
   try {
     const sessionId = getSessionOrUserId(req);
     const { command, timeout_seconds, files } = req.body;

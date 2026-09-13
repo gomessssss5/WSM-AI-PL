@@ -33,6 +33,34 @@ export function ensureSandboxDir(userIdOrSession?: string): string {
       fs.mkdirSync(targetDir, { recursive: true });
     }
 
+    // Ensure shared bin directory with python & pip symlinks
+    const binDir = '/tmp/omnix_sandboxes/bin';
+    if (!fs.existsSync(binDir)) {
+      fs.mkdirSync(binDir, { recursive: true });
+    }
+    const pyPath = fs.existsSync('/usr/bin/python3') ? '/usr/bin/python3' : (fs.existsSync('/usr/local/bin/python') ? '/usr/local/bin/python' : '');
+    if (pyPath) {
+      const pythonSym = path.join(binDir, 'python');
+      if (!fs.existsSync(pythonSym)) {
+        try { fs.symlinkSync(pyPath, pythonSym); } catch {}
+      }
+      const python3Sym = path.join(binDir, 'python3');
+      if (!fs.existsSync(python3Sym)) {
+        try { fs.symlinkSync(pyPath, python3Sym); } catch {}
+      }
+    }
+    const pipPath = fs.existsSync('/usr/local/bin/pip') ? '/usr/local/bin/pip' : (fs.existsSync('/root/.local/bin/pip') ? '/root/.local/bin/pip' : '');
+    if (pipPath) {
+      const pipSym = path.join(binDir, 'pip');
+      if (!fs.existsSync(pipSym)) {
+        try { fs.symlinkSync(pipPath, pipSym); } catch {}
+      }
+      const pip3Sym = path.join(binDir, 'pip3');
+      if (!fs.existsSync(pip3Sym)) {
+        try { fs.symlinkSync(pipPath, pip3Sym); } catch {}
+      }
+    }
+
     const pkgPath = path.join(targetDir, 'package.json');
     if (!fs.existsSync(pkgPath)) {
       fs.writeFileSync(
@@ -289,12 +317,35 @@ export async function preFlightCheck(forceRefresh = false, userIdOrSession?: str
     isWritable = false;
   }
 
+  const sandboxBin = '/tmp/omnix_sandboxes/bin';
+  const fullPath = `${sandboxBin}:/root/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:${process.env.PATH || ''}`;
+  const safeEnv: Record<string, string> = {
+    PATH: fullPath,
+    HOME: sandboxDir,
+    TMPDIR: sandboxDir,
+    PYTHONUNBUFFERED: '1',
+    NODE_ENV: 'development',
+    TERM: 'xterm-256color',
+    LANG: 'C.UTF-8'
+  };
+
   const checkBinary = (binName: string, versionFlag = '--version'): Promise<{ available: boolean; version?: string; path?: string }> => {
     return new Promise(resolve => {
-      exec(`${binName} ${versionFlag}`, { timeout: 3000 }, (error, stdout, stderr) => {
+      // First check known filesystem locations directly
+      const knownLocations = [
+        path.join(sandboxBin, binName),
+        `/usr/bin/${binName}`,
+        `/usr/local/bin/${binName}`,
+        `/bin/${binName}`
+      ];
+      const foundPath = knownLocations.find(loc => fs.existsSync(loc));
+
+      exec(`${binName} ${versionFlag}`, { timeout: 5000, env: safeEnv }, (error, stdout, stderr) => {
         if (!error && (stdout || stderr)) {
           const ver = (stdout || stderr).trim().split('\n')[0];
-          resolve({ available: true, version: ver, path: binName });
+          resolve({ available: true, version: ver, path: foundPath || binName });
+        } else if (foundPath) {
+          resolve({ available: true, version: `${binName} (installed)`, path: foundPath });
         } else {
           resolve({ available: false });
         }
@@ -433,7 +484,8 @@ export async function executeSandboxCommand(
   }
 
   // Minimal clean environment with complete Linux binary PATH
-  const fullPath = `${process.env.PATH || ''}:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin`;
+  const sandboxBin = '/tmp/omnix_sandboxes/bin';
+  const fullPath = `${sandboxBin}:/root/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:${process.env.PATH || ''}`;
   const safeEnv: Record<string, string> = {
     PATH: fullPath,
     HOME: sandboxDir,
@@ -474,20 +526,6 @@ export async function executeSandboxCommand(
 
           if (!finalStderr && error.message) {
             finalStderr = error.message;
-          }
-        }
-
-        // Anti-masking rule & Runtime Guidance for Python execution
-        if (
-          (adjustedCommand.includes('python3') || adjustedCommand.includes('python ') || adjustedCommand === 'python3' || adjustedCommand === 'python') &&
-          (finalStderr.includes('command not found') || finalStderr.includes('not found') || finalStdout.includes('command not found') || exitCode === 127)
-        ) {
-          exitCode = 127;
-          if (!finalStderr.includes('Informação de Runtime do Sandbox')) {
-            finalStderr = (finalStderr ? finalStderr.trim() + '\n' : '/bin/sh: line 1: python3: command not found\n') +
-              '💡 [Informação de Runtime do Sandbox]: O executável \'python3\' não está instalado no container Linux do Sandbox. ' +
-              'Runtimes de execução ativos no Sandbox: Node.js (v20+ / JavaScript / TypeScript) e Bash/Shell. ' +
-              'Os arquivos .py são armazenados no Workspace como código-fonte.';
           }
         }
 

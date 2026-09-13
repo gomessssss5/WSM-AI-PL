@@ -1101,6 +1101,32 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
       return 0;
     }
 
+    if (cleanCmd === 'which') {
+      const target = args[0] || '';
+      if (target === 'python' || target === 'python3') {
+        stdout('/usr/bin/python3\n');
+        return 0;
+      }
+      if (target === 'node') {
+        stdout('/usr/bin/node\n');
+        return 0;
+      }
+      if (target === 'npm') {
+        stdout('/usr/bin/npm\n');
+        return 0;
+      }
+      if (target === 'pip' || target === 'pip3') {
+        stdout('/usr/local/bin/pip\n');
+        return 0;
+      }
+      if (target === 'bash' || target === 'sh') {
+        stdout('/bin/bash\n');
+        return 0;
+      }
+      stderr(`${target} not found\n`);
+      return 1;
+    }
+
     // 4. Node.js Execution Engine
     if (cleanCmd === 'node') {
       return await this.executeNodeJs(args, stdout, stderr);
@@ -1270,7 +1296,12 @@ print(f"Por Categoria: {json.dumps(res['faturamento_por_categoria'], indent=2)}"
   // Python Sandbox Runner
   private async executePython(args: string[], stdout: (t: string) => void, stderr: (t: string) => void): Promise<number> {
     if (args.length === 0) {
-      stdout("Python 3.11.4 (Sandbox Runtime, Omnix Isolated Core)\nDigite 'python <script.py>' ou 'python -c \"<code>\"'\n");
+      stdout("Python 3.10.12 (Sandbox Runtime, Omnix Isolated Core)\nDigite 'python <script.py>' ou 'python -c \"<code>\"'\n");
+      return 0;
+    }
+
+    if (args[0] === '--version' || args[0] === '-V' || args[0] === '-v') {
+      stdout("Python 3.10.12\n");
       return 0;
     }
 

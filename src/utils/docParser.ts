@@ -594,14 +594,58 @@ export function extractWsmDoc(text: string | undefined): { cleanText: string, do
       const code = codeMatch[2].trim();
       if (code.length > 10) {
         let filename = '';
-        const firstLine = code.split('\n')[0].trim();
-        const fnameMatch = firstLine.match(/^(?:#|\/\/|\/\*)\s*([a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+)/);
-        if (fnameMatch) {
-          filename = fnameMatch[1];
-        } else {
-          const formatExt = (lang === 'python' || lang === 'py') ? 'py' : ((lang === 'javascript' || lang === 'js') ? 'js' : ((lang === 'typescript' || lang === 'ts') ? 'ts' : lang));
-          filename = (lang === 'python' || lang === 'py') ? 'fibonacci.py' : `script.${formatExt}`;
+        
+        // 1. Check for filename annotation in the first few lines (e.g., # primos.py or // script.js)
+        const codeLines = code.split('\n');
+        for (let i = 0; i < Math.min(codeLines.length, 5); i++) {
+          const line = codeLines[i].trim();
+          const fnameMatch = line.match(/^(?:#|\/\/|\/\*)\s*([a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+)/);
+          if (fnameMatch) {
+            filename = fnameMatch[1];
+            break;
+          }
         }
+
+        // 2. Infer coherent filename from content if not explicitly specified
+        if (!filename) {
+          const isPy = (lang === 'python' || lang === 'py');
+          const isJs = (lang === 'javascript' || lang === 'js');
+          const isTs = (lang === 'typescript' || lang === 'ts');
+          const formatExt = isPy ? 'py' : (isJs ? 'js' : (isTs ? 'ts' : lang));
+
+          if (isPy) {
+            if (/is_prime|primes|primos|primo/i.test(code)) {
+              filename = 'primos.py';
+            } else if (/fibonacci/i.test(code)) {
+              filename = 'fibonacci.py';
+            } else if (/fatorial|factorial/i.test(code)) {
+              filename = 'fatorial.py';
+            } else if (/calculadora|calculator|calc/i.test(code)) {
+              filename = 'calculadora.py';
+            } else {
+              const defMatch = code.match(/def\s+([a-zA-Z0-9_]{3,})\s*\(/);
+              if (defMatch && defMatch[1]) {
+                filename = `${defMatch[1]}.py`;
+              } else {
+                filename = 'script.py';
+              }
+            }
+          } else if (isJs || isTs) {
+            if (/is_prime|primes|primos/i.test(code)) {
+              filename = `primos.${formatExt}`;
+            } else {
+              const fnMatch = code.match(/(?:function|const|let)\s+([a-zA-Z0-9_]{3,})\s*=/);
+              if (fnMatch && fnMatch[1]) {
+                filename = `${fnMatch[1]}.${formatExt}`;
+              } else {
+                filename = `index.${formatExt}`;
+              }
+            }
+          } else {
+            filename = `script.${formatExt}`;
+          }
+        }
+
         const ext = filename.split('.').pop()?.toLowerCase() || 'py';
         rawDocObjs.push({
           title: filename,
