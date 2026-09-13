@@ -20,11 +20,11 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
     const isFailed = act.status === 'failed' || act.status === 'timed_out' || (typeof act.exitCode === 'number' && act.exitCode !== 0);
     const isMock = act.isMock || act.status === 'simulated' || act.isSimulated;
     const requiresAuth = act.status === 'requires_auth';
-    const isSuccess = !isRunning && !isFailed && !isBlocked && !isMock && !requiresAuth && act.exitCode === 0;
+    const isSuccess = !isRunning && !isFailed && !isBlocked && !isMock && !requiresAuth && (act.exitCode === 0 || act.status === 'succeeded' || act.status === 'success' || act.status === 'done' || act.status === 'completed');
 
-    let stateLabel = "DESCONHECIDO";
-    let stateColor = "text-gray-500 bg-gray-100 border-gray-200";
-    let Icon = Terminal;
+    let stateLabel = "CONCLUÍDO";
+    let stateColor = "text-emerald-700 bg-emerald-50 border-emerald-200";
+    let Icon = CheckCircle2;
 
     if (isRunning) { stateLabel = "EXECUTANDO"; stateColor = "text-blue-600 bg-blue-50 border-blue-200"; Icon = Loader2; }
     else if (isBlocked) { stateLabel = "BLOQUEADO"; stateColor = "text-red-700 bg-red-100 border-red-300"; Icon = ShieldAlert; }
@@ -32,6 +32,8 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
     else if (isFailed) { stateLabel = "FALHOU"; stateColor = "text-rose-700 bg-rose-50 border-rose-200"; Icon = AlertTriangle; }
     else if (isMock) { stateLabel = "SIMULADO"; stateColor = "text-amber-800 bg-amber-100 border-amber-300"; Icon = FileCode; }
     else if (isSuccess) { stateLabel = "SUCESSO"; stateColor = "text-emerald-700 bg-emerald-50 border-emerald-200"; Icon = CheckCircle2; }
+
+    const displayCommand = act.command || 'Comando';
 
     return (
       <div className="w-full my-2 border border-[#eae6e1] dark:border-[#2e2e2e] rounded-xl bg-[#faf9f6] dark:bg-[#151515] overflow-hidden shadow-xs">
@@ -41,8 +43,8 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
               <Icon className={`w-3.5 h-3.5 ${isRunning ? 'animate-spin' : ''}`} />
               {stateLabel}
             </span>
-            <span className="text-[12px] font-mono text-gray-800 dark:text-gray-200 truncate max-w-[200px]" title={act.command}>
-              $ {act.command}
+            <span className="text-[12px] font-mono text-gray-800 dark:text-gray-200 truncate max-w-[200px]" title={displayCommand}>
+              $ {displayCommand}
             </span>
           </div>
           <button
@@ -87,9 +89,9 @@ export const TerminalActionCard: React.FC<TerminalActionCardProps> = ({
     const isRunning = act.status === 'writing' || act.status === 'working';
     const isSuccess = !isRunning && !isFailed && !isMock;
 
-    let stateLabel = "DESCONHECIDO";
-    let stateColor = "text-gray-500 bg-gray-100 border-gray-200";
-    let Icon = FileCode;
+    let stateLabel = "CONCLUÍDO";
+    let stateColor = "text-emerald-700 bg-emerald-50 border-emerald-200";
+    let Icon = CheckCircle2;
 
     if (isRunning) { stateLabel = "EXECUTANDO"; stateColor = "text-blue-600 bg-blue-50 border-blue-200"; Icon = Loader2; }
     else if (isFailed) { stateLabel = "FALHOU"; stateColor = "text-rose-700 bg-rose-50 border-rose-200"; Icon = AlertTriangle; }

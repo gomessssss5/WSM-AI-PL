@@ -9,6 +9,7 @@ import WsmMindmapComponent from './WsmMindmapComponent';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { downloadWorkspaceFile } from '../utils/fileDownload';
+import { unescapeXmlAttr, cleanTerminalTags } from '../utils/terminalParser';
 
 interface AgenticSkillTagProps {
   key?: string;
@@ -879,6 +880,13 @@ export default function MarkdownRenderer({
     if (trimmed.startsWith('$') && trimmed.endsWith('$') && trimmed.length > 2) return false;
     if (/^[#*>-]/.test(trimmed) || trimmed.startsWith('|') || trimmed.startsWith('<') || trimmed.startsWith(':::')) return false;
 
+    // Immediately reject any XML/HTML tags, terminal attributes, or shell command fragments
+    if (/(?:status|exitCode|runId|stdout_b64|stderr_b64|stdoutb64|stderrb64|command|action)=["']/i.test(trimmed) ||
+        /\/>|<\/?\w+[\s>]/.test(trimmed) ||
+        /\b(?:echo|cat|grep|runexec|stdoutb64|stderrb64)\b/i.test(trimmed)) {
+      return false;
+    }
+
     // Strip wrapping backticks if present
     trimmed = trimmed.replace(/^[`'""“”‘’]+|[`'""“”‘’]+$/g, '').trim();
     if (!trimmed) return false;
@@ -984,7 +992,7 @@ export default function MarkdownRenderer({
   const renderInlineContent = (text: string): React.ReactNode[] => {
     if (!text) return [];
 
-    let currentText = text;
+    let currentText = cleanTerminalTags(text);
     const elements: React.ReactNode[] = [];
     let keyIndex = 0;
 
@@ -1144,20 +1152,21 @@ export default function MarkdownRenderer({
     });
 
     // 1.1 Extract XML terminal tags: <wsm_terminal_exec .../> or <wsm_terminal_file .../>
-    const xmlTerminalRegex = /<wsm_terminal_(?:exec|file)\s+[^>]*?(?:\/>|>[\s\S]*?<\/wsm_terminal_(?:exec|file)>)/gi;
+    const xmlTerminalRegex = /<wsm_terminal_(?:exec|file)\b(?:[^>"']|"[^"]*"|'[^']*')*?(?:\/>|>[\s\S]*?<\/wsm_terminal_(?:exec|file)>|>)/gi;
     currentText = currentText.replace(xmlTerminalRegex, (match) => {
       const id = `:::AGENTICTOKEN-${agenticTokens.length}:::`;
       if (match.includes('wsm_terminal_exec')) {
-        const cmdMatch = match.match(/command="([^"]*)"/i) || match.match(/cmd="([^"]*)"/i);
-        const statusMatch = match.match(/status="([^"]*)"/i);
-        const exitMatch = match.match(/exitCode="([^"]*)"/i);
-        const stdoutMatch = match.match(/stdout_b64="([^"]*)"/i);
-        const stderrMatch = match.match(/stderr_b64="([^"]*)"/i);
-        const runIdMatch = match.match(/runId="([^"]*)"/i);
+        const cmdMatch = match.match(/command="([^"]*)"/i) || match.match(/command='([^']*)'/i) || match.match(/cmd="([^"]*)"/i);
+        const statusMatch = match.match(/status="([^"]*)"/i) || match.match(/status='([^']*)'/i);
+        const exitMatch = match.match(/exitCode="([^"]*)"/i) || match.match(/exitCode='([^']*)'/i);
+        const stdoutMatch = match.match(/stdout_b64="([^"]*)"/i) || match.match(/stdout_b64='([^']*)'/i);
+        const stderrMatch = match.match(/stderr_b64="([^"]*)"/i) || match.match(/stderr_b64='([^']*)'/i);
+        const runIdMatch = match.match(/runId="([^"]*)"/i) || match.match(/runId='([^']*)'/i);
         const stdoutB64 = stdoutMatch ? stdoutMatch[1] : '';
         const stderrB64 = stderrMatch ? stderrMatch[1] : '';
         const runId = runIdMatch ? runIdMatch[1] : '';
-        const cmd = cmdMatch ? cmdMatch[1] : 'script';
+        const rawCmd = cmdMatch ? cmdMatch[1] : '';
+        const cmd = rawCmd ? unescapeXmlAttr(rawCmd) : 'Comando';
         const status = statusMatch ? statusMatch[1].toLowerCase() : 'done';
         const exitCode = exitMatch ? exitMatch[1] : undefined;
         const isFailed = status === 'failed' || status === 'timed_out' || (exitCode !== undefined && exitCode !== '0');
@@ -1173,8 +1182,9 @@ export default function MarkdownRenderer({
           agenticTokens.push({ id, type: 'terminal_exec', text: `Executou no terminal: ${cmd}` });
         }
       } else {
-        const pathMatch = match.match(/path="([^"]*)"/i) || match.match(/filename="([^"]*)"/i);
-        const p = pathMatch ? pathMatch[1] : 'arquivo';
+        const pathMatch = match.match(/path="([^"]*)"/i) || match.match(/path='([^']*)'/i) || match.match(/filename="([^"]*)"/i);
+        const rawP = pathMatch ? pathMatch[1] : '';
+        const p = rawP ? unescapeXmlAttr(rawP) : 'arquivo';
         agenticTokens.push({ id, type: 'terminal_file', text: `Criou arquivo ${p}` });
       }
       return id;
@@ -1774,7 +1784,7 @@ export default function MarkdownRenderer({
   const renderBlocks = (): React.ReactNode[] => {
     if (!content) return [];
 
-    const cleanedContent = cleanStepTags(content);
+    const cleanedContent = cleanTerminalTags(cleanStepTags(content));
     
     let formattedContent = cleanedContent;
 

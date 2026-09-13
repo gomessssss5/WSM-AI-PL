@@ -688,14 +688,26 @@ async function callGeminiStreamWithFallback(options: any): Promise<any> {
   return executeWithAllFallbacks(options, true);
 }
 
+function escapeXmlAttr(val: any): string {
+  if (val === null || val === undefined) return "";
+  return String(val)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 // Helper to sanitize any synthetic, internal tokens, or unrequested plain text fake tool status tags from being leaked to the client
 function sanitizeOutgoingText(rawText: string): string {
   if (!rawText || typeof rawText !== 'string') return "";
   return rawText
     .replace(/:::(?:LINKTOKEN|AGENTICTOKEN|CODETOKEN|MATHTOKEN|SLASHTOKEN)-\d+:::/g, "")
     .replace(/:::(?:BEGIN|END)_[A-Z0-9_-]+:::/g, "")
-    .replace(/<wsm_terminal_exec[\s\S]*?(?:\/>|>[\s\S]*?<\/wsm_terminal_exec>)/gi, "")
-    .replace(/<wsm_web_search[\s\S]*?(?:\/>|>[\s\S]*?<\/wsm_web_search>)/gi, "");
+    .replace(/<wsm_terminal_exec\b(?:[^>"']|"[^"]*"|'[^']*')*?(?:\/>|>[\s\S]*?<\/wsm_terminal_exec>|>)/gi, "")
+    .replace(/<wsm_terminal_file\b(?:[^>"']|"[^"]*"|'[^']*')*?(?:\/>|>[\s\S]*?<\/wsm_terminal_file>|>)/gi, "")
+    .replace(/<wsm_web_search[\s\S]*?(?:\/>|>[\s\S]*?<\/wsm_web_search>)/gi, "")
+    .replace(/[^<\n]*\b(?:status|exitCode|runId|stdout_b64|stderr_b64|stdoutb64|stderrb64)=["'][^"']*["'][^>\n]*(?:\/>|>)/gi, "");
 }
 
 // API endpoint for chatbot communication and Web Search
@@ -2543,24 +2555,24 @@ function getAttachmentStatusMessage(attachments: any[]): string {
             else if (fc.name === "list_documents") thinkingText = `\n\n<wsm_workspace_action status="working" type="list" file="workspace" />\n\n`;
             else if (fc.name === "execute_terminal_command") {
               const cmd = (fc.args as any)?.command || 'ls';
-              thinkingText = `\n\n<wsm_terminal_exec command="${cmd.replace(/"/g, '&quot;')}" status="running" />\n\n`;
+              thinkingText = `\n\n<wsm_terminal_exec command="${escapeXmlAttr(cmd)}" status="running" />\n\n`;
             }
             else if (fc.name === "run_code_sandbox") {
               const lang = (fc.args as any)?.language || 'javascript';
               const explicitFn = (fc.args as any)?.filename ? String((fc.args as any).filename).trim() : '';
               const isInMemory = Boolean((fc.args as any)?.in_memory || userForbidsDocuments || !explicitFn);
               if (isInMemory) {
-                thinkingText = `\n\n<wsm_terminal_exec command="${(lang === 'python' || lang === 'py') ? 'python3 (em memória)' : 'node (em memória)'}" status="running" inMemory="true" />\n\n`;
+                thinkingText = `\n\n<wsm_terminal_exec command="${escapeXmlAttr((lang === 'python' || lang === 'py') ? 'python3 (em memória)' : 'node (em memória)')}" status="running" inMemory="true" />\n\n`;
               } else {
                 const fn = explicitFn || ((lang === 'python' || lang === 'py') ? 'script.py' : 'index.js');
-                thinkingText = `\n\n<wsm_terminal_exec command="${(lang === 'python' || lang === 'py') ? 'python3 ' + fn : 'node ' + fn}" status="running" />\n\n`;
+                thinkingText = `\n\n<wsm_terminal_exec command="${escapeXmlAttr((lang === 'python' || lang === 'py') ? 'python3 ' + fn : 'node ' + fn)}" status="running" />\n\n`;
               }
             }
             else if (fc.name === "write_terminal_file") {
-              thinkingText = `\n\n<wsm_terminal_file action="write" path="${(fc.args as any)?.path || 'arquivo'}" />\n\n`;
+              thinkingText = `\n\n<wsm_terminal_file action="write" path="${escapeXmlAttr((fc.args as any)?.path || 'arquivo')}" />\n\n`;
             }
             else if (fc.name === "read_terminal_file") {
-              thinkingText = `\n\n<wsm_terminal_file action="read" path="${(fc.args as any)?.path || 'arquivo'}" />\n\n`;
+              thinkingText = `\n\n<wsm_terminal_file action="read" path="${escapeXmlAttr((fc.args as any)?.path || 'arquivo')}" />\n\n`;
             }
 
             sendEvent({ type: "chunk", text: thinkingText });
@@ -2583,7 +2595,7 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                 }
               });
               const cmdStr = (fc.args as any)?.command || fc.name;
-              const blockedTag = `<wsm_terminal_exec command="${String(cmdStr).replace(/"/g, '&quot;')}" status="failed" exitCode="1" error="blocked" />`;
+              const blockedTag = `<wsm_terminal_exec command="${escapeXmlAttr(cmdStr)}" status="failed" exitCode="1" error="blocked" />`;
               if (thinkingText && fullOutput.includes(thinkingText)) {
                 fullOutput = fullOutput.replace(thinkingText, blockedTag);
               } else {
@@ -2637,7 +2649,7 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                 }
               });
               const cmdStr = (fc.args as any)?.command || fc.name;
-              const blockedTag = `<wsm_terminal_exec command="${String(cmdStr).replace(/"/g, '&quot;')}" status="failed" exitCode="1" error="blocked" />`;
+              const blockedTag = `<wsm_terminal_exec command="${escapeXmlAttr(cmdStr)}" status="failed" exitCode="1" error="blocked" />`;
               if (thinkingText && fullOutput.includes(thinkingText)) {
                 fullOutput = fullOutput.replace(thinkingText, blockedTag);
               } else {
@@ -3888,14 +3900,14 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                       const diskSize = details?.size ?? Buffer.byteLength(fileContent, 'utf8');
                       const diskSha256 = details?.sha256 ?? crypto.createHash('sha256').update(fileContent, 'utf8').digest('hex');
                       const docJson = JSON.stringify({ title: cleanPath, format: ext, content: fileContent, size: diskSize, sha256: diskSha256 });
-                      fileTags += `<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${cleanPath}" size="${diskSize}" hash="${diskSha256}" runId="${runId}" />\n`;
+                      fileTags += `<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${escapeXmlAttr(cleanPath)}" size="${diskSize}" hash="${diskSha256}" runId="${runId}" />\n`;
                     }
                   }
                 }
               }
               const b64Out = (fc as any)._stdout ? Buffer.from((fc as any)._stdout).toString("base64") : "";
               const b64Err = (fc as any)._stderr ? Buffer.from((fc as any)._stderr).toString("base64") : "";
-              finalTagText = `\n\n${fileTags}<wsm_terminal_exec command="${cmd.replace(/"/g, '&quot;')}" status="${termStatus}" exitCode="${code}" runId="${runId}" stdout_b64="${b64Out}" stderr_b64="${b64Err}" />\n\n`;
+              finalTagText = `\n\n${fileTags}<wsm_terminal_exec command="${escapeXmlAttr(cmd)}" status="${termStatus}" exitCode="${code}" runId="${runId}" stdout_b64="${b64Out}" stderr_b64="${b64Err}" />\n\n`;
             } else if (fc.name === "run_code_sandbox") {
               const lang = (fc.args as any)?.language || 'javascript';
               const isInMemory = Boolean((fc as any)._inMemory || (fc.args as any)?.in_memory || userForbidsDocuments || !(fc.args as any)?.filename);
@@ -3912,7 +3924,7 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                 const stdOutB64 = (fc as any)._stdout ? Buffer.from((fc as any)._stdout).toString("base64") : "";
                 const stdErrB64 = (fc as any)._stderr ? Buffer.from((fc as any)._stderr).toString("base64") : "";
                 const execCmd = (lang === 'python' || lang === 'py') ? 'python3 (em memória)' : 'node (em memória)';
-                finalTagText = `\n\n<wsm_terminal_exec command="${execCmd}" status="${codeStatus}" exitCode="${code}" inMemory="true" runId="${runId}" stdout_b64="${stdOutB64}" stderr_b64="${stdErrB64}" />\n\n`;
+                finalTagText = `\n\n<wsm_terminal_exec command="${escapeXmlAttr(execCmd)}" status="${codeStatus}" exitCode="${code}" inMemory="true" runId="${runId}" stdout_b64="${stdOutB64}" stderr_b64="${stdErrB64}" />\n\n`;
               } else {
                 const details = getSandboxFileDetails(fn);
                 const diskSize = details?.size ?? Buffer.byteLength(codeStr, 'utf8');
@@ -3920,11 +3932,11 @@ function getAttachmentStatusMessage(attachments: any[]): string {
                 const docJson = JSON.stringify({ title: fn, format: ext, content: codeStr, size: diskSize, sha256: diskSha256 });
                 const execCmd = (lang === 'python' || lang === 'py') ? 'python3 ' + fn : 'node ' + fn;
                 if (code === 0) {
-                  finalTagText = `\n\n<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${fn}" size="${diskSize}" hash="${diskSha256}" runId="${runId}" />\n<wsm_terminal_exec command="${execCmd}" status="${codeStatus}" exitCode="${code}" runId="${runId}" />\n\n`;
+                  finalTagText = `\n\n<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${escapeXmlAttr(fn)}" size="${diskSize}" hash="${diskSha256}" runId="${runId}" />\n<wsm_terminal_exec command="${escapeXmlAttr(execCmd)}" status="${codeStatus}" exitCode="${code}" runId="${runId}" />\n\n`;
                 } else {
                   const stdOutB64 = (fc as any)._stdout ? Buffer.from((fc as any)._stdout).toString("base64") : "";
                   const stdErrB64 = (fc as any)._stderr ? Buffer.from((fc as any)._stderr).toString("base64") : "";
-                  finalTagText = `\n\n<wsm_terminal_exec command="${execCmd}" status="${codeStatus}" exitCode="${code}" runId="${runId}" stdout_b64="${stdOutB64}" stderr_b64="${stdErrB64}" />\n\n`;
+                  finalTagText = `\n\n<wsm_terminal_exec command="${escapeXmlAttr(execCmd)}" status="${codeStatus}" exitCode="${code}" runId="${runId}" stdout_b64="${stdOutB64}" stderr_b64="${stdErrB64}" />\n\n`;
                 }
               }
             } else if (fc.name === "write_terminal_file") {
@@ -3937,9 +3949,9 @@ function getAttachmentStatusMessage(attachments: any[]): string {
               const diskSize = details?.size ?? Buffer.byteLength(contentStr, 'utf8');
               const diskSha256 = details?.sha256 ?? crypto.createHash('sha256').update(contentStr, 'utf8').digest('hex');
               const docJson = JSON.stringify({ title: cleanPath, format: ext, content: contentStr, size: diskSize, sha256: diskSha256 });
-              finalTagText = `\n\n<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${cleanPath}" size="${diskSize}" hash="${diskSha256}" runId="${runId}" />\n\n`;
+              finalTagText = `\n\n<wsm_doc format="${ext}">${docJson}</wsm_doc>\n<wsm_terminal_file action="write" status="done" path="${escapeXmlAttr(cleanPath)}" size="${diskSize}" hash="${diskSha256}" runId="${runId}" />\n\n`;
             } else if (fc.name === "read_terminal_file") {
-              finalTagText = `\n\n<wsm_terminal_file action="read" status="done" path="${(fc.args as any)?.path || 'arquivo'}" />\n\n`;
+              finalTagText = `\n\n<wsm_terminal_file action="read" status="done" path="${escapeXmlAttr((fc.args as any)?.path || 'arquivo')}" />\n\n`;
             }
             const lastIdx = fullOutput.lastIndexOf(thinkingText);
             if (lastIdx !== -1) {

@@ -187,4 +187,39 @@ $$\\frac{23}{20} = 1{,}15$$
     expect(lastChartProps.data).toContain('São Paulo');
     expect(lastChartProps.data).toContain('45');
   });
+
+  it('should clean terminal execution XML tags without leaking internal attributes into chat', () => {
+    const rawContent = `Com certeza! Vou executar o comando agora.
+
+<wsm_terminal_exec command="echo 'teste' > arquivo.txt && cat arquivo.txt" status="succeeded" exitCode="0" runId="runexec1789257380746o4w1i" stdout_b64="T21uaXggZXhlY3V0b3UgaXNzbwo=" stderr_b64="" />
+
+O arquivo foi criado com sucesso.`;
+
+    const html = renderToString(<MarkdownRenderer content={rawContent} />);
+
+    // Must NOT leak internal XML attributes or raw stdout_b64 / runId into visible rendered text
+    expect(html).not.toContain('runexec1789257380746o4w1i');
+    expect(html).not.toContain('T21uaXggZXhlY3V0b3UgaXNzbwo=');
+    expect(html).not.toContain('status="succeeded"');
+    expect(html).not.toContain('exitCode="0"');
+    expect(html).not.toContain('stdout_b64=');
+    expect(html).not.toContain('stderr_b64=');
+    expect(html).not.toContain('&lt;wsm_terminal_exec');
+    expect(html).not.toContain('<wsm_terminal_exec');
+
+    // Should contain normal conversation text
+    expect(html).toContain('Com certeza! Vou executar o comando agora.');
+    expect(html).toContain('O arquivo foi criado com sucesso.');
+  });
+
+  it('should not misidentify terminal tags or truncated attribute lines as math equations', () => {
+    const leakedFragment = `testearquivo.txt && cat arquivoarquivo.txt" status="succeeded" exitCode="0" runId="runexec1789257380746o4w1i" stdoutb64="T21uaXggZXhlY3V0b3UgaXNzbwo=" stderrb64="" />`;
+
+    const html = renderToString(<MarkdownRenderer content={leakedFragment} />);
+
+    // Should not be wrapped in katex or math formula block
+    expect(html).not.toContain('katex');
+    expect(html).not.toContain('katex-display');
+  });
 });
+
